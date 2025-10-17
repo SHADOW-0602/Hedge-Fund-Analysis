@@ -1,0 +1,6 @@
+# Speed optimization packages
+polars>=0.20.0          # 10-100x faster than pandas
+numba>=0.58.0           # JIT compilation for numpy
+cupy-cuda12x>=12.0.0    # GPU acceleration (if NVIDIA GPU available)
+modin[ray]>=0.24.0      # Parallel pandas operations
+dask[complete]>=2023.0  # Distributed computing
