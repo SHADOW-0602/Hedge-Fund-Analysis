@@ -11,6 +11,24 @@ from datetime import datetime, timedelta
 # Load environment variables
 load_dotenv()
 
+# Auto-start API server in background
+import threading
+import subprocess
+import time
+
+def start_api_server():
+    """Start API server in background thread"""
+    try:
+        subprocess.Popen(["python", "enterprise/api_server.py"], 
+                        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    except Exception as e:
+        print(f"Failed to start API server: {e}")
+
+# Start API server if not already running
+if 'api_server_started' not in st.session_state:
+    threading.Thread(target=start_api_server, daemon=True).start()
+    st.session_state.api_server_started = True
+
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
