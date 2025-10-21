@@ -57,14 +57,27 @@ class RiskAPI(Resource):
         if not symbols:
             return {'error': 'No symbols provided'}, 400
         
-        return {
-            'symbols': symbols,
-            'portfolio_volatility': 0.15,
-            'var_5': -0.025,
-            'sharpe_ratio': 1.2,
-            'max_drawdown': -0.08,
-            'calculated_at': datetime.now().isoformat()
-        }
+        try:
+            from analytics.risk_analytics import RiskAnalyzer
+            from clients.market_data_client import MarketDataClient
+            
+            client = MarketDataClient()
+            analyzer = RiskAnalyzer(client)
+            
+            # Equal weights for simplicity
+            weights = {symbol: 1.0/len(symbols) for symbol in symbols}
+            metrics = analyzer.analyze_portfolio_risk_fast(symbols, weights)
+            
+            return {
+                'symbols': symbols,
+                'portfolio_volatility': metrics.get('portfolio_volatility', 0),
+                'var_95': metrics.get('var_95', 0),
+                'sharpe_ratio': metrics.get('sharpe_ratio', 0),
+                'max_drawdown': metrics.get('max_drawdown', 0),
+                'calculated_at': datetime.now().isoformat()
+            }
+        except Exception as e:
+            return {'error': f'Risk calculation failed: {str(e)}'}, 500
 
 class MarketDataAPI(Resource):
     def get(self):
@@ -72,15 +85,23 @@ class MarketDataAPI(Resource):
         if not symbols:
             return {'error': 'No symbols provided'}, 400
         
-        market_data = {}
-        for symbol in symbols:
-            market_data[symbol] = {
-                'price': np.random.uniform(100, 200),
-                'change': np.random.uniform(-5, 5),
-                'volume': np.random.randint(1000000, 10000000),
-                'timestamp': datetime.now().isoformat()
-            }
-        return market_data
+        try:
+            from clients.market_data_client import MarketDataClient
+            client = MarketDataClient()
+            prices = client.get_current_prices(symbols)
+            
+            market_data = {}
+            for symbol in symbols:
+                price = prices.get(symbol, 0)
+                market_data[symbol] = {
+                    'price': price,
+                    'change': 0,  # Would need historical data for change
+                    'volume': 0,  # Would need volume data
+                    'timestamp': datetime.now().isoformat()
+                }
+            return market_data
+        except Exception as e:
+            return {'error': f'Market data unavailable: {str(e)}'}, 500
 
 class UserAPI(Resource):
     def get(self):
@@ -124,21 +145,43 @@ class AnalyticsAPI(Resource):
         symbols = data.get('symbols', [])
         analysis_type = data.get('analysis_type', 'basic')
         
-        results = {}
-        for symbol in symbols:
-            results[symbol] = {
-                'volatility': np.random.uniform(0.1, 0.5),
-                'beta': np.random.uniform(0.5, 2.0),
-                'momentum': np.random.uniform(-1, 1),
-                'momentum_score': np.random.uniform(-1, 1),
-                'technical_rating': np.random.choice(['BUY', 'HOLD', 'SELL'])
+        try:
+            from analytics.screening_engine import QuantitativeScreener
+            from clients.market_data_client import MarketDataClient
+            
+            client = MarketDataClient()
+            screener = QuantitativeScreener(client)
+            
+            results = {}
+            
+            if analysis_type == 'momentum':
+                momentum_results = screener.momentum_screen(symbols)
+                for symbol, data in momentum_results.get('momentum_rankings', {}).items():
+                    results[symbol] = {
+                        'momentum_score': data.get('momentum_score', 0),
+                        'technical_rating': 'BUY' if data.get('momentum_score', 0) > 0 else 'SELL'
+                    }
+            else:
+                # Basic analysis
+                for symbol in symbols:
+                    price_data = client.get_price_data([symbol], '1m')
+                    if not price_data.empty and symbol in price_data.columns:
+                        returns = price_data[symbol].pct_change().dropna()
+                        volatility = returns.std() * np.sqrt(252) if len(returns) > 0 else 0
+                        
+                        results[symbol] = {
+                            'volatility': volatility,
+                            'momentum_score': returns.mean() * 252 if len(returns) > 0 else 0,
+                            'technical_rating': 'HOLD'
+                        }
+            
+            return {
+                'analysis_type': analysis_type,
+                'results': results,
+                'processed_at': datetime.now().isoformat()
             }
-        
-        return {
-            'analysis_type': analysis_type,
-            'results': results,
-            'processed_at': datetime.now().isoformat()
-        }
+        except Exception as e:
+            return {'error': f'Analytics failed: {str(e)}'}, 500
 
 # Register routes
 api.add_resource(PortfolioAPI, '/api/portfolio')

@@ -1,1 +1,1 @@
-web: streamlit run interfaces/web_app_enterprise.py --server.port=$PORT --server.address=0.0.0.0
+web: python enterprise/api_server.py

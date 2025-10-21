@@ -11,23 +11,23 @@ from datetime import datetime, timedelta
 # Load environment variables
 load_dotenv()
 
-# Auto-start API server in background
-import threading
-import subprocess
-import time
+# Auto-start API server in background (disabled for cloud deployment)
+# import threading
+# import subprocess
+# import time
 
-def start_api_server():
-    """Start API server in background thread"""
-    try:
-        subprocess.Popen(["python", "enterprise/api_server.py"], 
-                        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    except Exception as e:
-        print(f"Failed to start API server: {e}")
+# def start_api_server():
+#     """Start API server in background thread"""
+#     try:
+#         subprocess.Popen(["python", "enterprise/api_server.py"], 
+#                         cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+#     except Exception as e:
+#         print(f"Failed to start API server: {e}")
 
-# Start API server if not already running
-if 'api_server_started' not in st.session_state:
-    threading.Thread(target=start_api_server, daemon=True).start()
-    st.session_state.api_server_started = True
+# # Start API server if not already running
+# if 'api_server_started' not in st.session_state:
+#     threading.Thread(target=start_api_server, daemon=True).start()
+#     st.session_state.api_server_started = True
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -492,6 +492,8 @@ with st.sidebar:
         st.header("Admin Panel")
         if st.button("Manage Users"):
             st.session_state.show_admin = True
+        if st.button("Test Configuration"):
+            st.session_state.show_config_test = True
 
 # Enhanced Admin Panel
 if st.session_state.get('show_admin') and user.role == UserRole.ADMIN:
@@ -716,6 +718,112 @@ if st.session_state.get('show_admin') and user.role == UserRole.ADMIN:
     
     if st.button("Close Admin Panel"):
         st.session_state.show_admin = False
+        st.rerun()
+
+# Configuration Test Panel
+if st.session_state.get('show_config_test') and user.role == UserRole.ADMIN:
+    st.header("🔍 Configuration Test")
+    
+    # Get validation status
+    config_status = Config.validate_config()
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if config_status['valid']:
+            st.success("✅ Configuration Valid")
+        else:
+            st.error("❌ Configuration Issues Found")
+    
+    with col2:
+        if st.button("Refresh Test"):
+            st.rerun()
+    
+    # API Keys Test
+    st.subheader("📊 API Keys Status")
+    api_keys = Config.get_api_keys()
+    
+    api_cols = st.columns(3)
+    col_idx = 0
+    for provider, key in api_keys.items():
+        with api_cols[col_idx % 3]:
+            if key:
+                st.success(f"✅ {provider.upper()}")
+            else:
+                st.error(f"❌ {provider.upper()}")
+        col_idx += 1
+    
+    # Services Test
+    st.subheader("🔧 Services Test")
+    
+    # Database Test
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.write("**Database:**")
+        try:
+            if supabase_client and supabase_client.client:
+                st.success("✅ Supabase Connected")
+            else:
+                st.error("❌ Supabase Not Connected")
+        except Exception as e:
+            st.error(f"❌ Database Error: {str(e)[:50]}...")
+    
+    # Cache Test
+    with col2:
+        st.write("**Cache:**")
+        try:
+            cache_stats = cache_manager.get_cache_stats()
+            if cache_stats['status'] == 'connected':
+                st.success("✅ Redis Connected")
+            else:
+                st.error(f"❌ Redis: {cache_stats['status']}")
+        except Exception as e:
+            st.error(f"❌ Cache Error: {str(e)[:50]}...")
+    
+    # Market Data Test
+    with col3:
+        st.write("**Market Data:**")
+        if st.button("Test Market Data"):
+            try:
+                prices = data_client.get_current_prices(['AAPL'])
+                if prices and 'AAPL' in prices:
+                    st.success(f"✅ Working (AAPL: ${prices['AAPL']:.2f})")
+                else:
+                    st.error("❌ No data returned")
+            except Exception as e:
+                st.error(f"❌ Market Data Error: {str(e)[:50]}...")
+    
+    # Environment Variables
+    st.subheader("🔐 Environment Variables")
+    
+    env_vars = {
+        'SUPABASE_URL': bool(Config.SUPABASE_URL),
+        'SUPABASE_ANON_KEY': bool(Config.SUPABASE_ANON_KEY),
+        'REDIS_URL': bool(Config.REDIS_URL),
+        'FINNHUB_API_KEY': bool(Config.FINNHUB_API_KEY),
+        'POLYGON_API_KEY': bool(Config.POLYGON_API_KEY),
+        'PLAID_CLIENT_ID': bool(Config.PLAID_CLIENT_ID),
+        'SNAPTRADE_CLIENT_ID': bool(Config.SNAPTRADE_CLIENT_ID)
+    }
+    
+    env_df = pd.DataFrame([
+        {'Variable': var, 'Status': '✅ Set' if status else '❌ Missing'}
+        for var, status in env_vars.items()
+    ])
+    st.dataframe(env_df, use_container_width=True, hide_index=True)
+    
+    # Warnings and Errors
+    if config_status['warnings']:
+        st.subheader("⚠️ Warnings")
+        for warning in config_status['warnings']:
+            st.warning(warning)
+    
+    if config_status['errors']:
+        st.subheader("❌ Errors")
+        for error in config_status['errors']:
+            st.error(error)
+    
+    if st.button("Close Configuration Test"):
+        st.session_state.show_config_test = False
         st.rerun()
 
 # Enhanced Account Settings
