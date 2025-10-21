@@ -61,14 +61,16 @@ class PlaidClient:
     def exchange_public_token(self, public_token: str) -> Optional[str]:
         """Exchange public token for access token"""
         if not self.client:
+            print("Plaid client not initialized")
             return None
         
         try:
             request = ItemPublicTokenExchangeRequest(public_token=public_token)
             response = self.client.item_public_token_exchange(request)
+            print(f"Successfully exchanged token for: {public_token}")
             return response['access_token']
         except Exception as e:
-            print(f"Error exchanging token: {e}")
+            print(f"Failed to exchange token for {public_token}: {str(e)}")
             return None
     
     def get_accounts(self, access_token: str) -> List[Dict]:

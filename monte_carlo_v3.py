@@ -16,12 +16,23 @@ class MonteCarloEngine:
         price_data = self.data_client.get_price_data(symbols, "2y")
         returns = price_data.pct_change().dropna()
         
-        # Calculate parameters
-        mean_returns = returns.mean()
-        cov_matrix = returns.cov()
+        # Filter symbols that have data
+        available_symbols = [s for s in symbols if s in returns.columns and s in weights]
+        if not available_symbols:
+            raise ValueError("No market data available for provided symbols")
         
-        # Portfolio parameters
-        weight_array = np.array([weights.get(symbol, 0) for symbol in symbols])
+        # Align data and weights
+        filtered_returns = returns[available_symbols]
+        mean_returns = filtered_returns.mean()
+        cov_matrix = filtered_returns.cov()
+        
+        # Portfolio parameters - ensure alignment
+        weight_array = np.array([weights.get(symbol, 0) for symbol in available_symbols])
+        if weight_array.sum() == 0:
+            weight_array = np.ones(len(available_symbols)) / len(available_symbols)
+        else:
+            weight_array = weight_array / weight_array.sum()  # Normalize weights
+        
         portfolio_mean = np.dot(weight_array, mean_returns)
         portfolio_var = np.dot(weight_array.T, np.dot(cov_matrix, weight_array))
         portfolio_std = np.sqrt(portfolio_var)
@@ -95,9 +106,19 @@ class MonteCarloEngine:
         price_data = self.data_client.get_price_data(symbols, "2y")
         returns = price_data.pct_change().dropna()
         
-        # Portfolio returns
-        weight_array = np.array([weights.get(symbol, 0) for symbol in symbols])
-        portfolio_returns = np.dot(returns, weight_array)
+        # Filter symbols that have data and weights
+        available_symbols = [s for s in symbols if s in returns.columns and s in weights]
+        if not available_symbols:
+            raise ValueError("No market data available for provided symbols")
+        
+        # Portfolio returns - ensure alignment
+        filtered_returns = returns[available_symbols]
+        weight_array = np.array([weights.get(symbol, 0) for symbol in available_symbols])
+        if weight_array.sum() == 0:
+            weight_array = np.ones(len(available_symbols)) / len(available_symbols)
+        else:
+            weight_array = weight_array / weight_array.sum()  # Normalize weights
+        portfolio_returns = np.dot(filtered_returns, weight_array)
         
         # Risk metrics
         risk_metrics = {}
@@ -110,10 +131,11 @@ class MonteCarloEngine:
             risk_metrics[f'CVaR_{int(confidence*100)}'] = cvar
         
         # Additional risk measures
+        from scipy import stats
         risk_metrics.update({
             'volatility': portfolio_returns.std() * np.sqrt(252),
-            'skewness': portfolio_returns.skew(),
-            'kurtosis': portfolio_returns.kurtosis(),
+            'skewness': stats.skew(portfolio_returns),
+            'kurtosis': stats.kurtosis(portfolio_returns),
             'max_drawdown': self._calculate_max_drawdown(portfolio_returns)
         })
         

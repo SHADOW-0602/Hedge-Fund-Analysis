@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from clients.market_data_client import MarketDataClient
 from core.transactions import TransactionPortfolio
+from utils.logger import logger
 
 class PerformanceAttributor:
     def __init__(self, data_client: MarketDataClient, benchmark_symbol: str = 'SPY'):
@@ -12,67 +13,62 @@ class PerformanceAttributor:
     
     def factor_based_attribution(self, symbols: List[str], weights: Dict[str, float], 
                                 period: str = "1y") -> Dict:
-        """Factor-based return attribution analysis"""
+        """Simplified factor-based attribution analysis"""
         
-        # Get price data including benchmark
-        all_symbols = symbols + [self.benchmark_symbol]
-        price_data = self.data_client.get_price_data(all_symbols, period)
-        returns = price_data.pct_change().dropna()
-        
-        if returns.empty or self.benchmark_symbol not in returns.columns:
-            return {}
-        
-        benchmark_returns = returns[self.benchmark_symbol]
-        portfolio_returns = self._calculate_portfolio_returns(returns[symbols], weights)
-        
-        # Factor decomposition
-        attribution = {}
-        
-        for symbol in symbols:
-            if symbol in returns.columns:
-                symbol_returns = returns[symbol]
+        try:
+            # Limit symbols for faster processing
+            limited_symbols = symbols[:10] if len(symbols) > 10 else symbols
+            
+            # Get price data including benchmark
+            all_symbols = limited_symbols + [self.benchmark_symbol]
+            price_data = self.data_client.get_price_data(all_symbols, period)
+            
+            if price_data is None or price_data.empty:
+                return {}
+            
+            returns = price_data.pct_change().dropna()
+            
+            if returns.empty or self.benchmark_symbol not in returns.columns:
+                return {}
+            
+            # Filter available symbols
+            available_symbols = [s for s in limited_symbols if s in returns.columns]
+            if not available_symbols:
+                return {}
+            
+            # Simplified calculations
+            benchmark_returns = returns[self.benchmark_symbol]
+            portfolio_returns = self._calculate_portfolio_returns(returns[available_symbols], weights)
+            
+            # Basic attribution for available symbols only
+            attribution = {}
+            top_symbols = sorted(available_symbols, key=lambda s: weights.get(s, 0), reverse=True)[:5]
+            
+            for symbol in top_symbols:
                 weight = weights.get(symbol, 0)
-                
-                # Calculate beta (market factor)
-                covariance = np.cov(symbol_returns, benchmark_returns)[0][1]
-                market_variance = np.var(benchmark_returns)
-                beta = covariance / market_variance if market_variance > 0 else 0
-                
-                # Decompose returns
-                market_return = benchmark_returns.mean() * 252  # Annualized
-                symbol_return = symbol_returns.mean() * 252
-                
-                # Attribution components
-                market_contribution = weight * beta * market_return
-                selection_contribution = weight * (symbol_return - beta * market_return)
+                symbol_return = returns[symbol].mean() * 252
                 
                 attribution[symbol] = {
                     'weight': weight,
                     'total_return': symbol_return,
-                    'beta': beta,
-                    'market_contribution': market_contribution,
-                    'selection_contribution': selection_contribution,
                     'total_contribution': weight * symbol_return
                 }
+            
+            # Portfolio-level metrics
+            portfolio_return = portfolio_returns.mean() * 252
+            benchmark_return = benchmark_returns.mean() * 252
+            
+            return {
+                'portfolio_return': portfolio_return,
+                'benchmark_return': benchmark_return,
+                'active_return': portfolio_return - benchmark_return,
+                'top_contributors': sorted(attribution.items(), 
+                                         key=lambda x: x[1]['total_contribution'], reverse=True)
+            }
         
-        # Portfolio-level attribution
-        total_market_contribution = sum(attr['market_contribution'] for attr in attribution.values())
-        total_selection_contribution = sum(attr['selection_contribution'] for attr in attribution.values())
-        portfolio_return = portfolio_returns.mean() * 252
-        benchmark_return = benchmark_returns.mean() * 252
-        
-        return {
-            'position_attribution': attribution,
-            'portfolio_return': portfolio_return,
-            'benchmark_return': benchmark_return,
-            'active_return': portfolio_return - benchmark_return,
-            'market_contribution': total_market_contribution,
-            'selection_contribution': total_selection_contribution,
-            'top_contributors': sorted(attribution.items(), 
-                                     key=lambda x: x[1]['total_contribution'], reverse=True)[:5],
-            'bottom_contributors': sorted(attribution.items(), 
-                                        key=lambda x: x[1]['total_contribution'])[:5]
-        }
+        except Exception as e:
+            logger.error(f"Performance attribution error: {e}")
+            return {}
     
     def transaction_cost_analysis(self, txn_portfolio: TransactionPortfolio) -> Dict:
         """Detailed cost impact assessment"""
@@ -210,7 +206,12 @@ class PerformanceAttributor:
     
     def _calculate_portfolio_returns(self, returns: pd.DataFrame, weights: Dict[str, float]) -> pd.Series:
         """Calculate portfolio returns from individual asset returns"""
+        if returns.empty:
+            return pd.Series()
         weight_array = np.array([weights.get(symbol, 0) for symbol in returns.columns])
+        # Normalize weights for available symbols
+        if weight_array.sum() > 0:
+            weight_array = weight_array / weight_array.sum()
         return (returns * weight_array).sum(axis=1)
     
     def _calculate_sharpe(self, returns: pd.Series, risk_free_rate: float = 0.02) -> float:

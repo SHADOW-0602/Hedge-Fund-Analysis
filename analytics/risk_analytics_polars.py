@@ -11,59 +11,92 @@ class RiskAnalyzerPolars:
         self.benchmark_symbol = benchmark_symbol
     
     def analyze_portfolio_risk_ultra_fast(self, symbols: List[str], weights: Dict[str, float], period: str = "1y") -> Dict:
-        """Ultra-fast risk analysis using Polars"""
+        """Ultra-fast risk analysis using optimized numpy operations"""
         logger.info(f"Starting ultra-fast risk analysis for {len(symbols)} symbols")
         
-        # Get data as pandas first, then convert to Polars
+        # Get data - this is the main bottleneck
         price_data = self.data_client.get_price_data(symbols + [self.benchmark_symbol], period)
         
-        # Convert to Polars LazyFrame for maximum speed
-        df = pl.from_pandas(price_data).lazy()
+        if price_data is None or price_data.empty:
+            logger.warning("No price data available")
+            return self._empty_risk_metrics()
         
-        # Calculate returns in one operation
-        returns_df = df.select([
-            (pl.col(col).pct_change().alias(f"{col}_return")) 
-            for col in df.columns if col != 'Date'
-        ]).drop_nulls()
+        logger.info(f"Price data shape: {price_data.shape}, columns: {list(price_data.columns)[:5]}")
         
-        # Collect only once
-        returns = returns_df.collect()
+        # Direct numpy operations - skip Polars conversion for speed
+        returns_data = price_data.pct_change().dropna()
+        
+        logger.info(f"Returns data shape: {returns_data.shape}")
         
         # Filter available symbols
-        available_symbols = [s for s in symbols if f"{s}_return" in returns.columns]
+        available_symbols = [s for s in symbols if s in returns_data.columns]
+        logger.info(f"Available symbols: {len(available_symbols)} out of {len(symbols)}")
+        
         if not available_symbols:
+            logger.warning("No available symbols found in returns data")
             return self._empty_risk_metrics()
+        
+        # Get returns matrix directly as numpy
+        returns_matrix = returns_data[available_symbols].values
         
         # Vectorized weight calculation
         available_weights = np.array([weights.get(s, 0) for s in available_symbols])
-        available_weights = available_weights / available_weights.sum()
+        if available_weights.sum() > 0:
+            available_weights = available_weights / available_weights.sum()
         
-        # Get return columns as numpy arrays for speed
-        return_cols = [f"{s}_return" for s in available_symbols]
-        returns_matrix = returns.select(return_cols).to_numpy()
+        # Check if we have enough data
+        if returns_matrix.size == 0 or len(available_symbols) == 0:
+            return self._empty_risk_metrics()
         
         # Portfolio returns (vectorized)
         portfolio_returns = returns_matrix @ available_weights
         
-        # Correlation matrix (numpy is faster for small matrices)
-        corr_matrix = np.corrcoef(returns_matrix.T)
+        # Fast calculations with error handling
+        try:
+            if returns_matrix.shape[0] > 1 and returns_matrix.shape[1] > 1:
+                portfolio_vol = np.sqrt(available_weights.T @ np.cov(returns_matrix.T) * 252 @ available_weights)
+                individual_vols = np.std(returns_matrix, axis=0) * np.sqrt(252)
+                corr_matrix = np.corrcoef(returns_matrix.T)
+            else:
+                portfolio_vol = 0.0
+                individual_vols = np.zeros(len(available_symbols))
+                corr_matrix = np.eye(len(available_symbols))
+        except:
+            portfolio_vol = 0.0
+            individual_vols = np.zeros(len(available_symbols))
+            corr_matrix = np.eye(len(available_symbols))
         
-        # All calculations in numpy for maximum speed
-        portfolio_vol = np.sqrt(available_weights.T @ np.cov(returns_matrix.T) * 252 @ available_weights)
-        individual_vols = np.std(returns_matrix, axis=0) * np.sqrt(252)
+        # Risk metrics
+        var_5 = np.percentile(portfolio_returns, 5)
+        cvar_5 = np.mean(portfolio_returns[portfolio_returns <= var_5])
+        
+        # Performance metrics
+        annual_return = np.mean(portfolio_returns) * 252
+        annual_vol = np.std(portfolio_returns) * np.sqrt(252)
+        sharpe = (annual_return - 0.02) / annual_vol if annual_vol > 0 else 0
+        
+        downside_returns = portfolio_returns[portfolio_returns < 0]
+        downside_vol = np.std(downside_returns) * np.sqrt(252) if len(downside_returns) > 0 else annual_vol
+        sortino = (annual_return - 0.02) / downside_vol if downside_vol > 0 else 0
+        
+        # Max drawdown
+        cumulative = np.cumprod(1 + portfolio_returns)
+        running_max = np.maximum.accumulate(cumulative)
+        drawdowns = (cumulative - running_max) / running_max
+        max_drawdown = np.min(drawdowns)
         
         return {
             'portfolio_volatility': float(portfolio_vol),
             'individual_volatilities': dict(zip(available_symbols, individual_vols)),
             'avg_correlation': float(np.mean(corr_matrix[np.triu_indices_from(corr_matrix, k=1)])) if len(available_symbols) > 1 else 0.0,
-            'correlation_matrix': corr_matrix,
-            'var_5': float(np.percentile(portfolio_returns, 5)),
-            'cvar_5': float(np.mean(portfolio_returns[portfolio_returns <= np.percentile(portfolio_returns, 5)])),
-            'sharpe_ratio': float((np.mean(portfolio_returns) * 252 - 0.02) / (np.std(portfolio_returns) * np.sqrt(252))),
-            'sortino_ratio': float((np.mean(portfolio_returns) * 252 - 0.02) / (np.std(portfolio_returns[portfolio_returns < 0]) * np.sqrt(252))),
-            'max_drawdown': float(np.min((np.cumprod(1 + portfolio_returns) / np.maximum.accumulate(np.cumprod(1 + portfolio_returns))) - 1)),
-            'beta': 0.0,  # Calculate if needed
-            'tracking_error': 0.0  # Calculate if needed
+            'correlation_matrix': pd.DataFrame(corr_matrix, index=available_symbols, columns=available_symbols),
+            'var_5': float(var_5),
+            'cvar_5': float(cvar_5),
+            'sharpe_ratio': float(sharpe),
+            'sortino_ratio': float(sortino),
+            'max_drawdown': float(max_drawdown),
+            'beta': 0.0,
+            'tracking_error': 0.0
         }
     
     def _empty_risk_metrics(self) -> Dict:

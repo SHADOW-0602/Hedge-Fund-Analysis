@@ -74,6 +74,49 @@ class SupabaseClient:
         data = {'is_shared': True}
         result = self.client.table('portfolios').update(data).eq('id', portfolio_id).eq('user_id', user_id).execute()
         return len(result.data) > 0
+    
+    def save_transactions(self, user_id: str, transaction_set_name: str, transactions_data: List[Dict]) -> str:
+        """Save transaction set to Supabase"""
+        data = {
+            'user_id': user_id,
+            'transaction_set_name': transaction_set_name,
+            'transactions_data': json.dumps(transactions_data),
+            'is_shared': False
+        }
+        
+        result = self.client.table('transactions').insert(data).execute()
+        return result.data[0]['id'] if result.data else None
+    
+    def get_user_transactions(self, user_id: str) -> List[Dict]:
+        """Get all transaction sets for a user"""
+        result = self.client.table('transactions').select('*').eq('user_id', user_id).execute()
+        
+        transaction_sets = []
+        for row in result.data:
+            transaction_sets.append({
+                'id': row['id'],
+                'transaction_set_name': row['transaction_set_name'],
+                'transactions_data': json.loads(row['transactions_data']),
+                'created_at': row['created_at'],
+                'is_shared': row['is_shared']
+            })
+        
+        return transaction_sets
+    
+    def get_transactions(self, transaction_id: str, user_id: str) -> Optional[Dict]:
+        """Get specific transaction set"""
+        result = self.client.table('transactions').select('*').eq('id', transaction_id).eq('user_id', user_id).execute()
+        
+        if result.data:
+            row = result.data[0]
+            return {
+                'id': row['id'],
+                'transaction_set_name': row['transaction_set_name'],
+                'transactions_data': json.loads(row['transactions_data']),
+                'created_at': row['created_at'],
+                'is_shared': row['is_shared']
+            }
+        return None
 
 # Global instance
 supabase_client = SupabaseClient() if Config.SUPABASE_URL and Config.SUPABASE_ANON_KEY else None

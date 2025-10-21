@@ -36,31 +36,76 @@ class YFinanceProvider(DataProvider):
     def __init__(self):
         self.rate_limiter = RateLimiter(60)
     
+    def _filter_symbols(self, symbols: List[str]) -> List[str]:
+        """Filter out invalid symbols"""
+        valid_symbols = []
+        for symbol in symbols:
+            if not symbol or not isinstance(symbol, str):
+                continue
+            
+            symbol = symbol.strip().upper()
+            
+            # Skip options contracts and delisted stocks
+            if any(x in symbol for x in ['C00', 'P00']):
+                continue
+            
+            if symbol in ['ACHN', 'CASH']:
+                continue
+            
+            valid_symbols.append(symbol)
+        
+        return valid_symbols
+    
     def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
         try:
             self.rate_limiter.wait_if_needed()
             
-            # Filter out known delisted symbols
-            valid_symbols = []
-            for symbol in symbols:
-                try:
-                    ticker = yf.Ticker(symbol)
-                    hist = ticker.history(period="5d")
-                    if not hist.empty:
-                        valid_symbols.append(symbol)
-                    else:
-                        logger.warning(f"{symbol} may be delisted or invalid - no recent price data")
-                except Exception as e:
-                    logger.warning(f"{symbol} validation failed: {e}")
-            
+            # Filter out invalid symbols using the same logic as MarketDataClient
+            valid_symbols = self._filter_symbols(symbols)
             if not valid_symbols:
                 return None
-                
-            data = yf.download(valid_symbols, period=period, progress=False, show_errors=False)
+            
+            import warnings
+            warnings.filterwarnings('ignore', category=FutureWarning)
+            
+            # Use auto_adjust=False to avoid the warning
+            data = yf.download(
+                valid_symbols, 
+                period=period, 
+                progress=False, 
+                auto_adjust=False
+            )
+            
             if data.empty:
                 return None
+            
+            # Handle single vs multiple symbols and column structure
+            if data.empty:
+                return None
+            
+            # Handle multi-level columns from yfinance
+            if isinstance(data.columns, pd.MultiIndex):
+                # Try Adj Close first, then Close
+                if 'Adj Close' in data.columns.levels[0]:
+                    result = data['Adj Close']
+                elif 'Close' in data.columns.levels[0]:
+                    result = data['Close']
+                else:
+                    # Fallback: flatten multi-index and take relevant columns
+                    data.columns = ['_'.join(col).strip() for col in data.columns.values]
+                    result = data
                 
-            return data['Adj Close'] if len(valid_symbols) > 1 else data[['Adj Close']]
+                # Ensure proper column names
+                if hasattr(result, 'columns'):
+                    return result
+                else:
+                    return pd.DataFrame(result)
+            else:
+                # Single symbol case or already flat columns
+                if len(symbols) == 1 and 'Adj Close' in data.columns:
+                    return pd.DataFrame({symbols[0]: data['Adj Close']})
+                else:
+                    return data
         except Exception as e:
             logger.error(f"YFinance provider error: {e}")
             return None
@@ -203,11 +248,57 @@ class FinnhubProvider(DataProvider):
     def get_options_chain(self, symbol: str) -> Optional[pd.DataFrame]:
         return None
 
+class EODHDProvider(DataProvider):
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.rate_limiter = RateLimiter(100)  # EODHD allows 100 requests/minute
+        self.base_url = "https://eodhd.com/api"
+    
+    def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
+        try:
+            data = {}
+            for symbol in symbols:
+                self.rate_limiter.wait_if_needed()
+                params = {
+                    'api_token': self.api_key,
+                    'fmt': 'json'
+                }
+                response = requests.get(f"{self.base_url}/eod/{symbol}.US", params=params)
+                if response.status_code == 200:
+                    json_data = response.json()
+                    if json_data:
+                        df = pd.DataFrame(json_data)
+                        df['date'] = pd.to_datetime(df['date'])
+                        df.set_index('date', inplace=True)
+                        data[symbol] = df['adjusted_close'].astype(float)
+            return pd.DataFrame(data) if data else None
+        except Exception as e:
+            logger.error(f"EODHD provider error: {e}")
+            return None
+    
+    def get_options_chain(self, symbol: str) -> Optional[pd.DataFrame]:
+        try:
+            self.rate_limiter.wait_if_needed()
+            params = {
+                'api_token': self.api_key,
+                'fmt': 'json'
+            }
+            response = requests.get(f"{self.base_url}/options/{symbol}.US", params=params)
+            if response.status_code == 200:
+                return pd.DataFrame(response.json())
+        except:
+            pass
+        return None
+
 class MarketDataClient:
     def __init__(self):
         self.providers = []
+        from utils.cache_manager import cache_manager
+        self.cache_manager = cache_manager
         
         # Add providers based on available API keys (priority order)
+        if Config.EODHD_API_KEY:
+            self.providers.append(EODHDProvider(Config.EODHD_API_KEY))
         if Config.FINNHUB_API_KEY:
             self.providers.append(FinnhubProvider(Config.FINNHUB_API_KEY))
         if Config.POLYGON_API_KEY:
@@ -221,10 +312,16 @@ class MarketDataClient:
         self.providers.append(YFinanceProvider())
     
     def get_price_data(self, symbols: List[str], period: str = "1y") -> pd.DataFrame:
+        # Filter valid symbols before processing
+        valid_symbols = self._filter_valid_symbols(symbols)
+        if not valid_symbols:
+            return pd.DataFrame()
+        
         for provider in self.providers:
             try:
-                data = provider.get_price_data(symbols, period)
+                data = provider.get_price_data(valid_symbols, period)
                 if data is not None and not data.empty:
+                    logger.info(f"Successfully fetched data from {provider.__class__.__name__}")
                     return data
             except Exception as e:
                 continue
@@ -232,25 +329,52 @@ class MarketDataClient:
         raise Exception("All data providers failed")
     
     def get_current_prices(self, symbols: List[str]) -> Dict[str, float]:
+        # Filter valid symbols
+        valid_symbols = self._filter_valid_symbols(symbols)
+        
         for provider in self.providers:
             try:
                 if isinstance(provider, YFinanceProvider):
-                    tickers = yf.Tickers(' '.join(symbols))
+                    import warnings
+                    warnings.filterwarnings('ignore', category=FutureWarning)
+                    
                     prices = {}
-                    for symbol in symbols:
+                    for symbol in valid_symbols:
                         try:
-                            hist = tickers.tickers[symbol].history(period="1d")
+                            ticker = yf.Ticker(symbol)
+                            hist = ticker.history(period="1d", auto_adjust=False)
                             if not hist.empty:
                                 prices[symbol] = hist['Close'].iloc[-1]
-                            else:
-                                logger.warning(f"No current price data for {symbol}")
                         except Exception as e:
-                            logger.warning(f"Failed to get price for {symbol}: {e}")
+                            logger.warning(f"Skipping {symbol}: {e}")
+                            continue
                     if prices:
                         return prices
             except:
                 continue
         return {}
+    
+    def _filter_valid_symbols(self, symbols: List[str]) -> List[str]:
+        """Filter out invalid symbols"""
+        valid_symbols = []
+        for symbol in symbols:
+            if not symbol or not isinstance(symbol, str):
+                continue
+            
+            symbol = symbol.strip().upper()
+            
+            # Skip options contracts and delisted stocks
+            if any(x in symbol for x in ['C00', 'P00']):
+                logger.warning(f"Skipping options contract: {symbol}")
+                continue
+            
+            if symbol in ['ACHN', 'CASH']:
+                logger.warning(f"Skipping delisted/invalid symbol: {symbol}")
+                continue
+            
+            valid_symbols.append(symbol)
+        
+        return valid_symbols
     
     def get_options_chain(self, symbol: str) -> Optional[pd.DataFrame]:
         for provider in self.providers:

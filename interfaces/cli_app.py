@@ -471,6 +471,105 @@ def list_users():
         click.echo(f"{user.username} ({user.role.value}) - Last login: {last_login}")
 
 @cli.command()
+@click.argument('csv_file')
+def portfolio_breakdown(csv_file):
+    """Analyze individual portfolios from transaction data"""
+    from core.transactions import TransactionPortfolio
+    from analytics.portfolio_manager import PortfolioManager
+    from utils.currency_handler import CurrencyHandler
+    
+    txn_portfolio = TransactionPortfolio.from_csv(csv_file)
+    
+    # Portfolio summary
+    summary = PortfolioManager.portfolio_summary(txn_portfolio)
+    
+    click.echo(f"Portfolio Analysis ({len(summary)} portfolios):")
+    
+    for name, data in summary.items():
+        click.echo(f"\n{name}:")
+        click.echo(f"  Positions: {data['positions']}")
+        click.echo(f"  Symbols: {', '.join(data['symbols'])}")
+        click.echo(f"  Trades: {data['trade_count']}")
+        click.echo(f"  Total Fees: {CurrencyHandler.format_amount(data['total_fees'])}")
+    
+    # Individual portfolio positions
+    portfolios = PortfolioManager.get_portfolios(txn_portfolio)
+    data_client = MarketDataClient()
+    
+    for name, transactions in portfolios.items():
+        positions = PortfolioManager.get_portfolio_positions(transactions)
+        if positions:
+            prices = data_client.get_current_prices(list(positions.keys()))
+            total_value = sum(positions[s] * prices.get(s, 0) for s in positions.keys())
+            
+            click.echo(f"\n{name} Current Value: {CurrencyHandler.format_amount(total_value)}")
+            for symbol, qty in positions.items():
+                price = prices.get(symbol, 0)
+                value = qty * price
+                click.echo(f"  {symbol}: {qty} shares @ ${price:.2f} = ${value:,.2f}")
+    
+    # Portfolio comparison
+    all_symbols = set()
+    for transactions in portfolios.values():
+        positions = PortfolioManager.get_portfolio_positions(transactions)
+        all_symbols.update(positions.keys())
+    
+    if all_symbols:
+        all_prices = data_client.get_current_prices(list(all_symbols))
+        comparison = PortfolioManager.compare_portfolios(txn_portfolio, all_prices)
+        
+        click.echo(f"\nPortfolio Comparison:")
+        for name, metrics in comparison.items():
+            click.echo(f"{name}:")
+            click.echo(f"  Value: {CurrencyHandler.format_amount(metrics['current_value'])}")
+            click.echo(f"  Avg Position: {CurrencyHandler.format_amount(metrics['avg_position_size'])}")
+            click.echo(f"  Fee Rate: {metrics['fee_rate']:.4%}")
+            click.echo(f"  Positions: {metrics['positions_count']}")
+
+@cli.command()
+@click.argument('csv_file')
+@click.option('--base-currency', default='USD', help='Base currency for valuation')
+def multi_currency_analysis(csv_file, base_currency):
+    """Multi-currency portfolio analysis with conversion"""
+    from core.transactions import TransactionPortfolio
+    from utils.currency_handler import CurrencyHandler
+    
+    txn_portfolio = TransactionPortfolio.from_csv(csv_file)
+    positions = txn_portfolio.get_current_positions()
+    
+    if not positions:
+        click.echo("No current positions found")
+        return
+    
+    data_client = MarketDataClient()
+    prices = data_client.get_current_prices(list(positions.keys()))
+    
+    # Get currencies from transactions
+    position_currencies = {}
+    for txn in txn_portfolio.transactions:
+        if txn.symbol in positions:
+            position_currencies[txn.symbol] = txn.currency or 'USD'
+    
+    # Multi-currency valuation
+    valuation = CurrencyHandler.portfolio_valuation_multi_currency(
+        positions, prices, position_currencies, base_currency
+    )
+    
+    click.echo(f"Multi-Currency Portfolio Analysis:")
+    click.echo(f"Base Currency: {base_currency}")
+    click.echo(f"Total Value: {CurrencyHandler.format_amount(valuation['total_value'], base_currency)}")
+    
+    click.echo(f"\nCurrency Breakdown:")
+    for currency, value in valuation['currency_breakdown'].items():
+        pct = (value / valuation['total_value']) * 100
+        click.echo(f"  {currency}: {CurrencyHandler.format_amount(value, base_currency)} ({pct:.1f}%)")
+    
+    click.echo(f"\nExchange Rates (vs {base_currency}):")
+    for currency, rate in valuation['exchange_rates'].items():
+        if currency != base_currency:
+            click.echo(f"  1 {base_currency} = {rate:.4f} {currency}")
+
+@cli.command()
 def start_multi_user_server():
     """Start multi-user API server"""
     click.echo("Starting multi-user API server on port 5001...")

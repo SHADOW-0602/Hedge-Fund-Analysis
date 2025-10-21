@@ -6,36 +6,78 @@ from datetime import datetime, timedelta
 from textblob import TextBlob
 import re
 import time
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class NewsAnalyzer:
     def __init__(self):
         self.news_cache = {}
         self.sentiment_cache = {}
+        self.api_key = os.getenv('NEWSAPI_KEY')
+        self.base_url = 'https://newsapi.org/v2'
     
-    def scrape_tradingview_news(self, symbol: str, limit: int = 50) -> List[Dict]:
-        """Scrape news from TradingView (simplified implementation)"""
-        # Note: This is a simplified implementation. Real implementation would use proper web scraping
-        # For demonstration, we'll simulate news data
+    def get_real_news(self, symbol: str, limit: int = 20) -> List[Dict]:
+        """Get real news from NewsAPI"""
+        if not self.api_key:
+            return []
         
-        news_items = []
-        base_time = datetime.now()
-        
-        # Simulate news items
-        for i in range(limit):
-            news_item = {
-                'symbol': symbol,
-                'title': f"Market Update: {symbol} Analysis {i+1}",
-                'content': f"Latest developments in {symbol} show market volatility and investor sentiment shifts.",
-                'timestamp': base_time - timedelta(hours=i*2),
-                'source': 'TradingView',
-                'url': f"https://tradingview.com/news/{symbol.lower()}-{i}"
+        try:
+            # Get company name mapping
+            company_names = {
+                'AAPL': 'Apple',
+                'MSFT': 'Microsoft', 
+                'GOOGL': 'Google',
+                'TSLA': 'Tesla',
+                'NVDA': 'NVIDIA',
+                'AMZN': 'Amazon',
+                'META': 'Meta',
+                'SPY': 'S&P 500',
+                'QQQ': 'NASDAQ'
             }
-            news_items.append(news_item)
+            
+            query = company_names.get(symbol, symbol)
+            
+            params = {
+                'q': query,
+                'apiKey': self.api_key,
+                'language': 'en',
+                'sortBy': 'publishedAt',
+                'pageSize': min(limit, 100)
+            }
+            
+            response = requests.get(f'{self.base_url}/everything', params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                news_items = []
+                
+                for article in data.get('articles', []):
+                    if article.get('title') and article.get('description'):
+                        # Parse timestamp and make it timezone-naive
+                        pub_time = datetime.fromisoformat(article['publishedAt'].replace('Z', '+00:00'))
+                        if pub_time.tzinfo is not None:
+                            pub_time = pub_time.replace(tzinfo=None)
+                        
+                        news_items.append({
+                            'symbol': symbol,
+                            'title': article['title'],
+                            'content': article.get('description', ''),
+                            'timestamp': pub_time,
+                            'source': article.get('source', {}).get('name', 'Unknown'),
+                            'url': article.get('url', '')
+                        })
+                
+                return news_items[:limit]
+            
+        except Exception as e:
+            print(f"Error fetching news for {symbol}: {e}")
         
-        return news_items
+        return []
     
     def analyze_sentiment(self, text: str) -> Dict:
-        """Analyze sentiment of news text"""
+        """Analyze sentiment using TextBlob"""
         if text in self.sentiment_cache:
             return self.sentiment_cache[text]
         
@@ -75,18 +117,29 @@ class NewsAnalyzer:
         portfolio_sentiment = {}
         
         for symbol in symbols:
-            news_items = self.scrape_tradingview_news(symbol, limit=20)
+            news_items = self.get_real_news(symbol, limit=20)
             
-            # Filter by date
-            cutoff_date = datetime.now() - timedelta(days=days_back)
-            recent_news = [item for item in news_items if item['timestamp'] >= cutoff_date]
+            # Filter by date - make both datetimes timezone-naive
+            cutoff_date = datetime.now().replace(tzinfo=None) - timedelta(days=days_back)
+            recent_news = []
+            for item in news_items:
+                item_time = item['timestamp']
+                if hasattr(item_time, 'tzinfo') and item_time.tzinfo is not None:
+                    item_time = item_time.replace(tzinfo=None)
+                if item_time >= cutoff_date:
+                    recent_news.append(item)
             
             if not recent_news:
                 portfolio_sentiment[symbol] = {
                     'sentiment_score': 0,
                     'sentiment_trend': 'NEUTRAL',
                     'news_count': 0,
-                    'latest_news': []
+                    'latest_news': [],
+                    'sentiment_distribution': {
+                        'positive': 0,
+                        'negative': 0,
+                        'neutral': 0
+                    }
                 }
                 continue
             
@@ -118,15 +171,20 @@ class NewsAnalyzer:
             else:
                 trend = 'NEUTRAL'
             
+            # Calculate sentiment distribution
+            positive_count = len([s for s in sentiments if s > 0.1]) if sentiments else 0
+            negative_count = len([s for s in sentiments if s < -0.1]) if sentiments else 0
+            neutral_count = len([s for s in sentiments if -0.1 <= s <= 0.1]) if sentiments else 0
+            
             portfolio_sentiment[symbol] = {
                 'sentiment_score': avg_sentiment,
                 'sentiment_trend': trend,
                 'news_count': len(recent_news),
                 'latest_news': analyzed_news[:5],  # Top 5 recent news
                 'sentiment_distribution': {
-                    'positive': len([s for s in sentiments if s > 0.1]),
-                    'negative': len([s for s in sentiments if s < -0.1]),
-                    'neutral': len([s for s in sentiments if -0.1 <= s <= 0.1])
+                    'positive': positive_count,
+                    'negative': negative_count,
+                    'neutral': neutral_count
                 }
             }
         
@@ -137,7 +195,7 @@ class NewsAnalyzer:
         events = {}
         
         for symbol in symbols:
-            news_items = self.scrape_tradingview_news(symbol, limit=30)
+            news_items = self.get_real_news(symbol, limit=30)
             
             detected_events = []
             

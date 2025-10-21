@@ -12,8 +12,12 @@ class QuantitativeScreener:
         """Price momentum analysis with configurable lookback periods"""
         price_data = self.data_client.get_price_data(symbols, "1y")
         
+        if price_data.empty:
+            return {'momentum_rankings': [], 'top_momentum': [], 'bottom_momentum': []}
+        
         momentum_scores = {}
-        for symbol in symbols:
+        # Use actual columns from price data (filtered symbols)
+        for symbol in price_data.columns:
             if symbol not in price_data.columns:
                 continue
                 
@@ -49,11 +53,15 @@ class QuantitativeScreener:
     
     def volatility_screen(self, symbols: List[str], period: int = 30) -> Dict:
         """Low-volatility and high-volatility stock identification"""
-        price_data = self.data_client.get_price_data(symbols, "6m")
+        price_data = self.data_client.get_price_data(symbols, "6mo")
+        
+        if price_data.empty:
+            return {'volatility_metrics': {}, 'low_volatility': [], 'high_volatility': []}
+        
         returns = price_data.pct_change().dropna()
         
         volatility_metrics = {}
-        for symbol in symbols:
+        for symbol in price_data.columns:
             if symbol not in returns.columns:
                 continue
                 
@@ -84,10 +92,13 @@ class QuantitativeScreener:
     
     def mean_reversion_screen(self, symbols: List[str], lookback: int = 20, threshold: float = 2.0) -> Dict:
         """Statistical mean reversion opportunity detection"""
-        price_data = self.data_client.get_price_data(symbols, "6m")
+        price_data = self.data_client.get_price_data(symbols, "6mo")
+        
+        if price_data.empty:
+            return {'mean_reversion_candidates': {}, 'ranked_opportunities': [], 'oversold': [], 'overbought': []}
         
         mean_reversion_candidates = {}
-        for symbol in symbols:
+        for symbol in price_data.columns:
             if symbol not in price_data.columns:
                 continue
                 
@@ -126,10 +137,14 @@ class QuantitativeScreener:
     def quality_screen(self, symbols: List[str]) -> Dict:
         """Risk-adjusted return and consistency analysis"""
         price_data = self.data_client.get_price_data(symbols, "1y")
+        
+        if price_data.empty:
+            return {'quality_rankings': [], 'high_quality': [], 'quality_metrics': {}}
+        
         returns = price_data.pct_change().dropna()
         
         quality_metrics = {}
-        for symbol in symbols:
+        for symbol in price_data.columns:
             if symbol not in returns.columns:
                 continue
                 
@@ -168,10 +183,13 @@ class QuantitativeScreener:
     
     def breakout_detection(self, symbols: List[str], period: int = 20) -> Dict:
         """Technical breakout pattern identification"""
-        price_data = self.data_client.get_price_data(symbols, "6m")
+        price_data = self.data_client.get_price_data(symbols, "6mo")
+        
+        if price_data.empty:
+            return {'breakout_candidates': {}, 'upward_breakouts': {}, 'downward_breakouts': {}}
         
         breakout_candidates = {}
-        for symbol in symbols:
+        for symbol in price_data.columns:
             if symbol not in price_data.columns:
                 continue
                 
@@ -209,16 +227,21 @@ class QuantitativeScreener:
                                  if v['breakout_type'] == 'DOWNWARD'}
         }
     
-    def correlation_arbitrage(self, symbols: List[str], min_correlation: float = 0.8) -> List[Tuple]:
+    def correlation_arbitrage(self, symbols: List[str], min_correlation: float = 0.8) -> Dict:
         """High-correlation pair identification for pairs trading"""
-        price_data = self.data_client.get_price_data(symbols, "6m")
-        returns = price_data.pct_change().dropna()
+        price_data = self.data_client.get_price_data(symbols, "6mo")
         
+        if price_data.empty:
+            return {'correlation_pairs': [], 'trading_opportunities': []}
+        
+        returns = price_data.pct_change().dropna()
         correlation_matrix = returns.corr()
         high_correlation_pairs = []
         
-        for i, symbol1 in enumerate(symbols):
-            for j, symbol2 in enumerate(symbols[i+1:], i+1):
+        # Use actual columns from price data
+        valid_symbols = list(price_data.columns)
+        for i, symbol1 in enumerate(valid_symbols):
+            for j, symbol2 in enumerate(valid_symbols[i+1:], i+1):
                 if symbol1 in correlation_matrix.index and symbol2 in correlation_matrix.columns:
                     correlation = correlation_matrix.loc[symbol1, symbol2]
                     

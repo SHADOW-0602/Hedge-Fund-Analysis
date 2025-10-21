@@ -18,7 +18,7 @@ class TransactionProcessor:
         for txn in sorted(transactions, key=lambda x: x.date):
             symbol = txn.symbol
             
-            if txn.transaction_type == 'BUY':
+            if txn.transaction_type in ['BUY', 'Buy']:
                 # Add new lot
                 positions[symbol]['lots'].append({
                     'quantity': txn.quantity,
@@ -28,7 +28,7 @@ class TransactionProcessor:
                 })
                 positions[symbol]['total_quantity'] += txn.quantity
             
-            elif txn.transaction_type == 'SELL':
+            elif txn.transaction_type in ['SELL', 'Sell']:
                 remaining_to_sell = txn.quantity
                 sell_proceeds = txn.quantity * txn.price - txn.fees
                 cost_basis = 0
@@ -162,8 +162,9 @@ class TransactionProcessor:
         volumes = list(daily_volume.values())
         
         # Pattern analysis
-        buy_count = sum(1 for txn in sorted_txns if txn.transaction_type == 'BUY')
-        sell_count = sum(1 for txn in sorted_txns if txn.transaction_type == 'SELL')
+        buy_count = sum(1 for txn in sorted_txns if txn.transaction_type in ['BUY', 'Buy'])
+        sell_count = sum(1 for txn in sorted_txns if txn.transaction_type in ['SELL', 'Sell'])
+        cash_count = sum(1 for txn in sorted_txns if txn.transaction_type in ['Deposit', 'Withdraw'])
         
         # Time-based patterns
         hour_distribution = defaultdict(int)
@@ -215,10 +216,12 @@ class TransactionProcessor:
                 if not price_series.empty:
                     current_price = symbol_prices.iloc[-1]
                     
-                    if txn.transaction_type == 'BUY':
+                    if txn.transaction_type in ['BUY', 'Buy']:
                         pnl = txn.quantity * (current_price - txn.price) - txn.fees
-                    else:  # SELL
+                    elif txn.transaction_type in ['SELL', 'Sell']:
                         pnl = txn.quantity * (txn.price - current_price) - txn.fees
+                    else:
+                        pnl = 0  # Skip cash transactions
                     
                     attribution_by_trade.append({
                         'symbol': txn.symbol,

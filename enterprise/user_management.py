@@ -245,6 +245,30 @@ class UserManager:
             return len(result.data) > 0
         except:
             return False
+    
+    def email_exists(self, email: str) -> bool:
+        """Check if email already exists"""
+        if not self.supabase:
+            return False
+        
+        try:
+            result = self.supabase.table('app_users').select('user_id').eq('email', email).execute()
+            return len(result.data) > 0
+        except:
+            return False
+    
+    def update_user_email(self, user_id: str, new_email: str) -> bool:
+        """Update user email address"""
+        if not self.supabase:
+            return False
+        
+        try:
+            result = self.supabase.table('app_users').update({
+                'email': new_email
+            }).eq('user_id', user_id).execute()
+            return len(result.data) > 0
+        except:
+            return False
 
 class DataIsolationManager:
     def __init__(self):
@@ -294,6 +318,20 @@ class DataIsolationManager:
         
         # Simplified - return empty for now
         return []
+    
+    def get_user_transactions(self, user_id: str) -> List[Dict]:
+        """Get all transaction sets for a user"""
+        if not self.supabase:
+            return []
+        
+        return supabase_client.get_user_transactions(user_id)
+    
+    def save_user_transactions(self, user_id: str, transaction_set_name: str, transactions_data: List[Dict]) -> str:
+        """Save transaction set for user"""
+        if not self.supabase:
+            return None
+        
+        return supabase_client.save_transactions(user_id, transaction_set_name, transactions_data)
 
 class CollaborationManager:
     def __init__(self):
@@ -321,25 +359,28 @@ class CollaborationManager:
         if not self.supabase:
             return []
         
-        if include_public:
-            result = self.supabase.table('research_notes').select('*').or_(f'user_id.eq.{user_id},is_public.eq.true').order('updated_at', desc=True).execute()
-        else:
-            result = self.supabase.table('research_notes').select('*').eq('user_id', user_id).order('updated_at', desc=True).execute()
-        
-        notes = []
-        for row in result.data:
-            notes.append({
-                'note_id': row['note_id'],
-                'title': row['title'],
-                'content': row['content'],
-                'tags': row['tags'] or [],
-                'created_at': row['created_at'],
-                'updated_at': row['updated_at'],
-                'is_public': row['is_public'],
-                'author': 'user'
-            })
-        
-        return notes
+        try:
+            if include_public:
+                result = self.supabase.table('research_notes').select('*').or_(f'user_id.eq.{user_id},is_public.eq.true').order('updated_at', desc=True).execute()
+            else:
+                result = self.supabase.table('research_notes').select('*').eq('user_id', user_id).order('updated_at', desc=True).execute()
+            
+            notes = []
+            for row in result.data:
+                notes.append({
+                    'note_id': row['note_id'],
+                    'title': row['title'],
+                    'content': row['content'],
+                    'tags': row['tags'] or [],
+                    'created_at': row['created_at'],
+                    'updated_at': row['updated_at'],
+                    'is_public': row['is_public'],
+                    'author': 'user'
+                })
+            
+            return notes
+        except:
+            return []
     
     def add_comment(self, note_id: str, user_id: str, comment: str) -> str:
         comment_id = str(uuid.uuid4())
@@ -418,5 +459,5 @@ class CollaborationManager:
         if not self.supabase:
             return []
         
-        # Simplified - return empty for now
+        # Database implementation would go here
         return []
