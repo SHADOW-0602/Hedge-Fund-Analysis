@@ -52,6 +52,28 @@ class MonteCarloEngine:
         # Statistics
         percentiles = np.percentile(final_values, [5, 25, 50, 75, 95])
         
+        # Additional risk metrics
+        from scipy import stats
+        
+        # Calculate VaR and other metrics from portfolio returns
+        portfolio_returns_flat = portfolio_returns.flatten()
+        var_5 = np.percentile(portfolio_returns_flat, 5) * 100  # Convert to percentage
+        
+        # Annualized Sharpe ratio
+        risk_free_rate = 0.02  # 2% risk-free rate
+        excess_return = (portfolio_mean * 252) - risk_free_rate
+        sharpe_ratio = excess_return / (portfolio_std * np.sqrt(252)) if portfolio_std > 0 else 0
+        
+        # Max drawdown calculation from cumulative returns
+        cumulative_portfolio = np.cumprod(1 + portfolio_returns, axis=1)
+        running_max = np.maximum.accumulate(cumulative_portfolio, axis=1)
+        drawdowns = (cumulative_portfolio - running_max) / running_max
+        max_drawdown = np.min(drawdowns) * 100  # Convert to percentage
+        
+        # Calculate skewness and kurtosis from final values
+        skewness = stats.skew(final_values)
+        kurtosis = stats.kurtosis(final_values)
+        
         return {
             'simulations': cumulative_returns,
             'final_values': final_values,
@@ -65,8 +87,13 @@ class MonteCarloEngine:
                 '95th': percentiles[4]
             },
             'probability_loss': np.sum(final_values < 1) / num_simulations,
-            'expected_return': portfolio_mean * time_horizon,
-            'volatility': portfolio_std * np.sqrt(time_horizon)
+            'expected_return': portfolio_mean * 252,  # Annualized
+            'volatility': portfolio_std * np.sqrt(252),  # Annualized
+            'var_5': var_5,
+            'sharpe_ratio': sharpe_ratio,
+            'max_drawdown': max_drawdown,
+            'skewness': skewness,
+            'kurtosis': kurtosis
         }
     
     def scenario_analysis(self, symbols: List[str], weights: Dict[str, float], 

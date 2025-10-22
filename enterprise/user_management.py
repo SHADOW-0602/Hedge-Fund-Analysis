@@ -1,5 +1,6 @@
 import hashlib
 import jwt
+import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass
@@ -147,16 +148,30 @@ class UserManager:
         if not self.supabase:
             return str(uuid.uuid4())
         
+        # Validate user_id is a proper UUID format
+        try:
+            uuid.UUID(user_id)
+        except ValueError:
+            # Return local session for invalid UUID
+            return str(uuid.uuid4())
+        
         session_data = {
             'user_id': user_id,
             'expires_at': (datetime.now() + timedelta(hours=24)).isoformat()
         }
         
-        result = self.supabase.table('user_sessions').insert(session_data).execute()
-        return result.data[0]['session_id'] if result.data else str(uuid.uuid4())
+        try:
+            result = self.supabase.table('user_sessions').insert(session_data).execute()
+            return result.data[0]['session_id'] if result.data else str(uuid.uuid4())
+        except Exception:
+            return str(uuid.uuid4())
     
     def validate_session(self, session_id: str) -> Optional[User]:
-        conn = sqlite3.connect(self.db_path)
+        # Use fallback for session validation when no database
+        if not self.supabase:
+            return None
+        
+        conn = sqlite3.connect('users.db')
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -286,7 +301,11 @@ class DataIsolationManager:
         if not self.supabase:
             return []
         
-        return supabase_client.get_user_portfolios(user_id)
+        try:
+            return supabase_client.get_user_portfolios(user_id)
+        except Exception as e:
+            print(f"Error getting portfolios: {e}")
+            return []
     
     def share_portfolio(self, portfolio_id: str, owner_user_id: str, 
                        shared_with_user_id: str, permission_level: str = "read") -> str:
@@ -324,7 +343,11 @@ class DataIsolationManager:
         if not self.supabase:
             return []
         
-        return supabase_client.get_user_transactions(user_id)
+        try:
+            return supabase_client.get_user_transactions(user_id)
+        except Exception as e:
+            print(f"Error getting transactions: {e}")
+            return []
     
     def save_user_transactions(self, user_id: str, transaction_set_name: str, transactions_data: List[Dict]) -> str:
         """Save transaction set for user"""

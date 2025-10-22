@@ -178,6 +178,17 @@ class CacheManager:
         except:
             pass
     
+    def delete_cache_key(self, user_id: str, cache_key: str):
+        """Delete specific cache key for a user"""
+        if not self.redis_client:
+            return False
+        
+        try:
+            key = self._generate_key("portfolio", f"{user_id}:{cache_key}")
+            return self.redis_client.delete(key) > 0
+        except:
+            return False
+    
     def get_cache_stats(self) -> dict:
         """Get cache statistics"""
         if not self.redis_client:

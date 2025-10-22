@@ -569,18 +569,7 @@ def multi_currency_analysis(csv_file, base_currency):
         if currency != base_currency:
             click.echo(f"  1 {base_currency} = {rate:.4f} {currency}")
 
-@cli.command()
-def start_multi_user_server():
-    """Start multi-user API server"""
-    click.echo("Starting multi-user API server on port 5001...")
-    click.echo("API endpoints:")
-    click.echo("  POST /api/auth - Login/Register")
-    click.echo("  GET /api/user/portfolios - User portfolios")
-    click.echo("  GET /api/research/notes - Research notes")
-    click.echo("  GET /api/workspaces - Team workspaces")
-    
-    import subprocess
-    subprocess.run(['python', 'enterprise/multi_user_api.py'])
+
 
 if __name__ == '__main__':
     cli()
