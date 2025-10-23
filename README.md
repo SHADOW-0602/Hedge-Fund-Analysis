@@ -1,38 +1,39 @@
 # Portfolio & Options Analysis Engine
 
-Enterprise-grade portfolio risk analysis and options scanning platform with advanced security, multi-user support, and comprehensive integrations.
+Enterprise-grade portfolio risk analysis and options scanning platform with advanced analytics, multi-user support, and comprehensive market data integration.
 
 ## 🚀 **Core Features**
 
 ### 📊 **Portfolio Management**
-- **Multi-Format Upload**: CSV, Excel, Broker-specific formats (Schwab, Fidelity, TD Ameritrade, E*TRADE, Interactive Brokers)
-- **Live Data Integration**: Plaid brokerage connections with real-time sync
-- **Transaction Analysis**: Complete P&L tracking, deposits, withdrawals, dividends, fees, taxes
+- **Multi-Format Upload**: CSV transaction files with FIFO cost basis calculation
+- **Live Data Integration**: Plaid and SnapTrade brokerage connections
+- **Transaction Analysis**: Complete P&L tracking with realized/unrealized gains
 - **Portfolio Optimization**: Risk-adjusted allocation with Monte Carlo simulation
-- **Broker File Parsing**: Automated parsing of major brokerage statements
+- **Multi-Currency Support**: Currency conversion and valuation
+- **Multi-Portfolio Analysis**: Compare and analyze multiple portfolios
 
 ### 📈 **Analytics & Risk**
 - **Advanced Risk Metrics**: VaR, CVaR, Sharpe, Sortino, Maximum Drawdown, Beta analysis
 - **Options Analysis**: Covered call opportunities, Greeks calculation, volatility analysis
-- **Market Data**: 5+ providers with intelligent fallback (YFinance, Finnhub, Polygon, Alpha Vantage, Twelve Data)
-- **Performance Attribution**: Multi-factor analysis, sector attribution, benchmark comparison
+- **Market Data**: YFinance with intelligent fallback and caching
+- **Performance Attribution**: Factor-based attribution and benchmark comparison
 - **Technical Analysis**: 50+ indicators, pattern recognition, momentum strategies
+- **Statistical Analysis**: Correlation analysis, hierarchical clustering
 
-### 🏢 **Enterprise Security & Management**
-- **Multi-User System**: 6 role-based access levels with granular permissions
-- **Data Isolation**: Complete user data separation with encrypted storage
-- **Secrets Management**: AES-256 encrypted API keys and sensitive data
-- **Email Notifications**: Professional HTML templates for alerts and reports
-- **System Monitoring**: Real-time status dashboard with service health checks
-- **Cookie Consent**: GDPR-compliant user preferences and data management
+### 🏢 **Enterprise Features**
+- **Multi-User System**: Role-based access control with JWT authentication
+- **Data Security**: AES-256 encrypted secrets management
+- **Email Service**: SMTP integration with professional templates
+- **System Monitoring**: Real-time status dashboard
+- **Cookie Management**: GDPR-compliant user preferences
+- **Audit Logging**: Comprehensive activity tracking
 
-### 🔗 **Enterprise Integrations**
-- **Database**: Supabase PostgreSQL with real-time sync and backup
-- **Cache**: Upstash Redis with intelligent cache management and TTL
-- **Email Service**: SMTP integration with HTML templates and attachments
-- **News & Sentiment**: Real-time market news with AI sentiment analysis
-- **Brokerage APIs**: Plaid, SnapTrade integration for live account data
-- **Configuration Management**: 80+ environment variables with validation
+### 🔗 **Integrations**
+- **Database**: Supabase PostgreSQL with real-time sync
+- **Cache**: Redis with intelligent TTL management
+- **Brokerage APIs**: Plaid, SnapTrade for live account data
+- **News & Sentiment**: Real-time market news integration
+- **Configuration**: Environment-based configuration management
 
 ## ⚡ **Quick Start**
 
@@ -45,42 +46,54 @@ cd Hedge-Fund-Analysis
 # Install dependencies
 pip install -r requirements.txt
 
-# Copy environment template
-cp .env.example .env
+# Optional: Install with advanced ML features
+pip install -e ".[advanced]"
+
+# Setup environment
+cp .env.example .env  # Edit with your API keys
 ```
 
 ### 2. **Configuration**
 Edit `.env` file with your API keys and database credentials:
 ```bash
-# Required: Database
+# Database (Optional - for multi-user features)
 SUPABASE_URL=your_supabase_url
 SUPABASE_ANON_KEY=your_supabase_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_key
 
-# Required: Cache
+# Cache (Optional - for performance)
 REDIS_URL=your_redis_url
 
-# Optional: Enhanced features
+# Market Data APIs (Optional - for enhanced data)
+FINNHUB_API_KEY=your_finnhub_key
+POLYGON_API_KEY=your_polygon_key
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
+
+# Email Service (Optional)
 EMAIL_SMTP_SERVER=smtp.gmail.com
 EMAIL_SMTP_PORT=587
 EMAIL_USERNAME=your_email
 EMAIL_PASSWORD=your_app_password
+
+# Brokerage Integration (Optional)
+PLAID_CLIENT_ID=your_plaid_client_id
+PLAID_SECRET=your_plaid_secret
+SNAPTRADE_CLIENT_ID=your_snaptrade_client_id
 ```
 
 ### 3. **Launch Application**
 ```bash
-# Enterprise web interface
+# Web interface
 streamlit run interfaces/web_app_enterprise.py
 
 # CLI interface
 python main.py --help
+
+# View all available commands
+python main.py --help
 ```
 
 ## 👤 **User Management**
-
-### **Default Admin Login**
-- Username: `admin`
-- Password: `admin123`
-- **⚠️ Change default password immediately in production**
 
 ### **Role-Based Access Control**
 - **Admin**: Full system access, user management, system configuration
@@ -101,28 +114,37 @@ python main.py --help
 
 ### **Portfolio Analysis**
 ```bash
-# Basic portfolio analysis
+# Basic portfolio analysis from CSV
 python main.py analyze-portfolio sample_portfolio.csv
 
-# Advanced transaction analysis with P&L
+# Transaction-based analysis with P&L
 python main.py analyze-transactions sample_transactions.csv
+
+# Advanced transaction processing with FIFO
+python main.py advanced-transactions sample_transactions.csv
 
 # Comprehensive portfolio analytics
 python main.py portfolio-analytics sample_transactions.csv
 
 # Performance attribution analysis
 python main.py performance-attribution sample_transactions.csv
+
+# Multi-portfolio breakdown
+python main.py portfolio-breakdown sample_transactions.csv
+
+# Multi-currency analysis
+python main.py multi-currency-analysis sample_transactions.csv --base-currency USD
 ```
 
 ### **Options & Risk Analysis**
 ```bash
-# Options scanning with Greeks
+# Options scanning for covered calls
 python main.py scan-options sample_portfolio.csv
 
-# Options analysis with volatility
+# Complete options analysis with Greeks
 python main.py options-analysis AAPL
 
-# Monte Carlo risk simulation
+# Monte Carlo portfolio simulation
 python main.py monte-carlo AAPL MSFT GOOGL
 ```
 
@@ -155,8 +177,8 @@ python main.py create-user --username analyst1 --email analyst@firm.com --role a
 # User login
 python main.py login --username analyst1
 
-# Start multi-user server
-python main.py start-multi-user-server
+# List all users (admin only)
+python main.py list-users
 ```
 
 ## 🔧 **Enterprise Configuration**
@@ -244,42 +266,63 @@ GOOGL,25,2500.00
 
 ### **Transaction CSV Format**
 ```csv
-symbol,quantity,price,date,transaction_type,fees
-AAPL,100,150.50,2024-01-15,BUY,9.95
-MSFT,-25,285.00,2024-01-20,SELL,9.95
+symbol,quantity,price,date,transaction_type,fees,currency,portfolio
+AAPL,100,150.50,2024-01-15,BUY,9.95,USD,Main
+MSFT,-25,285.00,2024-01-20,SELL,9.95,USD,Main
+TSLA,50,200.00,2024-01-25,BUY,9.95,USD,Growth
 ```
 
-### **Supported Broker Formats**
-- **Charles Schwab**: Position and transaction exports
-- **Fidelity**: Portfolio and activity statements
-- **TD Ameritrade**: Position and transaction files
-- **E*TRADE**: Portfolio downloads
-- **Interactive Brokers**: Flex queries and statements
+### **Required Fields**
+- **symbol**: Stock ticker symbol
+- **quantity**: Number of shares (negative for sells)
+- **price**: Price per share
+- **date**: Transaction date (YYYY-MM-DD)
+- **transaction_type**: BUY, SELL, DIVIDEND, etc.
+
+### **Optional Fields**
+- **fees**: Transaction fees (default: 0)
+- **currency**: Currency code (default: USD)
+- **portfolio**: Portfolio name for multi-portfolio analysis
+
+### **Supported Data Sources**
+- **CSV Files**: Custom format with flexible field mapping
+- **Plaid Integration**: Live brokerage account connections
+- **SnapTrade Integration**: Multi-broker API access
+- **Manual Entry**: Web interface for direct data input
+- **Excel Files**: Automatic conversion to CSV format
 
 ## 🏗️ **Architecture**
 
 ### **Core Modules**
 - **`core/`**: Data models (Portfolio, Position, Transaction)
-- **`clients/`**: Multi-source market data with intelligent fallback
+- **`clients/`**: Market data clients with intelligent fallback
 - **`analytics/`**: Risk analysis, options scanning, performance attribution
-- **`interfaces/`**: Enterprise web app and CLI interfaces
+- **`interfaces/`**: Web app and CLI interfaces
+- **`enterprise/`**: User management and ML engine
+- **`compliance/`**: Reporting and audit functionality
+
+### **Analytics Modules**
+- **`analytics/risk_analytics.py`**: VaR, CVaR, Sharpe, Sortino calculations
+- **`analytics/options_analytics.py`**: Options strategies and Greeks
+- **`analytics/technical_indicators.py`**: 50+ technical indicators
+- **`analytics/statistical_analysis.py`**: Correlation and clustering
+- **`analytics/performance_attribution.py`**: Factor-based attribution
+- **`analytics/screening_engine.py`**: Quantitative stock screening
+- **`analytics/backtesting.py`**: Strategy backtesting framework
 
 ### **Utility Modules**
-- **`utils/config.py`**: Centralized configuration with 80+ environment variables
-- **`utils/email_service.py`**: Professional email templates and SMTP integration
-- **`utils/user_secrets.py`**: AES-256 encrypted secrets management
-- **`utils/cache_manager.py`**: Redis caching with intelligent TTL
+- **`utils/config.py`**: Environment-based configuration
+- **`utils/email_service.py`**: SMTP integration with templates
+- **`utils/user_secrets.py`**: AES-256 encrypted secrets storage
+- **`utils/cache_manager.py`**: Redis caching with TTL
 - **`utils/logger.py`**: Structured logging with rotation
 - **`utils/cookie_manager.py`**: GDPR-compliant cookie management
-- **`utils/broker_parsers.py`**: Multi-broker file parsing
 
-### **Enterprise Features**
-- **Multi-tenant architecture** with complete data isolation
-- **Role-based access control** with 6 permission levels
-- **Real-time system monitoring** with health checks
-- **Encrypted secrets storage** for API keys and tokens
-- **Professional email notifications** with HTML templates
-- **Comprehensive audit logging** for compliance
+### **Integration Components**
+- **`components/plaid_direct_connect.py`**: Plaid brokerage integration
+- **`components/snaptrade_connect.py`**: SnapTrade API integration
+- **`components/transaction_manager.py`**: Transaction processing
+- **`components/multi_broker_connect.py`**: Unified broker interface
 
 ## 🔒 **Security Features**
 
@@ -299,21 +342,60 @@ The application includes a real-time system status dashboard showing:
 - **Market data APIs** availability and rate limits
 - **User session** statistics and security metrics
 
-## 🚀 **Production Deployment**
+## 🚀 **Getting Started Examples**
 
-### **Environment Setup**
-1. Set `ENVIRONMENT=production` in `.env`
-2. Configure all required services (database, cache, email)
-3. Set strong encryption keys and passwords
-4. Enable SSL/TLS for all connections
-5. Configure backup and monitoring
+### **Basic Portfolio Analysis**
+```bash
+# Create sample portfolio CSV
+echo "symbol,quantity,avg_cost" > portfolio.csv
+echo "AAPL,100,150.00" >> portfolio.csv
+echo "MSFT,50,280.00" >> portfolio.csv
 
-### **Scaling Considerations**
-- **Database**: Supabase auto-scaling with connection pooling
-- **Cache**: Redis clustering for high availability
-- **Compute**: Horizontal scaling with load balancers
-- **Storage**: Encrypted file storage for user data
+# Analyze portfolio
+python main.py analyze-portfolio portfolio.csv
+```
+
+### **Transaction Analysis**
+```bash
+# Create sample transaction CSV
+echo "symbol,quantity,price,date,transaction_type" > transactions.csv
+echo "AAPL,100,150.00,2024-01-15,BUY" >> transactions.csv
+echo "AAPL,-50,160.00,2024-02-15,SELL" >> transactions.csv
+
+# Analyze with P&L
+python main.py analyze-transactions transactions.csv
+```
+
+### **Advanced Features**
+```bash
+# Technical analysis
+python main.py technical-analysis AAPL
+
+# Options analysis
+python main.py options-analysis AAPL
+
+# Multi-factor research
+python main.py factor-research AAPL MSFT GOOGL
+
+# Statistical analysis
+python main.py statistical-analysis AAPL MSFT GOOGL TSLA NVDA
+```
+
+## 📊 **Web Interface**
+
+Launch the Streamlit web application for interactive analysis:
+```bash
+streamlit run interfaces/web_app_enterprise.py
+```
+
+Features include:
+- Interactive portfolio upload and analysis
+- Real-time risk metrics dashboard
+- Options scanning and analysis
+- Multi-user authentication
+- Live brokerage connections
+- Comprehensive reporting
 
 ---
 
-**Built for enterprise portfolio management with institutional-grade security and scalability.**
+**Built for professional portfolio management with institutional-grade analytics and security.**

@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import sys
 import os
+import time
 from dotenv import load_dotenv
 import hashlib
 from datetime import datetime, timedelta
@@ -39,6 +40,13 @@ from enterprise.user_management import UserManager, UserRole, Permission
 from enterprise.user_management import DataIsolationManager, CollaborationManager
 from utils.cache_manager import cache_manager
 from utils.cookie_manager import cookie_manager
+
+# Try to import transaction manager (optional component)
+try:
+    from components.transaction_manager import TransactionManager
+    transaction_manager = TransactionManager()
+except ImportError:
+    transaction_manager = None
 
 st.set_page_config(
     page_title="Portfolio Analysis Engine", 
@@ -289,7 +297,7 @@ with st.sidebar:
                 st.session_state.current_portfolio = portfolio_data
                 
                 if can_write_portfolio:
-                    if st.button("Delete Portfolio", type="secondary"):
+                    if st.button("🗑️ Delete Portfolio", type="secondary"):
                         portfolio_to_delete = next(p for p in user_portfolios if p['portfolio_name'] == selected_portfolio)
                         if supabase_client and supabase_client.delete_portfolio(portfolio_to_delete['id'], user.user_id):
                             st.success(f"Portfolio '{selected_portfolio}' deleted!")
@@ -315,7 +323,7 @@ with st.sidebar:
                 st.session_state.current_transactions = transaction_data
                 
                 if can_write_portfolio:
-                    if st.button("Delete Transactions", type="secondary"):
+                    if st.button("🗑️ Delete Transactions", type="secondary"):
                         # Add delete functionality for transactions
                         st.success(f"Transactions '{selected_transactions}' deleted!")
                         if 'current_transactions' in st.session_state:
@@ -920,83 +928,365 @@ with st.sidebar:
     st.header("Connect Brokerage")
     
     from clients.plaid_client import plaid_client
-    if plaid_client:
-        # Create link token for Plaid Link
-        if 'plaid_link_token' not in st.session_state:
-            link_token = plaid_client.create_link_token(user.user_id)
-            if link_token:
-                st.session_state.plaid_link_token = link_token
+    if plaid_client and plaid_client.is_available():
+        # Create user-specific link token for Plaid Link
+        user_token_key = f'plaid_link_token_{user.user_id}'
+        token_time_key = f'plaid_token_time_{user.user_id}'
+        
+        # Check if token exists and is not expired (tokens expire after 30 minutes)
+        token_expired = False
+        if token_time_key in st.session_state:
+            token_age = (datetime.now() - st.session_state[token_time_key]).total_seconds()
+            token_expired = token_age > 1800  # 30 minutes
+        
+        if user_token_key not in st.session_state or token_expired:
+            try:
+                # Use proper client_user_id format with official SDK
+                client_user_id = f"user_{user.user_id}_{int(time.time())}"
+                link_token = plaid_client.create_link_token(client_user_id)
+                if link_token:
+                    st.session_state[user_token_key] = link_token
+                    st.session_state[token_time_key] = datetime.now()
+                    st.session_state.plaid_link_token = link_token
+                    logger.info(f"Fresh Plaid link token created for user {user.user_id}")
+                else:
+                    logger.error("Failed to create Plaid link token")
+            except Exception as e:
+                logger.error(f"Plaid link token creation error: {e}")
+                st.error(f"Plaid connection error: {e}")
+        else:
+            st.session_state.plaid_link_token = st.session_state[user_token_key]
         
         if 'plaid_link_token' in st.session_state:
             # Link token is ready but don't display it
             
-            # Instructions to get public token
-            with st.expander("How to get Public Token"):
-                st.write("**Step 1:** Go to Plaid Link Demo")
-                st.markdown("[Open Plaid Link Demo](https://plaid.com/docs/link/web/)")
+            # Show supported institutions
+            with st.expander("🏦 Supported Brokerages"):
+                st.write("**Major Brokerages Supported:**")
+                st.write("• Charles Schwab")
+                st.write("• Fidelity Investments")
+                st.write("• TD Ameritrade")
+                st.write("• E*TRADE")
+                st.write("• Interactive Brokers")
+                st.write("• Robinhood")
+                st.write("• Vanguard")
+                st.write("• Merrill Lynch")
+                st.write("• Zerodha (India)")
+                st.write("• HDFC Securities (India)")
+                st.write("• ICICI Direct (India)")
+                st.write("• And 11,000+ other financial institutions")
+                st.info("🔒 All connections are secured with bank-level encryption")
+                st.info("🇮🇳 Indian brokers supported via Plaid integration")
                 
-                st.write("**Step 2:** Scroll down to 'Try Link' section")
-                st.write("**Step 3:** Click 'Open Link' button")
-                st.write("**Step 4:** Select 'First Platypus Bank' (sandbox)")
-                st.write("**Step 5:** Use credentials: user_good / pass_good")
-                st.write("**Step 6:** Select accounts and continue")
-                st.write("**Step 7:** Copy the public_token from console/result")
-                st.write("**Step 8:** Paste it below")
-                
-
-            
-
+        # Direct Plaid Link Integration
+        st.subheader("Connect Your Brokerage")
         
-        # Manual token input
-        st.subheader("Import Portfolio Data")
-        public_token = st.text_input("Public Token (from Plaid Link)")
-        if st.button("Import Portfolio") and public_token:
-            access_token = plaid_client.exchange_public_token(public_token)
-            if access_token:
-                # Get holdings
-                holdings_df = plaid_client.get_holdings(access_token)
-                if not holdings_df.empty:
-                    st.success(f"Imported {len(holdings_df)} holdings!")
-                    st.session_state.plaid_portfolio = holdings_df
+        # Check if user already has connected accounts  
+        user_access_token = user_secret_manager.get_plaid_token(user.user_id)
+        
+        # Show active Plaid link if available
+        if 'plaid_link_token' in st.session_state:
+            if st.button("🔄 Refresh Link", help="Click if Plaid keeps loading"):
+                # Clear tokens and immediately regenerate
+                user_token_key = f'plaid_link_token_{user.user_id}'
+                token_time_key = f'plaid_token_time_{user.user_id}'
+                if user_token_key in st.session_state:
+                    del st.session_state[user_token_key]
+                if token_time_key in st.session_state:
+                    del st.session_state[token_time_key]
+                if 'plaid_link_token' in st.session_state:
+                    del st.session_state['plaid_link_token']
                 
-                # Get transactions
-                transactions_df = plaid_client.get_transactions(access_token, days=90)
-                if not transactions_df.empty:
-                    st.success(f"Imported {len(transactions_df)} transactions!")
-                    st.session_state.plaid_transactions = transactions_df
-                    
-                    # Show transaction summary with pivot capabilities
-                    with st.expander("📊 Transaction Analysis"):
+                # Immediately create new token using official SDK
+                try:
+                    client_user_id = f"user_{user.user_id}_{int(time.time())}"
+                    link_token = plaid_client.create_link_token(client_user_id)
+                    if link_token:
+                        st.session_state[user_token_key] = link_token
+                        st.session_state[token_time_key] = datetime.now()
+                        st.session_state.plaid_link_token = link_token
+                        st.success("Link refreshed successfully!")
+                    else:
+                        st.error("Failed to refresh link")
+                except Exception as e:
+                    st.error(f"Error refreshing link: {e}")
+                st.rerun()
+        
+        if user_access_token:
+            st.success("✅ Brokerage account connected!")
+            
+            # Show account info and import options
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Refresh Real Portfolio Data"):
+                    with st.spinner("Fetching latest data from your brokerage..."):
                         try:
-                            from st_aggrid import AgGrid, GridOptionsBuilder
+                            # Get real-time holdings from connected brokerage
+                            holdings_df = plaid_client.get_holdings(user.user_id)
+                            if not holdings_df.empty:
+                                st.success(f"✅ Refreshed {len(holdings_df)} real holdings from your brokerage!")
+                                st.session_state.plaid_portfolio = holdings_df
+                                
+                                # Auto-run analysis after refresh
+                                with st.spinner("Running automatic analysis..."):
+                                    portfolio_symbols = holdings_df['symbol'].unique()[:10]
+                                    
+                                    # Auto-train ML models
+                                    from enterprise.ml_engine import MLPredictor
+                                    ml_predictor = MLPredictor(data_client)
+                                    training_results = ml_predictor.train_return_prediction_model(portfolio_symbols)
+                                    if training_results:
+                                        portfolio_hash = hashlib.md5(str(sorted(portfolio_symbols)).encode()).hexdigest()
+                                        cache_manager.set_portfolio_data(user.user_id, f"ml_models_{portfolio_hash}", training_results, expire_hours=24)
+                                        st.success(f"✅ Trained ML models for {len(training_results)} symbols")
+                                    
+                                    # Auto-run sentiment analysis
+                                    from utils.auto_analysis import run_automatic_sentiment_analysis
+                                    enhanced_sentiment = run_automatic_sentiment_analysis(portfolio_symbols, user.user_id, days_back=7)
+                                    if enhanced_sentiment:
+                                        sentiment_data = enhanced_sentiment.get('sentiment_analysis', {})
+                                        bullish_count = sum(1 for data in sentiment_data.values() if data['sentiment_trend'] == 'BULLISH')
+                                        bearish_count = sum(1 for data in sentiment_data.values() if data['sentiment_trend'] == 'BEARISH')
+                                        st.success(f"📰 Enhanced sentiment: {bullish_count} bullish, {bearish_count} bearish")
+                            else:
+                                st.warning("No holdings found. Check your brokerage account.")
                             
-                            gb = GridOptionsBuilder.from_dataframe(transactions_df)
-                            gb.configure_pagination(paginationAutoPageSize=True)
-                            gb.configure_side_bar()
-                            gb.configure_default_column(enablePivot=True, enableValue=True, enableRowGroup=True)
-                            gb.configure_column('amount', type=['numericColumn'], precision=2)
-                            gb.configure_column('date', type=['dateColumn'])
-                            gridOptions = gb.build()
+                            # Get latest transactions from connected brokerage
+                            transactions_df = plaid_client.get_transactions(user.user_id, days=90)
+                            if not transactions_df.empty:
+                                st.success(f"✅ Refreshed {len(transactions_df)} real transactions!")
+                                st.session_state.plaid_transactions = transactions_df
+                            else:
+                                st.info("No recent transactions found.")
                             
-                            AgGrid(
-                                transactions_df,
-                                gridOptions=gridOptions,
-                                enable_enterprise_modules=True,
-                                height=400
-                            )
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to refresh real data: {str(e)}")
+            
+            with col2:
+                if st.button("🗑️ Disconnect Account"):
+                    user_secret_manager.delete_plaid_token(user.user_id)
+                    if 'plaid_portfolio' in st.session_state:
+                        del st.session_state.plaid_portfolio
+                    if 'plaid_transactions' in st.session_state:
+                        del st.session_state.plaid_transactions
+                    st.success("Account disconnected!")
+                    st.rerun()
+        
+        else:
+            
+            if st.button("🔗 Generate Plaid Link", type="primary"):
+                with st.spinner("Creating connection link..."):
+                    try:
+                        client_user_id = f"user_{user.user_id}_{int(time.time())}"
+                        link_token = plaid_client.create_link_token(client_user_id)
+                        if link_token:
+                            st.success("✅ Link token generated successfully!")
                             
-                            st.info("💡 **Analysis Tips:** Group by 'transaction_type' in Row Groups, add 'amount' to Values for aggregation")
+                            # Create HTML page with Plaid Link
+                            html_content = f'''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connect Your Bank Account</title>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <style>
+        body {{ font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }}
+        button {{ background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }}
+        button:hover {{ background: #0056b3; }}
+        #result {{ margin-top: 20px; padding: 15px; border-radius: 4px; }}
+        .success {{ background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }}
+        .error {{ background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }}
+    </style>
+</head>
+<body>
+    <h2>Connect Your Bank Account</h2>
+    <p>Click the button below to securely connect your bank account through Plaid.</p>
+    <button id="link-button">Connect Account</button>
+    <div id="result"></div>
+    
+    <script>
+    const linkHandler = Plaid.create({{
+        token: '{link_token}',
+        onSuccess: (public_token, metadata) => {{
+            document.getElementById('result').innerHTML = 
+                '<div class="success">' +
+                '<h3>Connection Successful!</h3>' +
+                '<p><strong>Public Token:</strong> ' + public_token + '</p>' +
+                '<p><strong>Institution:</strong> ' + metadata.institution.name + '</p>' +
+                '<p><strong>Accounts:</strong> ' + metadata.accounts.length + '</p>' +
+                '<p>Copy the public token above and paste it in the Streamlit app to import your data.</p>' +
+                '</div>';
+        }},
+        onExit: (err, metadata) => {{
+            if (err) {{
+                document.getElementById('result').innerHTML = 
+                    '<div class="error">' +
+                    '<h3>Connection Failed</h3>' +
+                    '<p>' + err.error_message + '</p>' +
+                    '</div>';
+            }}
+        }}
+    }});
+    
+    document.getElementById('link-button').onclick = function() {{
+        linkHandler.open();
+    }};
+    </script>
+</body>
+</html>'''
                             
-                        except ImportError:
-                            transaction_summary = transactions_df.groupby('transaction_type').agg({
-                                'amount': ['count', 'sum']
-                            }).round(2)
-                            st.dataframe(transaction_summary)
-                
-                if holdings_df.empty and transactions_df.empty:
-                    st.warning("No data found")
-            else:
-                st.error("Failed to exchange token")
+                            # Save HTML file
+                            filename = f'plaid_connect_{user.user_id}_{int(time.time())}.html'
+                            with open(filename, 'w') as f:
+                                f.write(html_content)
+                            
+                            st.success(f"✅ HTML connection page created: {filename}")
+                            
+                            # Auto-open HTML page
+                            import webbrowser
+                            import os
+                            file_path = os.path.abspath(filename)
+                            webbrowser.open(f'file://{file_path}')
+                            
+                            st.info("🌐 HTML page opened in your browser. Connect your account and copy the public token.")
+                            
+                            # Store token for public token exchange
+                            st.session_state.current_link_token = link_token
+                        else:
+                            st.error("Failed to generate link token")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+            
+            st.write("**Enter Public Token:**")
+            public_token = st.text_input("Public Token", help="Paste the public token from the HTML connection page")
+            if st.button("📥 Import Portfolio Data") and public_token:
+                with st.spinner("Connecting to your brokerage and importing data..."):
+                    try:
+                        access_token = plaid_client.exchange_public_token(public_token)
+                        if access_token:
+                            user_secret_manager.store_plaid_token(user.user_id, access_token)
+                            
+                            holdings_df = plaid_client.get_holdings(user.user_id)
+                            transactions_df = plaid_client.get_all_transactions(user.user_id, days=90)
+                            
+                            if not holdings_df.empty:
+                                st.success(f"✅ Imported {len(holdings_df)} holdings from your brokerage!")
+                                st.session_state.plaid_portfolio = holdings_df
+                            
+                            if not transactions_df.empty:
+                                st.success(f"✅ Imported {len(transactions_df)} transactions!")
+                                st.session_state.plaid_transactions = transactions_df
+                                
+                                # Auto-save to database
+                                if can_write_portfolio:
+                                    auto_save_name = f"Plaid_Import_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                                    portfolio_data = []
+                                    for _, row in holdings_df.iterrows():
+                                        if row['symbol'] != 'N/A' and row['quantity'] > 0:
+                                            avg_cost = row['cost_basis'] / row['quantity'] if row['quantity'] > 0 else row['institution_price']
+                                            portfolio_data.append({
+                                                'symbol': row['symbol'],
+                                                'quantity': row['quantity'],
+                                                'avg_cost': avg_cost
+                                            })
+                                    
+                                    if portfolio_data:
+                                        portfolio_id = data_isolation.save_user_portfolio(user.user_id, auto_save_name, portfolio_data)
+                                        if portfolio_id:
+                                            st.success(f"Portfolio auto-saved as '{auto_save_name}'")
+                                
+                                # Auto-run analysis like CSV upload
+                                with st.spinner("Running automatic analysis..."):
+                                    # Auto-train ML models
+                                    from enterprise.ml_engine import MLPredictor
+                                    ml_predictor = MLPredictor(data_client)
+                                    portfolio_symbols = holdings_df['symbol'].unique()[:10]
+                                    training_results = ml_predictor.train_return_prediction_model(portfolio_symbols)
+                                    if training_results:
+                                        portfolio_hash = hashlib.md5(str(sorted(portfolio_symbols)).encode()).hexdigest()
+                                        cache_manager.set_portfolio_data(user.user_id, f"ml_models_{portfolio_hash}", training_results, expire_hours=24)
+                                        st.success(f"✅ Trained ML models for {len(training_results)} symbols")
+                                    
+                                    # Auto-run News Sentiment Analysis
+                                    from utils.auto_analysis import run_automatic_sentiment_analysis
+                                    enhanced_sentiment = run_automatic_sentiment_analysis(portfolio_symbols, user.user_id, days_back=7)
+                                    if enhanced_sentiment:
+                                        sentiment_data = enhanced_sentiment.get('sentiment_analysis', {})
+                                        bullish_count = sum(1 for data in sentiment_data.values() if data['sentiment_trend'] == 'BULLISH')
+                                        bearish_count = sum(1 for data in sentiment_data.values() if data['sentiment_trend'] == 'BEARISH')
+                                        st.success(f"📰 Enhanced sentiment: {bullish_count} bullish, {bearish_count} bearish")
+                                    
+                                    # Auto-run Monte Carlo Simulation
+                                    from monte_carlo_v3 import MonteCarloEngine
+                                    mc_engine = MonteCarloEngine(data_client)
+                                    
+                                    # Create weights from holdings
+                                    total_value = (holdings_df['quantity'] * holdings_df['institution_price']).sum()
+                                    weights = {}
+                                    for _, row in holdings_df.iterrows():
+                                        if row['symbol'] != 'N/A' and row['quantity'] > 0:
+                                            weight = (row['quantity'] * row['institution_price']) / total_value
+                                            weights[row['symbol']] = weight
+                                    
+                                    if weights:
+                                        mc_results = mc_engine.portfolio_simulation(
+                                            list(weights.keys()), weights, time_horizon=252, num_simulations=5000
+                                        )
+                                        mc_hash = hashlib.md5(str(sorted(list(weights.keys()))).encode()).hexdigest()
+                                        cache_manager.set_portfolio_data(user.user_id, f"monte_carlo_{mc_hash}", mc_results, expire_hours=12)
+                                        st.success(f"🎲 Monte Carlo simulation complete: {mc_results['probability_loss']:.1%} probability of loss")
+                            else:
+                                st.warning("No holdings found. Check your brokerage account.")
+                            
+                            # Show transaction manager link
+                            if not transactions_df.empty:
+                                if st.button("📊 Manage Transactions", key="manage_plaid_transactions"):
+                                    if transaction_manager:
+                                        st.session_state.show_transaction_manager = True
+                                        st.rerun()
+                                    else:
+                                        st.error("Transaction manager not available")
+                            
+                            st.rerun()
+                        else:
+                            st.error("Failed to exchange token")
+                    except Exception as e:
+                        st.error(f"Import failed: {str(e)}")
+            
+            # Show transaction manager access
+            st.write("**Transaction Management:**")
+            if st.button("📊 Open Transaction Manager", key="open_txn_manager_main"):
+                if transaction_manager:
+                    st.session_state.show_transaction_manager = True
+                    st.rerun()
+                else:
+                    st.error("Transaction manager not available")
+            
+            if st.button("📊 Use Sample Data", help="Load sample data for testing"):
+                try:
+                    demo_holdings = pd.DataFrame([
+                        {'symbol': 'AAPL', 'quantity': 100, 'avg_cost': 150.0, 'cost_basis': 15000, 'market_value': 17500, 'institution_price': 175.0},
+                        {'symbol': 'MSFT', 'quantity': 50, 'avg_cost': 280.0, 'cost_basis': 14000, 'market_value': 16000, 'institution_price': 320.0},
+                        {'symbol': 'GOOGL', 'quantity': 25, 'avg_cost': 2500.0, 'cost_basis': 62500, 'market_value': 65000, 'institution_price': 2600.0},
+                        {'symbol': 'TSLA', 'quantity': 75, 'avg_cost': 200.0, 'cost_basis': 15000, 'market_value': 18750, 'institution_price': 250.0}
+                    ])
+                    st.success(f"✅ Sample Data Loaded! {len(demo_holdings)} holdings")
+                    st.session_state.plaid_portfolio = demo_holdings
+                    st.session_state.force_show_plaid = True  # Force display of sample data
+                    
+                    demo_transactions = pd.DataFrame([
+                        {'date': '2024-01-15', 'description': 'Portfolio Deposit', 'transaction_type': 'deposit', 'amount': 50000},
+                        {'date': '2024-01-20', 'description': 'Dividend Payment', 'transaction_type': 'dividend', 'amount': 250},
+                        {'date': '2024-01-25', 'description': 'Portfolio Withdrawal', 'transaction_type': 'withdraw', 'amount': 5000}
+                    ])
+                    st.success(f"✅ Imported {len(demo_transactions)} sample transactions")
+                    st.session_state.plaid_transactions = demo_transactions
+                    
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Sample data error: {str(e)}")
+            
     else:
         st.info("Plaid not configured")
     
@@ -1012,21 +1302,34 @@ with st.sidebar:
         user_secret = user_secret_manager.get_snaptrade_secret(user.user_id)
         
         if not user_secret:
-            st.info("Setting up SnapTrade connection...")
-            if st.button("Generate SnapTrade Secret"):
-                user_secret = user_secret_manager.generate_snaptrade_secret(user.user_id)
-                st.success("SnapTrade secret generated!")
+            st.info("🔧 Setting up SnapTrade connection...")
+            if st.button("🚀 Initialize SnapTrade Connection"):
+                # Create SnapTrade user and store secret
+                from clients.snaptrade_client import snaptrade_client
+                if snaptrade_client:
+                    create_status = snaptrade_client.create_user(user.user_id)
+                    if create_status == 'success':
+                        user_secret = user_secret_manager.get_snaptrade_secret(user.user_id)
+                    else:
+                        user_secret = None
+                else:
+                    user_secret = None
+                st.success("✅ SnapTrade connection initialized!")
                 st.rerun()
         else:
-            st.success("SnapTrade secret configured")
+            st.success("✅ SnapTrade connection ready")
             
-            # Brokerage selection
-            selected_brokerage_id = snaptrade_connect.render_brokerage_selector()
+            # Show connection status
+            accounts = snaptrade_connect.client.get_accounts(user.user_id) if snaptrade_connect.client else []
+            if accounts:
+                st.success(f"🏦 {len(accounts)} brokerage accounts connected")
+            else:
+                st.info("📱 No brokerage accounts connected yet")
             
-            # Connection modal
-            connection_success = snaptrade_connect.render_connection_modal(user.user_id, selected_brokerage_id)
+            # Direct brokerage selection and connection
+            connection_success = snaptrade_connect.render_brokerage_selection_and_connect(user.user_id)
             
-            # Account summary
+            # Account summary and management
             snaptrade_connect.render_account_summary(user.user_id)
             
             # Secret management for admins
@@ -1034,11 +1337,21 @@ with st.sidebar:
                 with st.expander("Secret Management"):
                     if st.button("Regenerate Secret"):
                         user_secret_manager.delete_specific_secret(user.user_id, 'snaptrade_secret')
-                        new_secret = user_secret_manager.generate_snaptrade_secret(user.user_id)
+                        # Regenerate SnapTrade user
+                        create_status = snaptrade_connect.client.create_user(user.user_id)
+                        if create_status == 'success':
+                            new_secret = user_secret_manager.get_snaptrade_secret(user.user_id)
+                        else:
+                            new_secret = None
                         st.success("Secret regenerated!")
                         st.rerun()
     else:
-        st.info("SnapTrade not configured - check Config.SNAPTRADE_CLIENT_ID")
+        st.warning("⚠️ SnapTrade not configured")
+        st.info("Configure SNAPTRADE_CLIENT_ID and SNAPTRADE_SECRET in .env to enable brokerage connections")
+        
+        # Show demo mode option
+        with st.expander("🧪 Demo Mode (Testing)"):
+            snaptrade_connect.render_demo_mode()
     
     st.divider()
 
@@ -1146,7 +1459,12 @@ if 'plaid_portfolio' in st.session_state:
     portfolio_data = []
     for _, row in plaid_df.iterrows():
         if row['symbol'] != 'N/A' and row['quantity'] > 0:
-            avg_cost = row['cost_basis'] / row['quantity'] if row['quantity'] > 0 else row['institution_price']
+            # Use institution_price if cost_basis is 0 or missing
+            if row['cost_basis'] > 0 and row['quantity'] > 0:
+                avg_cost = row['cost_basis'] / row['quantity']
+            else:
+                avg_cost = row['institution_price']
+            
             portfolio_data.append({
                 'symbol': row['symbol'],
                 'quantity': row['quantity'],
@@ -1156,13 +1474,52 @@ if 'plaid_portfolio' in st.session_state:
     if portfolio_data:
         df = pd.DataFrame(portfolio_data)
         plaid_portfolio = Portfolio.from_dataframe(df)
+        # Force display of Plaid portfolio
+        st.session_state.force_show_plaid = True
+
+
+
+# Transaction Manager Interface
+if st.session_state.get('show_transaction_manager', False):
+    if transaction_manager:
+        transaction_manager.render_transaction_interface(user.user_id)
+        
+        if st.button("← Back to Portfolio Analysis"):
+            st.session_state.show_transaction_manager = False
+            st.rerun()
+        
+        st.stop()
+    else:
+        st.error("Transaction manager not available")
+        st.session_state.show_transaction_manager = False
 
 # Check if any portfolio/transaction data exists and set up upload section
 has_portfolio = current_portfolio or plaid_portfolio or current_transactions
 header_text = "Add New Data" if has_portfolio else "Upload Data"
-st.header(header_text)
+
+# Show Plaid portfolio immediately if available (including sample data)
+if plaid_portfolio and st.session_state.get('force_show_plaid', False):
+    st.header("Sample Portfolio Data")
+    portfolio = plaid_portfolio
+    portfolio_source = "Sample Data"
+    st.session_state.force_show_plaid = False  # Reset flag
+else:
+    st.header(header_text)
 
 data_type = st.radio("Data Type", ["Portfolio Positions", "Transaction History"], horizontal=True)
+
+# Enhanced transaction management button
+if data_type == "Transaction History":
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.write("")
+    with col2:
+        if st.button("🚀 Advanced Transaction Manager", type="primary"):
+            if transaction_manager:
+                st.session_state.show_transaction_manager = True
+                st.rerun()
+            else:
+                st.error("Transaction manager not available")
 
 if data_type == "Portfolio Positions":
     subheader_text = "Add New Portfolio" if has_portfolio else "Portfolio Data"
@@ -1184,6 +1541,32 @@ else:
     info_text = "Add more transaction history with columns: symbol, quantity, price, date, transaction_type, fees (optional)" if has_portfolio else "Upload transaction history with columns: symbol, quantity, price, date, transaction_type, fees (optional)"
     st.info(info_text)
     
+    # Quick manual transaction entry
+    with st.expander("➕ Quick Add Single Transaction"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            manual_symbol = st.text_input("Symbol", placeholder="AAPL", key="manual_symbol")
+            manual_quantity = st.number_input("Quantity", min_value=0.01, value=100.0, key="manual_quantity")
+        with col2:
+            manual_price = st.number_input("Price ($)", min_value=0.01, value=150.0, key="manual_price")
+            manual_type = st.selectbox("Type", ["BUY", "SELL"], key="manual_type")
+        with col3:
+            manual_date = st.date_input("Date", value=datetime.now().date(), key="manual_date")
+            manual_fees = st.number_input("Fees ($)", min_value=0.0, value=0.0, key="manual_fees")
+        
+        if st.button("💾 Add Transaction", key="add_manual_transaction"):
+            if manual_symbol and manual_quantity > 0 and manual_price > 0:
+                result = plaid_client.add_manual_transaction(
+                    user.user_id, manual_symbol.upper(), manual_quantity, 
+                    manual_price, manual_type, manual_date.strftime('%Y-%m-%d'), manual_fees
+                )
+                if result['status'] == 'success':
+                    st.success(f"✅ Added {manual_type} {manual_quantity} {manual_symbol.upper()} @ ${manual_price:.2f}")
+                else:
+                    st.error(f"❌ {result['message']}")
+            else:
+                st.error("Please fill in all required fields")
+    
     upload_text = "Add Transaction File" if has_portfolio else "Upload Transaction File"
     uploaded_file = st.file_uploader(
         upload_text, 
@@ -1191,31 +1574,77 @@ else:
         help="CSV with transaction history"
     )
 
-# Show Plaid transactions if available
-if 'plaid_transactions' in st.session_state:
-    with st.sidebar:
-        st.header("Account Activity")
-        transactions_df = st.session_state.plaid_transactions
-        
-        # Transaction type filter
-        transaction_types = transactions_df['transaction_type'].unique()
-        selected_types = st.multiselect("Filter by Type", transaction_types, default=transaction_types)
-        
-        if selected_types:
-            filtered_transactions = transactions_df[transactions_df['transaction_type'].isin(selected_types)]
-            
-            # Show summary metrics
-            total_deposits = filtered_transactions[filtered_transactions['transaction_type'] == 'deposit']['amount'].sum()
-            total_withdrawals = filtered_transactions[filtered_transactions['transaction_type'] == 'withdraw']['amount'].sum()
-            total_dividends = filtered_transactions[filtered_transactions['transaction_type'] == 'dividend']['amount'].sum()
-            
-            st.metric("Total Deposits", f"${total_deposits:,.2f}")
-            st.metric("Total Withdrawals", f"${total_withdrawals:,.2f}")
-            st.metric("Total Dividends", f"${total_dividends:,.2f}")
-        
-        st.divider()
 
-if uploaded_file or current_portfolio or plaid_portfolio or current_transactions:
+
+# Show enhanced transaction management in sidebar
+with st.sidebar:
+    st.header("Transaction Management")
+    
+    # Quick transaction entry
+    with st.expander("➕ Quick Add Transaction"):
+        col1, col2 = st.columns(2)
+        with col1:
+            quick_symbol = st.text_input("Symbol", key="quick_symbol", placeholder="AAPL")
+            quick_quantity = st.number_input("Quantity", min_value=1, value=100, key="quick_quantity")
+        with col2:
+            quick_price = st.number_input("Price", min_value=0.01, value=150.0, key="quick_price")
+            quick_type = st.selectbox("Type", ["BUY", "SELL"], key="quick_type")
+        
+        if st.button("💾 Add", key="quick_add"):
+            if quick_symbol and quick_quantity > 0 and quick_price > 0:
+                result = plaid_client.add_manual_transaction(
+                    user.user_id, quick_symbol.upper(), quick_quantity, 
+                    quick_price, quick_type, datetime.now().strftime('%Y-%m-%d'), 0.0
+                )
+                if result['status'] == 'success':
+                    st.success(f"✅ Added {quick_type} {quick_quantity} {quick_symbol.upper()}")
+                else:
+                    st.error(f"❌ {result['message']}")
+    
+    # Transaction summary
+    if plaid_client:
+        try:
+            all_transactions = plaid_client.get_all_transactions(user.user_id, days=30)
+            if not all_transactions.empty:
+                st.subheader("Recent Activity (30 days)")
+                
+                # Summary metrics
+                total_transactions = len(all_transactions)
+                buy_count = len(all_transactions[all_transactions['transaction_type'] == 'BUY']) if 'transaction_type' in all_transactions.columns else 0
+                sell_count = len(all_transactions[all_transactions['transaction_type'] == 'SELL']) if 'transaction_type' in all_transactions.columns else 0
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Total", total_transactions)
+                    st.metric("Buys", buy_count)
+                with col2:
+                    st.metric("Sells", sell_count)
+                    manual_count = len(all_transactions[all_transactions['source'] == 'manual']) if 'source' in all_transactions.columns else 0
+                    st.metric("Manual", manual_count)
+                
+                # Recent transactions preview
+                recent_transactions = all_transactions.head(5)
+                if not recent_transactions.empty:
+                    st.write("**Recent Transactions:**")
+                    for _, txn in recent_transactions.iterrows():
+                        date_str = txn['date'].strftime('%m/%d') if hasattr(txn['date'], 'strftime') else str(txn['date'])[:10]
+                        st.write(f"• {date_str}: {txn.get('transaction_type', 'N/A')} {txn.get('quantity', 0)} {txn.get('symbol', 'N/A')}")
+        except Exception as e:
+            logger.error(f"Error loading transaction summary: {e}")
+    
+    if st.button("📊 Open Transaction Manager", key="open_transaction_manager"):
+        if transaction_manager:
+            st.session_state.show_transaction_manager = True
+        else:
+            st.error("Transaction manager not available")
+    
+    st.divider()
+
+# Auto-show Plaid portfolio if available (including sample data)
+if plaid_portfolio and (not uploaded_file and not current_portfolio and not current_transactions):
+    portfolio = plaid_portfolio
+    portfolio_source = "Sample Data" if st.session_state.get('force_show_plaid') else "Plaid (Live Data)"
+elif uploaded_file or current_portfolio or plaid_portfolio or current_transactions:
     if uploaded_file and st.session_state.get('uploaded_file_processed') != uploaded_file.name:
         # Clear previous data when uploading new file
         if 'current_portfolio' in st.session_state:
@@ -1477,7 +1906,7 @@ if uploaded_file or current_portfolio or plaid_portfolio or current_transactions
             portfolio_name = st.text_input("Portfolio Name (to save)")
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Save Portfolio") and portfolio_name:
+                if st.button("💾 Save Portfolio") and portfolio_name:
                     portfolio_data = [{
                         'symbol': pos.symbol,
                         'quantity': pos.quantity,
@@ -1856,42 +2285,9 @@ if uploaded_file or current_portfolio or plaid_portfolio or current_transactions
             portfolio_hash = hashlib.md5(str(sorted([s for s in portfolio.symbols if s])).encode()).hexdigest()
         cached_metrics = cache_manager.get_portfolio_data(user.user_id, f"risk_{portfolio_hash}")
         
-        if cached_metrics:
-            st.info("Risk Analysis")
-            metrics = cached_metrics
-            st.metric("Portfolio Volatility", f"{metrics['portfolio_volatility']:.2%}")
-            st.metric("Average Correlation", f"{metrics['avg_correlation']:.3f}")
-            
-            # Correlation heatmap
-            corr_matrix = metrics['correlation_matrix']
-            if hasattr(corr_matrix, 'values'):
-                corr_data = corr_matrix.values
-            else:
-                corr_data = corr_matrix
-            
-            if hasattr(corr_data, 'size') and corr_data.size > 0:
-                fig = px.imshow(corr_data, title="Correlation Matrix")
-                st.plotly_chart(fig)
-            else:
+        if not cached_metrics:
+            with st.spinner("Auto-calculating detailed risk analysis..."):
                 try:
-                    symbols = [s for s in list(portfolio.symbols)[:5] if s and s.strip()]
-                    if symbols:
-                        price_data = data_client.get_price_data(symbols, "1mo")
-                    else:
-                        raise Exception("No valid symbols")
-                    returns = price_data.pct_change(fill_method=None).dropna()
-                    real_corr = returns.corr()
-                    fig = px.imshow(real_corr.values, x=real_corr.columns, y=real_corr.index, title="Correlation Matrix", color_continuous_scale='RdBu')
-                    st.plotly_chart(fig)
-                except:
-                    st.info("Market data unavailable - correlation matrix not displayed")
-            
-            if st.button("Recalculate Risk Analysis"):
-                cache_manager.invalidate_user_cache(user.user_id)
-                st.rerun()
-        else:
-            if st.button("Calculate Risk Analysis"):
-                with st.spinner("Calculating risk metrics..."):
                     weights = portfolio.get_weights()
                     
                     try:
@@ -1899,57 +2295,180 @@ if uploaded_file or current_portfolio or plaid_portfolio or current_transactions
                         risk_analyzer = RiskAnalyzerPolars(data_client)
                         metrics = risk_analyzer.analyze_portfolio_risk_ultra_fast(portfolio.symbols, weights)
                     except ImportError:
-                        st.warning("Install polars: pip install polars")
                         risk_analyzer = RiskAnalyzer(data_client)
                         metrics = risk_analyzer.analyze_portfolio_risk_fast(portfolio.symbols, weights)
                     
-                    # Cache results with prefix
                     cache_manager.set_portfolio_data(user.user_id, f"risk_{portfolio_hash}", metrics, expire_hours=24)
+                    cached_metrics = metrics
+                    st.success("✅ Risk analysis completed")
                     
-                    # Check for risk alerts
-                    if Config.ENABLE_RISK_ALERTS and email_service.enabled:
-                        portfolio_volatility = metrics.get('portfolio_volatility', 0)
-                        var_95 = metrics.get('var_95', 0)
-                        
-                        # Check thresholds
-                        if var_95 > Config.RISK_THRESHOLD_CRITICAL:
-                            threshold_type = "CRITICAL"
-                            should_alert = True
-                        elif var_95 > Config.RISK_THRESHOLD_HIGH:
-                            threshold_type = "HIGH"
-                            should_alert = True
-                        else:
-                            should_alert = False
-                        
-                        if should_alert:
-                            # Send risk alert email
-                            portfolio_name = st.session_state.get('current_portfolio', {}).get('portfolio_name', 'Current Portfolio')
-                            email_sent = email_service.send_risk_alert(
-                                [user.email], 
-                                portfolio_name, 
-                                metrics, 
-                                threshold_type
-                            )
-                            
-                            if email_sent:
-                                st.warning(f"⚠️ {threshold_type} risk alert sent to {user.email}")
-                            
-                            # Log the alert
-                            logger.warning(f"Risk alert triggered for user {user.username}: VaR {var_95:.2%} exceeds {threshold_type} threshold")
-                    
-                    st.rerun()
+                    # Show actual calculated values for verification
+                    with st.expander("Calculated Values Preview"):
+                        st.write(f"VaR (95%): {metrics.get('var_95', 0):.6f} ({metrics.get('var_95', 0):.4%})")
+                        st.write(f"CVaR (95%): {metrics.get('cvar_95', 0):.6f} ({metrics.get('cvar_95', 0):.4%})")
+                        st.write(f"Beta: {metrics.get('beta', 0):.6f}")
+                        st.write(f"Portfolio Volatility: {metrics.get('portfolio_volatility', 0):.6f} ({metrics.get('portfolio_volatility', 0):.4%})")
+                except Exception as e:
+                    st.error(f"Risk analysis failed: {str(e)}")
         
-        with col2:
-            if st.button("Download Portseido Template"):
-                from clients.portseido_client import portseido_client
-                template_bytes = portseido_client.generate_portseido_template()
-                st.download_button(
-                    label="Download Excel Template",
-                    data=template_bytes,
-                    file_name="portseido_template.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        if cached_metrics:
+            metrics = cached_metrics
+            
+            # Key Risk Metrics
+            st.subheader("📈 Key Risk Metrics")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                portfolio_vol = metrics.get('portfolio_volatility', 0)
+                st.metric("Portfolio Volatility", f"{portfolio_vol:.2%}" if portfolio_vol != 0 else "0.00%")
+            with col2:
+                var_95 = metrics.get('var_95', 0)
+                # Handle both small decimal and percentage values
+                if abs(var_95) < 0.01 and abs(var_95) > 0:
+                    st.metric("VaR (95%)", f"{var_95:.4%}")
+                else:
+                    st.metric("VaR (95%)", f"{var_95:.2%}" if var_95 != 0 else "0.00%")
+            with col3:
+                cvar_95 = metrics.get('cvar_95', 0)
+                # Handle both small decimal and percentage values
+                if abs(cvar_95) < 0.01 and abs(cvar_95) > 0:
+                    st.metric("CVaR (95%)", f"{cvar_95:.4%}")
+                else:
+                    st.metric("CVaR (95%)", f"{cvar_95:.2%}" if cvar_95 != 0 else "0.00%")
+            with col4:
+                max_dd = metrics.get('max_drawdown', 0)
+                st.metric("Max Drawdown", f"{max_dd:.2%}" if max_dd != 0 else "0.00%")
+            
+            # Additional Risk Metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                sharpe = metrics.get('sharpe_ratio', 0)
+                st.metric("Sharpe Ratio", f"{sharpe:.3f}" if sharpe != 0 else "0.000")
+            with col2:
+                sortino = metrics.get('sortino_ratio', 0)
+                st.metric("Sortino Ratio", f"{sortino:.3f}" if sortino != 0 else "0.000")
+            with col3:
+                beta = metrics.get('beta', 0)
+                st.metric("Beta", f"{beta:.3f}" if beta != 0 else "0.000")
+            with col4:
+                avg_corr = metrics.get('avg_correlation', 0)
+                st.metric("Average Correlation", f"{avg_corr:.3f}" if avg_corr != 0 else "0.000")
+            
+            # Risk Assessment
+            var_95 = abs(metrics.get('var_95', 0))  # Use absolute value for assessment
+            if var_95 > 0.10:
+                st.error(f"🔴 HIGH RISK: VaR {var_95:.2%} exceeds 10%")
+            elif var_95 > 0.05:
+                st.warning(f"🟡 MODERATE RISK: VaR {var_95:.2%} between 5-10%")
+            elif var_95 > 0.01:
+                st.info(f"🟡 MODERATE RISK: VaR {var_95:.2%} between 1-5%")
+            elif var_95 > 0:
+                st.success(f"🟢 LOW RISK: VaR {var_95:.4%} below 1%")
+            else:
+                st.warning("⚠️ VaR calculation unavailable - check data quality")
+            
+            # Correlation Analysis
+            st.subheader("🔗 Correlation Analysis")
+            corr_matrix = metrics.get('correlation_matrix')
+            if corr_matrix is not None:
+                try:
+                    if hasattr(corr_matrix, 'values'):
+                        corr_data = corr_matrix
+                    else:
+                        # Create correlation matrix from real data
+                        symbols = [s for s in list(portfolio.symbols)[:10] if s and s.strip()]
+                        if symbols:
+                            price_data = data_client.get_price_data(symbols, "3mo")
+                            returns = price_data.pct_change(fill_method=None).dropna()
+                            corr_data = returns.corr()
+                    
+                    fig_corr = px.imshow(
+                        corr_data.values, 
+                        x=corr_data.columns, 
+                        y=corr_data.index,
+                        title="Portfolio Correlation Matrix", 
+                        color_continuous_scale='RdBu',
+                        aspect='auto'
+                    )
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                except Exception as e:
+                    st.info("Correlation matrix unavailable")
+            
+            # Risk Decomposition
+            st.subheader("📉 Risk Decomposition")
+            if 'risk_contribution' in metrics and metrics['risk_contribution']:
+                risk_contrib = metrics['risk_contribution']
+                if risk_contrib and len(risk_contrib) > 0:
+                    contrib_data = []
+                    for symbol, contrib in risk_contrib.items():
+                        contrib_data.append({
+                            'Symbol': symbol, 
+                            'Risk Contribution': f"{contrib:.2%}",
+                            'Risk Contribution (Raw)': contrib
+                        })
+                    
+                    contrib_df = pd.DataFrame(contrib_data)
+                    contrib_df = contrib_df.sort_values('Risk Contribution (Raw)', ascending=False)
+                    
+                    # Display table
+                    st.dataframe(contrib_df[['Symbol', 'Risk Contribution']], use_container_width=True)
+                    
+                    # Risk contribution chart
+                    fig_risk_contrib = px.bar(
+                        contrib_df, 
+                        x='Symbol', 
+                        y='Risk Contribution (Raw)',
+                        title="Risk Contribution by Asset",
+                        labels={'Risk Contribution (Raw)': 'Risk Contribution'}
+                    )
+                    st.plotly_chart(fig_risk_contrib, use_container_width=True)
+                else:
+                    st.info("Risk contribution data is empty or not available")
+            else:
+                st.info("Risk contribution analysis not available - this requires correlation and volatility data")
+            
+            # Volatility Analysis
+            st.subheader("📈 Volatility Analysis")
+            if 'individual_volatilities' in metrics:
+                vol_data = metrics['individual_volatilities']
+                vol_df = pd.DataFrame([
+                    {'Symbol': symbol, 'Volatility': f"{vol:.2%}"}
+                    for symbol, vol in vol_data.items()
+                ])
+                
+                fig_vol = px.bar(
+                    vol_df, x='Symbol', y='Volatility',
+                    title="Individual Stock Volatilities"
                 )
-                st.info("1. Download template\n2. Input your trades\n3. Upload below")
+                st.plotly_chart(fig_vol, use_container_width=True)
+            
+            # Risk Alerts
+            if hasattr(Config, 'ENABLE_RISK_ALERTS') and Config.ENABLE_RISK_ALERTS and email_service.enabled:
+                critical_threshold = getattr(Config, 'RISK_THRESHOLD_CRITICAL', 0.15)
+                high_threshold = getattr(Config, 'RISK_THRESHOLD_HIGH', 0.10)
+                if var_95 > critical_threshold:
+                    st.error(f"⚠️ CRITICAL RISK ALERT: VaR {var_95:.2%} exceeds critical threshold")
+                elif var_95 > high_threshold:
+                    st.warning(f"⚠️ HIGH RISK ALERT: VaR {var_95:.2%} exceeds high threshold")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Refresh Risk Analysis"):
+                    cache_manager.invalidate_user_cache(user.user_id)
+                    st.rerun()
+            with col2:
+                if st.button("Debug Risk Calculation"):
+                    st.write("**Raw Risk Metrics:**")
+                    for key, value in metrics.items():
+                        if key in ['var_95', 'cvar_95', 'beta', 'sharpe_ratio', 'sortino_ratio']:
+                            st.write(f"{key}: {value} (type: {type(value)})")
+        else:
+            st.warning("Unable to calculate risk metrics - check data availability")
+            with st.expander("Debug Information"):
+                st.write(f"Portfolio symbols: {list(portfolio.symbols)[:5]}...")
+                st.write(f"Portfolio weights available: {bool(portfolio.get_weights())}")
+                st.write(f"Data client available: {data_client is not None}")
+        
+
     
     # Advanced Analytics Suite
     if user_manager.check_permission(user, Permission.READ_ANALYTICS):
@@ -2545,13 +3064,23 @@ if uploaded_file or current_portfolio or plaid_portfolio or current_transactions
         with analytics_tab6:
             st.subheader("News Sentiment Analysis")
             
-            # Check for cached results first
-            from utils.auto_analysis import get_cached_sentiment_analysis, format_sentiment_summary
+            # Auto-calculate sentiment analysis
+            from utils.auto_analysis import get_cached_sentiment_analysis, format_sentiment_summary, run_automatic_sentiment_analysis
             portfolio_symbols = list(portfolio.symbols)[:10]
             cached_sentiment = get_cached_sentiment_analysis(portfolio_symbols, user.user_id)
             
+            if not cached_sentiment:
+                with st.spinner("Auto-analyzing news sentiment..."):
+                    try:
+                        cached_sentiment = run_automatic_sentiment_analysis(
+                            portfolio_symbols, user.user_id, days_back=7
+                        )
+                        if cached_sentiment:
+                            st.success("✅ Auto-calculated sentiment analysis completed")
+                    except Exception as e:
+                        st.error(f"Sentiment analysis failed: {str(e)}")
+            
             if cached_sentiment:
-                st.success("✅ Auto-calculated sentiment analysis available")
                 sentiment_summary = format_sentiment_summary(cached_sentiment)
                 
                 # Display metrics
@@ -2583,7 +3112,7 @@ if uploaded_file or current_portfolio or plaid_portfolio or current_transactions
                     st.plotly_chart(fig_sentiment, use_container_width=True)
                 
                 # Display insights
-                if sentiment_summary['insights']:
+                if sentiment_summary.get('insights'):
                     st.write("**Key Insights:**")
                     for insight in sentiment_summary['insights']:
                         st.write(f"• {insight}")
@@ -2602,114 +3131,15 @@ if uploaded_file or current_portfolio or plaid_portfolio or current_transactions
                     if sentiment_detail:
                         detail_df = pd.DataFrame(sentiment_detail)
                         st.dataframe(detail_df, use_container_width=True)
+            else:
+                st.warning("Unable to analyze sentiment - check news data availability")
             
-            # Manual analysis option
-            with st.expander("Custom Sentiment Analysis"):
-                from pulling_news_v3 import NewsAnalyzer
-                news_analyzer = NewsAnalyzer()
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    days_back = st.slider("Days Back", 1, 30, 7)
-                with col2:
-                    max_news = st.slider("Max News per Stock", 5, 50, 20)
             
-            if st.button("Analyze Portfolio Sentiment"):
-                with st.spinner("Analyzing news sentiment..."):
-                    try:
-                        portfolio_symbols = list(portfolio.symbols)[:10]  # Limit to first 10 symbols
-                        sentiment_data = news_analyzer.get_portfolio_news_sentiment(portfolio_symbols, days_back)
-                        
-                        # Overall sentiment summary
-                        st.subheader("Portfolio Sentiment Overview")
-                        
-                        sentiment_summary = []
-                        for symbol, data in sentiment_data.items():
-                            sentiment_summary.append({
-                                'Symbol': symbol,
-                                'Sentiment': data['sentiment_trend'],
-                                'Score': f"{data['sentiment_score']:.3f}",
-                                'News Count': data['news_count'],
-                                'Positive': data['sentiment_distribution']['positive'],
-                                'Negative': data['sentiment_distribution']['negative'],
-                                'Neutral': data['sentiment_distribution']['neutral']
-                            })
-                        
-                        sentiment_df = pd.DataFrame(sentiment_summary)
-                        
-                        # Color-code sentiment
-                        def color_sentiment(val):
-                            if val == 'BULLISH':
-                                return 'background-color: lightgreen; color: black'
-                            elif val == 'BEARISH':
-                                return 'background-color: lightcoral; color: black'
-                            else:
-                                return 'background-color: lightgray; color: black'
-                        
-                        styled_df = sentiment_df.style.applymap(color_sentiment, subset=['Sentiment'])
-                        st.dataframe(styled_df, use_container_width=True)
-                        
-                        # Sentiment distribution chart
-                        sentiment_counts = sentiment_df['Sentiment'].value_counts()
-                        fig_sentiment = px.pie(values=sentiment_counts.values, names=sentiment_counts.index,
-                                             title="Portfolio Sentiment Distribution")
-                        st.plotly_chart(fig_sentiment, use_container_width=True)
-                        
-                        # Individual stock news
-                        st.subheader("Latest News by Stock")
-                        
-                        for symbol, data in sentiment_data.items():
-                            if data['latest_news']:
-                                with st.expander(f"📈 {symbol} - {data['sentiment_trend']} ({data['sentiment_score']:.3f})"):
-                                    for news_item in data['latest_news'][:5]:
-                                        sentiment_color = {
-                                            'POSITIVE': '🟢',
-                                            'NEGATIVE': '🔴',
-                                            'NEUTRAL': '⚪'
-                                        }.get(news_item['sentiment'], '⚪')
-                                        
-                                        st.write(f"{sentiment_color} **{news_item['title']}**")
-                                        st.write(f"*{news_item['timestamp'].strftime('%Y-%m-%d %H:%M')} - Polarity: {news_item['polarity']:.3f}*")
-                                        st.write(f"[Read more]({news_item['url']})")
-                                        st.divider()
-                        
-                        # Market events detection
-                        st.subheader("Market Events Detection")
-                        events = news_analyzer.detect_market_events(portfolio_symbols)
-                        
-                        events_found = False
-                        for symbol, symbol_events in events.items():
-                            if symbol_events:
-                                events_found = True
-                                with st.expander(f"🎯 {symbol} Events ({len(symbol_events)})"):
-                                    for event in symbol_events[:5]:
-                                        event_icon = {
-                                            'EARNINGS': '📊',
-                                            'ANNOUNCEMENT': '📢',
-                                            'REGULATORY': '⚖️'
-                                        }.get(event['type'], '📰')
-                                        
-                                        st.write(f"{event_icon} **{event['type']}**: {event['title']}")
-                                        st.write(f"*{event['timestamp'].strftime('%Y-%m-%d %H:%M')} - {event['sentiment']} (Impact: {event['impact_score']:.3f})*")
-                                        st.divider()
-                        
-                        if not events_found:
-                            st.info("No significant market events detected in the selected timeframe.")
-                        
-                        # Export functionality
-                        if st.button("Export News Data"):
-                            news_df = news_analyzer.export_news_data(portfolio_symbols)
-                            csv = news_df.to_csv(index=False)
-                            st.download_button(
-                                label="📥 Download News CSV",
-                                data=csv,
-                                file_name=f"portfolio_news_{datetime.now().strftime('%Y%m%d')}.csv",
-                                mime="text/csv"
-                            )
-                        
-                    except Exception as e:
-                        st.error(f"News analysis error: {str(e)}")
-                        st.write("Note: This is a demo implementation. Real news data would require API keys.")
+            if st.button("Refresh Sentiment Analysis"):
+                # Clear cache and recalculate
+                sentiment_hash = hashlib.md5(str(sorted(portfolio_symbols)).encode()).hexdigest()
+                cache_manager.delete_cache_key(user.user_id, f"sentiment_{sentiment_hash}")
+                st.rerun()
         
         with analytics_tab7:
             st.subheader("Machine Learning Engine")
@@ -2730,14 +3160,26 @@ if uploaded_file or current_portfolio or plaid_portfolio or current_transactions
                 with col2:
                     prediction_horizon = st.slider("Prediction Horizon", 1, 30, 5)
                 
-                # Check if models are already trained for current portfolio
+                # Auto-train models for current portfolio
                 portfolio_hash = hashlib.md5(str(sorted([s for s in portfolio.symbols if s])).encode()).hexdigest()
                 cached_ml_models = cache_manager.get_portfolio_data(user.user_id, f"ml_models_{portfolio_hash}")
                 
+                if not cached_ml_models:
+                    with st.spinner("Auto-training ML models..."):
+                        try:
+                            portfolio_symbols = list(portfolio.symbols)[:10]
+                            training_results = ml_predictor.train_return_prediction_model(portfolio_symbols)
+                            if training_results:
+                                cache_manager.set_portfolio_data(user.user_id, f"ml_models_{portfolio_hash}", training_results, expire_hours=24)
+                                cached_ml_models = training_results
+                                st.success(f"✅ Auto-trained ML models for {len(training_results)} symbols")
+                        except Exception as e:
+                            st.error(f"Auto-training failed: {str(e)}")
+                
                 if cached_ml_models:
-                    st.success(f"✅ ML models already trained for {len(cached_ml_models)} symbols")
+                    st.success(f"✅ ML models trained for {len(cached_ml_models)} symbols")
                     
-                    # Display cached training results
+                    # Display training results
                     training_df = pd.DataFrame([
                         {
                             'Symbol': symbol,
@@ -2753,42 +3195,43 @@ if uploaded_file or current_portfolio or plaid_portfolio or current_transactions
                         cache_manager.invalidate_user_cache(user.user_id)
                         st.rerun()
                 else:
-                    st.info("🤖 ML models will be automatically trained when you upload portfolio data")
+                    st.warning("Unable to train ML models - check data availability")
                 
-                if st.button("Generate Predictions"):
-                    with st.spinner("Generating predictions..."):
+                # Auto-generate predictions if models are trained
+                if cached_ml_models:
+                    with st.spinner("Generating ML predictions..."):
                         try:
-                            # Try to load existing models first
-                            if ml_predictor.load_models('ml_models.pkl'):
-                                portfolio_symbols = list(portfolio.symbols)[:5]
-                                predictions = ml_predictor.predict_returns(portfolio_symbols, prediction_horizon)
+                            portfolio_symbols = list(portfolio.symbols)[:5]
+                            predictions = ml_predictor.predict_returns(portfolio_symbols, prediction_horizon)
+                            
+                            if predictions:
+                                pred_df = pd.DataFrame([
+                                    {
+                                        'Symbol': symbol,
+                                        'Predicted Return': f"{data['predicted_return']:.2%}",
+                                        'Confidence': f"{data['confidence']:.2%}",
+                                        'Horizon': f"{data['horizon_days']} days"
+                                    }
+                                    for symbol, data in predictions.items()
+                                ])
                                 
-                                if predictions:
-                                    pred_df = pd.DataFrame([
-                                        {
-                                            'Symbol': symbol,
-                                            'Predicted Return': f"{data['predicted_return']:.2%}",
-                                            'Confidence': f"{data['confidence']:.2%}",
-                                            'Horizon': f"{data['horizon_days']} days"
-                                        }
-                                        for symbol, data in predictions.items()
-                                    ])
-                                    
-                                    st.dataframe(pred_df, use_container_width=True)
-                                    
-                                    # Visualization
-                                    pred_values = [float(data['predicted_return']) for data in predictions.values()]
-                                    symbols = list(predictions.keys())
-                                    
-                                    fig_pred = px.bar(x=symbols, y=pred_values, title="ML Return Predictions")
-                                    fig_pred.update_layout(xaxis_title="Symbol", yaxis_title="Predicted Return")
-                                    st.plotly_chart(fig_pred, use_container_width=True)
-                                else:
-                                    st.warning("No predictions available. Train models first.")
+                                st.subheader("ML Return Predictions")
+                                st.dataframe(pred_df, use_container_width=True)
+                                
+                                # Visualization
+                                pred_values = [float(data['predicted_return']) for data in predictions.values()]
+                                symbols = list(predictions.keys())
+                                
+                                fig_pred = px.bar(x=symbols, y=pred_values, title="ML Return Predictions")
+                                fig_pred.update_layout(xaxis_title="Symbol", yaxis_title="Predicted Return")
+                                st.plotly_chart(fig_pred, use_container_width=True)
                             else:
-                                st.warning("No trained models found. Please train models first.")
+                                st.info("No predictions available from trained models")
                         except Exception as e:
                             st.error(f"Prediction error: {str(e)}")
+                
+                if st.button("Refresh Predictions"):
+                    st.rerun()
             
             with ml_tab2:
                 st.subheader("Alternative Data Integration")

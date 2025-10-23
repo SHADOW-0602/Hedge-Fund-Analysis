@@ -5,9 +5,10 @@ from clients.snaptrade_client import snaptrade_client
 from utils.logger import logger
 from utils.user_secrets import user_secret_manager
 from datetime import datetime, timedelta
+from components.connected_accounts_manager import connected_accounts_manager
 
-class SnapTradeConnect:
-    """Enhanced SnapTrade brokerage connection component with CLI features"""
+class SnapTradeConnectEnhanced:
+    """Enhanced SnapTrade brokerage connection component with account management"""
     
     def __init__(self):
         self.client = snaptrade_client
@@ -117,7 +118,7 @@ class SnapTradeConnect:
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    st.info("📋 **Next Steps:**\n1. Click the button above to open SnapTrade\n2. Select your brokerage from the list\n3. Follow the connection process\n4. Return here and click 'Check Connection' when done")
+                    st.info("📋 **Next Steps:**\\n1. Click the button above to open SnapTrade\\n2. Select your brokerage from the list\\n3. Follow the connection process\\n4. Return here and click 'Check Connection' when done")
                     
                     if st.button("✅ Check Connection Status", key="check_connection", type="primary"):
                         self._check_connection_status(user_id)
@@ -136,36 +137,6 @@ class SnapTradeConnect:
             else:
                 st.error(f"❌ SnapTrade connection error: {error_msg}")
             return False
-    
-    def render_demo_mode(self):
-        """Render demo mode for testing without real connections"""
-        st.info("🧪 **Demo Mode**: Simulating SnapTrade connection for testing")
-        
-        if st.button("🎭 Simulate SnapTrade Connection"):
-            # Simulate successful connection with realistic demo data
-            demo_accounts = [
-                {"id": "demo_001", "name": "Demo Brokerage Account", "balance": 75000.00, "type": "Investment", "brokerage": "Demo Broker"},
-                {"id": "demo_002", "name": "Demo IRA Account", "balance": 150000.00, "type": "Retirement", "brokerage": "Demo Broker"}
-            ]
-            
-            st.session_state.snaptrade_accounts = demo_accounts
-            st.success("✅ Demo SnapTrade connection successful!")
-            
-            # Show demo holdings with more realistic data
-            demo_holdings = {
-                "symbol": ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "AMZN"],
-                "quantity": [100, 75, 25, 50, 30, 20],
-                "avg_cost": [175.50, 285.75, 2650.00, 245.30, 450.25, 3200.00],
-                "market_value": [17550.00, 21431.25, 66250.00, 12265.00, 13507.50, 64000.00]
-            }
-            
-            import pandas as pd
-            st.session_state.demo_holdings = pd.DataFrame(demo_holdings)
-            
-            # Display demo portfolio summary
-            total_value = sum(demo_holdings["market_value"])
-            st.metric("Demo Portfolio Value", f"${total_value:,.2f}")
-            st.dataframe(st.session_state.demo_holdings)
     
     def _check_connection_status(self, user_id: str):
         """Check SnapTrade connection status"""
@@ -276,34 +247,73 @@ class SnapTradeConnect:
         if 'snaptrade_user_secret' in st.session_state:
             del st.session_state.snaptrade_user_secret
     
-    def render_account_summary(self, user_id: str):
-        """Render connected accounts summary"""
-        if not self.client:
-            return
+    def render_demo_mode(self):
+        """Render demo mode for testing without real connections"""
+        st.info("🧪 **Demo Mode**: Simulating SnapTrade connection for testing")
         
-        # Use session state for connected accounts
+        if st.button("🎭 Simulate SnapTrade Connection"):
+            # Simulate successful connection with realistic demo data
+            demo_accounts = [
+                {"id": "demo_001", "name": "Demo Brokerage Account", "balance": 75000.00, "type": "Investment", "brokerage": "Demo Broker"},
+                {"id": "demo_002", "name": "Demo IRA Account", "balance": 150000.00, "type": "Retirement", "brokerage": "Demo Broker"}
+            ]
+            
+            st.session_state.snaptrade_accounts = demo_accounts
+            st.success("✅ Demo SnapTrade connection successful!")
+            
+            # Show demo holdings with more realistic data
+            demo_holdings = {
+                "symbol": ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "AMZN"],
+                "quantity": [100, 75, 25, 50, 30, 20],
+                "avg_cost": [175.50, 285.75, 2650.00, 245.30, 450.25, 3200.00],
+                "market_value": [17550.00, 21431.25, 66250.00, 12265.00, 13507.50, 64000.00]
+            }
+            
+            import pandas as pd
+            st.session_state.demo_holdings = pd.DataFrame(demo_holdings)
+            
+            # Display demo portfolio summary
+            total_value = sum(demo_holdings["market_value"])
+            st.metric("Demo Portfolio Value", f"${total_value:,.2f}")
+            st.dataframe(st.session_state.demo_holdings)
+    
+    def render_account_summary(self, user_id: str):
+        """Render connected accounts summary with comprehensive management"""
+        # Show current session accounts if connected
         if st.session_state.get('snaptrade_connected'):
             accounts = st.session_state.get('snaptrade_accounts', [])
+            
+            if accounts:
+                st.subheader("📊 Current Session Accounts")
+                for account in accounts:
+                    with st.expander(f"🏦 {account.get('name', 'Unknown Account')}"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Balance", f"${account.get('balance', 0):,.2f}")
+                        with col2:
+                            st.metric("Account Type", account.get('type', 'Unknown'))
+                        
+                        st.info("Holdings data available after successful connection")
+        
         elif 'demo_holdings' in st.session_state:
             accounts = st.session_state.get('snaptrade_accounts', [])
-        else:
-            accounts = []
-            
-        if not accounts:
-            st.info("No connected accounts")
-            return
+            if accounts:
+                st.subheader("🧪 Demo Accounts")
+                for account in accounts:
+                    with st.expander(f"🏦 {account.get('name', 'Demo Account')}"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Balance", f"${account.get('balance', 0):,.2f}")
+                        with col2:
+                            st.metric("Account Type", account.get('type', 'Demo'))
         
-        st.subheader("📊 Connected Accounts")
+        # Always show the comprehensive connected accounts manager
+        st.divider()
+        connected_accounts_manager.render_connected_accounts(user_id)
         
-        for account in accounts:
-            with st.expander(f"🏦 {account.get('name', 'Unknown Account')}"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Balance", f"${account.get('balance', 0):,.2f}")
-                with col2:
-                    st.metric("Account Type", account.get('type', 'Unknown'))
-                
-                st.info("Holdings data available after successful connection")
+        # Show quick actions
+        st.divider()
+        connected_accounts_manager.render_quick_actions()
 
 # Global instance
-snaptrade_connect = SnapTradeConnect()
+snaptrade_connect_enhanced = SnapTradeConnectEnhanced()

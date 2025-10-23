@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Plaid Link Generator</title>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        button { background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 5px; }
+        button:hover { background: #0056b3; }
+        #result { margin-top: 20px; padding: 15px; border-radius: 4px; background: #f8f9fa; border: 1px solid #dee2e6; }
+        .success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h2>Plaid Link Generator & Connector</h2>
+    
+    <div>
+        <h3>Step 1: Generate Link Token</h3>
+        <input type="text" id="userId" placeholder="User ID" value="">
+        <button onclick="generateToken()">Generate Link Token</button>
+    </div>
+    
+    <div id="tokenResult"></div>
+    
+    <div>
+        <h3>Step 2: Connect Account</h3>
+        <button id="connectButton" onclick="connectAccount()" disabled>Connect Bank Account</button>
+    </div>
+    
+    <div id="connectionResult"></div>
+    
+    <script>
+    let linkHandler = null;
+    let currentToken = null;
+    
+    function generateToken() {
+        const userId = document.getElementById('userId').value || 'user_' + Date.now();
+        document.getElementById('userId').value = userId;
+        
+        // Simulate token generation (replace with actual API call)
+        const mockToken = 'link-sandbox-' + Math.random().toString(36).substring(2, 15);
+        currentToken = mockToken;
+        
+        document.getElementById('tokenResult').innerHTML = 
+            '<div class="success">' +
+            '<h4>Link Token Generated</h4>' +
+            '<p><strong>User ID:</strong> ' + userId + '</p>' +
+            '<p><strong>Token:</strong> ' + mockToken + '</p>' +
+            '</div>';
+        
+        // Initialize Plaid Link with the token
+        try {
+            linkHandler = Plaid.create({
+                token: currentToken,
+                onSuccess: (public_token, metadata) => {
+                    document.getElementById('connectionResult').innerHTML = 
+                        '<div class="success">' +
+                        '<h4>Connection Successful!</h4>' +
+                        '<p><strong>Public Token:</strong> ' + public_token + '</p>' +
+                        '<p><strong>Institution:</strong> ' + metadata.institution.name + '</p>' +
+                        '<p><strong>Accounts:</strong> ' + metadata.accounts.length + '</p>' +
+                        '</div>';
+                },
+                onExit: (err, metadata) => {
+                    if (err) {
+                        document.getElementById('connectionResult').innerHTML = 
+                            '<div class="error">' +
+                            '<h4>Connection Failed</h4>' +
+                            '<p>' + err.error_message + '</p>' +
+                            '</div>';
+                    }
+                }
+            });
+            
+            document.getElementById('connectButton').disabled = false;
+        } catch (error) {
+            document.getElementById('tokenResult').innerHTML += 
+                '<div class="error"><p>Error initializing Plaid: ' + error.message + '</p></div>';
+        }
+    }
+    
+    function connectAccount() {
+        if (linkHandler) {
+            linkHandler.open();
+        }
+    }
+    
+    // Auto-generate token on page load
+    window.onload = function() {
+        generateToken();
+    };
+    </script>
+</body>
+</html>
