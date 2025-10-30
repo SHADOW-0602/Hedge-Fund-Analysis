@@ -1,25 +1,26 @@
-#!/usr/bin/env python3
-"""
-Streamlit deployment entry point for Portfolio Analysis Engine
-"""
-import subprocess
 import sys
 import os
-from pathlib import Path
+from dotenv import load_dotenv
 
-# Add project root to Python path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+# Load environment variables
+load_dotenv()
 
-# Set environment variables for production
-os.environ.setdefault('STREAMLIT_SERVER_HEADLESS', 'true')
-os.environ.setdefault('STREAMLIT_SERVER_ENABLE_CORS', 'false')
+# Add src directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-if __name__ == "__main__":
-    # Run the main Streamlit app
-    subprocess.run([
-        sys.executable, "-m", "streamlit", "run", 
-        "interfaces/web_app_enterprise.py",
-        "--server.headless=true",
-        "--server.enableCORS=false"
-    ])
+from src.main_app import app
+
+if __name__ == '__main__':
+    print("\n=== Portfolio & Options Analysis Engine ===")
+    print("Starting server for transaction analysis...")
+    print("Web Interface: http://127.0.0.1:8080")
+    print("Transaction Analysis API: http://127.0.0.1:8080/api")
+    print("Press Ctrl+C to stop\n")
+    
+    app.run(
+        host='127.0.0.1',
+        port=8080,
+        debug=False,
+        threaded=True,
+        use_reloader=False
+    )

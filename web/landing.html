@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio & Options Analysis Engine</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="landing.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="nav">
+            <div class="nav-brand">
+                <h1>Hedge Fund Analyzer</h1>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#about">About</a>
+                <div class="theme-toggle-wrapper">
+                    <input type="checkbox" class="theme-checkbox" id="themeToggle">
+                    <label for="themeToggle" class="theme-label">
+                        <span class="moon">🌙</span>
+                        <span class="sun">☀️</span>
+                        <span class="ball"></span>
+                    </label>
+                </div>
+                <div class="auth-buttons">
+                    <button onclick="window.location.href='/app'" class="btn-auth btn-signin">Sign In</button>
+                    <button onclick="window.location.href='/app'" class="btn-auth btn-signup">Sign Up</button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1 class="hero-title">Professional Portfolio Analysis</h1>
+                <p class="hero-subtitle">Enterprise-grade risk management and options analysis platform with real-time
+                    market data integration</p>
+                <div class="hero-buttons">
+                    <button onclick="window.location.href='/app'" class="btn-primary">Start Analysis</button>
+                    <button onclick="scrollToSection('features')" class="btn-secondary">Learn More</button>
+                </div>
+            </div>
+            <div class="hero-image">
+                <img id="heroImg" src="" alt="Financial Analysis" class="fade-in">
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">Powerful Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <img id="portfolioImg" src="" alt="Portfolio Management">
+                    </div>
+                    <h3>Portfolio Management</h3>
+                    <p>Multi-format uploads, live data integration, and comprehensive P&L tracking with FIFO cost basis
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <img id="riskImg" src="" alt="Risk Analysis">
+                    </div>
+                    <h3>Risk Analytics</h3>
+                    <p>Advanced VaR, CVaR, Sharpe ratio calculations with Monte Carlo simulations</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <img id="optionsImg" src="" alt="Options Trading">
+                    </div>
+                    <h3>Options Analysis</h3>
+                    <p>Covered call opportunities, Greeks calculation, and volatility analysis</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <img id="brokerImg" src="" alt="Brokerage Integration">
+                    </div>
+                    <h3>Brokerage Integration</h3>
+                    <p>Plaid and SnapTrade connections for live account data synchronization</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <img id="transactionImg" src="" alt="Transaction Analysis">
+                    </div>
+                    <h3>Transaction Analysis</h3>
+                    <p>FIFO cost basis tracking, P&L calculation, and comprehensive trade history analysis</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <img id="performanceImg" src="" alt="Performance Tracking">
+                    </div>
+                    <h3>Performance Tracking</h3>
+                    <p>Real-time performance attribution, realized/unrealized gains, and detailed trade analytics</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- News Section -->
+    <section class="news" id="news" style="padding: 4rem 0; background: var(--bg-secondary);">
+        <div class="container">
+            <h2 class="section-title" style="text-align: center; margin-bottom: 3rem; color: var(--text-primary);">Market News & Insights</h2>
+            <div class="news-grid" id="newsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+                <div class="news-loading" style="text-align: center; color: var(--text-secondary);">Loading latest market news...</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="about">
+        <div class="container">
+            <div class="about-content">
+                <div class="about-text">
+                    <h2>Built for Professionals</h2>
+                    <p>Our platform combines institutional-grade analytics with user-friendly interfaces, providing
+                        comprehensive portfolio analysis tools used by hedge funds and investment professionals.</p>
+                    <ul class="about-features">
+                        <li>Real-time market data integration</li>
+                        <li>Advanced risk management tools</li>
+                        <li>Multi-user enterprise support</li>
+                        <li>Secure data encryption</li>
+                    </ul>
+                </div>
+                <div class="about-image">
+                    <img id="aboutImg" src="" alt="Professional Trading" class="fade-in">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <h3>Hedge Fund Analyzer</h3>
+                    <p>Professional portfolio analysis platform</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Product</h4>
+                        <a href="#features">Features</a>
+                        <a href="index.html">Dashboard</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Support</h4>
+                        <a href="#about">About</a>
+                        <a href="mailto:kushagra.singh0602@gmail.com">Contact</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 Hedge Fund Analyzer. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="utils.js"></script>
+    <script src="landing.js"></script>
+</body>
+
+</html>

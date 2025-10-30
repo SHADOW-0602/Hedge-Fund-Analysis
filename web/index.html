@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hedge Fund Analyzer</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <link rel="stylesheet" href="index-styles.css">
+</head>
+
+<body class="gradient-bg min-h-full">
+    <div class="min-h-full">
+        <!-- Header -->
+        <header class="bg-white shadow-lg border-b-4 border-indigo-600">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 sm:py-6 space-y-2 sm:space-y-0">
+                    <div class="flex items-center justify-between sm:justify-start">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                                <span class="text-white font-bold text-sm sm:text-lg">HF</span>
+                            </div>
+                            <h1 class="text-base sm:text-2xl lg:text-3xl font-bold text-gray-900">Hedge Fund Analyzer</h1>
+                        </div>
+                        <div class="theme-toggle-wrapper sm:hidden">
+                            <input type="checkbox" class="theme-checkbox" id="themeToggleMobile">
+                            <label for="themeToggleMobile" class="theme-label">
+                                <span class="moon">🌙</span>
+                                <span class="sun">☀️</span>
+                                <span class="ball"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between sm:justify-end space-x-2 sm:space-x-4">
+                        <div class="theme-toggle-wrapper hidden sm:block">
+                            <input type="checkbox" class="theme-checkbox" id="themeToggleDesktop">
+                            <label for="themeToggleDesktop" class="theme-label">
+                                <span class="moon">🌙</span>
+                                <span class="sun">☀️</span>
+                                <span class="ball"></span>
+                            </label>
+                        </div>
+                        <div id="connectionStatus" class="text-sm px-3 py-1 rounded-full hidden sm:block" style="display: none;">
+                            <span id="connectionText">Connecting...</span>
+                        </div>
+                        <div class="user-info" id="userInfo" style="display: none;">
+                            <button onclick="showAdminPanel()" id="adminBtn" class="bg-purple-600 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-purple-700 transition-colors mr-1 sm:mr-2 text-xs sm:text-sm" style="display: none;">Admin</button>
+                            <button onclick="logout()" class="bg-red-600 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm">Logout</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+            <!-- Hidden file inputs for upload functionality -->
+            <input type="file" id="portfolioFile" accept=".csv,.xlsx,.xls" class="hidden">
+            <input type="file" id="transactionFile" accept=".csv,.xlsx,.xls" class="hidden">
+
+            <!-- View Saved Files Section -->
+            <div class="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6 sm:mb-8">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">View Saved Files</h2>
+                <div class="space-y-6 sm:grid sm:grid-cols-1 md:grid-cols-2 sm:gap-6 sm:space-y-0">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Portfolio Files</label>
+                        <select id="portfolioFileSelect" class="w-full p-3 border rounded-lg text-sm" onchange="togglePortfolioDelete()">
+                            <option value="" selected>Select portfolio file...</option>
+                        </select>
+                        <div class="flex flex-col sm:flex-row gap-2 mt-3">
+                            <button onclick="viewSelectedPortfolio()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex-1 text-sm">View Portfolio</button>
+                            <button onclick="deleteSelectedPortfolio()" id="deletePortfolioBtn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm" style="display: none;">Delete</button>
+                        </div>
+                        <div class="mt-2">
+                            <button onclick="document.getElementById('portfolioFile').click()" class="text-sm text-indigo-600 hover:text-indigo-800">+ Upload New Portfolio</button>
+                            <div id="portfolioUploadStatus" class="mt-1 text-xs"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Transaction Files</label>
+                        <select id="transactionFileSelect" class="w-full p-3 border rounded-lg text-sm" onchange="toggleTransactionDelete()">
+                            <option value="" selected>Select transaction file...</option>
+                        </select>
+                        <div class="flex flex-col sm:flex-row gap-2 mt-3">
+                            <button onclick="viewSelectedTransactions()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex-1 text-sm">View Transactions</button>
+                            <button onclick="deleteSelectedTransactions()" id="deleteTransactionBtn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm" style="display: none;">Delete</button>
+                        </div>
+                        <div class="mt-2">
+                            <button onclick="document.getElementById('transactionFile').click()" class="text-sm text-purple-600 hover:text-purple-800">+ Upload New Transactions</button>
+                            <div id="transactionUploadStatus" class="mt-1 text-xs"></div>
+                        </div>
+                    </div>
+                    <div class="sm:col-span-1 md:col-span-2">
+                        <div class="border-2 border-green-300 rounded-lg p-4 text-center">
+                            <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-sm font-medium text-gray-900 mb-1">Connect via Plaid</h3>
+                            <p class="text-xs text-gray-600 mb-3">Link brokerage accounts for real-time data</p>
+                            <button onclick="connectPlaid()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto">Connect Account</button>
+                            <div id="plaidStatus" class="mt-2 text-xs text-gray-600">Connect your brokerage account for real-time data</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+
+
+
+
+
+            <!-- Loading Section -->
+            <div id="loadingSection" class="bg-white rounded-xl shadow-lg p-12 mb-8 hidden">
+                <div class="text-center">
+                    <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mb-6"></div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
+                    <p class="text-gray-600 mb-4">Analyzing portfolio holdings and calculating risk metrics...</p>
+                    <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
+                        <div id="progressBar" class="bg-indigo-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <p id="loadingStatus" class="text-sm text-gray-500">Initializing analysis...</p>
+                </div>
+            </div>
+
+            <!-- Portfolio Analysis Section -->
+            <div id="portfolioAnalysis" class="space-y-8 hidden">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-900">Portfolio Analysis</h2>
+                    <div class="flex items-center space-x-4">
+                        <!-- Plaid Analysis Switcher -->
+                        <div id="plaidAnalysisSwitcher" class="hidden bg-gray-100 rounded-lg p-1">
+                            <button id="portfolioAnalysisBtn" onclick="switchToPortfolioAnalysis()" class="px-4 py-2 rounded-md text-sm font-medium bg-white text-gray-900 shadow-sm">Portfolio</button>
+                            <button id="transactionAnalysisBtn" onclick="switchToTransactionAnalysis()" class="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900">Transactions</button>
+                        </div>
+                        <button onclick="refreshPortfolioAnalysis()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
+                            </svg>
+                            Refresh Analysis
+                        </button>
+                    </div>
+                </div>
+                <!-- Key Metrics Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Total AUM</h3>
+                        <p id="totalAUM" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
+                        <p class="text-sm text-green-600 mt-1">Portfolio Value</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Sharpe Ratio</h3>
+                        <p id="sharpeRatio" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
+                        <p class="text-sm mt-1" id="sharpeDescription">Risk-adjusted return</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Max Drawdown</h3>
+                        <p id="maxDrawdown" class="text-3xl font-bold text-red-600 metric-value">N/A</p>
+                        <p class="text-sm text-gray-600 mt-1" id="drawdownDescription">Historical period</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Beta</h3>
+                        <p id="beta" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
+                        <p class="text-sm text-gray-600 mt-1"></p>
+                    </div>
+                </div>
+
+                <!-- Portfolio Analysis Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Risk Metrics -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Risk Metrics</h3>
+                        <div id="riskResults"></div>
+                    </div>
+
+                    <!-- Options Strategies -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Options Strategies</h3>
+                        <div id="optionsResults"></div>
+                    </div>
+
+
+
+                    <!-- Performance Attribution -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Performance Attribution</h3>
+                        <div id="performanceAttribution"></div>
+                    </div>
+
+                    <!-- Monte Carlo Simulation -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Monte Carlo Simulation</h3>
+                        <div id="monteCarloResults"></div>
+                    </div>
+
+                    <!-- Portfolio Optimization -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Portfolio Optimization</h3>
+                        <div id="portfolioOptimization"></div>
+                    </div>
+
+                    <!-- Correlation Analysis -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Correlation Analysis</h3>
+                        <div id="correlationMatrix"></div>
+                    </div>
+
+                    <!-- Sector Allocation -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Sector Allocation</h3>
+                        <div id="sectorAllocation"></div>
+                    </div>
+                    
+
+                    
+                    <!-- Statistical Analysis -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Statistical Analysis</h3>
+                        <div id="statisticalAnalysis"></div>
+                    </div>
+                    
+
+                    
+
+                    
+                    <!-- Technical Indicators -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Technical Indicators</h3>
+                        <div id="enhancedTechnicalAnalysis"></div>
+                    </div>
+                    
+                    <!-- Backtesting Results -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Strategy Backtesting</h3>
+                        <div id="backtestingResults"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transaction Analysis Section -->
+            <div id="transactionAnalysis" class="space-y-8 hidden">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-900">Transaction Analysis</h2>
+                    <div class="flex items-center space-x-4">
+                        <!-- Plaid Analysis Switcher -->
+                        <div id="plaidAnalysisSwitcher2" class="hidden bg-gray-100 rounded-lg p-1">
+                            <button id="portfolioAnalysisBtn2" onclick="switchToPortfolioAnalysis()" class="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900">Portfolio</button>
+                            <button id="transactionAnalysisBtn2" onclick="switchToTransactionAnalysis()" class="px-4 py-2 rounded-md text-sm font-medium bg-white text-gray-900 shadow-sm">Transactions</button>
+                        </div>
+                        <button onclick="refreshTransactionAnalysis()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
+                            </svg>
+                            Refresh Analysis
+                        </button>
+                    </div>
+                </div>
+                <!-- Transaction Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Trades</h3>
+                        <p id="totalTrades" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
+                        <p class="text-sm text-blue-600 mt-1">This quarter</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Win Rate</h3>
+                        <p id="winRate" class="text-3xl font-bold text-green-600 metric-value">N/A</p>
+                        <p class="text-sm text-gray-600 mt-1">Profitable trades</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Avg Trade Size</h3>
+                        <p id="avgTradeSize" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
+                        <p class="text-sm text-gray-600 mt-1">Per transaction</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Turnover Ratio</h3>
+                        <p id="turnoverRatio" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
+                        <p class="text-sm text-gray-600 mt-1">Annual</p>
+                    </div>
+                </div>
+
+                <!-- Transaction Analysis Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- P&L Attribution -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">P&L Attribution</h3>
+                        <div id="pnlAttribution"></div>
+                    </div>
+
+                    <!-- Trade Performance -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Trade Performance</h3>
+                        <div id="tradePerformance"></div>
+                    </div>
+
+                    <!-- Cost Analysis -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Cost Analysis</h3>
+                        <div id="costAnalysis"></div>
+                    </div>
+
+                    <!-- Turnover Analysis -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Turnover Analysis</h3>
+                        <div id="turnoverAnalysis"></div>
+                    </div>
+
+                    <!-- Tax Analysis -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Tax Analysis</h3>
+                        <div id="taxAnalysis"></div>
+                    </div>
+
+                    <!-- Cash Flow Analysis -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Cash Flow Analysis</h3>
+                        <div id="cashFlowAnalysis"></div>
+                    </div>
+
+                    <!-- FIFO/LIFO Accounting -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">FIFO/LIFO Accounting</h3>
+                        <div id="fifoLifoAnalysis"></div>
+                    </div>
+
+                    <!-- Trade Timing Analysis -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Trade Timing Analysis</h3>
+                        <div id="tradeTimingAnalysis"></div>
+                    </div>
+
+                    <!-- Drawdown Analysis -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Drawdown Analysis</h3>
+                        <div id="drawdownAnalysis"></div>
+                    </div>
+
+                    <!-- Return Attribution -->
+                    <div class="analysis-card bg-white rounded-xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Return Attribution</h3>
+                        <div id="returnAttribution"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="utils.js"></script>
+    <script src="index-scripts.js"></script>
+    <script src="supabase-connect.js"></script>
+    <script src="plaid-integration.js"></script>
+    
+    <!-- Modular JavaScript Files -->
+    <script src="js/core/app-core.js"></script>
+    <script src="js/modules/auth.js"></script>
+    <script src="js/modules/portfolio.js"></script>
+    <script src="js/modules/transactions.js"></script>
+    <script src="js/modules/analytics.js"></script>
+    <script src="js/modules/transaction-analytics.js"></script>
+    <script src="js/modules/plaid-switcher.js"></script>
+    <script src="js/utils/ui-helpers.js"></script>
+    <script src="js/app-main.js"></script>
+</body>
+
+</html>

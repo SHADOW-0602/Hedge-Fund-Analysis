@@ -6,19 +6,21 @@ Enterprise-grade portfolio risk analysis and options scanning platform with adva
 
 ### 📊 **Portfolio Management**
 - **Multi-Format Upload**: CSV transaction files with FIFO cost basis calculation
-- **Live Data Integration**: Plaid and SnapTrade brokerage connections
+- **Live Data Integration**: Plaid brokerage connections
 - **Transaction Analysis**: Complete P&L tracking with realized/unrealized gains
-- **Portfolio Optimization**: Risk-adjusted allocation with Monte Carlo simulation
+
 - **Multi-Currency Support**: Currency conversion and valuation
 - **Multi-Portfolio Analysis**: Compare and analyze multiple portfolios
 
 ### 📈 **Analytics & Risk**
 - **Advanced Risk Metrics**: VaR, CVaR, Sharpe, Sortino, Maximum Drawdown, Beta analysis
 - **Options Analysis**: Covered call opportunities, Greeks calculation, volatility analysis
-- **Market Data**: YFinance with intelligent fallback and caching
-- **Performance Attribution**: Factor-based attribution and benchmark comparison
+- **Market Data**: Multi-provider API integration (Polygon, Finnhub, Alpha Vantage, YFinance)
+- **Performance Attribution**: Factor-based attribution with real-time calculations
 - **Technical Analysis**: 50+ indicators, pattern recognition, momentum strategies
-- **Statistical Analysis**: Correlation analysis, hierarchical clustering
+- **Statistical Analysis**: Correlation analysis with D3.js visualization, hierarchical clustering
+- **Monte Carlo Simulation**: Portfolio risk modeling and scenario analysis
+- **Portfolio Optimization**: Efficient frontier and risk-return optimization
 
 ### 🏢 **Enterprise Features**
 - **Multi-User System**: Role-based access control with JWT authentication
@@ -30,9 +32,9 @@ Enterprise-grade portfolio risk analysis and options scanning platform with adva
 
 ### 🔗 **Integrations**
 - **Database**: Supabase PostgreSQL with real-time sync
-- **Cache**: Redis with intelligent TTL management
-- **Brokerage APIs**: Plaid, SnapTrade for live account data
-- **News & Sentiment**: Real-time market news integration
+- **Brokerage APIs**: Plaid Production Mode for live account data
+- **Market Data**: Multi-provider fallback system for reliability
+- **Visualization**: D3.js for interactive correlation matrices
 - **Configuration**: Environment-based configuration management
 
 ## ⚡ **Quick Start**
@@ -61,13 +63,13 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_ANON_KEY=your_supabase_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_key
 
-# Cache (Optional - for performance)
-REDIS_URL=your_redis_url
-
-# Market Data APIs (Optional - for enhanced data)
-FINNHUB_API_KEY=your_finnhub_key
+# Market Data APIs (Primary providers)
 POLYGON_API_KEY=your_polygon_key
+FINNHUB_API_KEY=your_finnhub_key
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
+TWELVE_DATA_API_KEY=your_twelve_data_key
+
+
 
 # Email Service (Optional)
 EMAIL_SMTP_SERVER=smtp.gmail.com
@@ -75,39 +77,34 @@ EMAIL_SMTP_PORT=587
 EMAIL_USERNAME=your_email
 EMAIL_PASSWORD=your_app_password
 
-# Brokerage Integration (Optional)
+# Brokerage Integration (Production Ready)
 PLAID_CLIENT_ID=your_plaid_client_id
 PLAID_SECRET=your_plaid_secret
-SNAPTRADE_CLIENT_ID=your_snaptrade_client_id
+PLAID_ENVIRONMENT=production
 ```
 
 ### 3. **Launch Application**
 ```bash
-# Web interface
-streamlit run interfaces/web_app_enterprise.py
+# Main application (recommended)
+python app.py
 
-# CLI interface
-python main.py --help
+# Alternative: Use startup script
+python scripts/start_web.py
 
-# View all available commands
-python main.py --help
+# Then open http://127.0.0.1:8080 in your browser
 ```
 
 ## 👤 **User Management**
 
 ### **Role-Based Access Control**
-- **Admin**: Full system access, user management, system configuration
-- **Portfolio Manager**: Portfolio CRUD, risk management, optimization
-- **Analyst**: Analytics tools, research, technical analysis
-- **Risk Manager**: Risk metrics, compliance reports, monitoring
-- **Compliance**: Read-only access, audit trails, regulatory reports
-- **Viewer**: Basic portfolio viewing, limited analytics
+- **Admin**: Full system access, user management, admin portal access
+- **User**: Full portfolio analysis features, risk management, analytics tools
 
 ### **Data Upload Options**
 - **CSV Format**: `symbol, quantity, avg_cost`
 - **Broker Files**: Schwab, Fidelity, TD Ameritrade, E*TRADE, Interactive Brokers
 - **Excel Templates**: Download from application
-- **Live Data**: Plaid/SnapTrade brokerage connections
+- **Live Data**: Plaid brokerage connections
 - **Transaction History**: Complete P&L tracking with cost basis
 
 ## 💻 **CLI Commands**
@@ -171,11 +168,11 @@ python main.py factor-research AAPL MSFT GOOGL TSLA NVDA
 
 ### **User Management**
 ```bash
-# Create new user
-python main.py create-user --username analyst1 --email analyst@firm.com --role analyst
+# Create new user (all new users get 'user' role automatically)
+python main.py create-user --username user1 --email user@firm.com
 
 # User login
-python main.py login --username analyst1
+python main.py login --username user1
 
 # List all users (admin only)
 python main.py list-users
@@ -195,15 +192,7 @@ SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_key
 ```
 
-#### **2. Cache Setup (Upstash Redis)**
-```bash
-# 1. Create database at upstash.com
-# 2. Add to .env:
-REDIS_URL=redis://default:password@host:port
-REDIS_PASSWORD=your_password
-REDIS_HOST=your_host
-REDIS_PORT=6379
-```
+
 
 ### **Enhanced Integrations**
 
@@ -230,16 +219,14 @@ TWELVE_DATA_API_KEY=your_twelve_data_key
 NEWS_API_KEY=your_newsapi_key
 ```
 
-#### **Brokerage Integration**
+#### **Brokerage Integration (Production Ready)**
 ```bash
-# Plaid (Sandbox/Production)
+# Plaid Production Mode
 PLAID_CLIENT_ID=your_plaid_client_id
 PLAID_SECRET=your_plaid_secret
-PLAID_ENVIRONMENT=sandbox  # or production
-
-# SnapTrade (Alternative)
-SNAPTRADE_CLIENT_ID=your_snaptrade_client_id
-SNAPTRADE_CONSUMER_KEY=your_consumer_key
+PLAID_ENVIRONMENT=production
+PLAID_PRODUCTS=investments,transactions,auth
+PLAID_COUNTRY_CODES=US,CA
 ```
 
 ### **Security Configuration**
@@ -287,7 +274,6 @@ TSLA,50,200.00,2024-01-25,BUY,9.95,USD,Growth
 ### **Supported Data Sources**
 - **CSV Files**: Custom format with flexible field mapping
 - **Plaid Integration**: Live brokerage account connections
-- **SnapTrade Integration**: Multi-broker API access
 - **Manual Entry**: Web interface for direct data input
 - **Excel Files**: Automatic conversion to CSV format
 
@@ -314,13 +300,12 @@ TSLA,50,200.00,2024-01-25,BUY,9.95,USD,Growth
 - **`utils/config.py`**: Environment-based configuration
 - **`utils/email_service.py`**: SMTP integration with templates
 - **`utils/user_secrets.py`**: AES-256 encrypted secrets storage
-- **`utils/cache_manager.py`**: Redis caching with TTL
 - **`utils/logger.py`**: Structured logging with rotation
 - **`utils/cookie_manager.py`**: GDPR-compliant cookie management
 
 ### **Integration Components**
 - **`components/plaid_direct_connect.py`**: Plaid brokerage integration
-- **`components/snaptrade_connect.py`**: SnapTrade API integration
+
 - **`components/transaction_manager.py`**: Transaction processing
 - **`components/multi_broker_connect.py`**: Unified broker interface
 
@@ -337,10 +322,10 @@ TSLA,50,200.00,2024-01-25,BUY,9.95,USD,Growth
 
 The application includes a real-time system status dashboard showing:
 - **Database connectivity** and performance
-- **Cache service** health and hit rates
-- **Email service** configuration and delivery status
 - **Market data APIs** availability and rate limits
+- **Plaid integration** status and connection health
 - **User session** statistics and security metrics
+- **Analytics performance** and calculation times
 
 ## 🚀 **Getting Started Examples**
 
@@ -383,18 +368,17 @@ python main.py statistical-analysis AAPL MSFT GOOGL TSLA NVDA
 
 ## 📊 **Web Interface**
 
-Launch the Streamlit web application for interactive analysis:
-```bash
-streamlit run interfaces/web_app_enterprise.py
-```
+Access the web application at http://127.0.0.1:8080 after running `python app.py`
 
 Features include:
-- Interactive portfolio upload and analysis
-- Real-time risk metrics dashboard
-- Options scanning and analysis
-- Multi-user authentication
-- Live brokerage connections
-- Comprehensive reporting
+- **Interactive Portfolio Analysis**: Upload CSV files or connect live accounts
+- **Real-time Risk Metrics**: VaR, Sharpe ratio, Beta, Maximum Drawdown
+- **Options Strategies**: Covered calls, protective puts, iron condors
+- **Performance Attribution**: Asset allocation, security selection, market timing
+- **Monte Carlo Simulation**: Risk modeling and scenario analysis
+- **D3.js Visualizations**: Interactive correlation matrices
+- **Multi-user Authentication**: Role-based access control
+- **Live Brokerage Connections**: Plaid Production Mode integration
 
 ---
 

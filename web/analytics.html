@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Analytics - Hedge Fund Analyzer</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="gradient-bg min-h-full">
+    <div class="min-h-full">
+        <header class="bg-white shadow-lg border-b-4 border-indigo-600">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
+                            <span class="text-white font-bold text-lg">HF</span>
+                        </div>
+                        <h1 class="text-3xl font-bold text-gray-900">Advanced Analytics</h1>
+                    </div>
+                    <nav class="flex space-x-4">
+                        <a href="index.html" class="text-gray-600 hover:text-indigo-600">Home</a>
+                        <a href="portfolio.html" class="text-gray-600 hover:text-indigo-600">Portfolio</a>
+                        <a href="risk.html" class="text-gray-600 hover:text-indigo-600">Risk</a>
+                        <a href="options.html" class="text-gray-600 hover:text-indigo-600">Options</a>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">Advanced Analytics</h2>
+
+                <div class="mb-8">
+                    <div class="flex gap-4">
+                        <button onclick="switchAnalysisType('portfolio')" id="portfolioAnalysisBtn" class="tab-active px-6 py-3 rounded-lg font-semibold transition-all">Portfolio Analysis</button>
+                        <button onclick="switchAnalysisType('transaction')" id="transactionAnalysisBtn" class="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all">Transaction Analysis</button>
+                    </div>
+                </div>
+
+                <div id="portfolioAnalysisSection" class="analysis-section">
+                    <h4 class="text-lg font-semibold text-gray-700 mb-4">Portfolio-Based Analysis</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                        <button onclick="runMonteCarlo()" class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium">Monte Carlo</button>
+                        <button onclick="analyzeSentiment()" class="bg-yellow-600 text-white px-4 py-3 rounded-lg hover:bg-yellow-700 transition-colors font-medium">News Sentiment</button>
+                        <button onclick="runMLPrediction()" class="bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium">ML Prediction</button>
+                        <button onclick="technicalAnalysis()" class="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium">Technical Analysis</button>
+                        <button onclick="portfolioOptimization()" class="bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium">Portfolio Optimization</button>
+                        <button onclick="sectorAnalysis()" class="bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium">Sector Analysis</button>
+                    </div>
+                </div>
+
+                <div id="transactionAnalysisSection" class="analysis-section" style="display: none;">
+                    <h4 class="text-lg font-semibold text-gray-700 mb-4">Transaction-Based Analysis</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                        <button onclick="analyzeTradePerformance()" class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium">Trade Performance</button>
+                        <button onclick="analyzeTurnover()" class="bg-yellow-600 text-white px-4 py-3 rounded-lg hover:bg-yellow-700 transition-colors font-medium">Turnover Analysis</button>
+                        <button onclick="analyzeTaxHarvesting()" class="bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium">Tax Analysis</button>
+                        <button onclick="analyzeCashFlow()" class="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium">Cash Flow</button>
+                        <button onclick="analyzeTradeTimimg()" class="bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 transition-colors font-medium">Trade Timing</button>
+                        <button onclick="analyzeDrawdown()" class="bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium">Drawdown Analysis</button>
+                    </div>
+                </div>
+
+                <div id="analyticsResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="utils.js"></script>
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
