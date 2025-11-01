@@ -2,6 +2,8 @@ from flask import request, jsonify
 from clients.supabase_client import supabase_client
 from enterprise.user_management import UserManager, UserRole
 from utils.email_service import email_service
+from datetime import datetime
+import traceback
 
 user_manager = UserManager()
 
@@ -9,15 +11,26 @@ def register_auth_routes(app):
     @app.route('/api/login', methods=['POST'])
     def login():
         try:
+            print(f"[AUTH] Login attempt started at {datetime.now()}")
             data = request.get_json()
             username = data.get('username')
             password = data.get('password')
             
+            print(f"[AUTH] Login attempt for username: {username}")
+            
+            if not username or not password:
+                print(f"[AUTH] Missing credentials - username: {bool(username)}, password: {bool(password)}")
+                return jsonify({'success': False, 'error': 'Username and password required'}), 400
+            
             if not supabase_client or not supabase_client.client:
+                print(f"[AUTH] Database not available - supabase_client: {bool(supabase_client)}")
                 return jsonify({'success': False, 'error': 'Database not available'}), 500
             
+            print(f"[AUTH] Attempting authentication for: {username}")
             user = user_manager.authenticate_user(username, password)
+            
             if user:
+                print(f"[AUTH] Authentication successful for: {username}, role: {user.role.value}")
                 return jsonify({
                     'success': True,
                     'user': {
@@ -28,8 +41,12 @@ def register_auth_routes(app):
                     }
                 })
             
+            print(f"[AUTH] Authentication failed for: {username}")
             return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
         except Exception as e:
+            print(f"[AUTH] Login error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/register', methods=['POST'])
@@ -65,5 +82,57 @@ def register_auth_routes(app):
                 
         except ValueError as e:
             return jsonify({'success': False, 'error': str(e)}), 400
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/auth/debug', methods=['GET'])
+    def auth_debug():
+        try:
+            debug_info = {
+                'supabase_available': bool(supabase_client and supabase_client.client),
+                'user_manager_initialized': bool(user_manager),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            if supabase_client and supabase_client.client:
+                try:
+                    # Check if admin user exists
+                    result = supabase_client.client.table('app_users').select('username, role').eq('username', 'admin').execute()
+                    debug_info['admin_user_exists'] = len(result.data) > 0
+                    debug_info['admin_user_data'] = result.data[0] if result.data else None
+                    
+                    # Get total user count
+                    all_users = supabase_client.client.table('app_users').select('username, role, is_active').execute()
+                    debug_info['total_users'] = len(all_users.data)
+                    debug_info['users'] = all_users.data
+                except Exception as e:
+                    debug_info['database_error'] = str(e)
+            
+            return jsonify(debug_info)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/auth/create-admin', methods=['POST'])
+    def create_admin():
+        try:
+            if not supabase_client or not supabase_client.client:
+                return jsonify({'success': False, 'error': 'Database not available'}), 500
+            
+            # Force create admin user
+            admin_data = {
+                'username': 'admin',
+                'email': 'admin@hedgefund.com',
+                'password_hash': user_manager._hash_password('admin123'),
+                'role': 'admin',
+                'is_active': True
+            }
+            
+            result = supabase_client.client.table('app_users').upsert(admin_data).execute()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Admin user created/updated',
+                'data': result.data
+            })
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
