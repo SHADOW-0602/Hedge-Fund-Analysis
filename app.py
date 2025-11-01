@@ -13,16 +13,22 @@ from src.main_app import app
 # For Vercel deployment
 app = app
 
+# Health check endpoint for Northflank
+@app.route('/health')
+def health_check():
+    return {'status': 'healthy', 'service': 'hedge-fund-analysis'}
+
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 8080))
+    host = '0.0.0.0' if os.environ.get('FLASK_ENV') == 'production' else '127.0.0.1'
+    
     print("\n=== Portfolio & Options Analysis Engine ===")
-    print("Starting server for transaction analysis...")
-    print("Web Interface: http://127.0.0.1:8080")
-    print("Transaction Analysis API: http://127.0.0.1:8080/api")
+    print(f"Starting server on {host}:{port}")
     print("Press Ctrl+C to stop\n")
     
     app.run(
-        host='127.0.0.1',
-        port=8080,
+        host=host,
+        port=port,
         debug=False,
         threaded=True,
         use_reloader=False
