@@ -131,3 +131,41 @@ th {
 tr:hover {
     background-color: #f9fafb;
 }
+
+/* Fix text visibility issues */
+body, p, span, div, label, h1, h2, h3, h4, h5, h6 {
+    color: #1f2937;
+}
+
+/* Fix button text visibility */
+button {
+    color: #1f2937;
+}
+
+button.bg-indigo-600, button.bg-blue-600, button.bg-green-600, button.success, button.error, button.warning {
+    color: #ffffff !important;
+}
+
+/* Fix input text visibility */
+input, select, textarea {
+    color: #1f2937 !important;
+    background: #ffffff;
+}
+
+/* Fix card text */
+.analysis-card, .metric-card, .analysis-section {
+    color: #1f2937;
+}
+
+/* Ensure all text elements are visible */
+.text-gray-900, .text-gray-800, .text-gray-700 {
+    color: #1f2937 !important;
+}
+
+.text-gray-600, .text-gray-500 {
+    color: #6b7280 !important;
+}
+
+.text-white {
+    color: #ffffff !important;
+}

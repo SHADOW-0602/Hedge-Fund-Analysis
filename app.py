@@ -10,6 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.main_app import app
 
+# For Vercel deployment
+app = app
+
 if __name__ == '__main__':
     print("\n=== Portfolio & Options Analysis Engine ===")
     print("Starting server for transaction analysis...")

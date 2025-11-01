@@ -5,13 +5,18 @@ from flask import Flask
 from flask_cors import CORS
 import sys
 import os
-import redis
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
 
 # Load environment variables
 load_dotenv()
+
+# Import redis conditionally for Vercel compatibility
+try:
+    import redis
+except ImportError:
+    redis = None
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -63,15 +68,19 @@ def check_services():
     
     # Check Redis (non-blocking)
     redis_client = None
-    try:
-        redis_client = redis.from_url(os.getenv('REDIS_URL'))
-        redis_client.ping()
-        logger.info("Redis connection successful")
-        print("[OK] Redis connected successfully")
-    except Exception as e:
-        logger.warning(f"Redis connection failed: {e}")
-        print("[WARNING] Redis connection failed - caching disabled")
-        redis_client = None
+    if redis:
+        try:
+            redis_client = redis.from_url(os.getenv('REDIS_URL', 'redis://localhost:6379'))
+            redis_client.ping()
+            logger.info("Redis connection successful")
+            print("[OK] Redis connected successfully")
+        except Exception as e:
+            logger.warning(f"Redis connection failed: {e}")
+            print("[WARNING] Redis connection failed - caching disabled")
+            redis_client = None
+    else:
+        logger.warning("Redis not available - caching disabled")
+        print("[WARNING] Redis not available - caching disabled")
     
     return redis_client
 

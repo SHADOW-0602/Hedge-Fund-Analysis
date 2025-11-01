@@ -9,8 +9,19 @@ class MonteCarloEngine:
         self.data_client = data_client
     
     def portfolio_simulation(self, symbols: List[str], weights: Dict[str, float], 
-                           time_horizon: int = 63, num_simulations: int = 1000) -> Dict:
+                           time_horizon: int = 63, num_simulations: int = 10000,
+                           confidence_intervals: List[float] = [0.8, 0.9, 0.95, 0.99],
+                           market_regime: str = 'normal', volatility_adjustment: float = 0.0,
+                           forecast_period: str = '3M') -> Dict:
         """Multi-asset portfolio Monte Carlo simulation"""
+        
+        # Convert forecast period to days
+        period_mapping = {
+            '1M': 21, '3M': 63, '6M': 126, 
+            '1Y': 252, '2Y': 504, '5Y': 1260
+        }
+        if forecast_period in period_mapping:
+            time_horizon = period_mapping[forecast_period]
         
         # Use YFinance directly for reliable data
         import yfinance as yf
@@ -152,10 +163,21 @@ class MonteCarloEngine:
         
         print(f"Monte Carlo: Using weights: {dict(zip(available_symbols, weight_array))}")
         
+        # Apply market regime adjustments
+        regime_adjustments = {
+            'bull': 0.20,    # +20% return adjustment
+            'normal': 0.0,   # No adjustment
+            'bear': -0.20    # -20% return adjustment
+        }
+        regime_adj = regime_adjustments.get(market_regime.lower(), 0.0)
+        
+        # Apply volatility adjustment (-50%, normal, +50%)
+        vol_multiplier = 1.0 + volatility_adjustment
+        
         # Calculate portfolio statistics with error handling
         with np.errstate(divide='ignore', invalid='ignore'):
-            portfolio_mean = np.dot(weight_array, mean_returns)
-            portfolio_var = np.dot(weight_array.T, np.dot(cov_matrix, weight_array))
+            portfolio_mean = np.dot(weight_array, mean_returns) + (regime_adj / 252)  # Daily adjustment
+            portfolio_var = np.dot(weight_array.T, np.dot(cov_matrix, weight_array)) * (vol_multiplier ** 2)
             portfolio_std = np.sqrt(max(portfolio_var, 1e-8))  # Ensure positive value
         
         # Monte Carlo simulation with proper covariance handling
@@ -203,8 +225,25 @@ class MonteCarloEngine:
         cumulative_returns = np.cumprod(1 + portfolio_returns, axis=1)
         final_values = cumulative_returns[:, -1]
         
-        # Statistics
-        percentiles = np.percentile(final_values, [5, 25, 50, 75, 95])
+        # Calculate confidence intervals
+        confidence_percentiles = []
+        for conf in confidence_intervals:
+            lower = (1 - conf) / 2 * 100
+            upper = (1 + conf) / 2 * 100
+            confidence_percentiles.extend([lower, upper])
+        
+        # Statistics with custom confidence intervals
+        percentiles = np.percentile(final_values, [5, 25, 50, 75, 95] + confidence_percentiles)
+        
+        # Build confidence intervals dict
+        confidence_results = {}
+        for i, conf in enumerate(confidence_intervals):
+            lower_idx = 5 + i * 2  # Start after standard percentiles
+            upper_idx = 5 + i * 2 + 1
+            confidence_results[f'{int(conf*100)}%'] = {
+                'lower': float(percentiles[lower_idx] - 1),
+                'upper': float(percentiles[upper_idx] - 1)
+            }
         
         # Simplified risk metrics (no scipy dependency)
         
@@ -212,8 +251,9 @@ class MonteCarloEngine:
         portfolio_returns_flat = portfolio_returns.flatten()
         var_5 = np.percentile(portfolio_returns_flat, 5) * 100  # Convert to percentage
         
-        # Annualized Sharpe ratio
-        risk_free_rate = 0.02  # 2% risk-free rate
+        # Annualized Sharpe ratio using Fed rate
+        from utils.fed_rate import get_risk_free_rate
+        risk_free_rate = get_risk_free_rate()
         excess_return = (portfolio_mean * 252) - risk_free_rate
         sharpe_ratio = excess_return / (portfolio_std * np.sqrt(252)) if portfolio_std > 0 else 0
         
@@ -248,6 +288,19 @@ class MonteCarloEngine:
         
         print(f"Monte Carlo Results: Return={annualized_return:.2%}, Vol={annualized_volatility:.2%}")
         
+        # Ensure confidence_results is defined
+        if 'confidence_results' not in locals():
+            confidence_results = {}
+            for conf in confidence_intervals:
+                lower_pct = (1 - conf) / 2 * 100
+                upper_pct = (1 + conf) / 2 * 100
+                lower_val = np.percentile(final_values, lower_pct) - 1
+                upper_val = np.percentile(final_values, upper_pct) - 1
+                confidence_results[f'{int(conf*100)}%'] = {
+                    'lower': clean_value(lower_val),
+                    'upper': clean_value(upper_val)
+                }
+        
         return {
             'expected_return': clean_value(annualized_return),
             'volatility': clean_value(annualized_volatility),
@@ -256,7 +309,12 @@ class MonteCarloEngine:
             'mean_final_value': clean_value(np.mean(final_values)),
             'probability_loss': clean_value(np.sum(final_values < 1) / num_simulations),
             'sharpe_ratio': clean_value(sharpe_ratio),
-            'max_drawdown': clean_value(max_drawdown / 100)
+            'max_drawdown': clean_value(max_drawdown / 100),
+            'confidence_intervals': confidence_results,
+            'market_regime': market_regime,
+            'volatility_adjustment': volatility_adjustment,
+            'num_simulations': num_simulations,
+            'time_horizon_days': time_horizon
         }
     
     def scenario_analysis(self, symbols: List[str], weights: Dict[str, float], 

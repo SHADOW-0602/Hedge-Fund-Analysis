@@ -46,6 +46,7 @@ async function connectPlaid() {
 
                                 if (portfolioData.success && portfolioData.holdings && portfolioData.holdings.length > 0) {
                                     window.portfolioData = portfolioData.holdings;
+                                    window.currentPortfolioData = portfolioData.holdings;
                                     
                                     // Update portfolio value display
                                     const aumElement = document.getElementById('totalAUM');

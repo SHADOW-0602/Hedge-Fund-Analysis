@@ -16,7 +16,9 @@ class PerformanceAttributor:
         self.benchmark_symbol = benchmark_symbol
     
     def factor_based_attribution(self, symbols: List[str], weights: Dict[str, float], 
-                                period: str = "1y") -> Dict:
+                                period: str = "1y", attribution_model: str = "factor", 
+                                benchmark: str = "SPY", currency: str = "USD", 
+                                frequency: str = "daily") -> Dict:
         """Factor-based attribution analysis with Currency Effect and Market Timing"""
         try:
             module_logger.info(f"Starting attribution for {len(symbols)} symbols")
@@ -428,13 +430,21 @@ class PerformanceAttributor:
         
         return (returns * weight_array).sum(axis=1)
     
-    def _calculate_sharpe(self, returns: pd.Series, risk_free_rate: float = 0.02) -> float:
+    def _calculate_sharpe(self, returns: pd.Series, risk_free_rate: float = None) -> float:
         """Calculate Sharpe ratio"""
+        if risk_free_rate is None:
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate()
+        
         excess_returns = returns.mean() * 252 - risk_free_rate
         return excess_returns / (returns.std() * np.sqrt(252)) if returns.std() > 0 else 0
     
-    def _calculate_sortino(self, returns: pd.Series, risk_free_rate: float = 0.02) -> float:
+    def _calculate_sortino(self, returns: pd.Series, risk_free_rate: float = None) -> float:
         """Calculate Sortino ratio"""
+        if risk_free_rate is None:
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate()
+        
         excess_returns = returns.mean() * 252 - risk_free_rate
         downside_returns = returns[returns < 0]
         downside_deviation = downside_returns.std() * np.sqrt(252)

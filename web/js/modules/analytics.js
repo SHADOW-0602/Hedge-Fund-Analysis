@@ -13,9 +13,7 @@ async function loadAllRealAnalytics(data, options = {}) {
     let portfolioData = data;
     if (!Array.isArray(data)) {
         if (typeof data === 'object' && data !== null) {
-            // Try to convert object to array
             portfolioData = Object.values(data);
-            console.log('Converted object to array:', portfolioData);
         } else {
             console.error('Data is not an array or object:', typeof data, data);
             return;
@@ -29,61 +27,24 @@ async function loadAllRealAnalytics(data, options = {}) {
 
     console.log('Processing portfolio data:', portfolioData.length, 'positions');
 
-    const withTimeout = (promise, timeoutMs = 60000) => {
-        return Promise.race([
-            promise,
-            new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
-            )
-        ]);
-    };
-
-    const showAnalyticsError = (containerId, error) => {
-        console.error('Analytics error for', containerId, ':', error);
-        const container = document.getElementById(containerId);
-        if (container) {
-            container.innerHTML = `<div class="text-center text-red-500 py-4">${error}</div>`;
-        }
-    };
-
     try {
-        // Load core analytics first
-        console.log('Loading core analytics...');
+        // Load all analytics
         await Promise.allSettled([
-            withTimeout(loadRiskAnalytics(portfolioData, options)).catch(e => {
-                console.error('Risk analytics failed:', e);
-                showAnalyticsError('riskResults', 'Risk calculation failed: ' + e.message);
-            }),
-            withTimeout(loadOptionsAnalytics(portfolioData, options)).catch(e => {
-                console.error('Options analytics failed:', e);
-                showAnalyticsError('optionsResults', 'Options scan failed: ' + e.message);
-            })
+            loadRiskAnalytics(portfolioData, options),
+            loadOptionsAnalytics(portfolioData, options),
+            loadPerformanceAttribution(portfolioData, options),
+            loadMonteCarloAnalysis(portfolioData, options),
+            loadCorrelationAnalysis(portfolioData, options),
+            loadTechnicalAnalysis(portfolioData, options),
+            loadStatisticalAnalysis(portfolioData, options),
+            loadSectorAnalysis(portfolioData, options),
+            loadPortfolioOptimization(portfolioData, options)
         ]);
 
-        // Load enhanced analytics
-        console.log('Loading enhanced analytics...');
-        await Promise.allSettled([
-            withTimeout(loadEnhancedPerformanceAttribution(portfolioData)).catch(e => {
-                console.error('Performance attribution error:', e);
-                showAnalyticsError('performanceAttribution', 'Performance attribution failed: ' + e.message);
-            }),
-
-
-            withTimeout(loadStatisticalAnalysis(portfolioData)).catch(e => showAnalyticsError('statisticalAnalysis', 'Statistical analysis failed: ' + e.message)),
-            withTimeout(loadEnhancedSectorAnalysis(portfolioData)).catch(e => showAnalyticsError('sectorAllocation', 'Sector analysis failed: ' + e.message)),
-
-            withTimeout(loadEnhancedTechnicalAnalysis(portfolioData)).catch(e => showAnalyticsError('enhancedTechnicalAnalysis', 'Technical analysis failed: ' + e.message)),
-            withTimeout(loadBacktestingResults(portfolioData)).catch(e => showAnalyticsError('backtestingResults', 'Backtesting failed: ' + e.message)),
-            withTimeout(createMonteCarloResults(portfolioData)).catch(e => showAnalyticsError('monteCarloResults', 'Monte Carlo failed: ' + e.message)),
-            withTimeout(loadCorrelationAnalysis(portfolioData)).catch(e => showAnalyticsError('correlationMatrix', 'Correlation analysis failed: ' + e.message)),
-            withTimeout(loadPortfolioOptimization(portfolioData)).catch(e => showAnalyticsError('portfolioOptimization', 'Portfolio optimization failed: ' + e.message))
-        ]);
-
-        console.log('All analytics loading completed');
+        console.log('Analytics loading completed');
 
     } catch (error) {
         console.error('Analytics loading failed:', error);
-        showAnalyticsError('riskResults', 'Analytics system error: ' + error.message);
     }
 }
 
@@ -117,7 +78,7 @@ async function loadRiskAnalytics(data, options = {}) {
     }
 
     const user = window.currentUser || { role: 'user' };
-    console.log('Loading risk analytics for', portfolioData.length, 'positions');
+    console.log('Loading risk analytics for', portfolioData.length, 'positions with options:', options);
 
     const url = `${API_BASE}/analyze-risk?nocache=${Date.now()}`;
 
@@ -125,7 +86,11 @@ async function loadRiskAnalytics(data, options = {}) {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-            body: JSON.stringify({ portfolio: portfolioData, user_role: user.role })
+            body: JSON.stringify({ 
+                portfolio: portfolioData, 
+                user_role: user.role,
+                options: options
+            })
         });
 
         if (!response.ok) {
@@ -142,7 +107,7 @@ async function loadRiskAnalytics(data, options = {}) {
             const freshMetrics = riskData.risk_metrics;
             console.log('Fresh API data - Sharpe:', freshMetrics.sharpe_ratio, 'Beta:', freshMetrics.beta);
             updateTopMetrics(freshMetrics);
-            updateRiskResults(freshMetrics);
+            updateRiskResults(freshMetrics, options);
         } else {
             console.error('Risk analysis failed:', riskData.error);
             updateRiskResults({ error: riskData.error || 'Risk calculation failed' });
@@ -178,7 +143,7 @@ async function loadOptionsAnalytics(data, options = {}) {
         return;
     }
 
-    console.log('Loading options analytics for symbols:', symbols);
+    console.log('Loading options analytics for symbols:', symbols, 'with options:', options);
 
     const url = `${API_BASE}/scan-options?nocache=${Date.now()}`;
 
@@ -186,7 +151,10 @@ async function loadOptionsAnalytics(data, options = {}) {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-            body: JSON.stringify({ symbols })
+            body: JSON.stringify({ 
+                symbols,
+                options: options
+            })
         });
 
         if (!response.ok) {
@@ -199,7 +167,7 @@ async function loadOptionsAnalytics(data, options = {}) {
         const optionsData = await response.json();
 
         if (optionsData.success) {
-            updateOptionsResults(optionsData.opportunities, optionsData.summary);
+            updateOptionsResults(optionsData.opportunities, optionsData.summary, options);
         } else {
             console.error('Options scan failed:', optionsData.error);
             updateOptionsResults({ error: optionsData.error || 'Options scan failed' });
@@ -210,110 +178,54 @@ async function loadOptionsAnalytics(data, options = {}) {
     }
 }
 
-async function createMonteCarloResults(portfolioData) {
-    const chartContainer = document.getElementById('monteCarloResults');
-    if (!chartContainer) return;
-
-    chartContainer.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>Running Monte Carlo simulation...</div>';
-
+async function loadMonteCarloAnalysis(portfolioData, options = {}) {
+    const container = document.getElementById('monteCarloResults');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>Running Monte Carlo simulation...</div>';
+    
     try {
-        // Use fresh data passed to function, not cached window.portfolioData
-        const actualData = portfolioData || window.portfolioData;
-        
-        if (!actualData || actualData.length === 0) {
-            chartContainer.innerHTML = '<div class="text-center text-gray-500 py-4">No portfolio data available</div>';
-            return;
-        }
-        
-        const portfolioDataFiltered = actualData.filter(item => 
-            item && item.symbol && !isNaN(parseFloat(item.quantity)) && !isNaN(parseFloat(item.avg_cost || item.price))
-        );
-        
-        console.log('Monte Carlo - Sending portfolio data:', portfolioDataFiltered);
         const response = await fetch(`${API_BASE}/monte-carlo`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ portfolio: portfolioDataFiltered, user_role: 'user' })
+            body: JSON.stringify({ portfolio: portfolioData, options })
         });
         
-        console.log('Monte Carlo API response status:', response.status);
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Monte Carlo API error:', errorText);
-            throw new Error(`API returned ${response.status}: ${errorText}`);
-        }
-        
-        const result = await response.json();
-        console.log('Monte Carlo API full response:', result);
-        
-        if (result.success && result.results) {
-            const mc = result.results;
-            console.log('Monte Carlo API response:', mc);
-            console.log('Monte Carlo values - Expected Return:', mc.expected_return, 'Volatility:', mc.volatility);
-            console.log('Monte Carlo percentiles - 5th:', mc.percentile_5, '95th:', mc.percentile_95);
-            
-            // AGGRESSIVE DEBUGGING - Check each value
-            console.log('DEBUGGING MONTE CARLO:');
-            console.log('mc object:', JSON.stringify(mc, null, 2));
-            console.log('expected_return type:', typeof mc.expected_return, 'value:', mc.expected_return);
-            console.log('volatility type:', typeof mc.volatility, 'value:', mc.volatility);
-            console.log('percentile_95 type:', typeof mc.percentile_95, 'value:', mc.percentile_95);
-            console.log('percentile_5 type:', typeof mc.percentile_5, 'value:', mc.percentile_5);
-            
-            const expectedReturn = typeof mc.expected_return === 'number' ? (mc.expected_return * 100).toFixed(1) + '%' : 'N/A';
-            const volatility = typeof mc.volatility === 'number' ? (mc.volatility * 100).toFixed(1) + '%' : 'N/A';
-            const percentile95 = typeof mc.percentile_95 === 'number' ? '+' + (mc.percentile_95 * 100).toFixed(1) + '%' : 'N/A';
-            const percentile5 = typeof mc.percentile_5 === 'number' ? (mc.percentile_5 * 100).toFixed(1) + '%' : 'N/A';
-            
-            console.log('Monte Carlo display values:', {expectedReturn, volatility, percentile95, percentile5});
-            
-            chartContainer.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Expected Return</span>
-                        <span class="font-semibold">${expectedReturn}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Volatility</span>
-                        <span class="font-semibold">${volatility}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">95th Percentile</span>
-                        <span class="font-semibold text-green-600">${percentile95}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">5th Percentile</span>
-                        <span class="font-semibold text-red-600">${percentile5}</span>
-                    </div>
-                </div>
-            `;
+        const data = await response.json();
+        if (data.success) {
+            displayMonteCarloResults(data.results);
         } else {
-            console.error('Monte Carlo API error:', result);
-            throw new Error(result.error || 'Monte Carlo simulation failed');
+            container.innerHTML = `<div class="text-red-500">Monte Carlo simulation failed: ${data.error}</div>`;
         }
     } catch (error) {
-        console.error('Monte Carlo error:', error);
-        chartContainer.innerHTML = `
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Expected Return</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Volatility</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">95th Percentile</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">5th Percentile</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-            </div>
-        `;
+        container.innerHTML = `<div class="text-red-500">Error: ${error.message}</div>`;
     }
+}
+
+function displayMonteCarloResults(results) {
+    const container = document.getElementById('monteCarloResults');
+    if (!container || !results) return;
+    
+    container.innerHTML = `
+        <div class="grid grid-cols-2 gap-4">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-green-600">${(results.expected_return * 100).toFixed(1)}%</div>
+                <div class="text-sm text-gray-600">Expected Return</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-blue-600">${(results.volatility * 100).toFixed(1)}%</div>
+                <div class="text-sm text-gray-600">Volatility</div>
+            </div>
+        </div>
+        <div class="mt-4 space-y-2">
+            ${Object.entries(results.percentiles || {}).map(([key, value]) => 
+                `<div class="flex justify-between">
+                    <span>${key} Confidence:</span>
+                    <span class="font-semibold">${(value * 100).toFixed(1)}%</span>
+                </div>`
+            ).join('')}
+        </div>
+    `;
 }
 
 function createOptimizationChart() {
@@ -460,7 +372,7 @@ function updateTopMetrics(metrics) {
     }
 }
 
-function updateRiskResults(metrics) {
+function updateRiskResults(metrics, options = {}) {
     const container = document.getElementById('riskResults');
     if (!container) return;
 
@@ -474,16 +386,71 @@ function updateRiskResults(metrics) {
         return;
     }
 
+    // Add interactive controls
+    const controlsHtml = `
+        <div class="mb-4 p-3 bg-gray-50 rounded-lg border">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="text-xs font-medium text-gray-700 block mb-1">Time Period</label>
+                    <select id="riskPeriod" onchange="updateRiskAnalysis()" class="w-full text-xs p-1 border rounded">
+                        <option value="1M" ${options.period === '1M' ? 'selected' : ''}>1 Month</option>
+                        <option value="3M" ${options.period === '3M' ? 'selected' : ''}>3 Months</option>
+                        <option value="6M" ${options.period === '6M' ? 'selected' : ''}>6 Months</option>
+                        <option value="1Y" ${options.period === '1Y' || !options.period ? 'selected' : ''}>1 Year</option>
+                        <option value="2Y" ${options.period === '2Y' ? 'selected' : ''}>2 Years</option>
+                        <option value="3Y" ${options.period === '3Y' ? 'selected' : ''}>3 Years</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-700 block mb-1">VaR Confidence</label>
+                    <select id="riskConfidence" onchange="updateRiskAnalysis()" class="w-full text-xs p-1 border rounded">
+                        <option value="90" ${options.confidence === '90' ? 'selected' : ''}>90%</option>
+                        <option value="95" ${options.confidence === '95' || !options.confidence ? 'selected' : ''}>95%</option>
+                        <option value="99" ${options.confidence === '99' ? 'selected' : ''}>99%</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-medium text-gray-700 block mb-1">Risk Model</label>
+                    <select id="riskModel" onchange="updateRiskAnalysis()" class="w-full text-xs p-1 border rounded">
+                        <option value="Historical" ${options.model === 'Historical' || !options.model ? 'selected' : ''}>Historical</option>
+                        <option value="MonteCarlo" ${options.model === 'MonteCarlo' ? 'selected' : ''}>Monte Carlo</option>
+                        <option value="Parametric" ${options.model === 'Parametric' ? 'selected' : ''}>Parametric</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-700 block mb-1">Benchmark</label>
+                    <select id="riskBenchmark" onchange="updateRiskAnalysis()" class="w-full text-xs p-1 border rounded">
+                        <option value="SPY" ${options.benchmark === 'SPY' || !options.benchmark ? 'selected' : ''}>S&P 500</option>
+                        <option value="QQQ" ${options.benchmark === 'QQQ' ? 'selected' : ''}>NASDAQ</option>
+                        <option value="IWM" ${options.benchmark === 'IWM' ? 'selected' : ''}>Russell 2000</option>
+                        <option value="Custom" ${options.benchmark === 'Custom' ? 'selected' : ''}>Custom</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-3">
+                <label class="text-xs font-medium text-gray-700 block mb-1">Rolling Window</label>
+                <select id="riskWindow" onchange="updateRiskAnalysis()" class="w-full text-xs p-1 border rounded">
+                    <option value="30" ${options.window === '30' ? 'selected' : ''}>30 days</option>
+                    <option value="60" ${options.window === '60' ? 'selected' : ''}>60 days</option>
+                    <option value="90" ${options.window === '90' || !options.window ? 'selected' : ''}>90 days</option>
+                    <option value="252" ${options.window === '252' ? 'selected' : ''}>252 days</option>
+                </select>
+            </div>
+        </div>
+    `;
+
     // Use portfolio value from backend if available, otherwise calculate from frontend data
     let totalValue = metrics.portfolio_value;
     if (!totalValue && window.portfolioData) {
         totalValue = window.portfolioData.reduce((sum, item) => sum + (item.quantity * (item.avg_cost || item.price || 0)), 0);
     }
 
-    container.innerHTML = `
+    const resultsHtml = `
         <div class="space-y-4">
             <div class="flex justify-between items-center">
-                <span class="text-gray-600">Value at Risk (95%)</span>
+                <span class="text-gray-600">Value at Risk (${options.confidence || '95'}%)</span>
                 <span class="font-semibold">${(metrics.var_95 !== undefined && metrics.var_95 !== null && !isNaN(metrics.var_95)) ? ((Math.abs(metrics.var_95) * 100).toFixed(1) + '%') : 'N/A'}</span>
             </div>
             <div class="flex justify-between items-center">
@@ -491,18 +458,24 @@ function updateRiskResults(metrics) {
                 <span class="font-semibold">${(metrics.cvar_95 !== undefined && metrics.cvar_95 !== null && !isNaN(metrics.cvar_95)) ? ((Math.abs(metrics.cvar_95) * 100).toFixed(1) + '%') : 'N/A'}</span>
             </div>
             <div class="flex justify-between items-center">
-                <span class="text-gray-600">Volatility (Annualized)</span>
+                <span class="text-gray-600">Volatility (${options.period || '1Y'})</span>
                 <span class="font-semibold">${(metrics.portfolio_volatility !== undefined && metrics.portfolio_volatility !== null && !isNaN(metrics.portfolio_volatility)) ? ((metrics.portfolio_volatility * 100).toFixed(1)) + '%' : 'N/A'}</span>
             </div>
             <div class="flex justify-between items-center">
-                <span class="text-gray-600">Tracking Error</span>
+                <span class="text-gray-600">Tracking Error vs ${options.benchmark || 'S&P 500'}</span>
                 <span class="font-semibold">${(metrics.tracking_error !== undefined && metrics.tracking_error !== null && !isNaN(metrics.tracking_error)) ? ((metrics.tracking_error * 100).toFixed(1)) + '%' : 'N/A'}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-gray-600">Model: ${options.model || 'Historical'}</span>
+                <span class="font-semibold text-blue-600">${options.window || '90'}d window</span>
             </div>
         </div>
     `;
+
+    container.innerHTML = controlsHtml + resultsHtml;
 }
 
-function updateOptionsResults(opportunities, summary) {
+function updateOptionsResults(opportunities, summary, options = {}) {
     const container = document.getElementById('optionsResults');
     if (!container) return;
 
@@ -511,661 +484,364 @@ function updateOptionsResults(opportunities, summary) {
         return;
     }
 
+    // Add interactive controls
+    const controlsHtml = `
+        <div class="mb-4 p-3 bg-gray-50 rounded-lg border">
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="text-xs font-medium text-gray-700 block mb-1">Expiration</label>
+                    <select id="optionsExpiration" onchange="updateOptionsAnalysis()" class="w-full text-xs p-1 border rounded">
+                        <option value="1M" ${options.expiration === '1M' ? 'selected' : ''}>1 Month</option>
+                        <option value="2M" ${options.expiration === '2M' ? 'selected' : ''}>2 Months</option>
+                        <option value="3M" ${options.expiration === '3M' || !options.expiration ? 'selected' : ''}>3 Months</option>
+                        <option value="6M" ${options.expiration === '6M' ? 'selected' : ''}>6 Months</option>
+                        <option value="1Y" ${options.expiration === '1Y' ? 'selected' : ''}>1 Year</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-700 block mb-1">Moneyness</label>
+                    <select id="optionsMoneyness" onchange="updateOptionsAnalysis()" class="w-full text-xs p-1 border rounded">
+                        <option value="All" ${options.moneyness === 'All' || !options.moneyness ? 'selected' : ''}>All</option>
+                        <option value="ITM" ${options.moneyness === 'ITM' ? 'selected' : ''}>In-the-Money</option>
+                        <option value="ATM" ${options.moneyness === 'ATM' ? 'selected' : ''}>At-the-Money</option>
+                        <option value="OTM" ${options.moneyness === 'OTM' ? 'selected' : ''}>Out-of-Money</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label class="text-xs font-medium text-gray-700 block mb-1">Strategy Filter</label>
+                    <select id="optionsStrategy" onchange="updateOptionsAnalysis()" class="w-full text-xs p-1 border rounded">
+                        <option value="All" ${options.strategy === 'All' || !options.strategy ? 'selected' : ''}>All Strategies</option>
+                        <option value="CoveredCalls" ${options.strategy === 'CoveredCalls' ? 'selected' : ''}>Covered Calls</option>
+                        <option value="ProtectivePuts" ${options.strategy === 'ProtectivePuts' ? 'selected' : ''}>Protective Puts</option>
+                        <option value="Spreads" ${options.strategy === 'Spreads' ? 'selected' : ''}>Spreads</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-gray-700 block mb-1">Min Premium</label>
+                    <select id="optionsMinPremium" onchange="updateOptionsAnalysis()" class="w-full text-xs p-1 border rounded">
+                        <option value="0.50" ${options.minPremium === '0.50' || !options.minPremium ? 'selected' : ''}>$0.50</option>
+                        <option value="1.00" ${options.minPremium === '1.00' ? 'selected' : ''}>$1.00</option>
+                        <option value="2.00" ${options.minPremium === '2.00' ? 'selected' : ''}>$2.00</option>
+                        <option value="5.00" ${options.minPremium === '5.00' ? 'selected' : ''}>$5.00</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-medium text-gray-700 block mb-1">Delta Range</label>
+                <select id="optionsDelta" onchange="updateOptionsAnalysis()" class="w-full text-xs p-1 border rounded">
+                    <option value="All" ${options.delta === 'All' || !options.delta ? 'selected' : ''}>All Deltas</option>
+                    <option value="0.1-0.3" ${options.delta === '0.1-0.3' ? 'selected' : ''}>0.1 - 0.3 (Low)</option>
+                    <option value="0.3-0.7" ${options.delta === '0.3-0.7' ? 'selected' : ''}>0.3 - 0.7 (Medium)</option>
+                    <option value="0.7-1.0" ${options.delta === '0.7-1.0' ? 'selected' : ''}>0.7 - 1.0 (High)</option>
+                </select>
+            </div>
+        </div>
+    `;
+
+    const formatValue = (value) => {
+        if (value > 1000) {
+            return `$${(value / 1000).toFixed(0)}K`;
+        } else if (value > 0) {
+            return `$${value.toFixed(0)}`;
+        } else {
+            return '$0';
+        }
+    };
+
+    let resultsHtml = '';
     if (summary) {
         const ccValue = summary.covered_calls?.total_premium || 0;
         const ppValue = summary.protective_puts?.total_cost || 0;
         const icValue = summary.iron_condors?.total_premium || 0;
+        const ccCount = summary.covered_calls?.count || 0;
+        const ppCount = summary.protective_puts?.count || 0;
+        const icCount = summary.iron_condors?.count || 0;
 
-        const formatValue = (value) => {
-            if (value > 1000) {
-                return `$${(value / 1000).toFixed(0)}K`;
-            } else if (value > 0) {
-                return `$${value.toFixed(0)}`;
-            } else {
-                return '$0';
-            }
-        };
-
-        container.innerHTML = `
+        resultsHtml = `
             <div class="space-y-4">
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Covered Calls</span>
+                    <span class="text-gray-600">Covered Calls (${ccCount})</span>
                     <span class="font-semibold ${ccValue > 0 ? 'text-green-600' : 'text-gray-500'}">+${formatValue(ccValue)}</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Protective Puts</span>
+                    <span class="text-gray-600">Protective Puts (${ppCount})</span>
                     <span class="font-semibold ${ppValue > 0 ? 'text-red-600' : 'text-gray-500'}">${ppValue > 0 ? '-' : ''}${formatValue(ppValue)}</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Iron Condors</span>
+                    <span class="text-gray-600">Iron Condors (${icCount})</span>
                     <span class="font-semibold ${icValue > 0 ? 'text-green-600' : 'text-gray-500'}">+${formatValue(icValue)}</span>
+                </div>
+                <div class="mt-4 pt-3 border-t border-gray-200">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-gray-600">Filter: ${options.strategy || 'All'} | ${options.expiration || '3M'}</span>
+                        <span class="text-blue-600">Min: ${formatValue(parseFloat(options.minPremium || '0.50'))}</span>
+                    </div>
                 </div>
             </div>
         `;
     } else {
-        container.innerHTML = `
+        resultsHtml = `
             <div class="space-y-4">
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Covered Calls</span>
+                    <span class="text-gray-600">Covered Calls (0)</span>
                     <span class="font-semibold text-gray-500">+$0</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Protective Puts</span>
+                    <span class="text-gray-600">Protective Puts (0)</span>
                     <span class="font-semibold text-gray-500">-$0</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Iron Condors</span>
+                    <span class="text-gray-600">Iron Condors (0)</span>
                     <span class="font-semibold text-gray-500">+$0</span>
                 </div>
             </div>
         `;
     }
+
+    container.innerHTML = controlsHtml + resultsHtml;
 }
 
 // Placeholder functions for enhanced analytics
-async function loadEnhancedPerformanceAttribution(data) {
+async function loadPerformanceAttribution(portfolioData, options = {}) {
     const container = document.getElementById('performanceAttribution');
-    if (!container) {
-        console.error('Performance attribution container not found!');
-        return;
-    }
-
-    console.log('Starting performance attribution analysis with fresh data:', data);
-    container.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>Analyzing performance...</div>';
-
+    if (!container) return;
+    
+    container.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>Analyzing performance...</div>';
+    
     try {
-        // Use fresh data passed to function, not cached window.portfolioData
-        const actualData = data || window.portfolioData;
-        
-        if (!actualData || actualData.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No portfolio data available</div>';
-            return;
-        }
-        
-        const portfolioData = actualData.filter(item => 
-            item && item.symbol && !isNaN(parseFloat(item.quantity)) && !isNaN(parseFloat(item.avg_cost || item.price))
-        );
-        
-        console.log('Performance Attribution - Sending portfolio data:', portfolioData);
         const response = await fetch(`${API_BASE}/performance-attribution`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ portfolio: portfolioData })
+            body: JSON.stringify({ portfolio: portfolioData, options })
         });
         
-        console.log('Performance Attribution API response status:', response.status);
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Performance Attribution API error:', errorText);
-            throw new Error(`API returned ${response.status}: ${errorText}`);
-        }
-        
-        const result = await response.json();
-        console.log('Performance Attribution API full response:', result);
-        
-        if (result.success && result.results) {
-            const perf = result.results;
-            console.log('Performance Attribution values received:', perf);
-            console.log('Asset Allocation:', perf.asset_allocation, 'Security Selection:', perf.security_selection);
-            console.log('Currency Effect:', perf.currency_effect, 'Market Timing:', perf.market_timing);
-            
-            // AGGRESSIVE DEBUGGING - Check each value
-            console.log('DEBUGGING PERFORMANCE ATTRIBUTION:');
-            console.log('perf object:', JSON.stringify(perf, null, 2));
-            console.log('asset_allocation type:', typeof perf.asset_allocation, 'value:', perf.asset_allocation);
-            console.log('security_selection type:', typeof perf.security_selection, 'value:', perf.security_selection);
-            console.log('currency_effect type:', typeof perf.currency_effect, 'value:', perf.currency_effect);
-            console.log('market_timing type:', typeof perf.market_timing, 'value:', perf.market_timing);
-            
-            // Test each value individually
-            const assetAllocationDisplay = typeof perf.asset_allocation === 'number' ? ((perf.asset_allocation >= 0 ? '+' : '') + perf.asset_allocation.toFixed(1) + '%') : 'N/A';
-            const securitySelectionDisplay = typeof perf.security_selection === 'number' ? ((perf.security_selection >= 0 ? '+' : '') + perf.security_selection.toFixed(1) + '%') : 'N/A';
-            const currencyEffectDisplay = typeof perf.currency_effect === 'number' ? ((perf.currency_effect >= 0 ? '+' : '') + perf.currency_effect.toFixed(1) + '%') : 'N/A';
-            const marketTimingDisplay = typeof perf.market_timing === 'number' ? ((perf.market_timing >= 0 ? '+' : '') + perf.market_timing.toFixed(2) + '%') : 'N/A';
-            
-            console.log('DISPLAY VALUES:');
-            console.log('Asset Allocation Display:', assetAllocationDisplay);
-            console.log('Security Selection Display:', securitySelectionDisplay);
-            console.log('Currency Effect Display:', currencyEffectDisplay);
-            console.log('Market Timing Display:', marketTimingDisplay);
-            
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Asset Allocation</span>
-                        <span class="font-semibold ${(perf.asset_allocation || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">${assetAllocationDisplay}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Security Selection</span>
-                        <span class="font-semibold ${(perf.security_selection || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">${securitySelectionDisplay}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Currency Effect</span>
-                        <span class="font-semibold ${(perf.currency_effect || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">${currencyEffectDisplay}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Market Timing</span>
-                        <span class="font-semibold ${(perf.market_timing || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">${marketTimingDisplay}</span>
-                    </div>
-                </div>
-            `;
-            
-            console.log('Performance Attribution HTML updated with values:', {assetAllocationDisplay, securitySelectionDisplay, currencyEffectDisplay, marketTimingDisplay});
+        const data = await response.json();
+        if (data.success) {
+            displayPerformanceResults(data.attribution);
         } else {
-            throw new Error(result.error || 'Performance attribution failed');
+            container.innerHTML = `<div class="text-red-500">Performance analysis failed: ${data.error}</div>`;
         }
     } catch (error) {
-        console.error('Performance attribution error:', error);
-        container.innerHTML = `
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Asset Allocation</span>
-                    <span class="font-semibold text-gray-500">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Security Selection</span>
-                    <span class="font-semibold text-gray-500">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Currency Effect</span>
-                    <span class="font-semibold text-gray-500">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Market Timing</span>
-                    <span class="font-semibold text-gray-500">N/A</span>
-                </div>
-            </div>
-        `;
+        container.innerHTML = `<div class="text-red-500">Error: ${error.message}</div>`;
     }
+}
+
+function displayPerformanceResults(attribution) {
+    const container = document.getElementById('performanceAttribution');
+    if (!container || !attribution) return;
+    
+    container.innerHTML = `
+        <div class="space-y-3">
+            <div class="flex justify-between">
+                <span>Asset Allocation:</span>
+                <span class="font-semibold">${(attribution.asset_allocation * 100).toFixed(2)}%</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Security Selection:</span>
+                <span class="font-semibold">${(attribution.security_selection * 100).toFixed(2)}%</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Interaction Effect:</span>
+                <span class="font-semibold">${(attribution.interaction * 100).toFixed(2)}%</span>
+            </div>
+            <div class="border-t pt-2 flex justify-between font-bold">
+                <span>Total Active Return:</span>
+                <span>${(attribution.total_active_return * 100).toFixed(2)}%</span>
+            </div>
+        </div>
+    `;
 }
 
 
 
 
 
-async function loadStatisticalAnalysis(data) {
+async function loadStatisticalAnalysis(portfolioData, options = {}) {
     const container = document.getElementById('statisticalAnalysis');
     if (!container) return;
-
-    container.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div><div>Computing statistics...</div></div>';
-
+    
+    container.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>Analyzing statistics...</div>';
+    
     try {
-        const actualData = window.portfolioData || data;
-        
-        if (!actualData || actualData.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No portfolio data available</div>';
-            return;
-        }
-        
-        const portfolioData = actualData.filter(item => 
-            item && item.symbol && !isNaN(parseFloat(item.quantity)) && !isNaN(parseFloat(item.avg_cost || item.price))
-        );
-        
-        const response = await fetch(`${API_BASE}/statistical-analysis?nocache=${Date.now()}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-            body: JSON.stringify({ portfolio: portfolioData })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`API returned ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success && result.results) {
-            const stats = result.results;
-            
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Avg Correlation</span>
-                        <span class="font-semibold">${stats.avg_correlation !== null && stats.avg_correlation !== undefined ? stats.avg_correlation.toFixed(2) : 'N/A'}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Diversification Ratio</span>
-                        <span class="font-semibold">${stats.diversification_ratio !== null && stats.diversification_ratio !== undefined ? stats.diversification_ratio.toFixed(2) : 'N/A'}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Portfolio Concentration</span>
-                        <span class="font-semibold">${stats.concentration_level || 'N/A'}</span>
-                    </div>
-                </div>
-            `;
-        } else {
-            throw new Error(result.error || 'Statistical analysis failed');
-        }
-    } catch (error) {
-        console.error('Statistical analysis error:', error);
-        container.innerHTML = `
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Avg Correlation</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Diversification Ratio</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Portfolio Concentration</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-            </div>
-        `;
-    }
-}
-
-async function loadEnhancedSectorAnalysis(data) {
-    const container = document.getElementById('sectorAllocation');
-    if (!container) return;
-
-    container.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>Analyzing sectors...</div>';
-
-    setTimeout(async () => {
-        const actualData = window.portfolioData || data;
-        
-        if (!actualData || actualData.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No portfolio data available</div>';
-            return;
-        }
-        
-        // Validate data structure
-        const validData = actualData.filter(item => 
-            item && 
-            item.symbol && 
-            typeof item.symbol === 'string' &&
-            !isNaN(parseFloat(item.quantity)) &&
-            !isNaN(parseFloat(item.avg_cost || item.price))
-        );
-        
-        if (validData.length === 0) {
-            console.error('Sector Analysis - No valid portfolio positions found');
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No valid portfolio positions for sector analysis</div>';
-            return;
-        }
-        
-        console.log(`Sector Analysis - Processing ${validData.length} valid positions out of ${actualData.length} total`);
-        console.log('Sector Analysis - Using portfolio data:', validData);
-        
-        const totalValue = validData.reduce((sum, item) => {
-            const value = item.quantity * (item.avg_cost || item.price || 0);
-            console.log(`${item.symbol}: ${item.quantity} * ${item.avg_cost || item.price || 0} = ${value}`);
-            return sum + value;
-        }, 0);
-        
-        console.log('Total portfolio value:', totalValue);
-        
-        // Call backend API to get real sector data from Yahoo Finance
-        try {
-            const symbols = validData.map(item => item.symbol).filter(s => s);
-            const response = await fetch(`${API_BASE}/sector-data?nocache=${Date.now()}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-                body: JSON.stringify({ symbols })
-            });
-            
-            let sectorData = {};
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    sectorData = result.sector_data;
-                }
-            }
-            
-            // Function to get sector for a symbol
-            const getSector = (symbol) => {
-                const sector = sectorData[symbol];
-                console.log(`Sector lookup for ${symbol}: ${sector}`);
-                return sector || 'Other/Unclassified';
-            };
-        
-        let sectorWeights = { tech: 0, healthcare: 0, financial: 0, consumer: 0, energy: 0, industrial: 0, materials: 0, utilities: 0, realestate: 0, communication: 0, other: 0 };
-        
-        validData.forEach(item => {
-            const value = item.quantity * (item.avg_cost || item.price || 0);
-            const weight = totalValue > 0 ? value / totalValue : 0;
-            let symbol = item.symbol;
-            
-            // Clean and normalize symbol
-            if (symbol) {
-                symbol = symbol.toString().trim().toUpperCase();
-                // Remove common prefixes/suffixes
-                symbol = symbol.replace(/\.(US|USD|NASDAQ|NYSE)$/i, '');
-                symbol = symbol.replace(/^(NASDAQ:|NYSE:)/i, '');
-            }
-            
-            console.log(`Processing ${item.symbol} -> ${symbol}: value=${value}, weight=${weight.toFixed(4)}`);
-            
-            const sector = getSector(symbol);
-            console.log(`${symbol} -> ${sector} sector`);
-            
-            // Debug: log all portfolio symbols
-            if (!window.portfolioSymbolsLogged) {
-                console.log('All portfolio symbols:', validData.map(d => d.symbol));
-                window.portfolioSymbolsLogged = true;
-            }
-            
-            console.log(`Mapping ${symbol} with sector '${sector}' and weight ${weight.toFixed(4)}`);
-            
-            switch(sector) {
-                case 'Technology':
-                    sectorWeights.tech += weight;
-                    break;
-                case 'Communication Services':
-                    sectorWeights.communication += weight;
-                    break;
-                case 'Consumer Discretionary':
-                    sectorWeights.consumer += weight;
-                    break;
-                case 'Health Care':
-                    sectorWeights.healthcare += weight;
-                    break;
-                case 'Financials':
-                    sectorWeights.financial += weight;
-                    break;
-                case 'Industrials':
-                    sectorWeights.industrial += weight;
-                    break;
-                case 'Commodities':
-                    sectorWeights.materials += weight;
-                    break;
-                case 'Multi-Sector ETF':
-                    sectorWeights.other += weight;
-                    break;
-                case 'Energy':
-                    sectorWeights.energy += weight;
-                    break;
-                case 'Materials':
-                    sectorWeights.materials += weight;
-                    break;
-                case 'Utilities':
-                    sectorWeights.utilities += weight;
-                    break;
-                case 'Real Estate':
-                    sectorWeights.realestate += weight;
-                    break;
-                default:
-                    console.log(`Unknown sector '${sector}' for ${symbol}, mapping to Other`);
-                    sectorWeights.other += weight;
-            }
-        });
-        
-        console.log('Final sector weights:', sectorWeights);
-        console.log('Portfolio symbols being analyzed:', validData.map(item => item.symbol));
-        
-        const techPercent = (sectorWeights.tech * 100).toFixed(0);
-        const healthPercent = (sectorWeights.healthcare * 100).toFixed(0);
-        const finPercent = (sectorWeights.financial * 100).toFixed(0);
-        const consumerPercent = (sectorWeights.consumer * 100).toFixed(0);
-        const otherPercent = (sectorWeights.other * 100).toFixed(0);
-        
-        console.log(`Sector percentages: Tech=${techPercent}%, Health=${healthPercent}%, Financial=${finPercent}%, Consumer=${consumerPercent}%, Other=${otherPercent}%`);
-        
-        // Create array of all sectors with their percentages, only include those > 0
-        const sectorResults = [
-            { name: 'Technology', percent: parseFloat(techPercent) },
-            { name: 'Healthcare', percent: parseFloat(healthPercent) },
-            { name: 'Financial', percent: parseFloat(finPercent) },
-            { name: 'Consumer', percent: parseFloat(consumerPercent) },
-            { name: 'Energy', percent: parseFloat(((sectorWeights.energy || 0) * 100).toFixed(0)) },
-            { name: 'Industrial', percent: parseFloat(((sectorWeights.industrial || 0) * 100).toFixed(0)) },
-            { name: 'Materials', percent: parseFloat(((sectorWeights.materials || 0) * 100).toFixed(0)) },
-            { name: 'Utilities', percent: parseFloat(((sectorWeights.utilities || 0) * 100).toFixed(0)) },
-            { name: 'Real Estate', percent: parseFloat(((sectorWeights.realestate || 0) * 100).toFixed(0)) },
-            { name: 'Communication', percent: parseFloat(((sectorWeights.communication || 0) * 100).toFixed(0)) },
-            { name: 'Other/Unclassified', percent: parseFloat(otherPercent) }
-        ].filter(sector => sector.percent > 0)
-         .sort((a, b) => b.percent - a.percent); // Sort by percentage descending
-        
-        console.log('All sector results:', sectorResults);
-        
-        if (sectorResults.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No sector data available</div>';
-        } else {
-            // Show ALL sectors, not just top 3
-            const sectorColors = {
-                'Technology': '#3b82f6',
-                'Healthcare': '#10b981', 
-                'Financial': '#f59e0b',
-                'Energy': '#ef4444',
-                'Communication': '#8b5cf6',
-                'Consumer': '#06b6d4',
-                'Industrial': '#84cc16',
-                'Materials': '#f97316',
-                'Utilities': '#6b7280',
-                'Real Estate': '#ec4899',
-                'Other/Unclassified': '#6b7280'
-            };
-            
-            const sectorHTML = sectorResults.map(sector => {
-                const color = sectorColors[sector.name] || '#6b7280';
-                return `
-                    <div class="flex items-center justify-between mb-2">
-                        <div class="flex items-center">
-                            <div class="w-3 h-3 rounded-full mr-3" style="background-color: ${color}"></div>
-                            <span class="text-gray-600">${sector.name}</span>
-                        </div>
-                        <div class="flex items-center">
-                            <div class="w-20 h-2 bg-gray-200 rounded-full mr-3">
-                                <div class="h-2 rounded-full" style="background-color: ${color}; width: ${sector.percent}%"></div>
-                            </div>
-                            <span class="font-semibold text-sm">${sector.percent.toFixed(0)}%</span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            container.innerHTML = `<div class="space-y-3">${sectorHTML}</div>`;
-            console.log('Displaying sectors:', sectorResults.map(s => `${s.name}: ${s.percent}%`));
-        }
-        } catch (apiError) {
-            console.error('Sector API error:', apiError);
-            console.log('Portfolio symbols when API failed:', validData.map(d => d.symbol));
-            
-            // Fallback to basic classification if API fails
-            validData.forEach(item => {
-                const value = item.quantity * (item.avg_cost || item.price || 0);
-                const weight = totalValue > 0 ? value / totalValue : 0;
-                sectorWeights.other += weight;
-            });
-            
-            const otherPercent = (sectorWeights.other * 100).toFixed(0);
-            const fallbackSectorData = [{ name: 'Other/Unclassified', percent: parseFloat(otherPercent) }].filter(sector => sector.percent > 0);
-            
-            if (fallbackSectorData.length === 0) {
-                container.innerHTML = '<div class="text-center text-gray-500 py-4">No sector data available</div>';
-            } else {
-                const sectorHTML = fallbackSectorData.map(sector => `
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">${sector.name}</span>
-                        <span class="font-semibold">${sector.percent.toFixed(0)}%</span>
-                    </div>
-                `).join('');
-                container.innerHTML = `<div class="space-y-3">${sectorHTML}</div>`;
-            }
-        }
-    }, 1000);
-}
-
-
-
-async function loadBacktestingResults(data) {
-    const container = document.getElementById('backtestingResults');
-    if (!container) {
-        console.error('Backtesting container not found!');
-        return;
-    }
-
-    console.log('Starting backtesting analysis with data:', data);
-    container.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div><div>Running backtests...</div></div>';
-
-    try {
-        const actualData = window.portfolioData || data;
-        console.log('Backtesting - actualData:', actualData);
-        
-        if (!actualData || actualData.length === 0) {
-            console.log('Backtesting - No data available');
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No portfolio data available</div>';
-            return;
-        }
-        
-        const portfolioData = actualData.filter(item => {
-            const isValid = item && item.symbol && 
-                           !isNaN(parseFloat(item.quantity)) && 
-                           !isNaN(parseFloat(item.avg_cost || item.price)) &&
-                           !item.symbol.startsWith('CUR:') && 
-                           !item.symbol.startsWith('CASH');
-            console.log(`Backtesting filter - ${item?.symbol}: ${isValid}`);
-            return isValid;
-        });
-        
-        console.log('Backtesting - filtered portfolioData:', portfolioData);
-        
-        if (portfolioData.length === 0) {
-            console.log('Backtesting - No valid portfolio data after filtering');
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No valid portfolio data for backtesting</div>';
-            return;
-        }
-        
-        console.log('Sending backtesting request with portfolio data:', portfolioData);
-        const response = await fetch(`${API_BASE}/backtest-portfolio`, {
+        const response = await fetch(`${API_BASE}/statistical-analysis`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ portfolio: portfolioData })
+            body: JSON.stringify({ portfolio: portfolioData, options })
         });
         
-        console.log('Backtesting API response status:', response.status);
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Backtesting API error:', errorText);
-            throw new Error(`API returned ${response.status}: ${errorText}`);
-        }
-        
-        const result = await response.json();
-        console.log('Backtesting API full response:', result);
-        
-        if (result.success && result.backtest_results) {
-            const metrics = result.backtest_results;
-            console.log('Backtesting metrics received:', metrics);
-            console.log('Annual return value:', metrics.annual_return, 'Type:', typeof metrics.annual_return);
-            console.log('Max drawdown value:', metrics.max_drawdown, 'Type:', typeof metrics.max_drawdown);
-            console.log('Sortino ratio value:', metrics.sortino_ratio, 'Type:', typeof metrics.sortino_ratio);
-            
-            // Format values with better validation
-            const formatReturn = (value) => {
-                if (value === null || value === undefined || isNaN(value)) return 'N/A';
-                const pct = (value * 100).toFixed(1);
-                return value >= 0 ? `+${pct}%` : `${pct}%`;
-            };
-            
-            const formatDrawdown = (value) => {
-                if (value === null || value === undefined || isNaN(value)) return 'N/A';
-                return `${(Math.abs(value) * 100).toFixed(1)}%`;
-            };
-            
-            const formatRatio = (value) => {
-                console.log('Formatting Backtesting Sortino ratio:', value, 'Type:', typeof value);
-                if (value === null || value === undefined || isNaN(value)) return 'N/A';
-                return value.toFixed(2);
-            };
-            
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">1Y Return</span>
-                        <span class="font-semibold ${(metrics.annual_return || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">${formatReturn(metrics.annual_return)}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Max Drawdown</span>
-                        <span class="font-semibold text-red-600">${formatDrawdown(metrics.max_drawdown)}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Sortino Ratio</span>
-                        <span class="font-semibold ${(metrics.sortino_ratio || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">${formatRatio(metrics.sortino_ratio)}</span>
-                    </div>
-                </div>
-            `;
-            console.log('Backtesting display updated successfully');
+        const data = await response.json();
+        if (data.success) {
+            displayStatisticalResults(data.statistics);
         } else {
-            console.error('Backtesting API error:', result);
-            throw new Error(result.error || 'Backtesting failed');
+            container.innerHTML = `<div class="text-red-500">Statistical analysis failed: ${data.error}</div>`;
         }
     } catch (error) {
-        console.error('Backtesting error:', error);
-        container.innerHTML = `
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">1Y Return</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Max Drawdown</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Sortino Ratio</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-            </div>
-        `;
+        container.innerHTML = `<div class="text-red-500">Error: ${error.message}</div>`;
     }
 }
 
-async function loadCorrelationAnalysis(data) {
+function displayStatisticalResults(stats) {
+    const container = document.getElementById('statisticalAnalysis');
+    if (!container || !stats) return;
+    
+    container.innerHTML = `
+        <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span>Sharpe Ratio:</span>
+                    <span class="font-semibold">${stats.sharpe_ratio?.toFixed(3) || 'N/A'}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Sortino Ratio:</span>
+                    <span class="font-semibold">${stats.sortino_ratio?.toFixed(3) || 'N/A'}</span>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span>Information Ratio:</span>
+                    <span class="font-semibold">${stats.information_ratio?.toFixed(3) || 'N/A'}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Max Drawdown:</span>
+                    <span class="font-semibold">${stats.max_drawdown ? (stats.max_drawdown * 100).toFixed(1) + '%' : 'N/A'}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function loadSectorAnalysis(portfolioData, options = {}) {
+    const container = document.getElementById('sectorAllocation');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>Analyzing sectors...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE}/sector-allocation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ portfolio: portfolioData, options })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            displaySectorResults(data.allocation);
+        } else {
+            container.innerHTML = `<div class="text-red-500">Sector analysis failed: ${data.error}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="text-red-500">Error: ${error.message}</div>`;
+    }
+}
+
+function displaySectorResults(allocation) {
+    const container = document.getElementById('sectorAllocation');
+    if (!container || !allocation) return;
+    
+    const sectors = Object.entries(allocation).sort((a, b) => b[1] - a[1]);
+    
+    container.innerHTML = `
+        <div class="space-y-3">
+            ${sectors.map(([sector, percentage]) => `
+                <div class="flex justify-between items-center">
+                    <span>${sector}:</span>
+                    <div class="flex items-center">
+                        <div class="w-20 bg-gray-200 rounded-full h-2 mr-2">
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: ${percentage}%"></div>
+                        </div>
+                        <span class="font-semibold">${percentage.toFixed(1)}%</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+
+
+
+
+async function loadCorrelationAnalysis(portfolioData, options = {}) {
+    const container = document.getElementById('correlationResults');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>Calculating correlations...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE}/correlation-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ portfolio: portfolioData, options })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            displayCorrelationResults(data.correlation_matrix, data.summary);
+        } else {
+            container.innerHTML = `<div class="text-red-500">Correlation analysis failed: ${data.error}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="text-red-500">Error: ${error.message}</div>`;
+    }
+}
+
+function displayCorrelationResults(matrix, summary) {
+    const container = document.getElementById('correlationResults');
+    if (!container || !matrix) return;
+    
+    container.innerHTML = `
+        <div class="mb-4">
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div class="text-lg font-bold">${summary?.average_correlation?.toFixed(3) || 'N/A'}</div>
+                    <div class="text-sm text-gray-600">Average Correlation</div>
+                </div>
+                <div>
+                    <div class="text-lg font-bold text-green-600">${summary?.max_correlation?.toFixed(3) || 'N/A'}</div>
+                    <div class="text-sm text-gray-600">Highest</div>
+                </div>
+                <div>
+                    <div class="text-lg font-bold text-red-600">${summary?.min_correlation?.toFixed(3) || 'N/A'}</div>
+                    <div class="text-sm text-gray-600">Lowest</div>
+                </div>
+            </div>
+        </div>
+        <div id="correlationMatrix" class="mt-4"></div>
+    `;
+    
+    // Create correlation matrix visualization
+    createCorrelationMatrix(matrix);
+}
+
+function createCorrelationMatrix(matrix) {
     const container = document.getElementById('correlationMatrix');
-    if (!container || !data) return;
+    if (!container || !matrix) return;
     
-    container.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>Computing correlations...</div>';
+    const symbols = Object.keys(matrix);
+    let html = '<div class="overflow-x-auto"><table class="min-w-full text-xs">';
     
-    setTimeout(async () => {
-        const actualData = window.portfolioData || data;
-        
-        if (!actualData || actualData.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No portfolio data available</div>';
-            return;
-        }
-        
-        const validData = actualData.filter(item => 
-            item && item.symbol && !isNaN(parseFloat(item.quantity)) && !isNaN(parseFloat(item.avg_cost || item.price))
-        );
-        
-        if (validData.length < 2) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">Need at least 2 stocks for correlation analysis</div>';
-            return;
-        }
-        
-        try {
-            const symbols = validData.map(item => item.symbol)
-                .filter(s => s && !s.startsWith('CUR:') && !s.startsWith('CASH') && s.length <= 10)
-                .slice(0, 6);
-            
-            if (symbols.length < 2) {
-                container.innerHTML = '<div class="text-center text-gray-500 py-4">Need at least 2 valid stocks for correlation</div>';
-                return;
-            }
-            
-            const response = await fetch(`${API_BASE}/correlation-data?nocache=${Date.now()}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-                body: JSON.stringify({ symbols })
-            });
-            
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    createD3CorrelationMatrix(symbols, result.correlation_matrix, result.average_correlation, container);
-                } else {
-                    throw new Error(result.error || 'Correlation calculation failed');
-                }
-            } else {
-                throw new Error('API request failed');
-            }
-        } catch (error) {
-            console.error('Correlation analysis error:', error);
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">Correlation analysis requires market data API integration</div>';
-        }
-    }, 1600);
+    // Header
+    html += '<thead><tr><th></th>';
+    symbols.forEach(symbol => {
+        html += `<th class="px-1 py-1 text-center">${symbol}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    
+    // Rows
+    symbols.forEach(symbol1 => {
+        html += `<tr><td class="font-semibold px-1 py-1">${symbol1}</td>`;
+        symbols.forEach(symbol2 => {
+            const corr = matrix[symbol1]?.[symbol2] || 0;
+            const color = corr > 0.7 ? 'bg-green-200' : corr < -0.7 ? 'bg-red-200' : corr > 0.3 ? 'bg-green-100' : corr < -0.3 ? 'bg-red-100' : 'bg-gray-50';
+            html += `<td class="px-1 py-1 text-center ${color}">${corr.toFixed(2)}</td>`;
+        });
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
 }
 
 function createD3CorrelationMatrix(symbols, correlations, avgCorr, container) {
@@ -1265,166 +941,186 @@ function createD3CorrelationMatrix(symbols, correlations, avgCorr, container) {
         `);
 }
 
-async function loadPortfolioOptimization(data) {
-    const container = document.getElementById('portfolioOptimization');
-    if (!container || !data) {
-        console.error('Portfolio optimization container not found or no data provided');
-        return;
-    }
+async function loadPortfolioOptimization(portfolioData, options = {}) {
+    const container = document.getElementById('optimizationChart');
+    if (!container) return;
     
-    console.log('Starting portfolio optimization...');
-    container.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div><div>Optimizing portfolio...</div></div>';
+    container.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>Optimizing portfolio...</div>';
     
     try {
-        const actualData = window.portfolioData || data;
-        
-        if (!actualData || actualData.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No portfolio data available</div>';
-            return;
-        }
-        
-        const portfolioData = actualData.filter(item => 
-            item && item.symbol && !isNaN(parseFloat(item.quantity)) && !isNaN(parseFloat(item.avg_cost || item.price))
-        );
-        
-        console.log('Sending portfolio optimization request with data:', portfolioData);
         const response = await fetch(`${API_BASE}/portfolio-optimization`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ portfolio: portfolioData })
+            body: JSON.stringify({ portfolio: portfolioData, options })
         });
         
-        console.log('Portfolio optimization API response status:', response.status);
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Portfolio optimization API error:', errorText);
-            throw new Error(`API returned ${response.status}: ${errorText}`);
-        }
-        
-        const result = await response.json();
-        console.log('Portfolio optimization API response:', result);
-        
-        if (result.success && result.optimization) {
-            const opt = result.optimization;
-            
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Min Volatility Return</span>
-                        <span class="font-semibold text-blue-600">${opt.minimum_volatility?.expected_return ? (opt.minimum_volatility.expected_return * 100).toFixed(1) + '%' : 'N/A'}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Min Volatility Risk</span>
-                        <span class="font-semibold">${opt.minimum_volatility?.volatility ? (opt.minimum_volatility.volatility * 100).toFixed(1) + '%' : 'N/A'}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Max Sharpe Return</span>
-                        <span class="font-semibold text-green-600">${opt.maximum_sharpe?.expected_return ? (opt.maximum_sharpe.expected_return * 100).toFixed(1) + '%' : 'N/A'}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Max Sharpe Ratio</span>
-                        <span class="font-semibold">${opt.maximum_sharpe?.sharpe_ratio ? opt.maximum_sharpe.sharpe_ratio.toFixed(2) : 'N/A'}</span>
-                    </div>
-                </div>
-            `;
+        const data = await response.json();
+        if (data.success) {
+            displayOptimizationResults(data.optimization);
         } else {
-            throw new Error(result.error || 'Portfolio optimization failed');
+            container.innerHTML = `<div class="text-red-500">Portfolio optimization failed: ${data.error}</div>`;
         }
     } catch (error) {
-        console.error('Portfolio optimization error:', error);
-        container.innerHTML = `
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Min Volatility Return</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Min Volatility Risk</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Max Sharpe Return</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Max Sharpe Ratio</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-            </div>
-        `;
+        container.innerHTML = `<div class="text-red-500">Error: ${error.message}</div>`;
     }
 }
 
-async function loadEnhancedTechnicalAnalysis(data) {
-    const container = document.getElementById('enhancedTechnicalAnalysis');
-    if (!container) return;
-
-    container.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div><div>Analyzing technical indicators...</div></div>';
-
-    try {
-        const actualData = window.portfolioData || data;
-        
-        if (!actualData || actualData.length === 0) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No portfolio data available</div>';
-            return;
-        }
-        
-        const portfolioData = actualData.filter(item => 
-            item && item.symbol && !isNaN(parseFloat(item.quantity)) && !isNaN(parseFloat(item.avg_cost || item.price))
-        );
-        
-        const response = await fetch(`${API_BASE}/technical-analysis?nocache=${Date.now()}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-            body: JSON.stringify({ portfolio: portfolioData })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`API returned ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success && result.technical_metrics) {
-            const metrics = result.technical_metrics;
-            
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">RSI (14-day)</span>
-                        <span class="font-semibold ${metrics.rsi_14 > 70 ? 'text-red-600' : metrics.rsi_14 < 30 ? 'text-green-600' : 'text-gray-600'}">${metrics.rsi_14 || 'N/A'}</span>
+function displayOptimizationResults(optimization) {
+    const container = document.getElementById('optimizationChart');
+    if (!container || !optimization) return;
+    
+    container.innerHTML = `
+        <div class="grid grid-cols-2 gap-6">
+            <div>
+                <h4 class="font-semibold mb-2">Current Portfolio</h4>
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span>Expected Return:</span>
+                        <span>${optimization.current_portfolio?.expected_return ? (optimization.current_portfolio.expected_return * 100).toFixed(1) + '%' : 'N/A'}</span>
                     </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">MACD Signal</span>
-                        <span class="font-semibold ${metrics.macd_signal === 'Bullish' ? 'text-green-600' : metrics.macd_signal === 'Bearish' ? 'text-red-600' : 'text-gray-600'}">${metrics.macd_signal || 'N/A'}</span>
+                    <div class="flex justify-between">
+                        <span>Volatility:</span>
+                        <span>${optimization.current_portfolio?.volatility ? (optimization.current_portfolio.volatility * 100).toFixed(1) + '%' : 'N/A'}</span>
                     </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-600">Bollinger Position</span>
-                        <span class="font-semibold ${metrics.bollinger_position === 'Above Upper' ? 'text-red-600' : metrics.bollinger_position === 'Below Lower' ? 'text-green-600' : 'text-gray-600'}">${metrics.bollinger_position || 'N/A'}</span>
+                    <div class="flex justify-between">
+                        <span>Sharpe Ratio:</span>
+                        <span>${optimization.current_portfolio?.sharpe_ratio?.toFixed(3) || 'N/A'}</span>
                     </div>
-                </div>
-            `;
-        } else {
-            throw new Error(result.error || 'Technical analysis failed');
-        }
-    } catch (error) {
-        console.error('Technical analysis error:', error);
-        container.innerHTML = `
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">RSI (14-day)</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">MACD Signal</span>
-                    <span class="font-semibold">N/A</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-600">Bollinger Position</span>
-                    <span class="font-semibold">N/A</span>
                 </div>
             </div>
-        `;
+            <div>
+                <h4 class="font-semibold mb-2">Optimized Portfolio</h4>
+                <div class="space-y-1">
+                    <div class="flex justify-between">
+                        <span>Expected Return:</span>
+                        <span class="text-green-600">${optimization.maximum_sharpe?.expected_return ? (optimization.maximum_sharpe.expected_return * 100).toFixed(1) + '%' : 'N/A'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Volatility:</span>
+                        <span class="text-blue-600">${optimization.maximum_sharpe?.volatility ? (optimization.maximum_sharpe.volatility * 100).toFixed(1) + '%' : 'N/A'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Sharpe Ratio:</span>
+                        <span class="text-green-600 font-bold">${optimization.maximum_sharpe?.sharpe_ratio?.toFixed(3) || 'N/A'}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function loadTechnicalAnalysis(portfolioData, options = {}) {
+    const container = document.getElementById('technicalAnalysis');
+    if (!container) return;
+    
+    container.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>Analyzing technical indicators...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE}/technical-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ portfolio: portfolioData, options })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            displayTechnicalResults(data.analysis);
+        } else {
+            container.innerHTML = `<div class="text-red-500">Technical analysis failed: ${data.error}</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="text-red-500">Error: ${error.message}</div>`;
+    }
+}
+
+function displayTechnicalResults(analysis) {
+    const container = document.getElementById('technicalAnalysis');
+    if (!container || !analysis) return;
+    
+    container.innerHTML = `
+        <div class="mb-4">
+            <div class="text-center">
+                <div class="text-lg font-bold ${analysis.portfolio_signal?.signal === 'BUY' ? 'text-green-600' : analysis.portfolio_signal?.signal === 'SELL' ? 'text-red-600' : 'text-gray-600'}">
+                    ${analysis.portfolio_signal?.signal || 'NEUTRAL'}
+                </div>
+                <div class="text-sm text-gray-600">Portfolio Signal</div>
+            </div>
+        </div>
+        <div class="space-y-2">
+            ${Object.entries(analysis.individual_signals || {}).map(([symbol, signals]) => `
+                <div class="flex justify-between items-center">
+                    <span class="font-medium">${symbol}:</span>
+                    <div class="flex space-x-2">
+                        <span class="text-xs px-2 py-1 rounded ${signals.overall_signal === 'BUY' ? 'bg-green-100 text-green-800' : signals.overall_signal === 'SELL' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}">
+                            ${signals.overall_signal}
+                        </span>
+                        <span class="text-xs text-gray-600">RSI: ${signals.indicators?.RSI?.toFixed(0) || 'N/A'}</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Risk analysis update function
+function updateRiskAnalysis() {
+    const period = document.getElementById('riskPeriod')?.value || '1Y';
+    const confidence = document.getElementById('riskConfidence')?.value || '95';
+    const model = document.getElementById('riskModel')?.value || 'Historical';
+    const benchmark = document.getElementById('riskBenchmark')?.value || 'SPY';
+    const window = document.getElementById('riskWindow')?.value || '90';
+    
+    const options = { period, confidence, model, benchmark, window };
+    console.log('Updating risk analysis with options:', options);
+    
+    const portfolioData = window.portfolioData || JSON.parse(localStorage.getItem('currentPortfolio') || '[]');
+    if (portfolioData && portfolioData.length > 0) {
+        loadRiskAnalytics(portfolioData, options);
+    }
+}
+
+// Options analysis update function
+function updateOptionsAnalysis() {
+    const expiration = document.getElementById('optionsExpiration')?.value || '3M';
+    const moneyness = document.getElementById('optionsMoneyness')?.value || 'All';
+    const strategy = document.getElementById('optionsStrategy')?.value || 'All';
+    const minPremium = document.getElementById('optionsMinPremium')?.value || '0.50';
+    const delta = document.getElementById('optionsDelta')?.value || 'All';
+    
+    const options = { expiration, moneyness, strategy, minPremium, delta };
+    console.log('Updating options analysis with options:', options);
+    
+    const portfolioData = window.portfolioData || JSON.parse(localStorage.getItem('currentPortfolio') || '[]');
+    if (portfolioData && portfolioData.length > 0) {
+        loadOptionsAnalytics(portfolioData, options);
+    }
+}
+
+// Performance attribution update function
+function updateAttributionAnalysis() {
+    const period = document.getElementById('attributionPeriod')?.value || '3M';
+    const model = document.getElementById('attributionModel')?.value || 'brinson';
+    const benchmark = document.getElementById('attributionBenchmark')?.value || 'SPY';
+    const currency = document.getElementById('attributionCurrency')?.value || 'USD';
+    const frequency = document.getElementById('attributionFrequency')?.value || 'daily';
+    
+    const options = { period, model, benchmark, currency, frequency };
+    console.log('Updating performance attribution with options:', options);
+    
+    const portfolioData = window.portfolioData || JSON.parse(localStorage.getItem('currentPortfolio') || '[]');
+    if (portfolioData && portfolioData.length > 0) {
+        updateAttributionResults(portfolioData, options);
+    }
+}
+
+// Refresh portfolio analysis with interactive controls
+function refreshPortfolioAnalysis() {
+    const portfolioData = window.portfolioData || JSON.parse(localStorage.getItem('currentPortfolio') || '[]');
+    if (portfolioData && portfolioData.length > 0) {
+        console.log('Refreshing portfolio analysis with interactive controls');
+        loadAllRealAnalytics(portfolioData);
+    } else {
+        console.log('No portfolio data available for refresh');
     }
 }
 
@@ -1436,6 +1132,10 @@ window.updateTopMetrics = updateTopMetrics;
 window.updateRiskResults = updateRiskResults;
 window.updateOptionsResults = updateOptionsResults;
 window.createD3CorrelationMatrix = createD3CorrelationMatrix;
+window.updateRiskAnalysis = updateRiskAnalysis;
+window.updateOptionsAnalysis = updateOptionsAnalysis;
+window.updateAttributionAnalysis = updateAttributionAnalysis;
+window.refreshPortfolioAnalysis = refreshPortfolioAnalysis;
 
 // Clear cached display data
 function clearCachedDisplayData() {

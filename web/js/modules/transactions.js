@@ -92,6 +92,11 @@ async function uploadTransactions() {
                     '✓ Transactions uploaded and saved successfully' : 
                     '✓ Transactions uploaded (local only - server unavailable)';
                 statusDiv.innerHTML = `<span class="text-green-600">${message}</span>`;
+                
+                // Show data action buttons
+                if (typeof showDataActions === 'function') {
+                    showDataActions();
+                }
             } catch (error) {
                 statusDiv.innerHTML = '<span class="text-red-600">✗ Analysis failed</span>';
                 showError('Transaction analysis failed: ' + error.message);

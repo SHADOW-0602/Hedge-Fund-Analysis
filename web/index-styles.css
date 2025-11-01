@@ -580,7 +580,7 @@
 [data-theme="dark"] .text-gray-600,
 [data-theme="dark"] .text-gray-500,
 [data-theme="dark"] .text-gray-700 {
-    color: var(--text-primary) !important;
+    color: var(--text-secondary) !important;
 }
 
 [data-theme="dark"] .border,
@@ -607,6 +607,22 @@
     color: var(--text-secondary) !important;
 }
 
+[data-theme="dark"] .text-indigo-700 {
+    color: #a5b4fc !important;
+}
+
+[data-theme="dark"] .text-purple-700 {
+    color: #c4b5fd !important;
+}
+
+[data-theme="dark"] .bg-indigo-50 {
+    background: rgba(99, 102, 241, 0.1) !important;
+}
+
+[data-theme="dark"] .bg-purple-50 {
+    background: rgba(139, 92, 246, 0.1) !important;
+}
+
 /* Fix text visibility issues */
 .text-gray-900, .text-gray-800, .text-gray-700 {
     color: #1f2937 !important;
@@ -620,6 +636,11 @@
     color: #ffffff !important;
 }
 
+/* Ensure all text is visible on white backgrounds */
+body, p, span, div, label, h1, h2, h3, h4, h5, h6 {
+    color: #1f2937;
+}
+
 /* Ensure metric values are visible */
 .metric-value {
     color: #1f2937 !important;
@@ -628,12 +649,36 @@
 
 /* Fix button text visibility */
 button {
-    color: inherit;
+    color: #1f2937;
+}
+
+button.bg-indigo-600, button.bg-blue-600, button.bg-green-600 {
+    color: #ffffff !important;
 }
 
 /* Fix input text visibility */
 input, select, textarea {
     color: #1f2937 !important;
+    background: #ffffff;
+}
+
+/* Fix table text */
+th, td {
+    color: #1f2937 !important;
+}
+
+/* Fix card text */
+.analysis-card, .metric-card, .analysis-section {
+    color: #1f2937;
+}
+
+/* Fix specific text elements */
+.pnl-item span, .attribution-item span, .technical-item span, .risk-item span, .options-item span {
+    color: #1f2937 !important;
+}
+
+.pnl-item span:first-child, .attribution-item span:first-child, .technical-item span:first-child, .risk-item span:first-child, .options-item span:first-child {
+    color: #6b7280 !important;
 }
 
 [data-theme="dark"] input,

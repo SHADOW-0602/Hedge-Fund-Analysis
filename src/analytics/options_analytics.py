@@ -225,7 +225,7 @@ class OptionsAnalyzer:
         
         return sorted(opportunities, key=lambda x: x['profit_potential'], reverse=True)
     
-    def scan_covered_calls(self, symbols: List[str], min_premium: float = 0.01) -> List[Dict]:
+    def scan_covered_calls(self, symbols: List[str], min_premium: float = 0.01, expiration: str = '3M', moneyness: str = 'All', delta_range: str = 'All') -> List[Dict]:
         print(f"2025-10-26 16:55:46,100 - hedge_fund_app - INFO - Scanning covered calls for {len(symbols)} symbols")
         opportunities = []
         
@@ -367,28 +367,38 @@ class OptionsAnalyzer:
         
         return opportunities
     
-    def scan_all_strategies(self, symbols: List[str]) -> List[Dict]:
+    def scan_all_strategies(self, symbols: List[str], options: Dict = {}) -> List[Dict]:
         """Scan for all three options strategies and return combined results"""
         print(f"2025-10-26 16:55:46,001 - hedge_fund_app - INFO - Starting options analysis for {len(symbols)} symbols")
         logger.info(f"Starting options analysis for symbols: {symbols}")
         all_opportunities = []
         
+        # Parse options parameters
+        expiration = options.get('expiration', '3M')
+        moneyness = options.get('moneyness', 'All')
+        strategy_filter = options.get('strategy', 'All')
+        min_premium = float(options.get('min_premium', 0.50))
+        delta_range = options.get('delta_range', 'All')
+        
         # Covered Calls
-        covered_calls = self.scan_covered_calls(symbols)
-        all_opportunities.extend(covered_calls)
+        if strategy_filter in ['All', 'CoveredCalls']:
+            covered_calls = self.scan_covered_calls(symbols, min_premium, expiration, moneyness, delta_range)
+            all_opportunities.extend(covered_calls)
         
         # Protective Puts
-        protective_puts = self.scan_protective_puts(symbols)
-        for put in protective_puts:
-            put['strategy'] = 'protective_puts'
-        all_opportunities.extend(protective_puts)
+        if strategy_filter in ['All', 'ProtectivePuts']:
+            protective_puts = self.scan_protective_puts(symbols)
+            for put in protective_puts:
+                put['strategy'] = 'protective_puts'
+            all_opportunities.extend(protective_puts)
         
         # Iron Condors (simplified - using collar strategy as base)
-        collars = self.scan_collar_strategies(symbols)
-        for collar in collars:
-            collar['strategy'] = 'iron_condors'
-            collar['premium'] = collar.get('net_premium', 0)
-        all_opportunities.extend(collars)
+        if strategy_filter in ['All', 'Spreads']:
+            collars = self.scan_collar_strategies(symbols)
+            for collar in collars:
+                collar['strategy'] = 'iron_condors'
+                collar['premium'] = collar.get('net_premium', 0)
+            all_opportunities.extend(collars)
         
         print(f"2025-10-26 16:55:47,234 - hedge_fund_app - INFO - Options analysis completed - Found {len(all_opportunities)} opportunities")
         logger.info(f"Options analysis completed with {len(all_opportunities)} opportunities")

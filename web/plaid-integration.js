@@ -64,6 +64,7 @@ async function handlePlaidSuccess(public_token, metadata) {
         if (result.success) {
             console.log('[PLAID] Token exchange successful');
             updatePlaidStatus('Connected successfully!', 'success');
+            updateConnectButton(true);
             
             // Load portfolio data from Plaid
             setTimeout(() => {
@@ -144,7 +145,13 @@ async function loadPlaidPortfolio() {
                 showPlaidSwitcher();
             }
             
+            // Show data action buttons
+            if (typeof showDataActions === 'function') {
+                showDataActions();
+            }
+            
             updatePlaidStatus(`Loaded ${result.holdings.length} positions`, 'success');
+            updateConnectButton(true);
             
             // Auto-hide status after success
             setTimeout(() => {
@@ -245,7 +252,13 @@ async function checkExistingPlaidConnection() {
                 showPlaidSwitcher();
             }
             
+            // Show data action buttons
+            if (typeof showDataActions === 'function') {
+                showDataActions();
+            }
+            
             updatePlaidStatus(`Connected - ${result.holdings.length} positions loaded`, 'success');
+            updateConnectButton(true);
             return true;
         }
         return false;
@@ -280,8 +293,70 @@ document.addEventListener('DOMContentLoaded', autoConnectPlaid);
 // Also auto-connect when user logs in
 window.addEventListener('userLoggedIn', autoConnectPlaid);
 
+// Toggle Plaid connection (connect/disconnect)
+function togglePlaidConnection() {
+    const btn = document.getElementById('plaidConnectBtn');
+    if (btn && btn.textContent.includes('Disconnect')) {
+        disconnectPlaid();
+    } else {
+        connectPlaid();
+    }
+}
+
+// Disconnect from Plaid
+async function disconnectPlaid() {
+    try {
+        console.log('[PLAID] Disconnecting...');
+        updatePlaidStatus('Disconnecting...', 'connecting');
+        
+        const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
+        const response = await fetch(`${API_BASE}/disconnect-plaid`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('[PLAID] Disconnected successfully');
+            updatePlaidStatus('Disconnected', 'info');
+            updateConnectButton(false);
+            
+            // Clear any loaded data
+            if (typeof clearPortfolioData === 'function') {
+                clearPortfolioData();
+            }
+            
+        } else {
+            throw new Error(result.error || 'Disconnect failed');
+        }
+        
+    } catch (error) {
+        console.error('[PLAID] Disconnect failed:', error);
+        updatePlaidStatus(`Disconnect failed: ${error.message}`, 'error');
+    }
+}
+
+// Update connect button based on connection status
+function updateConnectButton(isConnected) {
+    const btn = document.getElementById('plaidConnectBtn');
+    if (!btn) return;
+    
+    if (isConnected) {
+        btn.textContent = 'Disconnect Account';
+        btn.className = 'bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm w-full sm:w-auto';
+    } else {
+        btn.textContent = 'Connect Account';
+        btn.className = 'bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto';
+    }
+}
+
 // Make functions globally available
 window.connectPlaid = connectPlaid;
+window.disconnectPlaid = disconnectPlaid;
+window.togglePlaidConnection = togglePlaidConnection;
+window.updateConnectButton = updateConnectButton;
 window.loadPlaidPortfolio = loadPlaidPortfolio;
 window.testPlaidConnection = testPlaidConnection;
 window.checkExistingPlaidConnection = checkExistingPlaidConnection;

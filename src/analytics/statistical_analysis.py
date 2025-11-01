@@ -104,3 +104,29 @@ class StatisticalAnalyzer:
             return {'clusters': clusters}
         except Exception:
             return {'clusters': {1: symbols[:15]}}
+    
+    def comprehensive_analysis(self, symbols: List[str], weights: Dict[str, float]) -> Dict:
+        """Comprehensive statistical analysis with all metrics"""
+        try:
+            # Basic correlation analysis
+            correlation_results = self.correlation_analysis(symbols)
+            
+            # Diversification metrics
+            diversification_ratio = self.diversification_ratio(symbols, weights)
+            effective_assets = self.effective_number_of_assets(weights)
+            
+            # Clustering analysis
+            clustering_results = self.simple_clustering(symbols)
+            
+            return {
+                'correlation_analysis': correlation_results,
+                'diversification_ratio': diversification_ratio,
+                'effective_number_of_assets': effective_assets,
+                'clustering': clustering_results,
+                'portfolio_statistics': {
+                    'total_symbols': len(symbols),
+                    'total_weight': sum(weights.values())
+                }
+            }
+        except Exception as e:
+            return {'error': str(e)}

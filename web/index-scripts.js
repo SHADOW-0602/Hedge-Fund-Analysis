@@ -1,5 +1,13 @@
 let currentAnalysis = 'portfolio';
 let hasData = false;
+let currentPortfolio = null;
+
+// Enhanced analytics integration
+function updateEnhancedAnalytics() {
+    if (window.enhancedAnalytics && currentPortfolio) {
+        window.enhancedAnalytics.setPortfolio(currentPortfolio);
+    }
+}
 
 // File upload handlers
 document.getElementById('portfolioFile').addEventListener('change', function (e) {
@@ -61,28 +69,8 @@ function showPortfolioAnalysis() {
     document.querySelector('.analysis-tabs .tab-btn:last-child').classList.remove('active');
 }
 
-// Override existing functions to work with new interface
-window.displayPortfolio = function (data) {
-    // Update metrics with book value initially
-    const bookValue = data.reduce((sum, item) => sum + (item.quantity * item.avg_cost), 0);
-    document.getElementById('totalAUM').textContent = '$' + (bookValue / 1000000).toFixed(1) + 'M';
-
-    // Calculate real risk metrics (this will update with market value)
-    calculateRealRiskMetrics(data);
-
-    // Populate analysis sections
-    setTimeout(() => {
-        createAllocationChart(data);
-        populateRiskMetrics(bookValue);
-        populateCorrelationMatrix(data);
-        populateSectorAllocation(data);
-        populateTechnicalAnalysis(data);
-        populatePerformanceAttribution(data);
-        // populateOptionsResults will be called after risk analysis completes
-        // Monte Carlo will be called after risk analysis
-        populateOptionsResults(data);
-    }, 200);
-};
+// Enhanced analytics integration - don't override displayPortfolio
+// Let the portfolio module handle display and enhanced analytics initialization
 
 function populateRiskMetrics(totalValue) {
     const container = document.getElementById('riskResults');
@@ -344,10 +332,14 @@ async function calculateRealRiskMetrics(data) {
                 `;
             }
             
-            // Call options and Monte Carlo after risk analysis
+            // Load full interactive analytics after risk calculation
             setTimeout(() => {
-                populateOptionsResults(data);
-                createMonteCarloResults(data);
+                if (typeof loadAllRealAnalytics === 'function') {
+                    loadAllRealAnalytics(data);
+                } else {
+                    populateOptionsResults(data);
+                    createMonteCarloResults(data);
+                }
             }, 1000);
         }
     } catch (error) {
@@ -413,6 +405,12 @@ window.displayTransactionResults = function (data) {
     // Show interface
     showAnalysisInterface();
     switchAnalysis('transaction');
+    
+    // Convert transactions to portfolio format for enhanced analytics
+    if (data.portfolio_summary) {
+        currentPortfolio = data.portfolio_summary;
+        updateEnhancedAnalytics();
+    }
 };
 
 window.displayRiskResults = function (metrics) {

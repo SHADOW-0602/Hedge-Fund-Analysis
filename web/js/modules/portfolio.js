@@ -65,6 +65,11 @@ async function uploadPortfolio() {
             
             statusDiv.innerHTML = '<span class="text-green-600">✓ Portfolio uploaded successfully</span>';
             
+            // Show data action buttons
+            if (typeof showDataActions === 'function') {
+                showDataActions();
+            }
+            
             if (hasStoredResults) {
                 showSuccess('Portfolio uploaded - Loaded stored analysis results');
             } else {
@@ -86,9 +91,8 @@ async function displayPortfolio(data) {
     localStorage.setItem('currentPortfolio', JSON.stringify(data));
     
     // Show portfolio analysis section
-    const analysisSection = document.getElementById('portfolioAnalysis');
-    if (analysisSection) {
-        analysisSection.classList.remove('hidden');
+    if (window.showPortfolioAnalysis) {
+        window.showPortfolioAnalysis();
     }
     
     // Update key metrics
@@ -107,6 +111,17 @@ function updatePortfolioMetrics(data) {
     
     // Store portfolio data globally for analytics
     window.portfolioData = data;
+    window.currentPortfolioData = data;
+    
+    // Set portfolio data for enhanced analytics
+    if (window.enhancedAnalytics) {
+        window.enhancedAnalytics.setPortfolio(data);
+    }
+    
+    // Dispatch portfolio loaded event
+    document.dispatchEvent(new CustomEvent('portfolioLoaded', {
+        detail: { portfolio: data }
+    }));
     
     // Update individual metric elements
     const totalAUM = document.getElementById('totalAUM');
@@ -444,6 +459,11 @@ function viewSelectedPortfolio() {
     }, 100);
     
     showSuccess(`Portfolio "${filename}" loaded successfully`);
+    
+    // Show data action buttons
+    if (typeof showDataActions === 'function') {
+        showDataActions();
+    }
 }
 
 function togglePortfolioDelete() {

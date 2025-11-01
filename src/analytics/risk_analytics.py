@@ -150,10 +150,26 @@ class RiskAnalyzer:
         portfolio_var = np.dot(weight_array.T, np.dot(cov_matrix, weight_array))
         return np.sqrt(max(portfolio_var, 1e-8))
     
-    def analyze_portfolio_risk_fast(self, symbols: List[str], weights: Dict[str, float], period: str = "1y") -> Dict:
+    def analyze_portfolio_risk_fast(self, symbols: List[str], weights: Dict[str, float], period: str = "1y", risk_free_rate: float = None, var_confidence: float = 0.95, risk_model: str = "historical", benchmark: str = "SPY", rolling_window: int = 252) -> Dict:
         """Fast risk analysis with parallel processing"""
         logger.info(f"Starting fast risk analysis for {len(symbols)} symbols: {symbols}")
         print(f"2025-10-26 16:55:44,944 - hedge_fund_app - INFO - Starting fast risk analysis for {len(symbols)} symbols")
+        
+        # Map period strings to yfinance format
+        period_mapping = {
+            '1M': '1mo', '3M': '3mo', '6M': '6mo', 
+            '1Y': '1y', '2Y': '2y', '3Y': '5y'
+        }
+        period = period_mapping.get(period.upper(), period)
+        
+        # Update benchmark if provided
+        if benchmark != "SPY":
+            benchmark_mapping = {
+                'S&P 500': 'SPY', 'NASDAQ': 'QQQ', 
+                'Russell 2000': 'IWM', 'SPY': 'SPY',
+                'QQQ': 'QQQ', 'IWM': 'IWM'
+            }
+            self.benchmark_symbol = benchmark_mapping.get(benchmark, benchmark)
         
         # Use parallel processing for large datasets (>20 symbols)
         all_symbols = symbols + [self.benchmark_symbol]
@@ -224,27 +240,50 @@ class RiskAnalyzer:
                 corr_matrix = returns_subset.corr()
             corr_matrix = corr_matrix.fillna(0)
         
-        # Calculate VaR and CVaR with proper validation - only use real data
+        # Calculate VaR and CVaR with configurable confidence levels
+        var_percentile = (1 - var_confidence) * 100
+        var_val = None
+        cvar_val = None
+        
         if len(portfolio_returns) > 10 and not portfolio_returns.empty:
-            var_5_pct = np.percentile(portfolio_returns, 5)
-            cvar_5_val = portfolio_returns[portfolio_returns <= var_5_pct].mean()
+            if risk_model == "historical":
+                var_val = np.percentile(portfolio_returns, var_percentile)
+                cvar_val = portfolio_returns[portfolio_returns <= var_val].mean()
+            elif risk_model == "parametric":
+                from scipy import stats
+                mu = portfolio_returns.mean()
+                sigma = portfolio_returns.std()
+                var_val = stats.norm.ppf(1 - var_confidence, mu, sigma)
+                cvar_val = mu - sigma * stats.norm.pdf(stats.norm.ppf(1 - var_confidence)) / (1 - var_confidence)
+            elif risk_model == "monte_carlo":
+                # Simple Monte Carlo VaR
+                np.random.seed(42)
+                simulated_returns = np.random.normal(portfolio_returns.mean(), portfolio_returns.std(), 10000)
+                var_val = np.percentile(simulated_returns, var_percentile)
+                cvar_val = simulated_returns[simulated_returns <= var_val].mean()
+            
             # Only use calculated values if they are meaningful
-            if np.isnan(var_5_pct) or np.isnan(cvar_5_val):
-                var_5_pct = None
-                cvar_5_val = None
+            if np.isnan(var_val) or np.isnan(cvar_val):
+                var_val = None
+                cvar_val = None
         else:
-            var_5_pct = None
-            cvar_5_val = None
+            var_val = None
+            cvar_val = None
         
         # Calculate accurate Beta using market data
         beta_val = self._calculate_accurate_beta(available_symbols, available_weights, period)
         print(f"Accurate Beta Calculation: {beta_val:.4f}")
         
-        # Calculate risk contribution with bounds checking
+        # Calculate risk contribution with rolling window if specified
         if len(returns_subset) < 2:
             cov_matrix = pd.DataFrame()
             portfolio_vol = 0.0
         else:
+            # Apply rolling window for volatility calculation if different from default
+            if rolling_window != 252 and len(returns_subset) > rolling_window:
+                returns_subset = returns_subset.tail(rolling_window)
+                portfolio_returns = (returns_subset * weight_array).sum(axis=1)
+            
             with np.errstate(divide='ignore', invalid='ignore'):
                 cov_matrix = returns_subset.cov() * 252
             cov_matrix = cov_matrix.fillna(0)
@@ -280,12 +319,16 @@ class RiskAnalyzer:
             'individual_volatilities': {k: self._safe_value(v) for k, v in (returns_subset.std() * np.sqrt(252)).fillna(0).to_dict().items()},
             'avg_correlation': self._safe_value(corr_matrix.values[np.triu_indices_from(corr_matrix.values, k=1)].mean()) if len(available_symbols) > 1 and not corr_matrix.empty else 0.0,
             'correlation_matrix': {k: {k2: self._safe_value(v2) for k2, v2 in v.items()} for k, v in corr_matrix.fillna(0).to_dict().items()} if not corr_matrix.empty else {},
-            'var_5': self._safe_value(var_5_pct) if var_5_pct is not None else None,
-            'cvar_5': self._safe_value(cvar_5_val) if cvar_5_val is not None else None,
-            'var_95': self._safe_value(abs(var_5_pct)) if var_5_pct is not None else None,
-            'cvar_95': self._safe_value(abs(cvar_5_val)) if cvar_5_val is not None else None,
-            'sharpe_ratio': self._calculate_sharpe_with_debug(portfolio_returns) if len(portfolio_returns) >= 30 else None,
-            'sortino_ratio': self._calculate_sortino_with_debug(portfolio_returns) if len(portfolio_returns) >= 30 else 0.0,
+            'var_5': self._safe_value(var_val) if var_val is not None else None,
+            'cvar_5': self._safe_value(cvar_val) if cvar_val is not None else None,
+            'var_95': self._safe_value(abs(var_val)) if var_val is not None else None,
+            'cvar_95': self._safe_value(abs(cvar_val)) if cvar_val is not None else None,
+            'var_confidence': var_confidence,
+            'risk_model': risk_model,
+            'benchmark': benchmark,
+            'rolling_window': rolling_window,
+            'sharpe_ratio': self._calculate_sharpe_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 30 else None,
+            'sortino_ratio': self._calculate_sortino_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 30 else 0.0,
             'max_drawdown': self._safe_value(accurate_drawdown),
             'beta': self._safe_value(beta_val),
             'tracking_error': self._safe_value((portfolio_returns - returns[self.benchmark_symbol]).std() * np.sqrt(252)) if self.benchmark_symbol in returns.columns and len(portfolio_returns) > 0 else 0.0,
@@ -306,8 +349,12 @@ class RiskAnalyzer:
         var = self._value_at_risk(returns, confidence_level)
         return returns[returns <= var].mean()
 
-    def _sharpe_ratio(self, returns: pd.Series, risk_free_rate: float = 0.02) -> float:
+    def _sharpe_ratio(self, returns: pd.Series, risk_free_rate: float = None) -> float:
         """Calculate Sharpe Ratio."""
+        if risk_free_rate is None:
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate()
+        
         if len(returns) < 30:  # Need sufficient data
             return None
         annualized_return = returns.mean() * 252
@@ -317,8 +364,12 @@ class RiskAnalyzer:
         sharpe = (annualized_return - risk_free_rate) / annualized_volatility
         return sharpe if not (np.isnan(sharpe) or np.isinf(sharpe)) else None
 
-    def _sortino_ratio(self, returns: pd.Series, risk_free_rate: float = 0.02) -> float:
+    def _sortino_ratio(self, returns: pd.Series, risk_free_rate: float = None) -> float:
         """Calculate Sortino Ratio."""
+        if risk_free_rate is None:
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate()
+        
         if len(returns) == 0:
             return 0.0
         annualized_return = returns.mean() * 252
@@ -407,8 +458,12 @@ class RiskAnalyzer:
             'risk_contribution': {}
         }
     
-    def _calculate_sharpe_with_debug(self, portfolio_returns: pd.Series, risk_free_rate: float = 0.02) -> float:
+    def _calculate_sharpe_with_debug(self, portfolio_returns: pd.Series, risk_free_rate: float = None) -> float:
         """Calculate Sharpe Ratio with debug logging"""
+        if risk_free_rate is None:
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate()
+        
         if len(portfolio_returns) < 30:
             return None
         
@@ -466,8 +521,12 @@ class RiskAnalyzer:
             logger.error(f"Error calculating accurate drawdown: {e}")
             return 0.0
     
-    def _calculate_sortino_with_debug(self, portfolio_returns: pd.Series, risk_free_rate: float = 0.02) -> float:
+    def _calculate_sortino_with_debug(self, portfolio_returns: pd.Series, risk_free_rate: float = None) -> float:
         """Calculate Sortino Ratio with debug logging"""
+        if risk_free_rate is None:
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate()
+        
         if len(portfolio_returns) < 30:
             return 0.0
         
