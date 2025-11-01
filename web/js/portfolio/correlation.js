@@ -15,7 +15,7 @@ function loadCorrelationAnalysis(portfolioData) {
     };
     
     // Call API with interactive parameters
-    fetch('/api/correlation-analysis', {
+    fetch(`${API_BASE}/correlation-analysis`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

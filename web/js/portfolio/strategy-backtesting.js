@@ -10,7 +10,7 @@ class StrategyBacktesting {
         this.isLoading = true;
 
         try {
-            const response = await fetch('/api/strategy-backtesting', {
+            const response = await fetch(`${API_BASE}/strategy-backtesting`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ portfolio, options })

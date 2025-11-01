@@ -16,7 +16,7 @@ function loadMonteCarlo(portfolioData) {
     };
     
     // Call API with interactive parameters
-    fetch('/api/monte-carlo', {
+    fetch(`${API_BASE}/monte-carlo`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

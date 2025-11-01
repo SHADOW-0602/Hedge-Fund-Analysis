@@ -43,7 +43,7 @@ function loadTurnoverAnalysis(transactionData) {
     };
     
     // Call API
-    fetch('/api/turnover-analysis', {
+    fetch(`${API_BASE}/turnover-analysis`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

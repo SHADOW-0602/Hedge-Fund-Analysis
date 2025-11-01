@@ -43,7 +43,7 @@ function loadTradePerformance(transactionData) {
     };
     
     // Call API
-    fetch('/api/trade-performance', {
+    fetch(`${API_BASE}/trade-performance`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

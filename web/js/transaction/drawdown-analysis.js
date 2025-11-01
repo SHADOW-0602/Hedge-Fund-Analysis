@@ -20,7 +20,7 @@ class DrawdownAnalysis {
 
             const options = this.getAnalysisOptions();
             
-            const response = await fetch('/api/drawdown-analysis', {
+            const response = await fetch(`${API_BASE}/drawdown-analysis`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

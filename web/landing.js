@@ -46,7 +46,7 @@ async function loadNews() {
     }
     
     try {
-        const response = await fetch('/api/news');
+        const response = await fetch(`${API_BASE}/news`);
         const data = await response.json();
         
         if (data.success && data.articles) {

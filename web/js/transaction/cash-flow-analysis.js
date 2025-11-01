@@ -37,7 +37,7 @@ async function updateCashFlowAnalysis() {
         // Show loading state
         showCashFlowLoading();
 
-        const response = await fetch('/api/cash-flow-analysis', {
+        const response = await fetch(`${API_BASE}/cash-flow-analysis`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

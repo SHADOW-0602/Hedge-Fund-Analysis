@@ -15,7 +15,7 @@ function loadPortfolioOptimization(portfolioData) {
     };
     
     // Call API with interactive parameters
-    fetch('/api/portfolio-optimization', {
+    fetch(`${API_BASE}/portfolio-optimization`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

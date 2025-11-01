@@ -15,7 +15,7 @@ function loadSectorAllocation(portfolioData) {
     };
     
     // Call API with interactive parameters
-    fetch('/api/sector-allocation', {
+    fetch(`${API_BASE}/sector-allocation`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

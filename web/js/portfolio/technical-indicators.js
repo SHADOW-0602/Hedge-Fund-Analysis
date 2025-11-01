@@ -10,7 +10,7 @@ class TechnicalIndicators {
         this.isLoading = true;
 
         try {
-            const response = await fetch('/api/technical-analysis', {
+            const response = await fetch(`${API_BASE}/technical-analysis`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ portfolio, options })

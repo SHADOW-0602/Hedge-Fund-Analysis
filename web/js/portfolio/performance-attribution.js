@@ -15,7 +15,7 @@ function loadPerformanceAttribution(portfolioData) {
     };
     
     // Call API with interactive parameters
-    fetch('/api/performance-attribution', {
+    fetch(`${API_BASE}/performance-attribution`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

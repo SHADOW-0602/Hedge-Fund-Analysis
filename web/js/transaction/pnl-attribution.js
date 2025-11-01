@@ -43,7 +43,7 @@ function loadPnLAttribution(transactionData) {
     };
     
     // Call API
-    fetch('/api/pnl-attribution', {
+    fetch(`${API_BASE}/pnl-attribution`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

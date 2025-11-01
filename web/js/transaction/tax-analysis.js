@@ -37,7 +37,7 @@ async function updateTaxAnalysis() {
         // Show loading state
         showTaxLoading();
 
-        const response = await fetch('/api/tax-analysis', {
+        const response = await fetch(`${API_BASE}/tax-analysis`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

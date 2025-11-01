@@ -1,5 +1,5 @@
 // Authentication JavaScript
-const API_BASE = 'http://127.0.0.1:8080/api';
+const API_BASE = `${window.location.origin}/api`;
 
 document.addEventListener('DOMContentLoaded', function() {
     // Check if already logged in

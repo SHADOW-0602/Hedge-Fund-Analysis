@@ -13,7 +13,7 @@ function loadOptionsStrategies(portfolioData, options = {}) {
     const deltaRange = options.delta_range || document.getElementById('optionsDelta')?.value || 'All';
     
     // Call API with parameters
-    fetch('/api/scan-options', {
+    fetch(`${API_BASE}/scan-options`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

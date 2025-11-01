@@ -20,7 +20,7 @@ class FifoLifoAccountingAnalyzer {
                 </div>
             `;
 
-            const response = await fetch('/api/fifo-lifo-accounting', {
+            const response = await fetch(`${API_BASE}/fifo-lifo-accounting`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

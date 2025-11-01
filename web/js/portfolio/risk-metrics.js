@@ -13,7 +13,7 @@ function loadRiskMetrics(portfolioData, options = {}) {
     const rollingWindow = options.rolling_window || document.getElementById('rollingWindow')?.value || '252';
     
     // Call API with parameters
-    fetch('/api/analyze-risk', {
+    fetch(`${API_BASE}/analyze-risk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

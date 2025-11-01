@@ -20,7 +20,7 @@ class ReturnAttribution {
 
             const options = this.getAnalysisOptions();
             
-            const response = await fetch('/api/return-attribution', {
+            const response = await fetch(`${API_BASE}/return-attribution`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

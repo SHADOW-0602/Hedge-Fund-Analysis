@@ -19,7 +19,7 @@ class TradeTimingAnalyzer {
                 </div>
             `;
 
-            const response = await fetch('/api/trade-timing-analysis', {
+            const response = await fetch(`${API_BASE}/trade-timing-analysis`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

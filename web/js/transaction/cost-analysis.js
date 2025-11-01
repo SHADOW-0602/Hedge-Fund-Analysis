@@ -43,7 +43,7 @@ function loadCostAnalysis(transactionData) {
     };
     
     // Call API
-    fetch('/api/cost-analysis', {
+    fetch(`${API_BASE}/cost-analysis`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

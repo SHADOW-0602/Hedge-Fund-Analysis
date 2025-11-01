@@ -15,7 +15,7 @@ function loadStatisticalAnalysis(portfolioData) {
     };
     
     // Call API with interactive parameters
-    fetch('/api/statistical-analysis', {
+    fetch(`${API_BASE}/statistical-analysis`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
