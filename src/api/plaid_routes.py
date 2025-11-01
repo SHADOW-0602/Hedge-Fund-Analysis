@@ -88,14 +88,37 @@ def register_plaid_routes(app):
         try:
             print(f"[PLAID] Fetching PRODUCTION portfolio data")
             user_id = request.args.get('user_id', 'default_user')
+            print(f"[PLAID] User ID: {user_id}")
             
-            if not plaid_client or not plaid_client.is_available():
+            # Check if Plaid is available
+            if not plaid_client:
+                print(f"[PLAID] Plaid client is None")
                 return jsonify({
                     'success': False,
-                    'error': 'Plaid client not available',
+                    'error': 'Plaid client not initialized - check PLAID_CLIENT_ID and PLAID_SECRET',
                     'environment': 'production'
-                }), 500
+                }), 200
             
+            if not plaid_client.is_available():
+                print(f"[PLAID] Plaid client not available")
+                return jsonify({
+                    'success': False,
+                    'error': 'Plaid client not configured properly',
+                    'environment': 'production'
+                }), 200
+            
+            # Check if user has access token
+            from utils.user_secrets import user_secret_manager
+            access_token = user_secret_manager.get_plaid_token(user_id)
+            if not access_token:
+                print(f"[PLAID] No access token found for user: {user_id}")
+                return jsonify({
+                    'success': False,
+                    'error': 'No Plaid connection found - please connect your brokerage account first',
+                    'environment': plaid_client.environment
+                }), 200
+            
+            print(f"[PLAID] Getting holdings for user: {user_id}")
             holdings_df = plaid_client.get_holdings(user_id)
             
             if not holdings_df.empty:
@@ -131,16 +154,18 @@ def register_plaid_routes(app):
                 return jsonify({
                     'success': False, 
                     'error': 'No holdings found - connect a brokerage account first',
-                    'environment': plaid_client.environment
-                }), 404
+                    'environment': plaid_client.environment if plaid_client else 'production'
+                }), 200
                 
         except Exception as e:
             print(f"[PLAID] PRODUCTION portfolio error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return jsonify({
                 'success': False, 
-                'error': str(e),
+                'error': f'Plaid portfolio error: {str(e)}',
                 'environment': 'production'
-            }), 500
+            }), 200
     
     @app.route('/api/plaid/webhook', methods=['POST'])
     def plaid_webhook():
