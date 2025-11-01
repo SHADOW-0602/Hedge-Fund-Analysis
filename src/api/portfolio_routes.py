@@ -472,6 +472,31 @@ def register_portfolio_routes(app, data_client, smart_cache=None):
                 volatility_adjustment=volatility_adjustment
             )
             
+            # Convert numpy types and handle NaN values
+            def convert_numpy(obj):
+                if isinstance(obj, np.ndarray):
+                    return obj.item() if obj.size == 1 else obj.tolist()
+                elif isinstance(obj, (np.integer, np.floating)):
+                    val = float(obj)
+                    if np.isnan(val) or np.isinf(val):
+                        return 0.0
+                    return val
+                elif isinstance(obj, dict):
+                    return {k: convert_numpy(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_numpy(v) for v in obj]
+                elif hasattr(obj, 'item'):
+                    val = float(obj.item())
+                    if np.isnan(val) or np.isinf(val):
+                        return 0.0
+                    return val
+                elif isinstance(obj, float):
+                    if np.isnan(obj) or np.isinf(obj):
+                        return 0.0
+                    return obj
+                return obj
+            
+            results = convert_numpy(results)
             return jsonify({'success': True, 'results': results})
         except Exception as e:
             print(f"Monte Carlo error: {str(e)}")
@@ -1489,26 +1514,35 @@ def register_portfolio_routes(app, data_client, smart_cache=None):
             else:
                 correlation_matrix = returns.corr().fillna(0)
             
-            # Convert to dict format
+            # Convert to dict format with NaN handling
             corr_dict = {}
             for s1 in correlation_matrix.index:
                 corr_dict[s1] = {}
                 for s2 in correlation_matrix.columns:
-                    corr_dict[s1][s2] = float(correlation_matrix.loc[s1, s2])
+                    corr_value = correlation_matrix.loc[s1, s2]
+                    if np.isnan(corr_value) or np.isinf(corr_value):
+                        corr_dict[s1][s2] = 1.0 if s1 == s2 else 0.0
+                    else:
+                        corr_dict[s1][s2] = float(corr_value)
             
             # Calculate rolling correlations if requested
             rolling_corr = None
             if rolling_window < len(returns):
                 rolling_corr = returns.rolling(window=rolling_window).corr().dropna()
             
-            # Calculate summary stats
+            # Calculate summary stats with NaN handling
             mask = np.triu(np.ones_like(correlation_matrix, dtype=bool), k=1)
             avg_corr = correlation_matrix.where(mask).stack().mean()
             
+            # Get max/min correlations excluding diagonal
+            off_diagonal = correlation_matrix.where(~np.eye(len(correlation_matrix), dtype=bool))
+            max_corr = off_diagonal.max().max()
+            min_corr = off_diagonal.min().min()
+            
             summary = {
                 'average_correlation': float(avg_corr) if not np.isnan(avg_corr) else 0.0,
-                'max_correlation': float(correlation_matrix.where(~np.eye(len(correlation_matrix), dtype=bool)).max().max()),
-                'min_correlation': float(correlation_matrix.where(~np.eye(len(correlation_matrix), dtype=bool)).min().min()),
+                'max_correlation': float(max_corr) if not np.isnan(max_corr) else 1.0,
+                'min_correlation': float(min_corr) if not np.isnan(min_corr) else -1.0,
                 'method': method,
                 'period': period,
                 'frequency': frequency,

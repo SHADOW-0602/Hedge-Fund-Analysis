@@ -19,7 +19,7 @@ def health_check():
     return {'status': 'healthy', 'service': 'hedge-fund-analysis'}
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
+    port = int(os.environ.get('PORT'))
     host = '0.0.0.0' if os.environ.get('FLASK_ENV') == 'production' else '127.0.0.1'
     
     print("\n=== Portfolio & Options Analysis Engine ===")
