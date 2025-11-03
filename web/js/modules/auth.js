@@ -7,7 +7,7 @@ async function handleLogin(e) {
     showLoading(true);
 
     try {
-        const response = await fetch(`${API_BASE}/login`, {
+        const response = await fetch(`${API_BASE}/api/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
@@ -65,7 +65,7 @@ async function handleRegister(e) {
     showLoading(true);
 
     try {
-        const response = await fetch(`${API_BASE}/register`, {
+        const response = await fetch(`${API_BASE}/api/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, email, phone, role, password })

@@ -115,9 +115,18 @@ class UserSecretManager:
         logger.info(f"Stored Plaid token for user {user_id}")
     
     def get_plaid_token(self, user_id: str) -> Optional[str]:
-        """Get Plaid access token"""
+        """Get Plaid access token - try both user_id and username"""
+        # Try with the provided user_id first
         data = self._load_user_data(user_id)
         encrypted_token = data.get('plaid_token')
+        
+        # If not found and user_id looks like UUID, try with 'admin' username
+        if not encrypted_token and len(user_id) > 20:
+            data = self._load_user_data('admin')
+            encrypted_token = data.get('plaid_token')
+            if encrypted_token:
+                logger.info(f"Found Plaid token for admin user instead of {user_id}")
+        
         if encrypted_token:
             try:
                 return self._decrypt_data(encrypted_token.encode('latin-1'))

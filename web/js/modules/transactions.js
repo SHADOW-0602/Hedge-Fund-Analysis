@@ -27,7 +27,7 @@ async function uploadTransactions() {
         console.log('Uploading to:', `${API_BASE}/upload-portfolio`);
         console.log('FormData:', formData);
         
-        const response = await fetch(`${API_BASE}/upload-transactions`, {
+        const response = await fetch(`${API_BASE}/api/upload-transactions`, {
             method: 'POST',
             body: formData
         });
@@ -59,6 +59,9 @@ async function uploadTransactions() {
                     console.log('Supabase save error:', err);
                 }
             }
+            
+            // Set global transaction data
+            window.currentTransactions = data.transactions;
             
             // Clear any existing data first
             localStorage.removeItem('currentTransactions');
@@ -123,7 +126,7 @@ async function analyzeTransactionData(transactions) {
     }
 
     try {
-        const response = await fetch(`${API_BASE}/analyze-transactions`, {
+        const response = await fetch(`${API_BASE}/api/analyze-transactions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transactions })
@@ -292,7 +295,7 @@ async function loadUserTransactions() {
     try {
         console.log('Loading transactions for user:', currentUser.user_id);
         // Force fresh data with cache-busting parameter
-        const response = await fetch(`${API_BASE}/load-transactions?user_id=${currentUser.user_id}&_t=${Date.now()}`);
+        const response = await fetch(`${API_BASE}/api/load-transactions?user_id=${currentUser.user_id}&_t=${Date.now()}`);
         console.log('Load transactions response status:', response.status);
         
         const data = await response.json();
@@ -365,12 +368,19 @@ function viewSelectedTransactions() {
             transactionAnalysis.scrollIntoView({ behavior: 'smooth' });
         }
         
+        // Set global transaction data
+        window.currentTransactions = fileData.data;
+        localStorage.setItem('currentTransactions', JSON.stringify(fileData.data));
+        
         window.currentDataType = 'transaction';
         window.currentDataIndex = index;
         
         showAllTransactionCardLoading();
         
-        if (typeof loadTransactionAnalytics === 'function') {
+        // Load all transaction analytics
+        if (typeof loadAllTransactionAnalytics === 'function') {
+            loadAllTransactionAnalytics(fileData.data);
+        } else if (typeof loadTransactionAnalytics === 'function') {
             loadTransactionAnalytics(fileData.data);
         } else {
             // Fallback to analyzeTransactionData
@@ -430,7 +440,7 @@ async function deleteSelectedTransactions() {
     try {
         // Delete from Supabase first
         if (fileToDelete.source === 'supabase' && fileToDelete.id && currentUser?.user_id) {
-            const response = await fetch(`${API_BASE}/delete-transactions`, {
+            const response = await fetch(`${API_BASE}/api/delete-transactions`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
@@ -447,7 +457,7 @@ async function deleteSelectedTransactions() {
         // Also delete any matching files from uploaded_files table
         if (currentUser?.user_id) {
             try {
-                await fetch(`${API_BASE}/delete-uploaded-file`, {
+                await fetch(`${API_BASE}/api/delete-uploaded-file`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',

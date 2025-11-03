@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Main Flask Application"""
 
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sys
 import os
@@ -32,6 +32,7 @@ from api.transaction_routes import register_transaction_routes
 from api.admin_routes import register_admin_routes
 from api.plaid_routes import register_plaid_routes
 from api.cache_routes import register_cache_routes
+
 
 # Import clients and utilities
 try:
@@ -119,9 +120,91 @@ def main_app():
 def admin_portal():
     return app.send_static_file('admin.html')
 
+@app.route('/test-analytics')
+def test_analytics():
+    return app.send_static_file('test-analytics.html')
+
+# News endpoint using existing NewsAnalyzer
+@app.route('/api/news', methods=['GET'])
+def get_market_news():
+    try:
+        from pulling_news_v3 import NewsAnalyzer
+        analyzer = NewsAnalyzer()
+        
+        # Get general market news for major indices
+        symbols = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'GOOGL']
+        articles = []
+        
+        for symbol in symbols[:3]:  # Limit to 3 symbols to avoid rate limits
+            news_items = analyzer.get_real_news(symbol, limit=2)
+            for item in news_items:
+                articles.append({
+                    'title': item['title'],
+                    'description': item['content'],
+                    'source': {'name': item['source']},
+                    'publishedAt': item['timestamp'].isoformat() + 'Z',
+                    'url': item['url']
+                })
+        
+        if articles:
+            return {'success': True, 'articles': articles[:6]}  # Limit to 6 articles
+        else:
+            # Fallback to sample news
+            sample_articles = [
+                {
+                    "title": "Market Analysis: Portfolio Diversification Strategies",
+                    "description": "Expert insights on modern portfolio theory and risk management techniques for institutional investors.",
+                    "source": {"name": "Financial News"},
+                    "publishedAt": datetime.now().isoformat() + 'Z',
+                    "url": "#"
+                },
+                {
+                    "title": "Options Market Update: Volatility Trends",
+                    "description": "Current volatility patterns and their impact on options pricing and portfolio hedging strategies.",
+                    "source": {"name": "Market Watch"},
+                    "publishedAt": datetime.now().isoformat() + 'Z',
+                    "url": "#"
+                }
+            ]
+            return {'success': True, 'articles': sample_articles}
+            
+    except Exception as e:
+        logger.error(f"News API error: {e}")
+        # Return sample news on error
+        sample_articles = [
+            {
+                "title": "Portfolio Risk Management Best Practices",
+                "description": "Essential strategies for managing portfolio risk in volatile market conditions.",
+                "source": {"name": "Investment Weekly"},
+                "publishedAt": datetime.now().isoformat() + 'Z',
+                "url": "#"
+            }
+        ]
+        return {'success': True, 'articles': sample_articles}
+
+# Test endpoint to verify API is working
+@app.route('/api/test', methods=['GET'])
+def test_api():
+    return jsonify({'success': True, 'message': 'API is working'})
+
+# Endpoint to serve Pexels API key
+@app.route('/api/config', methods=['GET'])
+def get_config():
+    return jsonify({
+        'pexels_api_key': os.getenv('PEXELS_API_KEY', '')
+    })
+
+
+
 # Register all route modules
 register_auth_routes(app)
-register_portfolio_routes(app, data_client)
+try:
+    register_portfolio_routes(app, data_client)
+    logger.info("Portfolio routes registered successfully")
+except Exception as e:
+    logger.error(f"Failed to register portfolio routes: {e}")
+    import traceback
+    traceback.print_exc()
 register_transaction_routes(app)
 if redis_client:
     register_admin_routes(app, redis_client)

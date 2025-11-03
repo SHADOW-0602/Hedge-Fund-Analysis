@@ -1,0 +1,32 @@
+#analysisContent {
+    background-color: #1f2937 !important;
+    color: white !important;
+}
+
+#analysisContent h2 {
+    color: white !important;
+}
+
+#analysisContent .metric-label,
+#analysisContent .text-gray-700,
+#analysisContent .text-gray-600 {
+    color: #d1d5db !important;
+}
+
+#analysisContent .metric-value,
+#analysisContent .font-semibold {
+    color: white !important;
+}
+
+#analysisContent .details-box {
+    background-color: #374151 !important;
+    color: #d1d5db !important;
+}
+
+#analysisContent .bg-gray-50 {
+    background-color: #374151 !important;
+}
+
+#analysisContent .text-gray-500 {
+    color: #9ca3af !important;
+}

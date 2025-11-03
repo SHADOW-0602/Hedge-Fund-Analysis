@@ -237,9 +237,11 @@ def register_transaction_routes(app):
                 'trade_performance': analyzer.trade_performance_analysis(transactions),
                 'turnover_analysis': analyzer.turnover_analysis(transactions),
                 'tax_loss_harvesting': analyzer.tax_loss_harvesting_analysis(transactions),
+                'tax_analysis': analyzer.tax_analysis(transactions),
                 'cash_flow_analysis': analyzer.cash_flow_analysis(transactions),
                 'trade_timing': analyzer.trade_timing_analysis(transactions),
                 'drawdown_analysis': analyzer.drawdown_analysis(transactions),
+                'cost_analysis': analyzer.cost_analysis(transactions),
                 'xirr_analysis': {
                     'xirr': xirr_metrics.xirr,
                     'twr': xirr_metrics.twr,
@@ -335,7 +337,28 @@ def register_transaction_routes(app):
                     'short_term_gains': float(enterprise_analytics['tax_loss_harvesting'].get('short_term_gains', 0)),
                     'long_term_gains': float(enterprise_analytics['tax_loss_harvesting'].get('long_term_gains', 0)),
                     'estimated_tax_liability': float(enterprise_analytics['tax_loss_harvesting'].get('estimated_tax_liability', 0)),
-                    'harvestable_losses': float(enterprise_analytics['tax_loss_harvesting'].get('harvestable_losses', 0))
+                    'harvestable_losses': float(enterprise_analytics['tax_loss_harvesting'].get('harvestable_losses', 0)),
+                    # Comprehensive tax analysis data
+                    'short_term_gain_loss': float(enterprise_analytics['tax_analysis'].get('short_term_gain_loss', 0)),
+                    'long_term_gain_loss': float(enterprise_analytics['tax_analysis'].get('long_term_gain_loss', 0)),
+                    'total_tax_liability': float(enterprise_analytics['tax_analysis'].get('total_tax_liability', 0)),
+                    'wash_sale_adjustments': float(enterprise_analytics['tax_analysis'].get('wash_sale_adjustments', 0)),
+                    'effective_tax_rate': float(enterprise_analytics['tax_analysis'].get('effective_tax_rate', 0)),
+                    'tax_year': int(enterprise_analytics['tax_analysis'].get('tax_year', datetime.now().year)),
+                    # Cost analysis data
+                    'total_commissions': float(enterprise_analytics['cost_analysis'].get('total_commissions', 0)),
+                    'total_spreads': float(enterprise_analytics['cost_analysis'].get('total_spreads', 0)),
+                    'total_slippage': float(enterprise_analytics['cost_analysis'].get('total_slippage', 0)),
+                    'total_costs': float(enterprise_analytics['cost_analysis'].get('total_costs', 0)),
+                    'cost_as_pct_volume': float(enterprise_analytics['cost_analysis'].get('cost_as_pct_volume', 0)),
+                    'avg_cost_per_trade': float(enterprise_analytics['cost_analysis'].get('avg_cost_per_trade', 0)),
+                    # Cost analysis data
+                    'total_commissions': float(enterprise_analytics['cost_analysis'].get('total_commissions', 0)),
+                    'total_spreads': float(enterprise_analytics['cost_analysis'].get('total_spreads', 0)),
+                    'total_slippage': float(enterprise_analytics['cost_analysis'].get('total_slippage', 0)),
+                    'total_costs': float(enterprise_analytics['cost_analysis'].get('total_costs', 0)),
+                    'cost_as_pct_volume': float(enterprise_analytics['cost_analysis'].get('cost_as_pct_volume', 0)),
+                    'avg_cost_per_trade': float(enterprise_analytics['cost_analysis'].get('avg_cost_per_trade', 0))
                 }
             }
             
@@ -526,9 +549,11 @@ def register_transaction_routes(app):
                 'trade_performance': analyzer.trade_performance_analysis(transactions),
                 'turnover_analysis': analyzer.turnover_analysis(transactions),
                 'tax_loss_harvesting': analyzer.tax_loss_harvesting_analysis(transactions),
+                'tax_analysis': analyzer.tax_analysis(transactions),
                 'cash_flow_analysis': analyzer.cash_flow_analysis(transactions),
                 'trade_timing': analyzer.trade_timing_analysis(transactions),
-                'drawdown_analysis': analyzer.drawdown_analysis(transactions)
+                'drawdown_analysis': analyzer.drawdown_analysis(transactions),
+                'cost_analysis': analyzer.cost_analysis(transactions)
             }
             
             # Calculate current positions with market data
@@ -581,10 +606,91 @@ def register_transaction_routes(app):
                     'max_drawdown_pct': drawdown.get('max_drawdown_pct', 0),
                     'annualized_turnover': turnover.get('annualized_turnover_rate', 0),
                     'total_pnl': total_pnl,
-                    'total_market_value': sum(pos['market_value'] for pos in current_positions)
+                    'total_market_value': sum(pos['market_value'] for pos in current_positions),
+                    # Cost analysis data
+                    'total_commissions': float(enterprise_analytics['cost_analysis'].get('total_commissions', 0)),
+                    'total_spreads': float(enterprise_analytics['cost_analysis'].get('total_spreads', 0)),
+                    'total_slippage': float(enterprise_analytics['cost_analysis'].get('total_slippage', 0)),
+                    'total_costs': float(enterprise_analytics['cost_analysis'].get('total_costs', 0)),
+                    'cost_as_pct_volume': float(enterprise_analytics['cost_analysis'].get('cost_as_pct_volume', 0)),
+                    'avg_cost_per_trade': float(enterprise_analytics['cost_analysis'].get('avg_cost_per_trade', 0)),
+                    # Cost analysis data
+                    'total_commissions': float(enterprise_analytics['cost_analysis'].get('total_commissions', 0)),
+                    'total_spreads': float(enterprise_analytics['cost_analysis'].get('total_spreads', 0)),
+                    'total_slippage': float(enterprise_analytics['cost_analysis'].get('total_slippage', 0)),
+                    'total_costs': float(enterprise_analytics['cost_analysis'].get('total_costs', 0)),
+                    'cost_as_pct_volume': float(enterprise_analytics['cost_analysis'].get('cost_as_pct_volume', 0)),
+                    'avg_cost_per_trade': float(enterprise_analytics['cost_analysis'].get('avg_cost_per_trade', 0))
                 }
             })
         except Exception as e:
             print(f"Advanced transaction analysis error: {e}")
             print(f"Traceback: {traceback.format_exc()}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/fifo-lifo-accounting', methods=['POST'])
+    def standalone_fifo_lifo_accounting():
+        try:
+            from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
+            from core.transactions import Transaction
+            from clients.market_data_client import MarketDataClient
+            
+            data = request.get_json()
+            transactions_data = data.get('transactions', [])
+            options = data.get('options', {})
+            
+            if not transactions_data:
+                return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
+            
+            transactions = []
+            for tx_data in transactions_data:
+                try:
+                    date_str = tx_data.get('date', '')
+                    if isinstance(date_str, str) and date_str.strip():
+                        if 'T' in date_str:
+                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                        else:
+                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                    else:
+                        date_obj = datetime.now()
+                    
+                    transaction = Transaction(
+                        symbol=tx_data.get('symbol', ''),
+                        quantity=float(tx_data.get('quantity', 0)),
+                        price=float(tx_data.get('price', 0)),
+                        date=date_obj,
+                        transaction_type=tx_data.get('transaction_type', 'BUY'),
+                        fees=float(tx_data.get('fees', 0))
+                    )
+                    transactions.append(transaction)
+                except Exception:
+                    continue
+            
+            if not transactions:
+                return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
+            
+            data_client = MarketDataClient()
+            analyzer = AdvancedTransactionAnalyzer(data_client)
+            
+            # Use tax analysis as basis for FIFO/LIFO accounting
+            tax_result = analyzer.tax_loss_harvesting_analysis(transactions)
+            
+            # Format for FIFO/LIFO display
+            fifo_lifo_result = {
+                'summary': {
+                    'method': options.get('method', 'FIFO'),
+                    'total_realized_gain_loss': tax_result.get('net_realized_pnl', 0),
+                    'short_term_gain_loss': tax_result.get('short_term_gains', 0),
+                    'long_term_gain_loss': tax_result.get('long_term_gains', 0),
+                    'tax_liability': tax_result.get('estimated_tax_liability', 0)
+                }
+            }
+            
+            return jsonify({
+                'success': True,
+                'fifo_lifo_analysis': clean_for_json(fifo_lifo_result)
+            })
+            
+        except Exception as e:
+            print(f"FIFO/LIFO accounting error: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500

@@ -6,11 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hedge Fund Analyzer</title>
     <link rel="icon" type="image/png" href="favicon.png">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/tailwind.css">
+    <link rel="stylesheet" href="css/navigation-fix.css">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://d3js.org/d3.v6.min.js"></script>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <script src="js/global-api-config.js"></script>
     <link rel="stylesheet" href="index-styles.css">
 
 </head>
@@ -22,7 +24,7 @@
             <div class="w-full px-4 sm:px-6 lg:px-8">
                 <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 sm:py-6 space-y-2 sm:space-y-0">
                     <div class="flex items-center justify-between sm:justify-start">
-                        <div class="flex items-center cursor-pointer" onclick="showDefaultUpload()">
+                        <div class="flex items-center cursor-pointer" onclick="if(window.showDefaultUpload) window.showDefaultUpload(); else console.log('showDefaultUpload not available');">
                             <div class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
                                 <span class="text-white font-bold text-sm sm:text-lg">HF</span>
                             </div>
@@ -65,16 +67,16 @@
                         </svg>
                     </button>
                     <div id="portfolioSection" class="mt-2 space-y-1 hidden">
-                        <button onclick="showAnalysisPreview('risk')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Risk Metrics</button>
-                        <button onclick="showAnalysisPreview('options')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Options Strategies</button>
-                        <button onclick="showAnalysisPreview('performance')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Performance Attribution</button>
-                        <button onclick="showAnalysisPreview('montecarlo')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Monte Carlo</button>
-                        <button onclick="showAnalysisPreview('optimization')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Portfolio Optimization</button>
-                        <button onclick="showAnalysisPreview('correlation')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Correlation Analysis</button>
-                        <button onclick="showAnalysisPreview('sector')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Sector Allocation</button>
-                        <button onclick="showAnalysisPreview('statistical')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Statistical Analysis</button>
-                        <button onclick="showAnalysisPreview('technical')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Technical Indicators</button>
-                        <button onclick="showAnalysisPreview('backtesting')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Strategy Backtesting</button>
+                        <button data-analysis="risk-metrics" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Risk Metrics</button>
+                        <button data-analysis="options-strategies" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Options Strategies</button>
+                        <button data-analysis="performance-attribution" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Performance Attribution</button>
+                        <button data-analysis="monte-carlo" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Monte Carlo</button>
+                        <button data-analysis="portfolio-optimization" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Portfolio Optimization</button>
+                        <button data-analysis="correlation-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Correlation Analysis</button>
+                        <button data-analysis="sector-allocation" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Sector Allocation</button>
+                        <button data-analysis="statistical-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Statistical Analysis</button>
+                        <button data-analysis="technical-indicators" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Technical Indicators</button>
+                        <button data-analysis="strategy-backtesting" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Strategy Backtesting</button>
                     </div>
                 </div>
                 
@@ -87,16 +89,16 @@
                         </svg>
                     </button>
                     <div id="transactionSection" class="mt-2 space-y-1 hidden">
-                        <button onclick="showAnalysisPreview('pnl')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">P&L Attribution</button>
-                        <button onclick="showAnalysisPreview('trade')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade Performance</button>
-                        <button onclick="showAnalysisPreview('cost')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cost Analysis</button>
-                        <button onclick="showAnalysisPreview('turnover')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Turnover Analysis</button>
-                        <button onclick="showAnalysisPreview('tax')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Tax Analysis</button>
-                        <button onclick="showAnalysisPreview('cashflow')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cash Flow Analysis</button>
-                        <button onclick="showAnalysisPreview('fifo')" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">FIFO/LIFO Accounting</button>
-                        <button onclick="updateTradeTimingAnalysis()" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade Timing</button>
-                        <button onclick="updateDrawdownAnalysis()" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Drawdown Analysis</button>
-                        <button onclick="updateReturnAttribution()" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Return Attribution</button>
+                        <button data-analysis="pnl-attribution" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">P&L Attribution</button>
+                        <button data-analysis="trade-performance" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade Performance</button>
+                        <button data-analysis="cost-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cost Analysis</button>
+                        <button data-analysis="turnover-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Turnover Analysis</button>
+                        <button data-analysis="tax-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Tax Analysis</button>
+                        <button data-analysis="cash-flow" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cash Flow Analysis</button>
+                        <button data-analysis="fifo-lifo" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">FIFO/LIFO Accounting</button>
+                        <button data-analysis="trade-timing" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade Timing</button>
+                        <button data-analysis="drawdown-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Drawdown Analysis</button>
+                        <button data-analysis="return-attribution" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Return Attribution</button>
                     </div>
                 </div>
                 
@@ -176,7 +178,15 @@
                 </div>
 
                 <!-- Analysis Sections Container -->
-                <div id="analysisContainer">
+                <div id="analysisContainer" class="hidden">
+                    <!-- Individual analysis views will be loaded here -->
+                </div>
+
+                <!-- Dynamic Analysis Content -->
+                <div id="analysisContent" class="bg-white rounded-xl shadow-lg p-6 mb-8 hidden">
+                    <div id="analysisTitle" class="text-xl font-bold text-gray-900 mb-4">Select an analysis from the sidebar</div>
+                    <div id="analysisBody">Choose an analysis type from the left sidebar to view detailed results.</div>
+                </div>
 
                 <!-- Loading Section -->
                 <div id="loadingSection" class="bg-white rounded-xl shadow-lg p-12 mb-8 hidden">
@@ -191,801 +201,17 @@
                 </div>
                 </div>
 
-                    <!-- Portfolio Analysis Section -->
-                    <div id="portfolioAnalysis" class="space-y-8">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-2xl font-bold text-gray-900">Portfolio Analysis</h2>
-                    <div class="flex items-center space-x-4">
-                        <!-- Plaid Analysis Switcher -->
-                        <div id="plaidAnalysisSwitcher" class="hidden bg-gray-100 rounded-lg p-1">
-                            <button id="portfolioAnalysisBtn" onclick="switchToPortfolioAnalysis()" class="px-4 py-2 rounded-md text-sm font-medium bg-white text-gray-900 shadow-sm">Portfolio</button>
-                            <button id="transactionAnalysisBtn" onclick="switchToTransactionAnalysis()" class="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900">Transactions</button>
-                        </div>
-                        <button onclick="refreshPortfolioAnalysis()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center">
-                            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
-                            </svg>
-                            Refresh Analysis
-                        </button>
-                    </div>
-                </div>
-                <!-- Key Metrics Overview -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Total AUM</h3>
-                        <p id="totalAUM" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
-                        <p class="text-sm text-green-600 mt-1">Portfolio Value</p>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Sharpe Ratio</h3>
-                        <p id="sharpeRatio" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
-                        <p class="text-sm mt-1" id="sharpeDescription">Risk-adjusted return</p>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Max Drawdown</h3>
-                        <p id="maxDrawdown" class="text-3xl font-bold text-red-600 metric-value">N/A</p>
-                        <p class="text-sm text-gray-600 mt-1" id="drawdownDescription">Historical period</p>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Beta</h3>
-                        <p id="beta" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
-                        <p class="text-sm text-gray-600 mt-1"></p>
-                    </div>
-                </div>
 
-                <!-- Risk Metrics - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Risk Metrics</h3>
-                        <button onclick="toggleRiskSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Risk Settings Panel -->
-                    <div id="riskSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
-                                <select id="riskPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="2Y">2 Years</option>
-                                    <option value="3Y">3 Years</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">VaR Confidence</label>
-                                <select id="varConfidence" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="90">90%</option>
-                                    <option value="95" selected>95%</option>
-                                    <option value="99">99%</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Risk Model</label>
-                                <select id="riskModel" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="historical" selected>Historical</option>
-                                    <option value="monte_carlo">Monte Carlo</option>
-                                    <option value="parametric">Parametric</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
-                                <select id="riskBenchmark" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="S&P 500" selected>S&P 500</option>
-                                    <option value="NASDAQ">NASDAQ</option>
-                                    <option value="Russell 2000">Russell 2000</option>
-                                    <option value="SPY">SPY</option>
-                                    <option value="QQQ">QQQ</option>
-                                    <option value="IWM">IWM</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Rolling Window</label>
-                                <select id="rollingWindow" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="30">30 days</option>
-                                    <option value="60">60 days</option>
-                                    <option value="90">90 days</option>
-                                    <option value="252" selected>252 days (1 year)</option>
-                                </select>
-                            </div>
-                            <div class="flex items-end">
-                                <button onclick="updateRiskAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                    Update Analysis
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="riskResults"></div>
-                </div>
+            </div>
+        </div>
+    </div>
 
-                <!-- Options Strategies - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Options Strategies</h3>
-                        <button onclick="toggleOptionsSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Options Settings Panel -->
-                    <div id="optionsSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Expiration</label>
-                                <select id="optionsExpiration" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="2M">2 Months</option>
-                                    <option value="3M" selected>3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y">1 Year</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Moneyness</label>
-                                <select id="optionsMoneyness" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="All" selected>All</option>
-                                    <option value="ITM">In-the-Money</option>
-                                    <option value="ATM">At-the-Money</option>
-                                    <option value="OTM">Out-of-Money</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Strategy Filter</label>
-                                <select id="optionsStrategy" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="All" selected>All Strategies</option>
-                                    <option value="CoveredCalls">Covered Calls</option>
-                                    <option value="ProtectivePuts">Protective Puts</option>
-                                    <option value="Spreads">Spreads</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Min Premium</label>
-                                <select id="optionsMinPremium" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="0.50" selected>$0.50</option>
-                                    <option value="1.00">$1.00</option>
-                                    <option value="2.00">$2.00</option>
-                                    <option value="5.00">$5.00</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Delta Range</label>
-                                <select id="optionsDelta" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="All" selected>All Deltas</option>
-                                    <option value="0.1-0.3">0.1 - 0.3 (Low)</option>
-                                    <option value="0.3-0.7">0.3 - 0.7 (Medium)</option>
-                                    <option value="0.7-1.0">0.7 - 1.0 (High)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateOptionsAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="optionsResults"></div>
-                </div>
 
-                <!-- Performance Attribution - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Performance Attribution</h3>
-                        <button onclick="togglePerformanceSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Performance Settings Panel -->
-                    <div id="performanceSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="performancePeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="YTD">Year to Date</option>
-                                    <option value="ITD">Inception to Date</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Attribution Model</label>
-                                <select id="attributionModel" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="brinson">Brinson</option>
-                                    <option value="factor" selected>Factor-based</option>
-                                    <option value="holdings">Holdings-based</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
-                                <select id="performanceBenchmark" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="SPY" selected>S&P 500 (SPY)</option>
-                                    <option value="QQQ">NASDAQ (QQQ)</option>
-                                    <option value="IWM">Russell 2000 (IWM)</option>
-                                    <option value="VTI">Total Stock Market (VTI)</option>
-                                    <option value="VXUS">International (VXUS)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-                                <select id="performanceCurrency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="USD" selected>USD</option>
-                                    <option value="EUR">EUR</option>
-                                    <option value="GBP">GBP</option>
-                                    <option value="Multi">Multi-currency</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                                <select id="performanceFrequency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="daily" selected>Daily</option>
-                                    <option value="weekly">Weekly</option>
-                                    <option value="monthly">Monthly</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updatePerformanceAttribution()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="performanceAttribution"></div>
-                </div>
 
-                <!-- Monte Carlo Simulation -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Monte Carlo Simulation</h3>
-                        <button onclick="toggleMonteCarloSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Monte Carlo Settings Panel -->
-                    <div id="monteCarloSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Forecast Period</label>
-                                <select id="forecastPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M" selected>3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y">1 Year</option>
-                                    <option value="2Y">2 Years</option>
-                                    <option value="5Y">5 Years</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Simulations</label>
-                                <select id="numSimulations" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1000">1K</option>
-                                    <option value="5000">5K</option>
-                                    <option value="10000" selected>10K</option>
-                                    <option value="50000">50K</option>
-                                    <option value="100000">100K</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Confidence Intervals</label>
-                                <select id="confidenceIntervals" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="80,90,95,99" selected>80%, 90%, 95%, 99%</option>
-                                    <option value="90,95">90%, 95%</option>
-                                    <option value="95,99">95%, 99%</option>
-                                    <option value="80,95">80%, 95%</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Market Regime</label>
-                                <select id="marketRegime" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="bull">Bull Market (+20%)</option>
-                                    <option value="normal" selected>Normal Market (0%)</option>
-                                    <option value="bear">Bear Market (-20%)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Volatility Adjustment</label>
-                                <select id="volatilityAdjustment" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="-0.5">Low Volatility (-50%)</option>
-                                    <option value="0" selected>Normal Volatility</option>
-                                    <option value="0.5">High Volatility (+50%)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateMonteCarloSimulation()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Run Simulation
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="monteCarloResults"></div>
-                </div>
 
-                <!-- Correlation Analysis -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Correlation Analysis</h3>
-                        <div class="flex items-center space-x-2">
-                            <button onclick="exportCorrelationMatrix()" class="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition-colors text-sm flex items-center">
-                                <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                                </svg>
-                                Export
-                            </button>
-                            <button onclick="toggleCorrelationSettings()" class="text-gray-500 hover:text-gray-700">
-                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Correlation Settings Panel -->
-                    <div id="correlationSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="correlationPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="2Y">2 Years</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                                <select id="correlationFrequency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="daily" selected>Daily</option>
-                                    <option value="weekly">Weekly</option>
-                                    <option value="monthly">Monthly</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                                <select id="correlationMethod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="pearson" selected>Pearson</option>
-                                    <option value="spearman">Spearman</option>
-                                    <option value="kendall">Kendall</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Rolling Window</label>
-                                <select id="correlationRollingWindow" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="30">30 days</option>
-                                    <option value="60">60 days</option>
-                                    <option value="90">90 days</option>
-                                    <option value="252" selected>252 days (1 year)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Heatmap Style</label>
-                                <select id="correlationHeatmapStyle" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="color_intensity" selected>Color Intensity</option>
-                                    <option value="size_variation">Size Variation</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateCorrelationAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="correlationResults"></div>
-                </div>
 
-                <!-- Technical Indicators -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Technical Indicators</h3>
-                        <button onclick="toggleTechnicalSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Technical Settings Panel -->
-                    <div id="technicalSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="technicalPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
-                                <select id="technicalTimeframe" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Daily" selected>Daily</option>
-                                    <option value="Weekly">Weekly</option>
-                                    <option value="Monthly">Monthly</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Signal Strength</label>
-                                <select id="technicalSignalStrength" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Weak">Weak</option>
-                                    <option value="Medium" selected>Medium</option>
-                                    <option value="Strong">Strong</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Indicators</label>
-                            <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
-                                <label class="flex items-center">
-                                    <input type="checkbox" id="indicatorRSI" checked class="mr-2">
-                                    <span class="text-sm">RSI</span>
-                                </label>
-                                <label class="flex items-center">
-                                    <input type="checkbox" id="indicatorMACD" checked class="mr-2">
-                                    <span class="text-sm">MACD</span>
-                                </label>
-                                <label class="flex items-center">
-                                    <input type="checkbox" id="indicatorBollinger" checked class="mr-2">
-                                    <span class="text-sm">Bollinger</span>
-                                </label>
-                                <label class="flex items-center">
-                                    <input type="checkbox" id="indicatorSMA" checked class="mr-2">
-                                    <span class="text-sm">SMA</span>
-                                </label>
-                                <label class="flex items-center">
-                                    <input type="checkbox" id="indicatorEMA" checked class="mr-2">
-                                    <span class="text-sm">EMA</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">RSI Parameters</label>
-                                <div class="grid grid-cols-3 gap-1">
-                                    <input type="number" id="rsiPeriod" value="14" min="5" max="50" class="p-1 border rounded text-xs" placeholder="Period">
-                                    <input type="number" id="rsiOversold" value="30" min="10" max="40" class="p-1 border rounded text-xs" placeholder="Oversold">
-                                    <input type="number" id="rsiOverbought" value="70" min="60" max="90" class="p-1 border rounded text-xs" placeholder="Overbought">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">MACD Parameters</label>
-                                <div class="grid grid-cols-3 gap-1">
-                                    <input type="number" id="macdFast" value="12" min="5" max="20" class="p-1 border rounded text-xs" placeholder="Fast">
-                                    <input type="number" id="macdSlow" value="26" min="20" max="40" class="p-1 border rounded text-xs" placeholder="Slow">
-                                    <input type="number" id="macdSignal" value="9" min="5" max="15" class="p-1 border rounded text-xs" placeholder="Signal">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Bollinger Parameters</label>
-                                <div class="grid grid-cols-2 gap-1">
-                                    <input type="number" id="bbPeriod" value="20" min="10" max="50" class="p-1 border rounded text-xs" placeholder="Period">
-                                    <input type="number" id="bbStd" value="2" min="1" max="3" step="0.1" class="p-1 border rounded text-xs" placeholder="Std Dev">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateTechnicalAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="technicalAnalysis"></div>
-                </div>
 
-                <!-- Statistical Analysis -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Statistical Analysis</h3>
-                        <button onclick="toggleStatisticalSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Statistical Settings Panel -->
-                    <div id="statisticalSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Lookback Period</label>
-                                <select id="statisticalLookback" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="2Y">2 Years</option>
-                                    <option value="3Y">3 Years</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                                <select id="statisticalFrequency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Daily" selected>Daily</option>
-                                    <option value="Weekly">Weekly</option>
-                                    <option value="Monthly">Monthly</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
-                                <select id="statisticalBenchmark" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="SPY" selected>S&P 500 (SPY)</option>
-                                    <option value="QQQ">NASDAQ (QQQ)</option>
-                                    <option value="IWM">Russell 2000 (IWM)</option>
-                                    <option value="VTI">Total Market (VTI)</option>
-                                    <option value="DIA">Dow Jones (DIA)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Metrics</label>
-                                <div class="space-y-2">
-                                    <label class="flex items-center">
-                                        <input type="checkbox" id="metricCorrelation" checked class="mr-2">
-                                        <span class="text-sm">Correlation</span>
-                                    </label>
-                                    <label class="flex items-center">
-                                        <input type="checkbox" id="metricBeta" checked class="mr-2">
-                                        <span class="text-sm">Beta</span>
-                                    </label>
-                                    <label class="flex items-center">
-                                        <input type="checkbox" id="metricAlpha" checked class="mr-2">
-                                        <span class="text-sm">Alpha</span>
-                                    </label>
-                                    <label class="flex items-center">
-                                        <input type="checkbox" id="metricRSquared" checked class="mr-2">
-                                        <span class="text-sm">R-squared</span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Confidence Level</label>
-                                <select id="statisticalConfidence" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="90">90%</option>
-                                    <option value="95" selected>95%</option>
-                                    <option value="99">99%</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateStatisticalAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="statisticalAnalysis"></div>
-                </div>
 
-                <!-- Sector Allocation -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Sector Allocation</h3>
-                        <button onclick="toggleSectorSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Sector Settings Panel -->
-                    <div id="sectorSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Classification</label>
-                                <select id="sectorClassification" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="GICS" selected>GICS</option>
-                                    <option value="ICB">ICB</option>
-                                    <option value="Custom">Custom</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Level</label>
-                                <select id="sectorLevel" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Sector" selected>Sector</option>
-                                    <option value="Industry">Industry</option>
-                                    <option value="Sub-industry">Sub-industry</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
-                                <select id="sectorBenchmark" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="SPY" selected>S&P 500 (SPY)</option>
-                                    <option value="QQQ">NASDAQ (QQQ)</option>
-                                    <option value="IWM">Russell 2000 (IWM)</option>
-                                    <option value="VTI">Total Market (VTI)</option>
-                                    <option value="ACWI">MSCI World (ACWI)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">View Type</label>
-                                <select id="sectorView" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Pie Chart" selected>Pie Chart</option>
-                                    <option value="Bar Chart">Bar Chart</option>
-                                    <option value="Treemap">Treemap</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Threshold</label>
-                                <select id="sectorThreshold" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1" selected>Show sectors > 1%</option>
-                                    <option value="5">Show sectors > 5%</option>
-                                    <option value="10">Show sectors > 10%</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateSectorAllocation()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="sectorAllocation"></div>
-                </div>
-
-                <!-- Portfolio Optimization -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Portfolio Optimization</h3>
-                        <button onclick="toggleOptimizationSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Optimization Settings Panel -->
-                    <div id="optimizationSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Objective</label>
-                                <select id="optimizationObjective" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="max_sharpe" selected>Max Sharpe Ratio</option>
-                                    <option value="min_volatility">Min Volatility</option>
-                                    <option value="max_return">Max Return</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Constraints</label>
-                                <select id="optimizationConstraints" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="long_only" selected>Long-only</option>
-                                    <option value="130_30">130/30</option>
-                                    <option value="market_neutral">Market Neutral</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Rebalancing</label>
-                                <select id="optimizationRebalancing" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="monthly">Monthly</option>
-                                    <option value="quarterly" selected>Quarterly</option>
-                                    <option value="semi_annual">Semi-annual</option>
-                                    <option value="annual">Annual</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Risk Budget</label>
-                                <select id="optimizationRiskBudget" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="equal" selected>Equal</option>
-                                    <option value="risk_parity">Risk Parity</option>
-                                    <option value="custom">Custom</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Lookback Period</label>
-                                <select id="optimizationLookback" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="2Y">2 Years</option>
-                                    <option value="3Y">3 Years</option>
-                                    <option value="5Y">5 Years</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updatePortfolioOptimization()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Optimize Portfolio
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="optimizationChart"></div>
-                </div>
-
-                <!-- Strategy Backtesting -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Strategy Backtesting</h3>
-                        <button onclick="toggleBacktestingSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Backtesting Settings Panel -->
-                    <div id="backtestingSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Backtest Period</label>
-                                <select id="backtestPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="2Y">2 Years</option>
-                                    <option value="3Y">3 Years</option>
-                                    <option value="5Y">5 Years</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Rebalancing</label>
-                                <select id="backtestRebalancing" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Monthly">Monthly</option>
-                                    <option value="Quarterly" selected>Quarterly</option>
-                                    <option value="Semi-annual">Semi-annual</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Costs</label>
-                                <select id="backtestTransactionCosts" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="0">0%</option>
-                                    <option value="0.1" selected>0.1%</option>
-                                    <option value="0.25">0.25%</option>
-                                    <option value="0.5">0.5%</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
-                                <select id="backtestBenchmark" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="SPY" selected>S&P 500 (SPY)</option>
-                                    <option value="QQQ">NASDAQ (QQQ)</option>
-                                    <option value="IWM">Russell 2000 (IWM)</option>
-                                    <option value="VTI">Total Market (VTI)</option>
-                                    <option value="ACWI">MSCI World (ACWI)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateStrategyBacktesting()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Run Backtest
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="backtestingResults"></div>
-                </div>
                     </div>
 
                     <!-- Transaction Analysis Section -->
@@ -1737,44 +963,34 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="utils.js?v=3&t=1730400000"></script>
+    <script src="utils.js"></script>
     <script src="index-scripts.js"></script>
     <script src="supabase-connect.js"></script>
-    <script src="plaid-integration.js?v=3&t=1730400000"></script>
+    <script src="plaid-integration.js"></script>
     
     <!-- Modular JavaScript Files -->
-    <script src="js/core/app-core.js?v=3&t=1730400000"></script>
-    <script src="js/modules/auth.js?v=3&t=1730400000"></script>
-    <script src="js/modules/portfolio.js?v=3&t=1730400000"></script>
-    <script src="js/modules/transactions.js?v=3&t=1730400000"></script>
-    <script src="js/modules/analytics.js?v=3&t=1730400000"></script>
-    <script src="js/modules/transaction-analytics.js?v=3&t=1730400000"></script>
-    <script src="js/modules/plaid-switcher.js?v=3&t=1730400000"></script>
-    <script src="js/modules/sidebar.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/risk-metrics.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/options-strategies.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/performance-attribution.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/monte-carlo.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/optimization.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/correlation.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/sector-allocation.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/statistical-analysis.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/technical-indicators.js?v=3&t=1730400000"></script>
-    <script src="js/portfolio/strategy-backtesting.js?v=3&t=1730400000"></script>
-    <script src="js/transaction/pnl-attribution.js?v=3&t=1730400000"></script>
-    <script src="js/transaction/trade-performance.js?v=3&t=1730400000"></script>
-    <script src="js/transaction/cost-analysis.js?v=3&t=1730400000"></script>
-    <script src="js/transaction/turnover-analysis.js?v=3&t=1730400000"></script>
-    <script src="js/transaction/tax-analysis.js?v=3&t=1730400000"></script>
-    <script src="js/transaction/cash-flow-analysis.js?v=3&t=1730400000"></script>
-    <script src="js/transaction/fifo-lifo-accounting.js?v=3&t=1730400000"></script>
-    <script src="js/transaction/drawdown-analysis.js?v=3&t=1730400000"></script>
-    <script src="js/transaction/return-attribution.js?v=3&t=1730400000"></script>
+    <script src="js/core/app-core.js"></script>
+    <script src="js/modules/auth.js"></script>
+    <script src="js/modules/portfolio.js"></script>
+    <script src="js/modules/transactions.js"></script>
+    <script src="js/modules/plaid-switcher.js"></script>
+    <script src="js/modules/sidebar.js"></script>
+    <script src="js/portfolio/simplified-risk-metrics.js"></script>
+    <script src="js/portfolio/simplified-monte-carlo.js"></script>
+    <script src="js/transaction/simplified-trade-timing.js"></script>
+    <script src="js/transaction/simplified-return-attribution.js"></script>
     <script src="js/utils/ui-helpers.js"></script>
+    <script src="js/utils/navigation-manager.js"></script>
+    
+    <!-- Simplified Analytics System -->
+    <script src="js/core/analytics-core.js"></script>
+    <script src="js/core/analytics-manager.js"></script>
+    <script src="js/core/sidebar-handler.js"></script>
+    <link rel="stylesheet" href="css/analytics-simple.css">
+    <link rel="stylesheet" href="css/dark-analysis.css">
 
-    <script src="js/visibility-control.js?v=3&t=1730400000"></script>
-    <script src="force-refresh.js?v=4&t=1730400000"></script>
-    <script src="js/app-main.js?v=3&t=1730400000"></script>
+    <script src="js/missing-functions.js"></script>
+    <script src="js/app-main.js"></script>
 </body>
 
 </html>

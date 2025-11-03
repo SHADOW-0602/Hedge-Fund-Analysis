@@ -5,7 +5,7 @@ let userPortfolios = [];
 let isServerMode = true;
 
 // API base URL
-const API_BASE = `${window.location.origin}/api`;
+const API_BASE = `${window.location.origin}`;
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function () {
@@ -154,10 +154,18 @@ async function initializeApp() {
     }
 
     currentUser = SessionManager.getSession();
+    window.currentUser = currentUser; // Make sure it's globally available
+    console.log('[APP] Current user set:', currentUser);
+    
     await checkServerMode();
     connectSupabaseAndLoadData();
     restoreApplicationState();
     showMainApp();
+    
+    // Trigger Plaid auto-connect after user is set
+    if (window.autoConnectPlaid) {
+        window.autoConnectPlaid();
+    }
 }
 
 async function checkServerMode() {
@@ -194,9 +202,16 @@ function showMainApp() {
     loadUserTransactions();
 }
 
-// Export global functions
+// Export global functions and variables
+function updateGlobalUser(user) {
+    currentUser = user;
+    window.currentUser = user;
+    console.log('[APP] Global user updated:', user);
+}
+
 window.currentUser = currentUser;
 window.portfolioData = portfolioData;
 window.API_BASE = API_BASE;
 window.isServerMode = isServerMode;
 window.checkServerMode = checkServerMode;
+window.updateGlobalUser = updateGlobalUser;

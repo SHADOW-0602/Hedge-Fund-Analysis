@@ -8,9 +8,6 @@ from .analytics_routes import register_analytics_routes
 from .options_routes import register_options_routes
 from .transaction_analysis_routes import register_transaction_analysis_routes
 from .technical_analysis_routes import register_technical_analysis_routes
-from .comprehensive_analysis_routes import register_comprehensive_analysis_routes
-from .tax_routes import register_tax_routes
-from .drawdown_routes import register_drawdown_routes
 
 def register_portfolio_routes(app, data_client, smart_cache=None):
     """
@@ -22,7 +19,6 @@ def register_portfolio_routes(app, data_client, smart_cache=None):
     - Options: options scanning and analysis
     - Transaction Analysis: return attribution and transaction-based analytics
     - Technical Analysis: technical indicators and signals
-    - Comprehensive Analysis: backtesting, statistical analysis, correlation, sector allocation
     """
     
     # Register all route modules
@@ -31,17 +27,11 @@ def register_portfolio_routes(app, data_client, smart_cache=None):
     register_options_routes(app, data_client, smart_cache)
     register_transaction_analysis_routes(app, data_client, smart_cache)
     register_technical_analysis_routes(app, data_client, smart_cache)
-    register_comprehensive_analysis_routes(app, data_client, smart_cache)
-    register_tax_routes(app, data_client, smart_cache)
-    register_drawdown_routes(app, data_client, smart_cache)
     
-    print("[SUCCESS] All modular portfolio routes registered successfully")
-    print("[INFO] Route modules loaded:")
+    print("✅ All modular portfolio routes registered successfully")
+    print("📁 Route modules loaded:")
     print("   - Portfolio Management (upload, save, load, delete)")
     print("   - Analytics (risk, Monte Carlo, performance attribution, optimization)")
     print("   - Options (scanning and analysis)")
     print("   - Transaction Analysis (return attribution)")
     print("   - Technical Analysis (indicators and signals)")
-    print("   - Comprehensive Analysis (backtesting, statistical, correlation, sector)")
-    print("   - Tax Analysis (tax liability, wash sales, loss harvesting)")
-    print("   - Drawdown Analysis (max drawdown, recovery time, periods)")

@@ -194,16 +194,17 @@ def register_plaid_routes(app):
         try:
             if request.method == 'GET':
                 user_id = request.args.get('user_id', 'admin')
-                days = int(request.args.get('days', 30))
+                days = int(request.args.get('days', 90))
             else:
                 data = request.get_json()
                 user_id = data.get('user_id', 'admin')
-                days = data.get('days', 30)
+                days = data.get('days', 90)
             
             if not plaid_client or not plaid_client.is_available():
                 return jsonify({'success': False, 'error': 'Plaid client not available'}), 500
             
-            transactions_df = plaid_client.get_all_transactions(user_id, days)
+            # Get investment transactions instead of regular transactions
+            transactions_df = plaid_client.get_investment_transactions(user_id, days)
             
             if not transactions_df.empty:
                 transactions = transactions_df.to_dict('records')
@@ -213,7 +214,7 @@ def register_plaid_routes(app):
                     'count': len(transactions)
                 })
             else:
-                return jsonify({'success': False, 'error': 'No transactions found'}), 404
+                return jsonify({'success': False, 'error': 'No investment transactions found'}), 200
                 
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
@@ -265,6 +266,29 @@ def register_plaid_routes(app):
                 
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/disconnect-plaid', methods=['POST'])
+    def disconnect_plaid():
+        try:
+            data = request.get_json()
+            user_id = data.get('user_id', 'default_user')
+            print(f"[PLAID] Disconnecting user: {user_id}")
+            
+            from utils.user_secrets import user_secret_manager
+            user_secret_manager.delete_plaid_token(user_id)
+            
+            print(f"[PLAID] Successfully disconnected user: {user_id}")
+            return jsonify({
+                'success': True,
+                'message': 'Plaid connection removed successfully'
+            })
+            
+        except Exception as e:
+            print(f"[PLAID] Disconnect error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'Disconnect error: {str(e)}'
+            }), 500
     
     @app.route('/plaid/callback')
     def plaid_callback():

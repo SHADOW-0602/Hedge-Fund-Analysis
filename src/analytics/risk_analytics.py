@@ -128,6 +128,9 @@ class RiskAnalyzer:
             'cvar_95': self._safe_value(abs(cvar_5_val)) if cvar_5_val is not None else None,
             'sortino_ratio': self._safe_value(self._sortino_ratio(portfolio_returns)) if len(portfolio_returns) > 0 else 0.0,
             'max_drawdown': self._safe_value(self._max_drawdown(portfolio_returns)) if len(portfolio_returns) > 0 else 0.0,
+            'current_drawdown': 0.0,
+            'recovery_days': None,
+            'drawdown_frequency': 0,
             'beta': self._safe_value(beta_val),
             'tracking_error': self._safe_value(self._tracking_error(portfolio_returns, benchmark_returns)) if not benchmark_returns.empty and len(portfolio_returns) > 0 else 0.0,
             'risk_contribution': {k: self._safe_value(v) for k, v in risk_contribution.items()}
@@ -311,8 +314,8 @@ class RiskAnalyzer:
                 logger.warning(f"Risk contribution calculation failed: {e}")
                 risk_contribution = {symbol: 1.0/len(available_symbols) for symbol in available_symbols}
         
-        # Calculate accurate max drawdown using market data
-        accurate_drawdown = self._calculate_accurate_drawdown(available_symbols, available_weights, period)
+        # Calculate comprehensive drawdown metrics using market data
+        drawdown_metrics = self._calculate_accurate_drawdown(available_symbols, available_weights, period)
         
         result = {
             'portfolio_volatility': self._safe_value(portfolio_vol),
@@ -329,7 +332,10 @@ class RiskAnalyzer:
             'rolling_window': rolling_window,
             'sharpe_ratio': self._calculate_sharpe_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 30 else None,
             'sortino_ratio': self._calculate_sortino_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 30 else 0.0,
-            'max_drawdown': self._safe_value(accurate_drawdown),
+            'max_drawdown': self._safe_value(drawdown_metrics.get('max_drawdown', 0.0)),
+            'current_drawdown': self._safe_value(drawdown_metrics.get('current_drawdown', 0.0)),
+            'recovery_days': drawdown_metrics.get('recovery_days'),
+            'drawdown_frequency': drawdown_metrics.get('drawdown_frequency', 0),
             'beta': self._safe_value(beta_val),
             'tracking_error': self._safe_value((portfolio_returns - returns[self.benchmark_symbol]).std() * np.sqrt(252)) if self.benchmark_symbol in returns.columns and len(portfolio_returns) > 0 else 0.0,
             'risk_contribution': {k: self._safe_value(v) for k, v in risk_contribution.items()}
@@ -485,20 +491,36 @@ class RiskAnalyzer:
             return self._safe_value(sharpe)
         return None
     
-    def _calculate_accurate_drawdown(self, symbols: List[str], weights: Dict[str, float], period: str = "1y") -> float:
-        """Calculate accurate max drawdown using market data APIs"""
+    def _calculate_accurate_drawdown(self, symbols: List[str], weights: Dict[str, float], period: str = "1y") -> Dict:
+        """Calculate comprehensive drawdown metrics using market data APIs"""
         try:
             # Get historical price data
             price_data = self.data_client.get_price_data(symbols, period)
             if price_data.empty:
-                return 0.0
+                return {
+                    'max_drawdown': 0.0,
+                    'current_drawdown': 0.0,
+                    'recovery_days': None,
+                    'drawdown_frequency': 0
+                }
             
             # Calculate daily returns
             returns = price_data.pct_change().dropna()
             
+            if returns.empty:
+                return {
+                    'max_drawdown': 0.0,
+                    'current_drawdown': 0.0,
+                    'recovery_days': None,
+                    'drawdown_frequency': 0
+                }
+            
             # Calculate portfolio returns using weights
-            weight_array = np.array([weights.get(symbol, 0) for symbol in returns.columns])
-            portfolio_returns = (returns * weight_array).sum(axis=1)
+            portfolio_returns = pd.Series(0, index=returns.index)
+            for symbol in symbols:
+                if symbol in returns.columns:
+                    weight = weights.get(symbol, 0)
+                    portfolio_returns += returns[symbol] * weight
             
             # Calculate cumulative portfolio value (starting at 1.0)
             cumulative_returns = (1 + portfolio_returns).cumprod()
@@ -509,17 +531,51 @@ class RiskAnalyzer:
             # Calculate drawdown at each point
             drawdown = (cumulative_returns - running_max) / running_max
             
-            # Return maximum drawdown (most negative value)
-            max_drawdown = drawdown.min()
+            # Calculate metrics
+            max_drawdown = drawdown.min()  # Most negative value
+            current_drawdown = drawdown.iloc[-1] if len(drawdown) > 0 else 0.0
             
-            print(f"Accurate Drawdown Calculation: {max_drawdown:.4f} ({max_drawdown*100:.2f}%)")
-            logger.info(f"Calculated accurate max drawdown: {max_drawdown:.4f}")
+            # Calculate recovery days and frequency
+            recovery_days = None
+            drawdown_frequency = 0
             
-            return max_drawdown
+            # Find drawdown periods (when drawdown < -0.05, i.e., > 5% loss)
+            significant_drawdowns = drawdown < -0.05
+            if significant_drawdowns.any():
+                # Count number of significant drawdown periods
+                drawdown_periods = (significant_drawdowns != significant_drawdowns.shift()).cumsum()
+                drawdown_frequency = len(drawdown_periods[significant_drawdowns].unique())
+                
+                # Calculate recovery time for current drawdown
+                if current_drawdown < -0.01:  # Currently in drawdown > 1%
+                    # Find when current drawdown started
+                    last_peak_idx = running_max.idxmax()
+                    days_since_peak = (cumulative_returns.index[-1] - last_peak_idx).days
+                    recovery_days = days_since_peak
+            
+            print(f"Comprehensive Drawdown Calculation:")
+            print(f"  Max Drawdown: {max_drawdown:.4f} ({max_drawdown*100:.2f}%)")
+            print(f"  Current Drawdown: {current_drawdown:.4f} ({current_drawdown*100:.2f}%)")
+            print(f"  Recovery Days: {recovery_days}")
+            print(f"  Drawdown Frequency: {drawdown_frequency}")
+            
+            logger.info(f"Calculated comprehensive drawdown metrics: max={max_drawdown:.4f}, current={current_drawdown:.4f}")
+            
+            return {
+                'max_drawdown': float(max_drawdown),
+                'current_drawdown': float(current_drawdown),
+                'recovery_days': recovery_days,
+                'drawdown_frequency': int(drawdown_frequency)
+            }
             
         except Exception as e:
             logger.error(f"Error calculating accurate drawdown: {e}")
-            return 0.0
+            return {
+                'max_drawdown': 0.0,
+                'current_drawdown': 0.0,
+                'recovery_days': None,
+                'drawdown_frequency': 0
+            }
     
     def _calculate_sortino_with_debug(self, portfolio_returns: pd.Series, risk_free_rate: float = None) -> float:
         """Calculate Sortino Ratio with debug logging"""

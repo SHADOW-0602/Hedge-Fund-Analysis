@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+.gradient-bg {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.metric-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dark mode styles */
+@media (prefers-color-scheme: dark) {
+  .dark\:bg-gray-800 {
+    background-color: #1f2937;
+  }
+  
+  .dark\:text-gray-100 {
+    color: #f9fafb;
+  }
+  
+  .dark\:text-gray-300 {
+    color: #d1d5db;
+  }
+}
+
+/* Animation utilities */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

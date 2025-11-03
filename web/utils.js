@@ -62,8 +62,8 @@ class ProgressManager {
 
     static async cacheToRedis(key, data) {
         try {
-            const API_BASE = window.API_BASE || `${window.location.origin}/api`;
-            await fetch(`${API_BASE}/cache`, {
+            const API_BASE = window.API_BASE || window.location.origin;
+            await fetch(`${API_BASE}/api/cache`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

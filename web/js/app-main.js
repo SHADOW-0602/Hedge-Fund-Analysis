@@ -248,7 +248,10 @@ async function loadTransactionAnalytics(transactions) {
                 if (twrEl && data.summary.time_weighted_return) twrEl.textContent = (data.summary.time_weighted_return >= 0 ? '+' : '') + data.summary.time_weighted_return.toFixed(1) + '%';
             }
 
-            loadDetailedTransactionAnalytics(transactions);
+            // Load detailed analytics using new modular system
+            if (window.loadAllTransactionAnalytics) {
+                window.loadAllTransactionAnalytics(transactions);
+            }
             showSuccess('Transaction analytics loaded successfully');
         } else {
             throw new Error(data.error || 'Transaction analysis failed');
@@ -339,53 +342,7 @@ async function loadPnLAttribution(transactions) {
     `;
 }
 
-async function loadCostAnalysis(transactions) {
-    console.log('Cost Analysis (app-main.js) - Called with transactions:', transactions?.length);
-    console.log('Cost Analysis - Sample transaction:', transactions?.[0]);
-    
-    if (!transactions || transactions.length === 0) {
-        document.getElementById('costAnalysis').innerHTML = '<p class="text-gray-500">No transaction data for cost analysis</p>';
-        return;
-    }
-
-    // Check if this is portfolio data (no fees) or transaction data
-    const hasTransactionData = transactions.some(t => t.hasOwnProperty('fees') || t.hasOwnProperty('transaction_type'));
-
-    if (!hasTransactionData) {
-        // This is portfolio data, show estimated costs
-        const totalValue = transactions.reduce((sum, t) => sum + ((parseFloat(t.quantity) || 0) * (parseFloat(t.avg_cost) || 0)), 0);
-        const estimatedTrades = transactions.length * 2; // Assume buy + sell for each position
-        const estimatedFees = estimatedTrades * 9.95; // $9.95 per trade
-        const avgFeePerTrade = estimatedFees / estimatedTrades;
-        const feePercentage = totalValue > 0 ? (estimatedFees / totalValue) * 100 : 0;
-
-        document.getElementById('costAnalysis').innerHTML = `
-            <div class="space-y-3">
-                <div class="flex justify-between"><span>Estimated Total Fees</span><span class="font-semibold">$${estimatedFees.toFixed(2)}</span></div>
-                <div class="flex justify-between"><span>Avg Fee per Trade</span><span class="font-semibold">$${avgFeePerTrade.toFixed(2)}</span></div>
-                <div class="flex justify-between"><span>Fee as % of Portfolio</span><span class="font-semibold">${feePercentage.toFixed(3)}%</span></div>
-            </div>
-        `;
-    } else {
-        // This is transaction data with actual fees
-        const totalFees = transactions.reduce((sum, t) => sum + (parseFloat(t.fees) || 0), 0);
-        const totalVolume = transactions.reduce((sum, t) => sum + Math.abs((parseFloat(t.quantity) || 0) * (parseFloat(t.price) || 0)), 0);
-        const avgFeePerTrade = transactions.length > 0 ? totalFees / transactions.length : 0;
-        const feePercentage = totalVolume > 0 ? (totalFees / totalVolume) * 100 : 0;
-        
-        console.log('Cost Analysis - Total Fees:', totalFees);
-        console.log('Cost Analysis - Total Volume:', totalVolume);
-        console.log('Cost Analysis - Fee Percentage:', feePercentage);
-
-        document.getElementById('costAnalysis').innerHTML = `
-            <div class="space-y-3">
-                <div class="flex justify-between"><span>Total Fees</span><span class="font-semibold">$${totalFees.toFixed(2)}</span></div>
-                <div class="flex justify-between"><span>Avg Fee per Trade</span><span class="font-semibold">$${avgFeePerTrade.toFixed(2)}</span></div>
-                <div class="flex justify-between"><span>Fee as % of Volume</span><span class="font-semibold">${feePercentage.toFixed(3)}%</span></div>
-            </div>
-        `;
-    }
-}
+// Cost Analysis moved to separate file
 
 async function loadReturnAttribution(transactions) {
     const symbols = [...new Set(transactions.map(t => t.symbol).filter(s => s !== 'CASH'))];
@@ -433,7 +390,7 @@ async function updateFileSelectors() {
     if (currentUser && currentUser.user_id) {
         try {
             // Force fresh reload with cache-busting parameter
-            const transactionResponse = await fetch(`${API_BASE}/load-transactions?user_id=${currentUser.user_id}&_t=${Date.now()}`);
+            const transactionResponse = await fetch(`${API_BASE}/api/load-transactions?user_id=${currentUser.user_id}&_t=${Date.now()}`);
             const transactionData = await transactionResponse.json();
             if (transactionData.success && transactionData.transactions) {
                 transactionFiles = transactionData.transactions.map(t => ({
@@ -489,7 +446,7 @@ async function connectSupabaseAndLoadData() {
     try {
         console.log('Connecting to Supabase and loading stored data...');
 
-        const response = await fetch(`${API_BASE}/load-portfolios?user_id=${currentUser.user_id}`);
+        const response = await fetch(`${API_BASE}/api/load-portfolios?user_id=${currentUser.user_id}`);
         const data = await response.json();
 
         if (data.success) {
@@ -606,77 +563,7 @@ async function loadTurnoverAnalysis(transactions) {
     `;
 }
 
-async function loadTaxAnalysis(transactions) {
-    if (!transactions || transactions.length === 0) {
-        document.getElementById('taxAnalysis').innerHTML = '<div class="text-center text-gray-500 py-4">No transaction data</div>';
-        return;
-    }
-    
-    try {
-        const response = await fetch(`${API_BASE}/analyze-transactions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transactions })
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.summary) {
-                const shortTermGains = data.summary.short_term_gains || 0;
-                const longTermGains = data.summary.long_term_gains || 0;
-                const estimatedTaxLiability = data.summary.estimated_tax_liability || 0;
-                const harvestableLosses = data.summary.harvestable_losses || 0;
-                
-                // Format currency values
-                const formatCurrency = (value) => {
-                    if (Math.abs(value) >= 1000000) {
-                        return `$${(value / 1000000).toFixed(1)}M`;
-                    } else if (Math.abs(value) >= 1000) {
-                        return `$${(value / 1000).toFixed(0)}K`;
-                    } else {
-                        return `$${value.toFixed(0)}`;
-                    }
-                };
-                
-                // Update both the transaction analysis section and reference.html elements
-                document.getElementById('taxAnalysis').innerHTML = `
-                    <div class="space-y-3">
-                        <div class="flex justify-between"><span>Short-term Gains</span><span class="font-semibold">${formatCurrency(shortTermGains)}</span></div>
-                        <div class="flex justify-between"><span>Long-term Gains</span><span class="font-semibold">${formatCurrency(longTermGains)}</span></div>
-                        <div class="flex justify-between"><span>Tax Loss Harvesting</span><span class="font-semibold text-green-600">${harvestableLosses > 0 ? '-' : ''}${formatCurrency(Math.abs(harvestableLosses))}</span></div>
-                        <div class="flex justify-between"><span>Estimated Tax Liability</span><span class="font-semibold text-red-600">${formatCurrency(estimatedTaxLiability)}</span></div>
-                    </div>
-                `;
-                
-                // Update reference.html elements if they exist
-                const shortTermEl = document.getElementById('shortTermGains');
-                const longTermEl = document.getElementById('longTermGains');
-                const harvestableLossesEl = document.getElementById('harvestableLosses');
-                const taxLiabilityEl = document.getElementById('estimatedTaxLiability');
-                
-                if (shortTermEl) shortTermEl.textContent = formatCurrency(shortTermGains);
-                if (longTermEl) longTermEl.textContent = formatCurrency(longTermGains);
-                if (harvestableLossesEl) harvestableLossesEl.textContent = `${harvestableLosses > 0 ? '-' : ''}${formatCurrency(Math.abs(harvestableLosses))}`;
-                if (taxLiabilityEl) taxLiabilityEl.textContent = formatCurrency(estimatedTaxLiability);
-                
-            } else {
-                throw new Error('Tax analysis data not available');
-            }
-        } else {
-            throw new Error('API request failed');
-        }
-    } catch (error) {
-        console.error('Tax analysis error:', error);
-        document.getElementById('taxAnalysis').innerHTML = `
-            <div class="space-y-3">
-                <div class="flex justify-between"><span>Short-term Gains</span><span class="font-semibold">$0</span></div>
-                <div class="flex justify-between"><span>Long-term Gains</span><span class="font-semibold">$0</span></div>
-                <div class="flex justify-between"><span>Tax Loss Harvesting</span><span class="font-semibold">$0</span></div>
-                <div class="flex justify-between"><span>Estimated Tax Liability</span><span class="font-semibold">$0</span></div>
-            </div>
-        `;
-    }
-}
+// Tax Analysis moved to separate file
 
 async function loadCashFlowAnalysis(transactions) {
     console.log('Cash Flow Analysis - transactions:', transactions);

@@ -149,9 +149,13 @@ class BacktestingEngine:
         except Exception:
             return 0.0
     
-    def _calculate_sortino_ratio(self, returns: pd.Series, risk_free_rate: float = 0.02) -> float:
+    def _calculate_sortino_ratio(self, returns: pd.Series, risk_free_rate: float = None) -> float:
         """Calculate Sortino ratio"""
         try:
+            if risk_free_rate is None:
+                from utils.fed_rate import get_risk_free_rate
+                risk_free_rate = get_risk_free_rate()
+            
             if len(returns) < 5:
                 return 0.0
             

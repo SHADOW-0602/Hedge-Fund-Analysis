@@ -92,3 +92,13 @@ temp/
 .tmp/
 reference_2.html
 reference_3.html
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Generated CSS (build artifact)
+web/css/tailwind.css

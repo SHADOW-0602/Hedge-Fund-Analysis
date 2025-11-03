@@ -19,7 +19,7 @@ async function connectSupabase() {
         console.log('Testing Supabase connection...');
         
         // Test connection by trying to load user data
-        const response = await fetch(`${API_BASE}/load-portfolios?user_id=${currentUser.user_id}`);
+        const response = await fetch(`${API_BASE}/api/load-portfolios?user_id=${currentUser.user_id}`);
         const data = await response.json();
         
         if (data.success) {
@@ -74,7 +74,7 @@ async function checkStoredResults(portfolioData) {
     try {
         const portfolioHash = btoa(JSON.stringify(portfolioData)).substring(0, 32);
         
-        const response = await fetch(`${API_BASE}/load-analytics?user_id=${currentUser.user_id}&portfolio_hash=${portfolioHash}`);
+        const response = await fetch(`${API_BASE}/api/load-analytics?user_id=${currentUser.user_id}&portfolio_hash=${portfolioHash}`);
         const data = await response.json();
         
         if (data.success && data.analytics) {
@@ -142,7 +142,7 @@ async function loadStoredOptionsResults(portfolioData) {
     try {
         const portfolioHash = btoa(JSON.stringify(portfolioData)).substring(0, 32);
         
-        const response = await fetch(`${API_BASE}/load-options-results?user_id=${currentUser.user_id}&portfolio_hash=${portfolioHash}`);
+        const response = await fetch(`${API_BASE}/api/load-options-results?user_id=${currentUser.user_id}&portfolio_hash=${portfolioHash}`);
         const data = await response.json();
         
         if (data.success && data.options_results && data.options_results.length > 0) {

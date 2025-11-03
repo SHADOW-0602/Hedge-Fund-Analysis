@@ -16,7 +16,7 @@ async function uploadPortfolio() {
     formData.append('file', file);
 
     try {
-        const response = await fetch(`${API_BASE}/upload-portfolio`, {
+        const response = await fetch(`${API_BASE}/api/upload-portfolio`, {
             method: 'POST',
             body: formData
         });
@@ -147,26 +147,7 @@ function updatePortfolioMetrics(data) {
 
     showAllPortfolioCardLoading();
     
-    // Load all analytics using the unified function
-    setTimeout(() => {
-        if (typeof window.loadAllRealAnalytics === 'function') {
-            console.log('Loading all real analytics for portfolio data:', data);
-            window.loadAllRealAnalytics(data, { nocache: true });
-        } else if (typeof loadAllRealAnalytics === 'function') {
-            console.log('Loading all real analytics for portfolio data:', data);
-            loadAllRealAnalytics(data, { nocache: true });
-        } else {
-            console.error('loadAllRealAnalytics function not found - retrying in 1 second');
-            setTimeout(() => {
-                if (typeof window.loadAllRealAnalytics === 'function') {
-                    console.log('Loading all real analytics for portfolio data (retry):', data);
-                    window.loadAllRealAnalytics(data, { nocache: true });
-                } else {
-                    console.error('loadAllRealAnalytics function still not available after retry');
-                }
-            }, 1000);
-        }
-    }, 500);
+    // Analytics are now loaded on-demand via sidebar clicks
 }
 
 function loadPortfolioOptimization(data) {
@@ -261,7 +242,7 @@ async function loadUserPortfolios() {
 
     try {
         // Add cache-busting parameter to force fresh data
-        const response = await fetch(`${API_BASE}/load-portfolios?user_id=${currentUser.user_id}&_t=${Date.now()}`);
+        const response = await fetch(`${API_BASE}/api/load-portfolios?user_id=${currentUser.user_id}&_t=${Date.now()}`);
         const data = await response.json();
 
         if (data.success) {
@@ -350,7 +331,7 @@ async function saveCurrentPortfolio() {
     showLoading(true);
 
     try {
-        const response = await fetch(`${API_BASE}/save-portfolio`, {
+        const response = await fetch(`${API_BASE}/api/save-portfolio`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -380,7 +361,7 @@ async function saveCurrentPortfolio() {
 
 async function downloadSamplePortfolio() {
     try {
-        const response = await fetch(`${API_BASE}/download-sample-portfolio`);
+        const response = await fetch(`${API_BASE}/api/download-sample-portfolio`);
         const blob = await response.blob();
 
         const url = window.URL.createObjectURL(blob);
@@ -434,25 +415,7 @@ function viewSelectedPortfolio() {
             portfolioSection.classList.remove('hidden');
             showAllPortfolioCardLoading();
             
-            setTimeout(() => {
-                if (typeof window.loadAllRealAnalytics === 'function') {
-                    console.log('Loading all real analytics for selected portfolio:', portfolioData);
-                    window.loadAllRealAnalytics(portfolioData, { nocache: true });
-                } else if (typeof loadAllRealAnalytics === 'function') {
-                    console.log('Loading all real analytics for selected portfolio:', portfolioData);
-                    loadAllRealAnalytics(portfolioData, { nocache: true });
-                } else {
-                    console.error('loadAllRealAnalytics function not found - retrying in 1 second');
-                    setTimeout(() => {
-                        if (typeof window.loadAllRealAnalytics === 'function') {
-                            console.log('Loading all real analytics for selected portfolio (retry):', portfolioData);
-                            window.loadAllRealAnalytics(portfolioData, { nocache: true });
-                        } else {
-                            console.error('loadAllRealAnalytics function still not available after retry');
-                        }
-                    }, 1000);
-                }
-            }, 500);
+            // Analytics are now loaded on-demand via sidebar clicks
             
             portfolioSection.scrollIntoView({ behavior: 'smooth' });
         }
@@ -500,7 +463,7 @@ async function deleteSelectedPortfolio() {
     try {
         // Delete from Supabase first
         if (fileToDelete.source === 'supabase' && fileToDelete.id && currentUser?.user_id) {
-            const response = await fetch(`${API_BASE}/delete-portfolio`, {
+            const response = await fetch(`${API_BASE}/api/delete-portfolio`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',

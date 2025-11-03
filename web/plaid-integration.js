@@ -10,7 +10,7 @@ async function connectPlaid() {
         updatePlaidStatus('Connecting to Plaid...', 'connecting');
         
         // Get link token from backend
-        const response = await fetch(`${API_BASE}/create-link-token`, {
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/create-link-token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -50,7 +50,7 @@ async function handlePlaidSuccess(public_token, metadata) {
         updatePlaidStatus('Exchanging tokens...', 'connecting');
         
         // Exchange public token for access token
-        const response = await fetch(`${API_BASE}/exchange-token`, {
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/exchange-token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -119,7 +119,7 @@ async function loadPlaidPortfolio() {
         updatePlaidStatus('Loading portfolio data...', 'connecting');
         
         const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
-        const response = await fetch(`${API_BASE}/plaid-portfolio?user_id=${userId}`);
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-portfolio?user_id=${userId}`);
         const result = await response.json();
         
         if (result.success && result.holdings) {
@@ -144,6 +144,9 @@ async function loadPlaidPortfolio() {
             if (typeof showPlaidSwitcher === 'function') {
                 showPlaidSwitcher();
             }
+            
+            // Load transaction data as well
+            loadPlaidTransactions();
             
             // Show data action buttons
             if (typeof showDataActions === 'function') {
@@ -200,7 +203,7 @@ function updatePlaidStatus(message, type) {
 // Test Plaid connection status
 async function testPlaidConnection() {
     try {
-        const response = await fetch(`${API_BASE}/create-link-token`, {
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/create-link-token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: 'test_user' })
@@ -224,14 +227,19 @@ async function testPlaidConnection() {
 // Check if user already has Plaid connection
 async function checkExistingPlaidConnection() {
     try {
+        // Get actual user ID
         const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
         console.log('[PLAID] Checking connection for user:', userId);
+        console.log('[PLAID] Current user object:', window.currentUser);
         
-        const response = await fetch(`${API_BASE}/plaid-portfolio?user_id=${userId}`);
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-portfolio?user_id=${userId}`);
         const result = await response.json();
         
+        console.log('[PLAID] Connection check response:', result);
+        
+        // Only show connection if user has actual Plaid token
         if (result.success && result.holdings && result.holdings.length > 0) {
-            console.log(`[PLAID] Found existing connection with ${result.holdings.length} holdings`);
+            console.log(`[PLAID] Found existing connection with ${result.holdings.length} holdings for user: ${userId}`);
             
             // Auto-load existing data
             const portfolioData = result.holdings.map(holding => ({
@@ -247,12 +255,13 @@ async function checkExistingPlaidConnection() {
                 displayPortfolio(portfolioData);
             }
             
-            // Show Plaid switcher for portfolio/transaction analysis
             if (typeof showPlaidSwitcher === 'function') {
                 showPlaidSwitcher();
             }
             
-            // Show data action buttons
+            // Load transaction data as well
+            loadPlaidTransactions();
+            
             if (typeof showDataActions === 'function') {
                 showDataActions();
             }
@@ -260,10 +269,14 @@ async function checkExistingPlaidConnection() {
             updatePlaidStatus(`Connected - ${result.holdings.length} positions loaded`, 'success');
             updateConnectButton(true);
             return true;
+        } else {
+            console.log(`[PLAID] No connection found for user: ${userId}`);
+            updatePlaidStatus('Ready to connect', 'info');
+            updateConnectButton(false);
+            return false;
         }
-        return false;
     } catch (error) {
-        console.log('[PLAID] No existing connection found');
+        console.log('[PLAID] Connection check failed:', error);
         return false;
     }
 }
@@ -271,8 +284,18 @@ async function checkExistingPlaidConnection() {
 // Auto-connect when user is available
 function autoConnectPlaid() {
     setTimeout(async () => {
-        const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
+        // Get actual user ID
+        const userId = window.currentUser?.user_id || 
+                      window.currentUser?.username || 
+                      window.currentUser?.id ||
+                      localStorage.getItem('currentUserId') ||
+                      'admin';
+        
         console.log('[PLAID] Auto-connecting for user:', userId);
+        
+        console.log('[PLAID] Auto-connecting for user:', userId);
+        console.log('[PLAID] Current user object:', window.currentUser);
+        console.log('[PLAID] SessionManager session:', window.SessionManager?.getSession());
         
         // Check for existing connection first
         const hasExistingConnection = await checkExistingPlaidConnection();
@@ -280,11 +303,12 @@ function autoConnectPlaid() {
         if (!hasExistingConnection) {
             const statusDiv = document.getElementById('plaidStatus');
             if (statusDiv) {
-                statusDiv.textContent = 'Production mode - Ready to connect';
-                statusDiv.className = 'mt-2 text-xs text-green-600';
+                statusDiv.textContent = 'Ready to connect';
+                statusDiv.className = 'mt-2 text-xs text-blue-600';
             }
+            updateConnectButton(false);
         }
-    }, 500);
+    }, 1500); // Increased timeout to ensure user is loaded
 }
 
 // Initialize Plaid on page load
@@ -310,7 +334,7 @@ async function disconnectPlaid() {
         updatePlaidStatus('Disconnecting...', 'connecting');
         
         const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
-        const response = await fetch(`${API_BASE}/disconnect-plaid`, {
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/disconnect-plaid`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: userId })
@@ -361,3 +385,60 @@ window.loadPlaidPortfolio = loadPlaidPortfolio;
 window.testPlaidConnection = testPlaidConnection;
 window.checkExistingPlaidConnection = checkExistingPlaidConnection;
 window.autoConnectPlaid = autoConnectPlaid;
+
+// Load transaction data from Plaid
+async function loadPlaidTransactions() {
+    try {
+        console.log('[PLAID] Loading transaction data...');
+        
+        const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-transactions?user_id=${userId}`);
+        const result = await response.json();
+        
+        if (result.success && result.transactions) {
+            console.log(`[PLAID] Loaded ${result.transactions.length} transactions`);
+            
+            // Convert Plaid transactions to standard format
+            const transactionData = result.transactions.map(tx => ({
+                symbol: tx.symbol || tx.security_symbol || 'UNKNOWN',
+                quantity: Math.abs(parseFloat(tx.quantity || 0)),
+                price: parseFloat(tx.price || tx.unit_price || 0),
+                date: tx.date || tx.transaction_date,
+                transaction_type: tx.type || tx.transaction_type || 'BUY',
+                fees: parseFloat(tx.fees || 0),
+                currency: tx.currency || 'USD',
+                portfolio: 'Plaid Account',
+                source: 'plaid',
+                account_id: tx.account_id
+            }));
+            
+            // Store transaction data globally
+            window.currentTransactions = transactionData;
+            if (window.analyticsCore) {
+                window.analyticsCore.setTransactionData(transactionData);
+            }
+            localStorage.setItem('currentTransactions', JSON.stringify(transactionData));
+            
+            // Dispatch event for transaction loading
+            document.dispatchEvent(new CustomEvent('transactionsLoaded', {
+                detail: { transactions: transactionData }
+            }));
+            
+            console.log('[PLAID] Transaction data stored for analysis:', transactionData.length, 'transactions');
+            
+        } else {
+            console.log('[PLAID] No transactions found or error:', result.error);
+            // Still store empty array to indicate transactions were checked
+            window.currentTransactions = [];
+            if (window.analyticsCore) {
+                window.analyticsCore.setTransactionData([]);
+            }
+            localStorage.setItem('currentTransactions', JSON.stringify([]));
+        }
+        
+    } catch (error) {
+        console.error('[PLAID] Transaction load failed:', error);
+    }
+}
+
+window.loadPlaidTransactions = loadPlaidTransactions;

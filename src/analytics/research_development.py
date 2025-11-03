@@ -106,12 +106,12 @@ class StrategyBacktester:
         
         # Additional metrics
         win_rate = (returns > 0).sum() / len(returns) if len(returns) > 0 else 0
-        profit_factor = returns[returns > 0].sum() / abs(returns[returns < 0].sum()) if returns[returns < 0].sum() != 0 else float('inf')
+        profit_factor = returns[returns > 0].sum() / abs(returns[returns < 0].sum()) if returns[returns < 0].sum() != 0 else 0.0
         
         # Tail ratios
         upside_99 = returns.quantile(0.99)
         downside_1 = returns.quantile(0.01)
-        tail_ratio = abs(upside_99 / downside_1) if downside_1 != 0 else float('inf')
+        tail_ratio = abs(upside_99 / downside_1) if downside_1 != 0 else 0.0
         
         return {
             'win_rate': win_rate,

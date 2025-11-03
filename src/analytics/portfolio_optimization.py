@@ -158,13 +158,17 @@ class PortfolioOptimizer:
         except:
             return np.ones(len(expected_returns)) / len(expected_returns)
     
-    def _maximize_sharpe(self, expected_returns: pd.Series, cov_matrix: pd.DataFrame, constraint: str = "long_only", risk_free_rate: float = 0.02) -> np.ndarray:
+    def _maximize_sharpe(self, expected_returns: pd.Series, cov_matrix: pd.DataFrame, constraint: str = "long_only", risk_free_rate: float = None) -> np.ndarray:
         """Find maximum Sharpe ratio portfolio"""
         try:
             n = len(expected_returns)
             initial_guess = np.ones(n) / n
             
             from scipy.optimize import minimize
+            
+            if risk_free_rate is None:
+                from utils.fed_rate import get_risk_free_rate
+                risk_free_rate = get_risk_free_rate()
             
             def objective(weights):
                 try:
@@ -191,7 +195,9 @@ class PortfolioOptimizer:
         try:
             portfolio_return = np.sum(expected_returns * weights)
             portfolio_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-            sharpe_ratio = (portfolio_return - 0.0375) / portfolio_vol if portfolio_vol > 0 else 0
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate()
+            sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_vol if portfolio_vol > 0 else 0
             
             # Clean values
             def clean_val(val):
