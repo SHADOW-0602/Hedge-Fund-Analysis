@@ -10,62 +10,73 @@ class AdvancedTransactionAnalyzer:
     def __init__(self, data_client: MarketDataClient):
         self.data_client = data_client
     
-    def trade_performance_analysis(self, transactions: List[Transaction]) -> Dict:
-        """Win/loss ratios, average trade size, success metrics"""
-        trades = [t for t in transactions if t.transaction_type in ['BUY', 'SELL']]
-        if not trades:
-            return {}
+    def calculate_pnl_attribution(self, txn_portfolio, period='3M', view='Total', grouping='By Symbol') -> Dict:
+        """Calculate P&L attribution by symbol, sector, or time period"""
+        transactions = txn_portfolio.transactions
+        if not transactions:
+            return {'total_pnl': 0, 'realized_pnl': 0, 'unrealized_pnl': 0, 'by_symbol': {}}
         
-        # Group buy/sell pairs
-        positions = defaultdict(list)
-        for trade in sorted(trades, key=lambda x: x.date):
-            positions[trade.symbol].append(trade)
+        # Calculate realized P&L from transactions
+        positions = defaultdict(lambda: {'quantity': 0, 'avg_cost': 0, 'realized_pnl': 0})
         
-        winning_trades = 0
-        losing_trades = 0
-        total_profit = 0
-        total_loss = 0
-        trade_sizes = []
-        
-        for symbol, symbol_trades in positions.items():
-            current_position = 0
-            avg_cost = 0
+        for txn in sorted(transactions, key=lambda x: x.date):
+            symbol = txn.symbol
             
-            for trade in symbol_trades:
-                if trade.transaction_type == 'BUY':
-                    if current_position == 0:
-                        avg_cost = trade.price
-                    else:
-                        avg_cost = ((current_position * avg_cost) + (trade.quantity * trade.price)) / (current_position + trade.quantity)
-                    current_position += trade.quantity
-                    trade_sizes.append(trade.quantity * trade.price)
+            if txn.transaction_type in ['BUY', 'Buy']:
+                old_value = positions[symbol]['quantity'] * positions[symbol]['avg_cost']
+                new_value = abs(txn.quantity) * txn.price
+                total_quantity = positions[symbol]['quantity'] + abs(txn.quantity)
                 
-                elif trade.transaction_type == 'SELL' and current_position > 0:
-                    pnl = (trade.price - avg_cost) * trade.quantity - trade.fees
-                    if pnl > 0:
-                        winning_trades += 1
-                        total_profit += pnl
-                    else:
-                        losing_trades += 1
-                        total_loss += abs(pnl)
-                    
-                    current_position -= trade.quantity
-                    trade_sizes.append(trade.quantity * trade.price)
+                if total_quantity > 0:
+                    positions[symbol]['avg_cost'] = (old_value + new_value) / total_quantity
+                positions[symbol]['quantity'] = total_quantity
+                
+            elif txn.transaction_type in ['SELL', 'Sell']:
+                if positions[symbol]['quantity'] > 0:
+                    sell_quantity = min(abs(txn.quantity), positions[symbol]['quantity'])
+                    realized_pnl = (txn.price - positions[symbol]['avg_cost']) * sell_quantity - txn.fees
+                    positions[symbol]['realized_pnl'] += realized_pnl
+                    positions[symbol]['quantity'] -= sell_quantity
         
-        total_trades = winning_trades + losing_trades
+        # Get current prices for unrealized P&L
+        symbols = [s for s in positions.keys() if positions[s]['quantity'] > 0]
+        current_prices = self.data_client.get_current_prices(symbols) if symbols else {}
+        
+        # Calculate unrealized P&L
+        by_symbol = {}
+        total_realized = 0
+        total_unrealized = 0
+        
+        for symbol, pos in positions.items():
+            realized = pos['realized_pnl']
+            unrealized = 0
+            
+            if pos['quantity'] > 0:
+                current_price = current_prices.get(symbol, pos['avg_cost'])
+                unrealized = (current_price - pos['avg_cost']) * pos['quantity']
+            
+            by_symbol[symbol] = {
+                'realized_pnl': realized,
+                'unrealized_pnl': unrealized,
+                'total_pnl': realized + unrealized,
+                'quantity': pos['quantity'],
+                'avg_cost': pos['avg_cost']
+            }
+            
+            total_realized += realized
+            total_unrealized += unrealized
         
         return {
-            'total_trades': total_trades,
-            'winning_trades': winning_trades,
-            'losing_trades': losing_trades,
-            'win_rate': winning_trades / total_trades if total_trades > 0 else 0,
-            'avg_win': total_profit / winning_trades if winning_trades > 0 else 0,
-            'avg_loss': total_loss / losing_trades if losing_trades > 0 else 0,
-            'profit_factor': total_profit / total_loss if total_loss > 0 else 1.0,
-            'avg_trade_size': np.mean(trade_sizes) if trade_sizes else 0,
-            'largest_trade': max(trade_sizes) if trade_sizes else 0,
-            'smallest_trade': min(trade_sizes) if trade_sizes else 0
+            'total_pnl': total_realized + total_unrealized,
+            'realized_pnl': total_realized,
+            'unrealized_pnl': total_unrealized,
+            'by_symbol': by_symbol,
+            'period': period,
+            'view': view,
+            'grouping': grouping
         }
+    
+
     
     def turnover_analysis(self, transactions: List[Transaction]) -> Dict:
         """Portfolio turnover rates and trading frequency"""
@@ -369,57 +380,19 @@ class AdvancedTransactionAnalyzer:
         }
     
     def cost_analysis(self, transactions: List[Transaction]) -> Dict:
-        """Comprehensive cost analysis including commissions, spreads, and slippage"""
+        """Streamlined cost analysis with essential metrics"""
         if not transactions:
-            return {
-                'total_commissions': 0.0,
-                'total_spreads': 0.0,
-                'total_slippage': 0.0,
-                'total_costs': 0.0,
-                'cost_as_pct_volume': 0.0,
-                'avg_cost_per_trade': 0.0,
-                'cost_breakdown': {},
-                'cost_efficiency_score': 1.0
-            }
+            return {'total_commissions': 0.0, 'total_costs': 0.0, 'cost_as_pct_volume': 0.0, 'cost_efficiency_score': 1.0}
         
-        total_commissions = 0.0
-        total_volume = 0.0
-        trade_count = 0
-        cost_by_symbol = {}
+        total_commissions = sum(txn.fees for txn in transactions if txn.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell'])
+        total_volume = sum(abs(txn.quantity * txn.price) for txn in transactions if txn.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell'])
+        trade_count = len([t for t in transactions if t.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell']])
         
-        for txn in transactions:
-            if txn.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell']:
-                trade_value = abs(txn.quantity * txn.price)
-                commission = txn.fees
-                
-                total_commissions += commission
-                total_volume += trade_value
-                trade_count += 1
-                
-                # Track costs by symbol
-                if txn.symbol not in cost_by_symbol:
-                    cost_by_symbol[txn.symbol] = {
-                        'commissions': 0.0,
-                        'volume': 0.0,
-                        'trades': 0
-                    }
-                
-                cost_by_symbol[txn.symbol]['commissions'] += commission
-                cost_by_symbol[txn.symbol]['volume'] += trade_value
-                cost_by_symbol[txn.symbol]['trades'] += 1
-        
-        # Estimate spreads (typically 0.01-0.05% of trade value)
-        estimated_spreads = total_volume * 0.0002  # 0.02% estimate
-        
-        # Estimate slippage (typically 0.05-0.1% of trade value)
-        estimated_slippage = total_volume * 0.0005  # 0.05% estimate
-        
+        estimated_spreads = total_volume * 0.0002
+        estimated_slippage = total_volume * 0.0005
         total_costs = total_commissions + estimated_spreads + estimated_slippage
         cost_as_pct_volume = (total_costs / total_volume * 100) if total_volume > 0 else 0.0
-        avg_cost_per_trade = total_costs / trade_count if trade_count > 0 else 0.0
-        
-        # Calculate cost efficiency score (1.0 = perfect, 0.0 = terrible)
-        cost_efficiency_score = max(0.0, 1.0 - (cost_as_pct_volume / 2.0))  # 2% cost = 0 efficiency
+        cost_efficiency_score = max(0.0, 1.0 - (cost_as_pct_volume / 2.0))
         
         return {
             'total_commissions': total_commissions,
@@ -427,121 +400,56 @@ class AdvancedTransactionAnalyzer:
             'total_slippage': estimated_slippage,
             'total_costs': total_costs,
             'cost_as_pct_volume': cost_as_pct_volume,
-            'avg_cost_per_trade': avg_cost_per_trade,
-            'cost_breakdown': cost_by_symbol,
+            'avg_cost_per_trade': total_costs / trade_count if trade_count > 0 else 0.0,
             'cost_efficiency_score': cost_efficiency_score,
             'total_volume': total_volume,
             'trade_count': trade_count
         }
     
     def drawdown_analysis(self, transactions: List[Transaction]) -> Dict:
-        """Calculate realistic drawdown from transaction data"""
+        """Simplified drawdown analysis with essential metrics"""
         if not transactions:
-            return {
-                'max_drawdown_pct': 12.5,
-                'avg_drawdown_pct': 4.2,
-                'current_drawdown_pct': 2.8,
-                'recovery_days': 35,
-                'drawdown_periods': 3,
-                'time_in_drawdown_pct': 28.5,
-                'frequency': 'Daily'
-            }
+            return {'max_drawdown_pct': 12.5, 'avg_drawdown_pct': 4.2, 'current_drawdown_pct': 2.8, 'recovery_days': 35}
         
-        # Calculate portfolio value over time
+        # Calculate P&L over time
         positions = defaultdict(lambda: {'quantity': 0, 'avg_cost': 0})
-        portfolio_values = []
-        dates = []
+        pnl_values = []
         
-        # Get current prices for unrealized P&L
-        symbols = list(set(t.symbol for t in transactions))
-        try:
-            current_prices = self.data_client.get_current_prices(symbols)
-        except:
-            current_prices = {symbol: 100.0 for symbol in symbols}  # Default prices
-        
-        # Process transactions chronologically
-        total_invested = 0
         for txn in sorted(transactions, key=lambda x: x.date):
             if txn.transaction_type in ['BUY', 'Buy']:
                 old_value = positions[txn.symbol]['quantity'] * positions[txn.symbol]['avg_cost']
                 new_value = abs(txn.quantity) * txn.price
                 total_quantity = positions[txn.symbol]['quantity'] + abs(txn.quantity)
-                total_invested += new_value
                 
                 if total_quantity > 0:
                     positions[txn.symbol]['avg_cost'] = (old_value + new_value) / total_quantity
                 positions[txn.symbol]['quantity'] = total_quantity
                 
-            elif txn.transaction_type in ['SELL', 'Sell']:
-                if positions[txn.symbol]['quantity'] > 0:
-                    positions[txn.symbol]['quantity'] -= abs(txn.quantity)
-            
-            # Calculate current portfolio value
-            portfolio_value = 0
-            for symbol, pos in positions.items():
-                if pos['quantity'] > 0:
-                    current_price = current_prices.get(symbol, pos['avg_cost'])
-                    portfolio_value += pos['quantity'] * current_price
-            
-            portfolio_values.append(portfolio_value)
-            dates.append(txn.date)
+            elif txn.transaction_type in ['SELL', 'Sell'] and positions[txn.symbol]['quantity'] > 0:
+                sell_quantity = min(abs(txn.quantity), positions[txn.symbol]['quantity'])
+                pnl = (txn.price - positions[txn.symbol]['avg_cost']) * sell_quantity - txn.fees
+                pnl_values.append(pnl)
+                positions[txn.symbol]['quantity'] -= sell_quantity
         
-        if len(portfolio_values) < 2:
-            return {
-                'max_drawdown_pct': 8.3,
-                'avg_drawdown_pct': 3.1,
-                'current_drawdown_pct': 1.5,
-                'recovery_days': 28,
-                'drawdown_periods': 2,
-                'time_in_drawdown_pct': 22.0,
-                'frequency': 'Daily'
-            }
+        if not pnl_values:
+            return {'max_drawdown_pct': 8.3, 'avg_drawdown_pct': 3.1, 'current_drawdown_pct': 1.5, 'recovery_days': 28}
         
-        # Calculate realistic drawdowns based on portfolio performance
-        peak_value = max(portfolio_values)
-        current_value = portfolio_values[-1]
+        # Calculate drawdowns from cumulative P&L
+        cumulative_pnl = np.cumsum(pnl_values)
+        running_max = np.maximum.accumulate(cumulative_pnl)
+        drawdowns = (running_max - cumulative_pnl) / np.maximum(running_max, 1)
         
-        # Calculate actual drawdowns
-        running_max = portfolio_values[0]
-        max_drawdown = 0
-        drawdown_periods = 0
-        in_drawdown_days = 0
-        total_drawdown = 0
-        drawdown_count = 0
-        
-        for i, value in enumerate(portfolio_values):
-            if value > running_max:
-                running_max = value
-            
-            if running_max > 0:
-                drawdown = (running_max - value) / running_max
-                if drawdown > 0.01:  # 1% threshold
-                    in_drawdown_days += 1
-                    total_drawdown += drawdown
-                    drawdown_count += 1
-                    
-                if drawdown > max_drawdown:
-                    max_drawdown = drawdown
-                    
-                if drawdown > 0.05:  # 5% threshold for significant periods
-                    drawdown_periods += 1
-        
-        # Calculate metrics
-        max_drawdown_pct = max_drawdown * 100 if max_drawdown > 0 else np.random.uniform(8, 15)
-        avg_drawdown_pct = (total_drawdown / drawdown_count * 100) if drawdown_count > 0 else max_drawdown_pct * 0.3
-        current_drawdown_pct = ((peak_value - current_value) / peak_value * 100) if peak_value > 0 else np.random.uniform(1, 4)
-        time_in_drawdown_pct = (in_drawdown_days / len(portfolio_values) * 100) if portfolio_values else 25.0
-        
-        # Estimate recovery time based on drawdown severity
-        recovery_days = int(max_drawdown_pct * 3) if max_drawdown_pct > 0 else 30
+        max_drawdown_pct = np.max(drawdowns) * 100
+        avg_drawdown_pct = np.mean(drawdowns[drawdowns > 0.01]) * 100 if np.any(drawdowns > 0.01) else 0
+        current_drawdown_pct = drawdowns[-1] * 100
         
         return {
             'max_drawdown_pct': round(max_drawdown_pct, 2),
             'avg_drawdown_pct': round(avg_drawdown_pct, 2),
             'current_drawdown_pct': round(current_drawdown_pct, 2),
-            'recovery_days': recovery_days,
-            'drawdown_periods': max(1, drawdown_periods),
-            'time_in_drawdown_pct': round(time_in_drawdown_pct, 1),
+            'recovery_days': int(max_drawdown_pct * 3) if max_drawdown_pct > 0 else 30,
+            'drawdown_periods': len([d for d in drawdowns if d > 0.05]),
+            'time_in_drawdown_pct': round(np.mean(drawdowns > 0.01) * 100, 1),
             'frequency': 'Daily'
         }
     
@@ -657,3 +565,97 @@ class AdvancedTransactionAnalyzer:
             'long_term_tax': round(long_term_tax, 2),
             'net_capital_gains': round(short_term_gains + long_term_gains, 2)
         }
+    
+    def trade_performance_analysis(self, transactions: List[Transaction]) -> Dict:
+        """Comprehensive trade performance analysis"""
+        if not transactions:
+            return {'total_trades': 0, 'win_rate': 0, 'avg_trade_size': 0, 'best_trade': 0, 'worst_trade': 0}
+        
+        # Group transactions into trades (buy-sell pairs)
+        positions = defaultdict(lambda: {'quantity': 0, 'avg_cost': 0, 'trades': []})
+        completed_trades = []
+        
+        for txn in sorted(transactions, key=lambda x: x.date):
+            symbol = txn.symbol
+            
+            if txn.transaction_type in ['BUY', 'Buy']:
+                old_value = positions[symbol]['quantity'] * positions[symbol]['avg_cost']
+                new_value = abs(txn.quantity) * txn.price
+                total_quantity = positions[symbol]['quantity'] + abs(txn.quantity)
+                
+                if total_quantity > 0:
+                    positions[symbol]['avg_cost'] = (old_value + new_value) / total_quantity
+                positions[symbol]['quantity'] = total_quantity
+                
+            elif txn.transaction_type in ['SELL', 'Sell'] and positions[symbol]['quantity'] > 0:
+                sell_quantity = min(abs(txn.quantity), positions[symbol]['quantity'])
+                pnl = (txn.price - positions[symbol]['avg_cost']) * sell_quantity - txn.fees
+                trade_size = sell_quantity * positions[symbol]['avg_cost']
+                
+                completed_trades.append({
+                    'symbol': symbol,
+                    'pnl': pnl,
+                    'size': trade_size,
+                    'return_pct': (pnl / trade_size * 100) if trade_size > 0 else 0,
+                    'sell_date': txn.date,
+                    'sell_price': txn.price,
+                    'buy_price': positions[symbol]['avg_cost']
+                })
+                
+                positions[symbol]['quantity'] -= sell_quantity
+        
+        if not completed_trades:
+            return {'total_trades': 0, 'win_rate': 0, 'avg_trade_size': 0, 'best_trade': 0, 'worst_trade': 0}
+        
+        # Calculate performance metrics
+        total_trades = len(completed_trades)
+        winning_trades = [t for t in completed_trades if t['pnl'] > 0]
+        losing_trades = [t for t in completed_trades if t['pnl'] < 0]
+        
+        win_rate = len(winning_trades) / total_trades * 100
+        avg_trade_size = np.mean([t['size'] for t in completed_trades])
+        total_pnl = sum(t['pnl'] for t in completed_trades)
+        avg_win = np.mean([t['pnl'] for t in winning_trades]) if winning_trades else 0
+        avg_loss = np.mean([t['pnl'] for t in losing_trades]) if losing_trades else 0
+        
+        best_trade = max(completed_trades, key=lambda x: x['pnl'])
+        worst_trade = min(completed_trades, key=lambda x: x['pnl'])
+        
+        return {
+            'total_trades': total_trades,
+            'winning_trades': len(winning_trades),
+            'losing_trades': len(losing_trades),
+            'win_rate': round(win_rate, 2),
+            'avg_trade_size': round(avg_trade_size, 2),
+            'total_pnl': round(total_pnl, 2),
+            'avg_win': round(avg_win, 2),
+            'avg_loss': round(avg_loss, 2),
+            'profit_factor': round(abs(avg_win / avg_loss), 2) if avg_loss != 0 else 0,
+            'best_trade': {
+                'symbol': best_trade['symbol'],
+                'pnl': round(best_trade['pnl'], 2),
+                'return_pct': round(best_trade['return_pct'], 2)
+            },
+            'worst_trade': {
+                'symbol': worst_trade['symbol'],
+                'pnl': round(worst_trade['pnl'], 2),
+                'return_pct': round(worst_trade['return_pct'], 2)
+            }
+        }
+
+
+class TradingOperationsAnalyzer:
+    """Specialized analyzer for trading operations and performance"""
+    
+    def __init__(self, data_client: MarketDataClient):
+        self.data_client = data_client
+    
+    def analyze_trade_performance(self, txn_portfolio, period='3M', metric='P&L') -> Dict:
+        """Analyze trade performance with comprehensive metrics"""
+        transactions = txn_portfolio.transactions
+        if not transactions:
+            return {'total_trades': 0, 'win_rate': 0, 'avg_trade_size': 0, 'best_trade': 0, 'worst_trade': 0}
+        
+        # Use the enhanced trade performance analysis
+        analyzer = AdvancedTransactionAnalyzer(self.data_client)
+        return analyzer.trade_performance_analysis(transactions)

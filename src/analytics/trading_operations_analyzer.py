@@ -1,178 +1,91 @@
-#!/usr/bin/env python3
-"""Trading Operations Analyzer for execution quality analysis"""
-
-import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List
 from datetime import datetime
+from collections import defaultdict
+from clients.market_data_client import MarketDataClient
 from core.transactions import Transaction
 
 class TradingOperationsAnalyzer:
-    def __init__(self, data_client):
+    """Specialized analyzer for trading operations and performance"""
+    
+    def __init__(self, data_client: MarketDataClient):
         self.data_client = data_client
     
-    def analyze_execution_quality(self, transactions: List[Transaction]) -> Dict:
-        """Analyze trade execution quality"""
-        if not transactions:
-            return self._empty_execution_analysis()
+    def analyze_trade_performance(self, txn_portfolio, period='3M', metric='P&L') -> Dict:
+        """Analyze trade performance with comprehensive metrics"""
+        return self.trade_performance_analysis(txn_portfolio.transactions)
+    
+    def trade_performance_analysis(self, transactions: List[Transaction]) -> Dict:
+        """Enhanced trade performance analysis with detailed metrics"""
+        trades = [t for t in transactions if t.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell']]
+        if not trades:
+            return {'total_trades': 0, 'win_rate': 0, 'avg_trade_size': 0, 'best_trade': 0, 'worst_trade': 0}
         
-        # Group transactions by symbol
-        symbol_analysis = {}
-        total_volume = 0
-        total_fees = 0
+        # Track all trades with P&L
+        completed_trades = []
+        positions = defaultdict(lambda: {'quantity': 0, 'avg_cost': 0, 'lots': []})
         
-        for transaction in transactions:
-            symbol = transaction.symbol
-            if symbol not in symbol_analysis:
-                symbol_analysis[symbol] = {
-                    'trades': [],
-                    'total_volume': 0,
-                    'total_fees': 0,
-                    'buy_count': 0,
-                    'sell_count': 0
-                }
+        for trade in sorted(trades, key=lambda x: x.date):
+            symbol = trade.symbol
             
-            trade_volume = abs(transaction.quantity * transaction.price)
-            symbol_analysis[symbol]['trades'].append({
-                'date': transaction.date,
-                'quantity': transaction.quantity,
-                'price': transaction.price,
-                'volume': trade_volume,
-                'fees': transaction.fees,
-                'type': transaction.transaction_type
-            })
-            
-            symbol_analysis[symbol]['total_volume'] += trade_volume
-            symbol_analysis[symbol]['total_fees'] += transaction.fees
-            total_volume += trade_volume
-            total_fees += transaction.fees
-            
-            if transaction.transaction_type == 'BUY':
-                symbol_analysis[symbol]['buy_count'] += 1
-            elif transaction.transaction_type == 'SELL':
-                symbol_analysis[symbol]['sell_count'] += 1
+            if trade.transaction_type in ['BUY', 'Buy']:
+                # Add to position
+                old_value = positions[symbol]['quantity'] * positions[symbol]['avg_cost']
+                new_value = abs(trade.quantity) * trade.price
+                total_quantity = positions[symbol]['quantity'] + abs(trade.quantity)
+                
+                if total_quantity > 0:
+                    positions[symbol]['avg_cost'] = (old_value + new_value) / total_quantity
+                positions[symbol]['quantity'] = total_quantity
+                
+                # Track individual lots
+                positions[symbol]['lots'].append({
+                    'quantity': abs(trade.quantity),
+                    'price': trade.price,
+                    'date': trade.date,
+                    'fees': trade.fees
+                })
+                
+            elif trade.transaction_type in ['SELL', 'Sell'] and positions[symbol]['quantity'] > 0:
+                # Calculate P&L for this trade
+                sell_quantity = min(abs(trade.quantity), positions[symbol]['quantity'])
+                pnl = (trade.price - positions[symbol]['avg_cost']) * sell_quantity - trade.fees
+                
+                completed_trades.append({
+                    'symbol': symbol,
+                    'pnl': pnl,
+                    'trade_size': sell_quantity * trade.price,
+                    'holding_period': (trade.date - positions[symbol]['lots'][0]['date']).days if positions[symbol]['lots'] else 0,
+                    'entry_price': positions[symbol]['avg_cost'],
+                    'exit_price': trade.price,
+                    'quantity': sell_quantity
+                })
+                
+                positions[symbol]['quantity'] -= sell_quantity
         
-        # Calculate execution metrics
-        execution_metrics = {}
-        for symbol, data in symbol_analysis.items():
-            trades = data['trades']
-            
-            # Calculate average trade size
-            avg_trade_size = data['total_volume'] / len(trades) if trades else 0
-            
-            # Calculate fee rate
-            fee_rate = (data['total_fees'] / data['total_volume']) * 10000 if data['total_volume'] > 0 else 0  # in bps
-            
-            # Calculate trade frequency
-            if len(trades) > 1:
-                date_range = (max(t['date'] for t in trades) - min(t['date'] for t in trades)).days
-                trade_frequency = len(trades) / max(date_range, 1)  # trades per day
-            else:
-                trade_frequency = 0
-            
-            execution_metrics[symbol] = {
-                'total_trades': len(trades),
-                'buy_trades': data['buy_count'],
-                'sell_trades': data['sell_count'],
-                'total_volume': data['total_volume'],
-                'total_fees': data['total_fees'],
-                'avg_trade_size': avg_trade_size,
-                'fee_rate_bps': fee_rate,
-                'trade_frequency': trade_frequency,
-                'execution_score': self._calculate_execution_score(fee_rate, avg_trade_size)
-            }
+        if not completed_trades:
+            return {'total_trades': 0, 'win_rate': 0, 'avg_trade_size': 0, 'best_trade': 0, 'worst_trade': 0}
         
-        # Overall portfolio metrics
-        portfolio_metrics = {
-            'total_symbols': len(symbol_analysis),
-            'total_trades': len(transactions),
-            'total_volume': total_volume,
-            'total_fees': total_fees,
-            'avg_fee_rate_bps': (total_fees / total_volume) * 10000 if total_volume > 0 else 0,
-            'avg_trade_size': total_volume / len(transactions) if transactions else 0
-        }
+        # Calculate performance metrics
+        pnls = [t['pnl'] for t in completed_trades]
+        trade_sizes = [t['trade_size'] for t in completed_trades]
+        
+        winning_trades = [p for p in pnls if p > 0]
+        losing_trades = [p for p in pnls if p < 0]
         
         return {
-            'symbol_analysis': execution_metrics,
-            'portfolio_metrics': portfolio_metrics,
-            'execution_summary': self._generate_execution_summary(execution_metrics),
-            'recommendations': self._generate_recommendations(execution_metrics, portfolio_metrics)
-        }
-    
-    def _calculate_execution_score(self, fee_rate_bps: float, avg_trade_size: float) -> float:
-        """Calculate execution quality score (0-100)"""
-        # Base score
-        score = 100
-        
-        # Penalize high fees
-        if fee_rate_bps > 10:  # > 10 bps
-            score -= min(30, (fee_rate_bps - 10) * 2)
-        
-        # Reward larger trade sizes (better execution)
-        if avg_trade_size < 1000:  # Small trades
-            score -= 10
-        elif avg_trade_size > 10000:  # Large trades
-            score += 5
-        
-        return max(0, min(100, score))
-    
-    def _generate_execution_summary(self, execution_metrics: Dict) -> Dict:
-        """Generate execution quality summary"""
-        if not execution_metrics:
-            return {}
-        
-        scores = [metrics['execution_score'] for metrics in execution_metrics.values()]
-        fee_rates = [metrics['fee_rate_bps'] for metrics in execution_metrics.values()]
-        
-        return {
-            'avg_execution_score': np.mean(scores),
-            'best_execution_symbol': max(execution_metrics.keys(), key=lambda k: execution_metrics[k]['execution_score']),
-            'worst_execution_symbol': min(execution_metrics.keys(), key=lambda k: execution_metrics[k]['execution_score']),
-            'avg_fee_rate_bps': np.mean(fee_rates),
-            'total_symbols_traded': len(execution_metrics)
-        }
-    
-    def _generate_recommendations(self, execution_metrics: Dict, portfolio_metrics: Dict) -> List[str]:
-        """Generate trading recommendations"""
-        recommendations = []
-        
-        # High fee analysis
-        if portfolio_metrics['avg_fee_rate_bps'] > 15:
-            recommendations.append("Consider consolidating trades to reduce fee impact")
-        
-        # Small trade size analysis
-        if portfolio_metrics['avg_trade_size'] < 1000:
-            recommendations.append("Increase minimum trade size to improve execution efficiency")
-        
-        # Frequency analysis
-        high_freq_symbols = [symbol for symbol, metrics in execution_metrics.items() 
-                           if metrics['trade_frequency'] > 1]  # More than 1 trade per day
-        if high_freq_symbols:
-            recommendations.append(f"High frequency trading detected in {len(high_freq_symbols)} symbols - consider batch execution")
-        
-        # Execution score analysis
-        poor_execution_symbols = [symbol for symbol, metrics in execution_metrics.items() 
-                                if metrics['execution_score'] < 70]
-        if poor_execution_symbols:
-            recommendations.append(f"Poor execution quality in {len(poor_execution_symbols)} symbols - review execution strategy")
-        
-        if not recommendations:
-            recommendations.append("Execution quality is within acceptable parameters")
-        
-        return recommendations
-    
-    def _empty_execution_analysis(self) -> Dict:
-        """Return empty execution analysis"""
-        return {
-            'symbol_analysis': {},
-            'portfolio_metrics': {
-                'total_symbols': 0,
-                'total_trades': 0,
-                'total_volume': 0,
-                'total_fees': 0,
-                'avg_fee_rate_bps': 0,
-                'avg_trade_size': 0
-            },
-            'execution_summary': {},
-            'recommendations': ['No transactions to analyze']
+            'total_trades': len(completed_trades),
+            'winning_trades': len(winning_trades),
+            'losing_trades': len(losing_trades),
+            'win_rate': len(winning_trades) / len(completed_trades),
+            'avg_win': np.mean(winning_trades) if winning_trades else 0,
+            'avg_loss': np.mean([abs(p) for p in losing_trades]) if losing_trades else 0,
+            'profit_factor': sum(winning_trades) / sum([abs(p) for p in losing_trades]) if losing_trades else 1.0,
+            'avg_trade_size': np.mean(trade_sizes),
+            'largest_trade': max(trade_sizes),
+            'smallest_trade': min(trade_sizes),
+            'best_trade': max(pnls),
+            'worst_trade': min(pnls),
+            'total_pnl': sum(pnls),
+            'avg_holding_period': np.mean([t['holding_period'] for t in completed_trades])
         }

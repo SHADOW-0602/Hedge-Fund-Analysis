@@ -248,25 +248,32 @@ class RiskAnalyzer:
         var_val = None
         cvar_val = None
         
-        if len(portfolio_returns) > 10 and not portfolio_returns.empty:
+        if len(portfolio_returns) > 30 and not portfolio_returns.empty:
             if risk_model == "historical":
+                # Historical VaR using actual return distribution
                 var_val = np.percentile(portfolio_returns, var_percentile)
                 cvar_val = portfolio_returns[portfolio_returns <= var_val].mean()
             elif risk_model == "parametric":
-                from scipy import stats
+                # Parametric VaR using normal distribution fitted to data
                 mu = portfolio_returns.mean()
                 sigma = portfolio_returns.std()
-                var_val = stats.norm.ppf(1 - var_confidence, mu, sigma)
-                cvar_val = mu - sigma * stats.norm.pdf(stats.norm.ppf(1 - var_confidence)) / (1 - var_confidence)
+                if sigma > 0:
+                    var_val = stats.norm.ppf(1 - var_confidence, mu, sigma)
+                    z_alpha = stats.norm.ppf(1 - var_confidence)
+                    cvar_val = mu - sigma * stats.norm.pdf(z_alpha) / (1 - var_confidence)
+                else:
+                    var_val = None
+                    cvar_val = None
             elif risk_model == "monte_carlo":
-                # Simple Monte Carlo VaR
+                # Monte Carlo VaR using bootstrapped returns from actual data
+                n_simulations = 10000
                 np.random.seed(42)
-                simulated_returns = np.random.normal(portfolio_returns.mean(), portfolio_returns.std(), 10000)
+                simulated_returns = np.random.choice(portfolio_returns, size=n_simulations, replace=True)
                 var_val = np.percentile(simulated_returns, var_percentile)
                 cvar_val = simulated_returns[simulated_returns <= var_val].mean()
             
-            # Only use calculated values if they are meaningful
-            if np.isnan(var_val) or np.isnan(cvar_val):
+            # Validate results
+            if var_val is not None and (np.isnan(var_val) or np.isnan(cvar_val)):
                 var_val = None
                 cvar_val = None
         else:
@@ -274,8 +281,13 @@ class RiskAnalyzer:
             cvar_val = None
         
         # Calculate accurate Beta using market data
-        beta_val = self._calculate_accurate_beta(available_symbols, available_weights, period)
-        print(f"Accurate Beta Calculation: {beta_val:.4f}")
+        benchmark_returns = returns[self.benchmark_symbol] if self.benchmark_symbol in returns.columns else pd.Series()
+        if not benchmark_returns.empty and len(portfolio_returns) > 30:
+            beta_val = self._calculate_accurate_beta(available_symbols, available_weights, period)
+            if beta_val is not None:
+                print(f"Accurate Beta Calculation: {beta_val:.4f}")
+        else:
+            beta_val = None
         
         # Calculate risk contribution with rolling window if specified
         if len(returns_subset) < 2:
@@ -331,7 +343,7 @@ class RiskAnalyzer:
             'benchmark': benchmark,
             'rolling_window': rolling_window,
             'sharpe_ratio': self._calculate_sharpe_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 30 else None,
-            'sortino_ratio': self._calculate_sortino_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 30 else 0.0,
+            'sortino_ratio': self._calculate_sortino_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 30 else None,
             'max_drawdown': self._safe_value(drawdown_metrics.get('max_drawdown', 0.0)),
             'current_drawdown': self._safe_value(drawdown_metrics.get('current_drawdown', 0.0)),
             'recovery_days': drawdown_metrics.get('recovery_days'),
@@ -613,13 +625,7 @@ class RiskAnalyzer:
             sortino = excess_return / downside_deviation
             print(f"Sortino Debug - Final Sortino: {sortino:.4f}")
             
-            # Cap extreme values
-            if sortino > 10.0:
-                print(f"Sortino Debug - Capping extreme value from {sortino:.4f} to 10.0")
-                return 10.0
-            elif sortino < -10.0:
-                print(f"Sortino Debug - Capping extreme value from {sortino:.4f} to -10.0")
-                return -10.0
+            # Remove artificial caps - use real calculated values
             
             return self._safe_value(sortino)
         

@@ -40,25 +40,42 @@ class YFinanceProvider(DataProvider):
     def __init__(self):
         self.rate_limiter = RateLimiter(60)
     
+    def _extract_underlying_symbol(self, options_symbol: str) -> Optional[str]:
+        """Extract underlying symbol from options contract"""
+        try:
+            import re
+            match = re.search(r'(\w+)(\d{6})[CP]\d+', options_symbol)
+            if match:
+                return match.group(1)
+        except:
+            pass
+        return None
+    
     def _filter_symbols(self, symbols: List[str]) -> List[str]:
-        """Filter out invalid symbols"""
-        valid_symbols = []
+        """Filter symbols and extract underlying symbols from options"""
+        valid_symbols = set()
+        
         for symbol in symbols:
             if not symbol or not isinstance(symbol, str):
                 continue
             
             symbol = symbol.strip().upper()
             
-            # Skip options contracts and delisted stocks
+            # Handle options contracts - extract underlying symbol
             if any(x in symbol for x in ['C00', 'P00']):
+                underlying = self._extract_underlying_symbol(symbol)
+                if underlying and underlying not in ['ACHN', 'CASH']:
+                    valid_symbols.add(underlying)
                 continue
             
+            # Skip delisted/invalid symbols
             if symbol in ['ACHN', 'CASH']:
                 continue
             
-            valid_symbols.append(symbol)
+            # Add regular stock symbols
+            valid_symbols.add(symbol)
         
-        return valid_symbols
+        return list(valid_symbols)
     
     def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
         try:
@@ -346,12 +363,29 @@ class MarketDataClient:
         return pd.DataFrame()
     
     def get_current_prices(self, symbols: List[str]) -> Dict[str, float]:
-        # Filter valid symbols
-        valid_symbols = self._filter_valid_symbols(symbols)
-        if not valid_symbols:
-            return {}
+        # Separate stocks and options
+        stock_symbols = []
+        options_symbols = []
+        
+        for symbol in symbols:
+            if any(x in symbol for x in ['C00', 'P00']):
+                options_symbols.append(symbol)
+            else:
+                stock_symbols.append(symbol)
+        
+        # Filter valid stock symbols
+        valid_symbols = self._filter_valid_symbols(stock_symbols)
         
         prices = {}
+        
+        # Get options prices first
+        if options_symbols:
+            options_prices = self.get_options_prices(options_symbols)
+            prices.update(options_prices)
+        
+        # Get stock prices
+        if not valid_symbols:
+            return prices
         
         # Method 1: Try YFinance Ticker.info for each symbol individually
         for symbol in valid_symbols:
@@ -404,27 +438,101 @@ class MarketDataClient:
         
         return prices
     
+    def _extract_underlying_symbol(self, options_symbol: str) -> Optional[str]:
+        """Extract underlying symbol from options contract"""
+        try:
+            # Options format: SYMBOL[YYMMDD][C/P][STRIKE]
+            # Find the date pattern (6 digits)
+            import re
+            match = re.search(r'(\w+)(\d{6})[CP]\d+', options_symbol)
+            if match:
+                return match.group(1)
+        except:
+            pass
+        return None
+    
+    def _is_valid_options_contract(self, symbol: str) -> bool:
+        """Validate options contract format"""
+        try:
+            import re
+            # Standard format: SYMBOL[YYMMDD][C/P][STRIKE]
+            # Example: AAPL251220C00150000
+            pattern = r'^[A-Z]{1,5}\d{6}[CP]\d{8}$'
+            return bool(re.match(pattern, symbol))
+        except:
+            return False
+    
+    def _is_valid_stock_symbol(self, symbol: str) -> bool:
+        """Validate stock symbol format"""
+        try:
+            import re
+            # Standard stock symbols: 1-5 letters, optional dot and suffix
+            # Examples: AAPL, BRK.A, BRK.B, GOOGL
+            pattern = r'^[A-Z]{1,5}(\.[A-Z]{1,2})?$'
+            return bool(re.match(pattern, symbol))
+        except:
+            return False
+    
     def _filter_valid_symbols(self, symbols: List[str]) -> List[str]:
-        """Filter out invalid symbols"""
-        valid_symbols = []
+        """Filter symbols and include both stocks and underlying symbols from options"""
+        valid_symbols = set()
+        
         for symbol in symbols:
             if not symbol or not isinstance(symbol, str):
                 continue
             
             symbol = symbol.strip().upper()
             
-            # Skip options contracts and delisted stocks
+            # Handle options contracts - add both options and underlying
             if any(x in symbol for x in ['C00', 'P00']):
-                logger.warning(f"Skipping options contract: {symbol}")
+                # Validate options contract format
+                if self._is_valid_options_contract(symbol):
+                    # Add the options contract itself
+                    valid_symbols.add(symbol)
+                    
+                    # Also add underlying symbol for analysis
+                    underlying = self._extract_underlying_symbol(symbol)
+                    if underlying and not any(underlying.startswith(p) for p in ['CUR:', 'CASH', 'USD']):
+                        valid_symbols.add(underlying)
+                        logger.info(f"Added both {symbol} and underlying {underlying}")
+                else:
+                    logger.warning(f"Invalid options contract format: {symbol}")
                 continue
             
-            if symbol in ['ACHN', 'CASH']:
-                logger.warning(f"Skipping delisted/invalid symbol: {symbol}")
+            # Skip various non-equity symbols
+            skip_patterns = [
+                'CUR:',     # Currencies (CUR:USD, CUR:EUR)
+                'CASH',     # Cash positions
+                'USD',      # Direct USD references
+                'FX:',      # Forex pairs
+                'CRYPTO:',  # Cryptocurrencies
+                'BOND:',    # Bonds
+                'FUND:',    # Mutual funds
+                'INDEX:',   # Index references
+                'COMMODITY:', # Commodities
+                'FUTURE:',  # Futures contracts
+                'WARRANT:', # Warrants
+            ]
+            
+            # Skip delisted/invalid symbols
+            skip_symbols = [
+                'ACHN', 'CASH', 'N/A', 'NULL', 'UNKNOWN',
+                'TBD', 'PENDING', 'TEMP', 'TEST'
+            ]
+            
+            if (any(symbol.startswith(pattern) for pattern in skip_patterns) or 
+                symbol in skip_symbols or 
+                len(symbol) < 1 or len(symbol) > 20):
+                logger.warning(f"Skipping non-equity/invalid symbol: {symbol}")
                 continue
             
-            valid_symbols.append(symbol)
+            # Add regular stock symbols (with validation)
+            if self._is_valid_stock_symbol(symbol):
+                valid_symbols.add(symbol)
+            else:
+                logger.warning(f"Invalid stock symbol format: {symbol}")
         
-        return valid_symbols
+        return list(valid_symbols)
     
     def get_options_chain(self, symbol: str) -> Optional[pd.DataFrame]:
         for provider in self.providers:
@@ -435,3 +543,72 @@ class MarketDataClient:
             except:
                 continue
         return None
+    
+    def get_options_prices(self, options_symbols: List[str]) -> Dict[str, float]:
+        """Get current prices for options contracts using Black-Scholes estimation"""
+        prices = {}
+        
+        for options_symbol in options_symbols:
+            if not any(x in options_symbol for x in ['C00', 'P00']):
+                continue
+                
+            try:
+                # Extract contract details
+                underlying = self._extract_underlying_symbol(options_symbol)
+                if not underlying:
+                    continue
+                
+                import re
+                match = re.search(r'(\w+)(\d{6})([CP])(\d+)', options_symbol)
+                if not match:
+                    continue
+                
+                exp_date = match.group(2)
+                option_type = match.group(3)
+                strike_raw = match.group(4)
+                
+                # Parse expiration date (YYMMDD)
+                exp_year = 2000 + int(exp_date[:2])
+                exp_month = int(exp_date[2:4])
+                exp_day = int(exp_date[4:6])
+                
+                # Parse strike price (remove leading zeros, divide by 1000)
+                strike_price = float(strike_raw.lstrip('0') or '0') / 1000
+                
+                # Get underlying stock price
+                underlying_prices = self.get_current_prices([underlying])
+                if underlying not in underlying_prices:
+                    continue
+                
+                stock_price = underlying_prices[underlying]
+                
+                # Calculate days to expiration
+                from datetime import date
+                exp_date_obj = date(exp_year, exp_month, exp_day)
+                days_to_exp = (exp_date_obj - date.today()).days
+                
+                if days_to_exp <= 0:
+                    # Expired option
+                    if option_type == 'C':
+                        option_price = max(0, stock_price - strike_price)
+                    else:
+                        option_price = max(0, strike_price - stock_price)
+                else:
+                    # Simple intrinsic + time value estimation
+                    if option_type == 'C':
+                        intrinsic = max(0, stock_price - strike_price)
+                        time_value = max(0.01, min(2.0, days_to_exp / 365 * stock_price * 0.2))
+                    else:
+                        intrinsic = max(0, strike_price - stock_price)
+                        time_value = max(0.01, min(2.0, days_to_exp / 365 * strike_price * 0.2))
+                    
+                    option_price = intrinsic + time_value
+                
+                prices[options_symbol] = round(option_price, 2)
+                logger.info(f"Estimated options price: {options_symbol} = ${option_price:.2f}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to price options contract {options_symbol}: {e}")
+                continue
+        
+        return prices

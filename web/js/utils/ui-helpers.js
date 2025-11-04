@@ -60,8 +60,8 @@ function showCardLoading(cardId, loadingText = 'Loading...') {
 }
 
 function showAllPortfolioCardLoading() {
-    showCardLoading('riskResults', 'Calculating risk metrics...');
-    showCardLoading('optionsResults', 'Scanning options strategies...');
+    // Risk metrics loading removed
+    // Options loading removed
     showCardLoading('optimizationChart', 'Optimizing portfolio...');
     showCardLoading('performanceAttribution', 'Analyzing performance...');
     showCardLoading('monteCarloResults', 'Running Monte Carlo simulation...');

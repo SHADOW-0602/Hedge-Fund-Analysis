@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Interactive Risk Metrics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">Interactive Risk Metrics Test</h1>
+        
+        <!-- Server Status -->
+        <div id="serverStatus" class="mb-4 p-3 rounded-lg bg-gray-100">
+            <span class="text-gray-600">Server Status: </span>
+            <span id="statusText" class="font-semibold">Checking...</span>
+        </div>
+        
+        <!-- Test Buttons -->
+        <div class="mb-4 space-x-2">
+            <button onclick="checkServerStatus()" class="bg-green-600 text-white px-4 py-2 rounded">
+                Check Server
+            </button>
+            <button onclick="testRiskAnalysis()" class="bg-blue-600 text-white px-4 py-2 rounded">
+                Test Risk Analysis
+            </button>
+            <button onclick="testOptionsAnalysis()" class="bg-purple-600 text-white px-4 py-2 rounded">
+                Test Options Analysis
+            </button>
+            <button onclick="testPerformanceAttribution()" class="bg-orange-600 text-white px-4 py-2 rounded">
+                Test Performance Attribution
+            </button>
+            <button onclick="testMonteCarloAnalysis()" class="bg-red-600 text-white px-4 py-2 rounded">
+                Test Monte Carlo
+            </button>
+        </div>
+        
+        <!-- Results Container -->
+        <div id="analysisContent" class="bg-white rounded-lg shadow-lg p-6 hidden"></div>
+    </div>
+
+    <script>
+        // Mock analytics core
+        window.analyticsCore = {
+            formatCurrency: (val) => val ? `$${val.toLocaleString()}` : 'N/A',
+            formatPercent: (val) => val ? `${(val * 100).toFixed(2)}%` : 'N/A',
+            formatNumber: (val) => val ? val.toFixed(2) : 'N/A',
+            riskSettings: null
+        };
+
+        // API Base URL - works for both localhost and deployed environments
+        const API_BASE = window.location.origin;
+        
+        // Sample portfolio data
+        const samplePortfolio = [
+            { symbol: 'AAPL', quantity: 100, avg_cost: 150.00 },
+            { symbol: 'MSFT', quantity: 50, avg_cost: 280.00 },
+            { symbol: 'GOOGL', quantity: 25, avg_cost: 2500.00 }
+        ];
+        
+        // Server status check
+        async function checkServerStatus() {
+            console.log('🔵 Checking server status...');
+            const statusText = document.getElementById('statusText');
+            const serverStatus = document.getElementById('serverStatus');
+            
+            statusText.textContent = 'Checking...';
+            serverStatus.className = 'mb-4 p-3 rounded-lg bg-yellow-100';
+            
+            try {
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ Server is running:', data);
+                    statusText.textContent = 'Online ✅';
+                    serverStatus.className = 'mb-4 p-3 rounded-lg bg-green-100';
+                } else {
+                    console.error('❌ Server responded with error:', response.status);
+                    statusText.textContent = `Error ${response.status} ❌`;
+                    serverStatus.className = 'mb-4 p-3 rounded-lg bg-red-100';
+                }
+            } catch (error) {
+                console.error('❌ Server connection failed:', error);
+                statusText.textContent = 'Offline ❌';
+                serverStatus.className = 'mb-4 p-3 rounded-lg bg-red-100';
+            }
+        }
+        
+        // Auto-check server on load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🔵 Page loaded, checking server status');
+            checkServerStatus();
+        });
+
+        // Test function
+        async function testRiskAnalysis() {
+            console.log('🔵 testRiskAnalysis called');
+            const container = document.getElementById('analysisContent');
+            container.classList.remove('hidden');
+            
+            // Show loading
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                    <p class="text-gray-600">Testing API call...</p>
+                </div>
+            `;
+
+            console.log('🔵 Making API call to:', `${API_BASE}/api/analyze-risk`);
+            console.log('🔵 Portfolio data:', samplePortfolio);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/analyze-risk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        portfolio: samplePortfolio,
+                        options: {
+                            period: '1Y',
+                            var_confidence: 0.95,
+                            risk_model: 'historical',
+                            benchmark: 'SPY',
+                            rolling_window: 252
+                        }
+                    })
+                });
+
+                console.log('🔵 Response status:', response.status);
+                const result = await response.json();
+                console.log('🔵 API Response:', result);
+                
+                if (result.success) {
+                    console.log('✅ API call successful, displaying results');
+                    displayRiskMetrics(result, {
+                        period: '1Y',
+                        var_confidence: 0.95,
+                        risk_model: 'historical',
+                        benchmark: 'SPY',
+                        rolling_window: 252
+                    });
+                } else {
+                    console.error('❌ API error:', result.error);
+                    container.innerHTML = `<div class="text-red-600">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                console.error('❌ Connection error:', error);
+                container.innerHTML = `
+                    <div class="text-red-600 p-4 border border-red-300 rounded-lg">
+                        <h3 class="font-bold mb-2">Connection Error</h3>
+                        <p class="mb-2">${error.message}</p>
+                        <div class="text-sm">
+                            <p class="mb-1">Troubleshooting:</p>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>Make sure Flask server is running: <code class="bg-gray-100 px-1 rounded">python app.py</code></li>
+                                <li>Check server is on port 8080</li>
+                                <li>Check browser console for CORS errors</li>
+                                <li>Click "Check Server" button above</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Test performance attribution
+        async function testPerformanceAttribution() {
+            console.log('🔵 testPerformanceAttribution called');
+            const container = document.getElementById('analysisContent');
+            container.classList.remove('hidden');
+            
+            // Get current settings from form
+            const period = document.getElementById('performancePeriod')?.value || '1Y';
+            const attributionModel = document.getElementById('performanceModel')?.value || 'brinson';
+            const benchmark = document.getElementById('performanceBenchmark')?.value || 'SPY';
+            const currency = document.getElementById('performanceCurrency')?.value || 'USD';
+            const frequency = document.getElementById('performanceFrequency')?.value || 'daily';
+            
+            const performanceParams = {
+                period,
+                attribution_model: attributionModel,
+                benchmark,
+                currency,
+                frequency
+            };
+            
+            // Show loading
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                    <p class="text-gray-600">Testing Performance Attribution API call...</p>
+                    <p class="text-sm text-gray-500 mt-2">Settings: ${JSON.stringify(performanceParams)}</p>
+                </div>
+            `;
+
+            console.log('🔵 Making API call to:', `${API_BASE}/api/performance-attribution`);
+            console.log('🔵 Portfolio data:', samplePortfolio);
+            console.log('🔵 Performance params:', performanceParams);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/performance-attribution`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        portfolio: samplePortfolio,
+                        options: performanceParams
+                    })
+                });
+
+                console.log('🔵 Response status:', response.status);
+                const result = await response.json();
+                console.log('🔵 API Response:', result);
+                
+                if (result.success) {
+                    console.log('✅ Performance Attribution API call successful, displaying results');
+                    displayPerformanceAttribution(result, performanceParams);
+                } else {
+                    console.error('❌ Performance Attribution API error:', result.error);
+                    container.innerHTML = `<div class="text-red-600">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                console.error('❌ Performance Attribution connection error:', error);
+                container.innerHTML = `
+                    <div class="text-red-600 p-4 border border-red-300 rounded-lg">
+                        <h3 class="font-bold mb-2">Performance Attribution Connection Error</h3>
+                        <p class="mb-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Test options analysis
+        async function testOptionsAnalysis() {
+            console.log('🔵 testOptionsAnalysis called');
+            const container = document.getElementById('analysisContent');
+            container.classList.remove('hidden');
+            
+            // Get current settings from form
+            const expiration = document.getElementById('optionsExpiration')?.value || '3M';
+            const moneyness = document.getElementById('optionsMoneyness')?.value || 'All';
+            const strategy = document.getElementById('optionsStrategy')?.value || 'All';
+            const minPremium = document.getElementById('optionsMinPremium')?.value || '0.50';
+            const deltaRange = document.getElementById('optionsDeltaRange')?.value || 'All';
+            
+            const optionsParams = {
+                expiration,
+                moneyness,
+                strategy,
+                min_premium: minPremium,
+                delta_range: deltaRange
+            };
+            
+            // Show loading
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                    <p class="text-gray-600">Testing Options API call...</p>
+                    <p class="text-sm text-gray-500 mt-2">Settings: ${JSON.stringify(optionsParams)}</p>
+                </div>
+            `;
+
+            console.log('🔵 Making API call to:', `${API_BASE}/api/scan-options`);
+            console.log('🔵 Portfolio data:', samplePortfolio);
+            console.log('🔵 Options params:', optionsParams);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/scan-options`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        portfolio: samplePortfolio,
+                        options: optionsParams
+                    })
+                });
+
+                console.log('🔵 Response status:', response.status);
+                const result = await response.json();
+                console.log('🔵 API Response:', result);
+                
+                if (result.success) {
+                    console.log('✅ Options API call successful, displaying results');
+                    displayOptionsStrategies(result, optionsParams);
+                } else {
+                    console.error('❌ Options API error:', result.error);
+                    container.innerHTML = `<div class="text-red-600">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                console.error('❌ Options connection error:', error);
+                container.innerHTML = `
+                    <div class="text-red-600 p-4 border border-red-300 rounded-lg">
+                        <h3 class="font-bold mb-2">Options Connection Error</h3>
+                        <p class="mb-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Toggle options settings
+        function toggleOptionsSettings() {
+            const settings = document.getElementById('optionsSettings');
+            if (settings) {
+                settings.classList.toggle('hidden');
+            }
+        }
+        
+        // Toggle performance settings
+        function togglePerformanceSettings() {
+            const settings = document.getElementById('performanceSettings');
+            if (settings) {
+                settings.classList.toggle('hidden');
+            }
+        }
+        
+        // Toggle Monte Carlo settings
+        function toggleMonteCarloSettings() {
+            const settings = document.getElementById('monteCarloSettings');
+            if (settings) {
+                settings.classList.toggle('hidden');
+            }
+        }
+        
+        // Test Monte Carlo analysis
+        async function testMonteCarloAnalysis() {
+            console.log('🔵 testMonteCarloAnalysis called');
+            const container = document.getElementById('analysisContent');
+            container.classList.remove('hidden');
+            
+            // Get current settings from form
+            const forecastPeriod = document.getElementById('mcForecastPeriod')?.value || '3M';
+            const simulations = parseInt(document.getElementById('mcSimulations')?.value) || 10000;
+            const confidenceIntervals = parseFloat(document.getElementById('mcConfidenceIntervals')?.value) || 0.95;
+            const marketRegime = document.getElementById('mcMarketRegime')?.value || 'normal';
+            const volatilityAdjustment = parseFloat(document.getElementById('mcVolatilityAdjustment')?.value) || 0.0;
+            
+            const monteCarloParams = {
+                forecast_period: forecastPeriod,
+                simulations: simulations,
+                confidence_intervals: confidenceIntervals,
+                market_regime: marketRegime,
+                volatility_adjustment: volatilityAdjustment
+            };
+            
+            // Show loading
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                    <p class="text-gray-600">Testing Monte Carlo API call...</p>
+                    <p class="text-sm text-gray-500 mt-2">Settings: ${JSON.stringify(monteCarloParams)}</p>
+                </div>
+            `;
+
+            console.log('🔵 Making API call to:', `${API_BASE}/api/monte-carlo`);
+            console.log('🔵 Portfolio data:', samplePortfolio);
+            console.log('🔵 Monte Carlo params:', monteCarloParams);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/monte-carlo`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        portfolio: samplePortfolio,
+                        options: monteCarloParams
+                    })
+                });
+
+                console.log('🔵 Response status:', response.status);
+                const result = await response.json();
+                console.log('🔵 API Response:', result);
+                
+                if (result.success) {
+                    console.log('✅ Monte Carlo API call successful, displaying results');
+                    displayMonteCarloResults(result, monteCarloParams);
+                } else {
+                    console.error('❌ Monte Carlo API error:', result.error);
+                    container.innerHTML = `<div class="text-red-600">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                console.error('❌ Monte Carlo connection error:', error);
+                container.innerHTML = `
+                    <div class="text-red-600 p-4 border border-red-300 rounded-lg">
+                        <h3 class="font-bold mb-2">Monte Carlo Connection Error</h3>
+                        <p class="mb-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Display Monte Carlo results
+        function displayMonteCarloResults(result, options) {
+            console.log('🔵 displayMonteCarloResults called');
+            console.log('🔵 Result:', result);
+            console.log('🔵 Options:', options);
+            
+            const container = document.getElementById('analysisContent');
+            const results = result.results || {};
+            
+            // Get current settings
+            const currentPeriod = options?.forecast_period || '3M';
+            const currentSimulations = options?.simulations || 10000;
+            const currentConfidence = options?.confidence_intervals || 0.95;
+            const currentRegime = options?.market_regime || 'normal';
+            const currentVolatility = options?.volatility_adjustment || 0.0;
+            
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Monte Carlo Simulation Test Results</h2>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="toggleMonteCarloSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                            Settings
+                        </button>
+                        <button onclick="testMonteCarloAnalysis()" class="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition-colors text-sm">
+                            Run Simulation
+                        </button>
+                        <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Monte Carlo Settings Panel -->
+                <div id="monteCarloSettings" class="bg-gray-50 rounded-lg p-4 mb-6 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Forecast Period</label>
+                            <select id="mcForecastPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testMonteCarloAnalysis()">
+                                <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                                <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                                <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                                <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                                <option value="2Y" ${currentPeriod === '2Y' ? 'selected' : ''}>2 Years</option>
+                                <option value="5Y" ${currentPeriod === '5Y' ? 'selected' : ''}>5 Years</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Simulations</label>
+                            <select id="mcSimulations" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testMonteCarloAnalysis()">
+                                <option value="1000" ${currentSimulations === 1000 ? 'selected' : ''}>1K</option>
+                                <option value="5000" ${currentSimulations === 5000 ? 'selected' : ''}>5K</option>
+                                <option value="10000" ${currentSimulations === 10000 ? 'selected' : ''}>10K</option>
+                                <option value="50000" ${currentSimulations === 50000 ? 'selected' : ''}>50K</option>
+                                <option value="100000" ${currentSimulations === 100000 ? 'selected' : ''}>100K</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Confidence Intervals</label>
+                            <select id="mcConfidenceIntervals" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testMonteCarloAnalysis()">
+                                <option value="0.80" ${currentConfidence === 0.80 ? 'selected' : ''}>80%</option>
+                                <option value="0.90" ${currentConfidence === 0.90 ? 'selected' : ''}>90%</option>
+                                <option value="0.95" ${currentConfidence === 0.95 ? 'selected' : ''}>95%</option>
+                                <option value="0.99" ${currentConfidence === 0.99 ? 'selected' : ''}>99%</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Market Regime</label>
+                            <select id="mcMarketRegime" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testMonteCarloAnalysis()">
+                                <option value="bull" ${currentRegime === 'bull' ? 'selected' : ''}>Bull (+20%)</option>
+                                <option value="normal" ${currentRegime === 'normal' ? 'selected' : ''}>Normal (0%)</option>
+                                <option value="bear" ${currentRegime === 'bear' ? 'selected' : ''}>Bear (-20%)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Volatility Adjustment</label>
+                            <select id="mcVolatilityAdjustment" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testMonteCarloAnalysis()">
+                                <option value="-0.5" ${currentVolatility === -0.5 ? 'selected' : ''}>-50%</option>
+                                <option value="0.0" ${currentVolatility === 0.0 ? 'selected' : ''}>Normal</option>
+                                <option value="0.5" ${currentVolatility === 0.5 ? 'selected' : ''}>+50%</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-6">
+                    <!-- Simulation Summary -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-1">Expected Return</h4>
+                            <p class="text-2xl font-bold ${(results.expected_return || 0) > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatPercent(results.expected_return || 0)}</p>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-1">Volatility</h4>
+                            <p class="text-2xl font-bold text-gray-600">${window.analyticsCore.formatPercent(results.volatility || 0)}</p>
+                        </div>
+                        <div class="bg-red-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-1">Max Drawdown</h4>
+                            <p class="text-2xl font-bold text-red-600">${window.analyticsCore.formatPercent(Math.abs(results.max_drawdown || 0))}</p>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-1">Sharpe Ratio</h4>
+                            <p class="text-2xl font-bold ${(results.sharpe_ratio || 0) > 1 ? 'text-green-600' : (results.sharpe_ratio || 0) > 0 ? 'text-gray-600' : 'text-red-600'}">${window.analyticsCore.formatNumber(results.sharpe_ratio || 0)}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Risk Metrics -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-3">
+                            <h4 class="text-lg font-semibold text-gray-900">Simulation Results</h4>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">Mean Final Value</span>
+                                <span class="font-semibold">${window.analyticsCore.formatNumber(results.mean_final_value || 1.0)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">95th Percentile</span>
+                                <span class="font-semibold text-green-600">${window.analyticsCore.formatPercent(results.percentile_95 || 0)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">5th Percentile</span>
+                                <span class="font-semibold text-red-600">${window.analyticsCore.formatPercent(results.percentile_5 || 0)}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">Probability of Loss</span>
+                                <span class="font-semibold ${(results.probability_loss || 0) > 0.3 ? 'text-red-600' : 'text-gray-600'}">${window.analyticsCore.formatPercent(results.probability_loss || 0)}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <h4 class="text-lg font-semibold text-gray-900">Confidence Intervals</h4>
+                            ${results.confidence_intervals ? Object.entries(results.confidence_intervals).map(([level, bounds]) => `
+                                <div class="flex justify-between">
+                                    <span class="text-gray-700">${level} Confidence</span>
+                                    <span class="font-semibold">${window.analyticsCore.formatPercent(bounds.lower)} to ${window.analyticsCore.formatPercent(bounds.upper)}</span>
+                                </div>
+                            `).join('') : '<p class="text-gray-500">No confidence intervals available</p>'}
+                        </div>
+                    </div>
+                    
+                    <!-- Simulation Parameters -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="text-lg font-semibold text-gray-900 mb-2">Simulation Parameters</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                            <div><span class="text-gray-600">Period:</span> <span class="font-medium">${currentPeriod}</span></div>
+                            <div><span class="text-gray-600">Simulations:</span> <span class="font-medium">${currentSimulations.toLocaleString()}</span></div>
+                            <div><span class="text-gray-600">Confidence:</span> <span class="font-medium">${(currentConfidence * 100).toFixed(0)}%</span></div>
+                            <div><span class="text-gray-600">Market Regime:</span> <span class="font-medium">${currentRegime}</span></div>
+                            <div><span class="text-gray-600">Vol Adjustment:</span> <span class="font-medium">${currentVolatility > 0 ? '+' : ''}${(currentVolatility * 100).toFixed(0)}%</span></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Display performance attribution
+        function displayPerformanceAttribution(result, options) {
+            console.log('🔵 displayPerformanceAttribution called');
+            console.log('🔵 Result:', result);
+            console.log('🔵 Options:', options);
+            
+            const container = document.getElementById('analysisContent');
+            const attribution = result.attribution || result;
+            
+            // Get current settings
+            const currentPeriod = options?.period || '1Y';
+            const currentModel = options?.attribution_model || 'brinson';
+            const currentBenchmark = options?.benchmark || 'SPY';
+            const currentCurrency = options?.currency || 'USD';
+            const currentFrequency = options?.frequency || 'daily';
+            
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Performance Attribution Test Results</h2>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="togglePerformanceSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                            Settings
+                        </button>
+                        <button onclick="testPerformanceAttribution()" class="bg-orange-600 text-white px-3 py-1 rounded-lg hover:bg-orange-700 transition-colors text-sm">
+                            Refresh
+                        </button>
+                        <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Performance Attribution Settings Panel -->
+                <div id="performanceSettings" class="bg-gray-50 rounded-lg p-4 mb-6 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                            <select id="performancePeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testPerformanceAttribution()">
+                                <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                                <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                                <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                                <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                                <option value="YTD" ${currentPeriod === 'YTD' ? 'selected' : ''}>Year to Date</option>
+                                <option value="ITD" ${currentPeriod === 'ITD' ? 'selected' : ''}>Inception to Date</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Attribution Model</label>
+                            <select id="performanceModel" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testPerformanceAttribution()">
+                                <option value="brinson" ${currentModel === 'brinson' ? 'selected' : ''}>Brinson</option>
+                                <option value="factor" ${currentModel === 'factor' ? 'selected' : ''}>Factor-based</option>
+                                <option value="holdings" ${currentModel === 'holdings' ? 'selected' : ''}>Holdings-based</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                            <select id="performanceBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testPerformanceAttribution()">
+                                <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
+                                <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>NASDAQ (QQQ)</option>
+                                <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
+                                <option value="VTI" ${currentBenchmark === 'VTI' ? 'selected' : ''}>Total Stock Market (VTI)</option>
+                                <option value="EFA" ${currentBenchmark === 'EFA' ? 'selected' : ''}>EAFE (EFA)</option>
+                                <option value="EEM" ${currentBenchmark === 'EEM' ? 'selected' : ''}>Emerging Markets (EEM)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                            <select id="performanceCurrency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testPerformanceAttribution()">
+                                <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>USD</option>
+                                <option value="EUR" ${currentCurrency === 'EUR' ? 'selected' : ''}>EUR</option>
+                                <option value="GBP" ${currentCurrency === 'GBP' ? 'selected' : ''}>GBP</option>
+                                <option value="MULTI" ${currentCurrency === 'MULTI' ? 'selected' : ''}>Multi-currency</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                            <select id="performanceFrequency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testPerformanceAttribution()">
+                                <option value="daily" ${currentFrequency === 'daily' ? 'selected' : ''}>Daily</option>
+                                <option value="weekly" ${currentFrequency === 'weekly' ? 'selected' : ''}>Weekly</option>
+                                <option value="monthly" ${currentFrequency === 'monthly' ? 'selected' : ''}>Monthly</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-3">
+                        <h4 class="text-lg font-semibold text-gray-900">Attribution Effects</h4>
+                        <div class="flex justify-between">
+                            <span class="text-gray-700">Asset Allocation</span>
+                            <span class="font-semibold ${(attribution.asset_allocation || 0) > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatPercent((attribution.asset_allocation || 0) / 100)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-700">Security Selection</span>
+                            <span class="font-semibold ${(attribution.security_selection || 0) > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatPercent((attribution.security_selection || 0) / 100)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-700">Interaction Effect</span>
+                            <span class="font-semibold text-gray-600">${window.analyticsCore.formatPercent((attribution.interaction_effect || 0) / 100)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-700">Currency Effect</span>
+                            <span class="font-semibold ${(attribution.currency_effect || 0) > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatPercent((attribution.currency_effect || 0) / 100)}</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <h4 class="text-lg font-semibold text-gray-900">Performance Summary</h4>
+                        <div class="flex justify-between">
+                            <span class="text-gray-700">Portfolio Return</span>
+                            <span class="font-semibold ${(attribution.portfolio_return || 0) > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatPercent((attribution.portfolio_return || 0) / 100)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-700">Benchmark Return</span>
+                            <span class="font-semibold text-gray-600">${window.analyticsCore.formatPercent((attribution.benchmark_return || 0) / 100)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-700">Active Return</span>
+                            <span class="font-semibold ${(attribution.active_return || 0) > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatPercent((attribution.active_return || 0) / 100)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-700">Market Timing</span>
+                            <span class="font-semibold ${(attribution.market_timing || 0) > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatPercent((attribution.market_timing || 0) / 100)}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Analysis Parameters -->
+                <div class="bg-gray-50 p-4 rounded-lg mt-6">
+                    <h4 class="text-lg font-semibold text-gray-900 mb-2">Analysis Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                        <div><span class="text-gray-600">Period:</span> <span class="font-medium">${currentPeriod}</span></div>
+                        <div><span class="text-gray-600">Model:</span> <span class="font-medium">${currentModel}</span></div>
+                        <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium">${currentBenchmark}</span></div>
+                        <div><span class="text-gray-600">Currency:</span> <span class="font-medium">${currentCurrency}</span></div>
+                        <div><span class="text-gray-600">Frequency:</span> <span class="font-medium">${currentFrequency}</span></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Display functions
+        function displayOptionsStrategies(result, options) {
+            console.log('🔵 displayOptionsStrategies called');
+            console.log('🔵 Result:', result);
+            console.log('🔵 Options:', options);
+            
+            const container = document.getElementById('analysisContent');
+            const opportunities = result.opportunities || [];
+            const summary = result.summary || {};
+            
+            // Get current settings
+            const currentExpiration = options?.expiration || '3M';
+            const currentMoneyness = options?.moneyness || 'All';
+            const currentStrategy = options?.strategy || 'All';
+            const currentMinPremium = options?.min_premium || '0.50';
+            const currentDeltaRange = options?.delta_range || 'All';
+            
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Options Strategies Test Results</h2>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="toggleOptionsSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                            Settings
+                        </button>
+                        <button onclick="testOptionsAnalysis()" class="bg-purple-600 text-white px-3 py-1 rounded-lg hover:bg-purple-700 transition-colors text-sm">
+                            Refresh
+                        </button>
+                        <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Options Settings Panel -->
+                <div id="optionsSettings" class="bg-gray-50 rounded-lg p-4 mb-6 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Expiration</label>
+                            <select id="optionsExpiration" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testOptionsAnalysis()">
+                                <option value="1M" ${currentExpiration === '1M' ? 'selected' : ''}>1 Month</option>
+                                <option value="2M" ${currentExpiration === '2M' ? 'selected' : ''}>2 Months</option>
+                                <option value="3M" ${currentExpiration === '3M' ? 'selected' : ''}>3 Months</option>
+                                <option value="6M" ${currentExpiration === '6M' ? 'selected' : ''}>6 Months</option>
+                                <option value="1Y" ${currentExpiration === '1Y' ? 'selected' : ''}>1 Year</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Moneyness</label>
+                            <select id="optionsMoneyness" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testOptionsAnalysis()">
+                                <option value="All" ${currentMoneyness === 'All' ? 'selected' : ''}>All</option>
+                                <option value="ITM" ${currentMoneyness === 'ITM' ? 'selected' : ''}>ITM</option>
+                                <option value="ATM" ${currentMoneyness === 'ATM' ? 'selected' : ''}>ATM</option>
+                                <option value="OTM" ${currentMoneyness === 'OTM' ? 'selected' : ''}>OTM</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Strategy Filter</label>
+                            <select id="optionsStrategy" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testOptionsAnalysis()">
+                                <option value="All" ${currentStrategy === 'All' ? 'selected' : ''}>All</option>
+                                <option value="CoveredCalls" ${currentStrategy === 'CoveredCalls' ? 'selected' : ''}>Covered Calls</option>
+                                <option value="ProtectivePuts" ${currentStrategy === 'ProtectivePuts' ? 'selected' : ''}>Protective Puts</option>
+                                <option value="Spreads" ${currentStrategy === 'Spreads' ? 'selected' : ''}>Spreads</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Min Premium</label>
+                            <select id="optionsMinPremium" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testOptionsAnalysis()">
+                                <option value="0.50" ${currentMinPremium === '0.50' ? 'selected' : ''}>$0.50</option>
+                                <option value="1.00" ${currentMinPremium === '1.00' ? 'selected' : ''}>$1.00</option>
+                                <option value="2.00" ${currentMinPremium === '2.00' ? 'selected' : ''}>$2.00</option>
+                                <option value="5.00" ${currentMinPremium === '5.00' ? 'selected' : ''}>$5.00</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Delta Range</label>
+                            <select id="optionsDeltaRange" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="testOptionsAnalysis()">
+                                <option value="All" ${currentDeltaRange === 'All' ? 'selected' : ''}>All</option>
+                                <option value="0.1-0.3" ${currentDeltaRange === '0.1-0.3' ? 'selected' : ''}>0.1-0.3</option>
+                                <option value="0.3-0.7" ${currentDeltaRange === '0.3-0.7' ? 'selected' : ''}>0.3-0.7</option>
+                                <option value="0.7-1.0" ${currentDeltaRange === '0.7-1.0' ? 'selected' : ''}>0.7-1.0</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-blue-800">Covered Calls</h4>
+                            <p class="text-2xl font-bold text-blue-600">${opportunities.filter(o => o.strategy === 'covered_calls').length}</p>
+                            <p class="text-sm text-blue-600">Premium: ${window.analyticsCore.formatCurrency(opportunities.filter(o => o.strategy === 'covered_calls').reduce((sum, o) => sum + (o.premium || 0), 0))}</p>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-green-800">Protective Puts</h4>
+                            <p class="text-2xl font-bold text-green-600">${opportunities.filter(o => o.strategy === 'protective_puts').length}</p>
+                            <p class="text-sm text-green-600">Cost: ${window.analyticsCore.formatCurrency(opportunities.filter(o => o.strategy === 'protective_puts').reduce((sum, o) => sum + (o.premium || 0), 0))}</p>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-purple-800">Iron Condors</h4>
+                            <p class="text-2xl font-bold text-purple-600">${opportunities.filter(o => o.strategy === 'iron_condors').length}</p>
+                            <p class="text-sm text-purple-600">Premium: ${window.analyticsCore.formatCurrency(opportunities.filter(o => o.strategy === 'iron_condors').reduce((sum, o) => sum + (o.premium || 0), 0))}</p>
+                        </div>
+                    </div>
+                    ${opportunities.length > 0 ? `
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Strategy</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Strike</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Premium</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Delta</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${opportunities.slice(0, 10).map(opp => `
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${opp.symbol}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${opp.strategy}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${window.analyticsCore.formatCurrency(opp.strike)}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">${window.analyticsCore.formatCurrency(opp.premium)}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${opp.delta ? window.analyticsCore.formatNumber(opp.delta) : 'N/A'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : '<p class="text-gray-500 text-center py-4">No options opportunities found</p>'}
+                </div>
+            `;
+        }
+        
+        function displayRiskMetrics(result, options) {
+            console.log('🔵 displayRiskMetrics called');
+            console.log('🔵 Result:', result);
+            console.log('🔵 Options:', options);
+            
+            const container = document.getElementById('analysisContent');
+            const metrics = result.risk_metrics || {};
+            console.log('🔵 Metrics:', metrics);
+            
+            const currentPeriod = options?.period || metrics.period;
+            const currentConfidence = options?.var_confidence || metrics.var_confidence;
+            const currentModel = options?.risk_model || metrics.risk_model;
+            const currentBenchmark = options?.benchmark || metrics.benchmark;
+            const currentWindow = options?.rolling_window || metrics.rolling_window;
+            
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Risk Metrics Analysis</h2>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="toggleRiskSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                            Settings
+                        </button>
+                        <button onclick="updateRiskAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm">
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Risk Settings Panel -->
+                <div id="riskSettings" class="bg-gray-50 rounded-lg p-4 mb-6 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
+                            <select id="riskPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="console.log('Period changed to:', this.value); updateRiskAnalysis();">
+                                <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                                <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                                <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                                <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                                <option value="2Y" ${currentPeriod === '2Y' ? 'selected' : ''}>2 Years</option>
+                                <option value="3Y" ${currentPeriod === '3Y' ? 'selected' : ''}>3 Years</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">VaR Confidence</label>
+                            <select id="riskVarConfidence" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="console.log('Confidence changed to:', this.value); updateRiskAnalysis();">
+                                <option value="0.90" ${currentConfidence === 0.90 ? 'selected' : ''}>90%</option>
+                                <option value="0.95" ${currentConfidence === 0.95 ? 'selected' : ''}>95%</option>
+                                <option value="0.99" ${currentConfidence === 0.99 ? 'selected' : ''}>99%</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Risk Model</label>
+                            <select id="riskModel" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="console.log('Model changed to:', this.value); updateRiskAnalysis();">
+                                <option value="historical" ${currentModel === 'historical' ? 'selected' : ''}>Historical</option>
+                                <option value="monte_carlo" ${currentModel === 'monte_carlo' ? 'selected' : ''}>Monte Carlo</option>
+                                <option value="parametric" ${currentModel === 'parametric' ? 'selected' : ''}>Parametric</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                            <select id="riskBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="console.log('Benchmark changed to:', this.value); updateRiskAnalysis();">
+                                <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500</option>
+                                <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>NASDAQ</option>
+                                <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Rolling Window</label>
+                            <select id="riskRollingWindow" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="console.log('Window changed to:', this.value); updateRiskAnalysis();">
+                                <option value="30" ${currentWindow === 30 ? 'selected' : ''}>30 days</option>
+                                <option value="60" ${currentWindow === 60 ? 'selected' : ''}>60 days</option>
+                                <option value="90" ${currentWindow === 90 ? 'selected' : ''}>90 days</option>
+                                <option value="252" ${currentWindow === 252 ? 'selected' : ''}>252 days</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-6">
+                    <!-- Portfolio Summary -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-1">Portfolio Value</h4>
+                            <p class="text-2xl font-bold text-blue-600">${metrics.portfolio_value ? window.analyticsCore.formatCurrency(metrics.portfolio_value) : 'N/A'}</p>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-1">Positions</h4>
+                            <p class="text-2xl font-bold text-green-600">${metrics.num_positions || 'N/A'}</p>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-1">Symbols Analyzed</h4>
+                            <p class="text-2xl font-bold text-purple-600">${metrics.symbols_analyzed?.length || 'N/A'}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Risk Metrics -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-3">
+                            <h4 class="text-lg font-semibold text-gray-900">Volatility & Risk</h4>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">Portfolio Volatility</span>
+                                <span class="font-semibold">${metrics.portfolio_volatility ? window.analyticsCore.formatPercent(metrics.portfolio_volatility) : 'N/A'}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">VaR (${currentConfidence ? (currentConfidence * 100).toFixed(0) : '95'}%)</span>
+                                <span class="font-semibold text-red-600">${metrics.var_95 !== null && metrics.var_95 !== undefined ? window.analyticsCore.formatPercent(Math.abs(metrics.var_95)) : 'N/A'}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">Max Drawdown</span>
+                                <span class="font-semibold text-red-600">${metrics.max_drawdown ? window.analyticsCore.formatPercent(Math.abs(metrics.max_drawdown)) : 'N/A'}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <h4 class="text-lg font-semibold text-gray-900">Performance Ratios</h4>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">Sharpe Ratio</span>
+                                <span class="font-semibold">${metrics.sharpe_ratio !== null && metrics.sharpe_ratio !== undefined ? window.analyticsCore.formatNumber(metrics.sharpe_ratio) : 'N/A'}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">Beta (vs ${currentBenchmark || 'Benchmark'})</span>
+                                <span class="font-semibold">${metrics.beta !== null && metrics.beta !== undefined ? window.analyticsCore.formatNumber(metrics.beta) : 'N/A'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Analysis Parameters -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="text-lg font-semibold text-gray-900 mb-2">Analysis Parameters</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div><span class="text-gray-600">Period:</span> <span class="font-medium">${currentPeriod || 'N/A'}</span></div>
+                            <div><span class="text-gray-600">Risk Model:</span> <span class="font-medium">${currentModel || 'N/A'}</span></div>
+                            <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium">${currentBenchmark || 'N/A'}</span></div>
+                            <div><span class="text-gray-600">Window:</span> <span class="font-medium">${currentWindow || 'N/A'} days</span></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Interactive functions
+        function toggleRiskSettings() {
+            console.log('🔵 toggleRiskSettings called');
+            const settings = document.getElementById('riskSettings');
+            if (settings) {
+                settings.classList.toggle('hidden');
+                console.log('🔵 Settings panel toggled, hidden:', settings.classList.contains('hidden'));
+            } else {
+                console.error('❌ riskSettings element not found');
+            }
+        }
+
+        async function updateRiskAnalysis() {
+            console.log('🔵 updateRiskAnalysis called');
+            
+            const period = document.getElementById('riskPeriod')?.value;
+            const varConfidence = parseFloat(document.getElementById('riskVarConfidence')?.value);
+            const riskModel = document.getElementById('riskModel')?.value;
+            const benchmark = document.getElementById('riskBenchmark')?.value;
+            const rollingWindow = parseInt(document.getElementById('riskRollingWindow')?.value);
+            
+            console.log('🔵 Current settings:', { period, varConfidence, riskModel, benchmark, rollingWindow });
+            
+            if (!period || !varConfidence || !riskModel || !benchmark || !rollingWindow) {
+                console.error('❌ Missing settings');
+                alert('Please select all settings');
+                return;
+            }
+
+            const container = document.getElementById('analysisContent');
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                    <p class="text-gray-600">Updating with new settings...</p>
+                </div>
+            `;
+
+            console.log('🔵 Making refresh API call with new settings');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/analyze-risk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        portfolio: samplePortfolio,
+                        options: {
+                            period,
+                            var_confidence: varConfidence,
+                            risk_model: riskModel,
+                            benchmark,
+                            rolling_window: rollingWindow
+                        }
+                    })
+                });
+
+                console.log('🔵 Refresh response status:', response.status);
+                const result = await response.json();
+                console.log('🔵 Refresh API Response:', result);
+                
+                if (result.success) {
+                    console.log('✅ Refresh successful, updating display');
+                    displayRiskMetrics(result, {
+                        period,
+                        var_confidence: varConfidence,
+                        risk_model: riskModel,
+                        benchmark,
+                        rolling_window: rollingWindow
+                    });
+                } else {
+                    console.error('❌ Refresh API error:', result.error);
+                    container.innerHTML = `<div class="text-red-600">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                console.error('❌ Refresh connection error:', error);
+                container.innerHTML = `<div class="text-red-600">Connection Error: ${error.message}</div>`;
+            }
+        }
+        
+        function hideAnalysisContent() {
+            const container = document.getElementById('analysisContent');
+            if (container) {
+                container.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

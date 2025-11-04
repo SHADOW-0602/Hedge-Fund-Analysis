@@ -11,7 +11,7 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
     @app.route('/api/upload-portfolio', methods=['POST'])
     def upload_portfolio():
         try:
-            print(f"2025-10-26 16:55:43,000 - hedge_fund_app - INFO - Received portfolio file upload request")
+            print(f"hedge_fund_app - INFO - Received portfolio file upload request")
             if 'file' not in request.files:
                 return jsonify({'success': False, 'error': 'No file uploaded'}), 400
             
@@ -45,14 +45,14 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
             df = normalize_portfolio_format(df)
             portfolio_data = df.to_dict('records')
             
-            print(f"2025-10-26 16:55:43,500 - hedge_fund_app - INFO - Portfolio file upload completed successfully")
+            print(f"hedge_fund_app - INFO - Portfolio file upload completed successfully")
             return jsonify({
                 'success': True,
                 'portfolio': portfolio_data,
                 'filename': file.filename
             })
         except Exception as e:
-            print(f"2025-10-26 16:55:43,600 - hedge_fund_app - ERROR - Portfolio upload failed: {str(e)}")
+            print(f"hedge_fund_app - ERROR - Portfolio upload failed: {str(e)}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/save-portfolio', methods=['POST'])

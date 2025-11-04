@@ -103,7 +103,7 @@ class MonteCarloEngine:
             }
         
         # Calculate returns
-        returns = price_data.pct_change().dropna()
+        returns = price_data.pct_change(fill_method=None).dropna()
         
         # Ensure we have returns data
         if returns.empty:
@@ -172,7 +172,7 @@ class MonteCarloEngine:
         regime_adj = regime_adjustments.get(market_regime.lower(), 0.0)
         
         # Apply volatility adjustment (-50%, normal, +50%)
-        vol_multiplier = 1.0 + volatility_adjustment
+        vol_multiplier = max(0.1, 1.0 + volatility_adjustment)  # Ensure positive multiplier
         
         # Calculate portfolio statistics with error handling
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -352,7 +352,7 @@ class MonteCarloEngine:
         
         # Get historical data
         price_data = self.data_client.get_price_data(symbols, "2y")
-        returns = price_data.pct_change().dropna()
+        returns = price_data.pct_change(fill_method=None).dropna()
         
         # Filter symbols that have data and weights
         available_symbols = [s for s in symbols if s in returns.columns and s in weights]

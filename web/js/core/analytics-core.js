@@ -9,12 +9,15 @@ class AnalyticsCore {
     // Generic API call handler
     async callAPI(endpoint, data, options = {}) {
         try {
+            console.log(`Making API call to ${endpoint} with data:`, data);
             const response = await fetch(`${this.apiBase}/api/${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...data, options })
             });
-            return await response.json();
+            const result = await response.json();
+            console.log(`API response from ${endpoint}:`, result);
+            return result;
         } catch (error) {
             console.error(`API call failed for ${endpoint}:`, error);
             return { success: false, error: error.message };
@@ -122,8 +125,51 @@ class AnalyticsCore {
             return;
         }
         
-        const options = settingsId ? this.getFormOptions(settingsId) : {};
-        const result = await this.callAPI(endpoint, { portfolio: portfolioData }, options);
+        // Get options from settings form or stored settings
+        let options = settingsId ? this.getFormOptions(settingsId) : {};
+        
+        // For risk analysis, use stored settings if available
+        if (endpoint === 'analyze-risk' && this.riskSettings) {
+            options = { ...options, ...this.riskSettings };
+            console.log('Using risk settings:', this.riskSettings);
+        }
+        
+        // For options analysis, use stored settings if available
+        if (endpoint === 'scan-options' && this.optionsSettings) {
+            options = { ...options, ...this.optionsSettings };
+            console.log('Using options settings:', this.optionsSettings);
+        }
+        
+        // For performance attribution, use stored settings if available
+        if (endpoint === 'performance-attribution' && this.performanceSettings) {
+            options = { ...options, ...this.performanceSettings };
+            console.log('Using performance settings:', this.performanceSettings);
+        }
+        
+        // For Monte Carlo, use stored settings if available
+        if (endpoint === 'monte-carlo' && this.monteCarloSettings) {
+            options = { ...options, ...this.monteCarloSettings };
+            console.log('Using Monte Carlo settings:', this.monteCarloSettings);
+        }
+        
+        // Filter out options contracts and currency symbols for options analysis
+        let filteredData = portfolioData;
+        if (endpoint === 'scan-options') {
+            filteredData = portfolioData.filter(item => {
+                const symbol = item.symbol;
+                // Filter out options contracts (contain dates/strikes) and currency symbols
+                return symbol && 
+                       !symbol.startsWith('CUR:') && 
+                       !symbol.includes('C00') && 
+                       !symbol.includes('P00') && 
+                       !/\d{6}[CP]\d{8}/.test(symbol) && 
+                       symbol.length <= 5;
+            });
+            console.log(`Filtered ${portfolioData.length} items to ${filteredData.length} valid stock symbols for options:`, filteredData.map(p => p.symbol));
+        }
+        
+        console.log(`Sending ${filteredData.length} portfolio items to ${endpoint}:`, filteredData.map(p => p.symbol));
+        const result = await this.callAPI(endpoint, { portfolio: filteredData }, options);
         
         if (result.success) {
             displayFunction(result, options);

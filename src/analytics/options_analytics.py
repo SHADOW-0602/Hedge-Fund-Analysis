@@ -5,6 +5,8 @@ from clients.market_data_client import MarketDataClient
 import logging
 from datetime import datetime, timezone
 import numpy as np
+from scipy.stats import norm
+import math
 
 # Setup module logger
 logger = logging.getLogger(__name__)
@@ -12,22 +14,30 @@ logger = logging.getLogger(__name__)
 class OptionsAnalyzer:
     def __init__(self, data_client: MarketDataClient):
         self.data_client = data_client
+        self.risk_free_rate = 0.0422  # Current fed rate
     
-    def scan_protective_puts(self, symbols: List[str], max_cost: float = 0.05) -> List[Dict]:
+    def calculate_delta(self, S, K, T, r, sigma, option_type='call'):
+        """Calculate Black-Scholes delta"""
+        try:
+            if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+                return 0.0
+            
+            d1 = (math.log(S/K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+            
+            if option_type == 'call':
+                delta = norm.cdf(d1)
+            else:  # put
+                delta = norm.cdf(d1) - 1
+            
+            return delta
+        except Exception:
+            return 0.0
+    
+    def scan_protective_puts(self, symbols: List[str], max_cost: float = 0.05, expiration: str = '3M', moneyness: str = 'All', delta_range: str = 'All') -> List[Dict]:
         """Scan for protective put opportunities"""
         opportunities = []
         
-        import time
-        start_time = time.time()
-        
-        # Limit symbols to prevent timeout
-        limited_symbols = symbols[:1] if len(symbols) > 1 else symbols
-        
-        for i, symbol in enumerate(limited_symbols):
-            # Check timeout after 5 seconds
-            if time.time() - start_time > 5:
-                print(f"Protective puts scan timeout reached after {i} symbols")
-                break
+        for symbol in symbols:
             try:
                 ticker = yf.Ticker(symbol)
                 current_price = ticker.info.get('currentPrice') or ticker.info.get('regularMarketPrice')
@@ -60,32 +70,37 @@ class OptionsAnalyzer:
                     except Exception:
                         days_to_exp = 30  # Default fallback
                     
-                    # Better price estimation for protective puts
+                    # Use real market prices for protective puts
                     ask_price = float(option.get('ask', 0))
                     bid_price = float(option.get('bid', 0))
                     last_price = float(option.get('lastPrice', 0))
                     
-                    if ask_price > 0:
+                    if ask_price > 0 and bid_price > 0:
+                        premium = (ask_price + bid_price) / 2
+                    elif ask_price > 0:
                         premium = ask_price
                     elif last_price > 0:
-                        premium = last_price * 1.1  # Add spread estimate
+                        premium = last_price
                     elif bid_price > 0:
-                        premium = bid_price * 1.2  # Estimate ask from bid
+                        premium = bid_price
                     else:
-                        # Estimate based on intrinsic value
-                        strike_price = float(option.get('strike', current_price))
-                        if strike_price > current_price:
-                            # ITM put - intrinsic + time value
-                            intrinsic = strike_price - current_price
-                            time_value = current_price * 0.02  # 2% time value
-                            premium = intrinsic + time_value
-                        else:
-                            # OTM put - time value only
-                            premium = current_price * 0.015  # 1.5% time value
+                        continue  # Skip if no real market data
                     
                     if premium > 0:
                         protection_cost = (premium / current_price) * 100
                         downside_protection = ((current_price - option['strike']) / current_price) * 100
+                        
+                        # Apply delta range filter
+                        delta = self._get_delta(option, current_price, days_to_exp, 'put')
+                        if delta_range != 'All':
+                            if not delta or delta == 0:
+                                continue  # Skip N/A deltas when filtering
+                            if delta_range == '0.1-0.3' and not (0.1 <= abs(delta) <= 0.3):
+                                continue
+                            elif delta_range == '0.3-0.7' and not (0.3 <= abs(delta) <= 0.7):
+                                continue
+                            elif delta_range == '0.7-1.0' and not (0.7 <= abs(delta) <= 1.0):
+                                continue
                         
                         opportunities.append({
                             'symbol': symbol,
@@ -95,7 +110,8 @@ class OptionsAnalyzer:
                             'protection_cost_pct': protection_cost,
                             'downside_protection_pct': downside_protection,
                             'expiration': exp_date,
-                            'days_to_exp': days_to_exp
+                            'days_to_exp': days_to_exp,
+                            'delta': delta
                         })
                         
                         print(f"Found protective put for {symbol}: premium=${premium:.2f}, strike=${option['strike']}, cost={protection_cost:.1f}%")
@@ -103,30 +119,7 @@ class OptionsAnalyzer:
                 logger.warning(f"Error processing protective puts for {symbol}: {e}")
                 continue
         
-        # If no opportunities found, try with even more lenient criteria
-        if len(opportunities) == 0:
-            print(f"No protective puts found for {symbol}, trying fallback estimation...")
-            try:
-                # Create a synthetic protective put opportunity based on current price
-                estimated_premium = current_price * 0.03  # 3% of stock price
-                estimated_strike = current_price * 0.90   # 10% OTM put
-                protection_cost = 3.0  # 3% cost
-                downside_protection = 10.0  # 10% protection
-                
-                opportunities.append({
-                    'symbol': symbol,
-                    'current_price': current_price,
-                    'strike': estimated_strike,
-                    'premium': estimated_premium,
-                    'protection_cost_pct': protection_cost,
-                    'downside_protection_pct': downside_protection,
-                    'expiration': 'Estimated',
-                    'days_to_exp': 30
-                })
-                
-                print(f"Added estimated protective put for {symbol}: premium=${estimated_premium:.2f}, strike=${estimated_strike:.2f}")
-            except Exception as e:
-                print(f"Fallback protective put estimation failed for {symbol}: {e}")
+
         
         return sorted(opportunities, key=lambda x: x['downside_protection_pct'], reverse=True)
     
@@ -134,17 +127,7 @@ class OptionsAnalyzer:
         """Scan for collar strategy opportunities (protective put + covered call)"""
         opportunities = []
         
-        import time
-        start_time = time.time()
-        
-        # Limit symbols to prevent timeout
-        limited_symbols = symbols[:1] if len(symbols) > 1 else symbols
-        
-        for i, symbol in enumerate(limited_symbols):
-            # Check timeout after 5 seconds
-            if time.time() - start_time > 5:
-                print(f"Collar strategies scan timeout reached after {i} symbols")
-                break
+        for symbol in symbols:
             try:
                 ticker = yf.Ticker(symbol)
                 current_price = ticker.info.get('currentPrice') or ticker.info.get('regularMarketPrice')
@@ -174,33 +157,38 @@ class OptionsAnalyzer:
                     ((puts['ask'] > 0) | (puts['bid'] > 0) | (puts['lastPrice'] > 0))
                 ]
                 
+                # Calculate days to expiration
+                try:
+                    exp_datetime = pd.to_datetime(exp_date)
+                    now_datetime = pd.Timestamp.now(tz=timezone.utc).tz_localize(None)
+                    days_to_exp = (exp_datetime - now_datetime).days
+                    if days_to_exp <= 0:
+                        continue
+                except Exception:
+                    days_to_exp = 30
+                
                 # Create collar combinations with better price estimation
                 for _, call in otm_calls.iterrows():
                     for _, put in protective_puts.iterrows():
-                        # Estimate call bid and put ask more aggressively
+                        # Use real market prices for collar strategies
                         call_bid = float(call.get('bid', 0))
-                        if call_bid == 0:
-                            call_ask = float(call.get('ask', 0))
-                            call_last = float(call.get('lastPrice', 0))
-                            if call_ask > 0:
-                                call_bid = call_ask * 0.7
-                            elif call_last > 0:
-                                call_bid = call_last * 0.8
-                            else:
-                                call_bid = max(0.25, current_price * 0.01)
+                        call_ask = float(call.get('ask', 0))
+                        call_last = float(call.get('lastPrice', 0))
                         
                         put_ask = float(put.get('ask', 0))
-                        if put_ask == 0:
-                            put_bid = float(put.get('bid', 0))
-                            put_last = float(put.get('lastPrice', 0))
-                            if put_bid > 0:
-                                put_ask = put_bid * 1.3
-                            elif put_last > 0:
-                                put_ask = put_last * 1.1
-                            else:
-                                put_ask = current_price * 0.02
+                        put_bid = float(put.get('bid', 0))
+                        put_last = float(put.get('lastPrice', 0))
                         
-                        net_premium = call_bid - put_ask
+                        # Use actual market prices or skip
+                        if call_bid == 0 and call_ask == 0 and call_last == 0:
+                            continue
+                        if put_ask == 0 and put_bid == 0 and put_last == 0:
+                            continue
+                        
+                        call_price = call_bid if call_bid > 0 else (call_ask if call_ask > 0 else call_last)
+                        put_price = put_ask if put_ask > 0 else (put_bid if put_bid > 0 else put_last)
+                        
+                        net_premium = call_price - put_price
                         max_profit = call['strike'] - current_price + net_premium
                         max_loss = current_price - put['strike'] - net_premium
                         
@@ -215,7 +203,8 @@ class OptionsAnalyzer:
                                 'max_profit': max_profit,
                                 'max_loss': max_loss,
                                 'profit_potential': abs(max_profit / current_price) * 100 if current_price > 0 else 0,
-                                'expiration': exp_date
+                                'expiration': exp_date,
+                                'delta': self._get_delta(call, current_price, days_to_exp, 'call')
                             })
                             
                             print(f"Found collar for {symbol}: net_premium=${abs(net_premium):.2f}, call_strike=${call['strike']}, put_strike=${put['strike']}")
@@ -225,30 +214,25 @@ class OptionsAnalyzer:
         
         return sorted(opportunities, key=lambda x: x['profit_potential'], reverse=True)
     
-    def scan_covered_calls(self, symbols: List[str], min_premium: float = 0.01, expiration: str = '3M', moneyness: str = 'All', delta_range: str = 'All') -> List[Dict]:
-        print(f"2025-10-26 16:55:46,100 - hedge_fund_app - INFO - Scanning covered calls for {len(symbols)} symbols")
+    def scan_covered_calls(self, symbols: List[str], min_premium: float = 0.50, expiration: str = '3M', moneyness: str = 'All', delta_range: str = 'All') -> List[Dict]:
+        print(f"Scanning covered calls for {len(symbols)} symbols: {symbols}")
         opportunities = []
+        processed_count = 0
         
-        import time
-        start_time = time.time()
-        
-        # Limit symbols to prevent timeout
-        limited_symbols = symbols[:2] if len(symbols) > 2 else symbols
-        
-        for i, symbol in enumerate(limited_symbols):
-            # Check timeout after 10 seconds
-            if time.time() - start_time > 10:
-                print(f"Options scan timeout reached after {i} symbols")
-                break
+        for symbol in symbols:
+            processed_count += 1
+            print(f"Processing symbol {processed_count}/{len(symbols)}: {symbol}")
             try:
                 ticker = yf.Ticker(symbol)
                 current_price = ticker.info.get('currentPrice') or ticker.info.get('regularMarketPrice')
                 
                 if not current_price:
+                    print(f"No current price found for {symbol}")
                     continue
                 
                 expirations = ticker.options
                 if not expirations:
+                    print(f"No options expirations found for {symbol}")
                     continue
                 
                 exp_date = expirations[0]
@@ -256,23 +240,25 @@ class OptionsAnalyzer:
                 calls = options_chain.calls
                 
                 if calls.empty:
+                    print(f"No calls found for {symbol}")
                     continue
                 
-                # Very aggressive filtering for covered calls - find ANY viable options
-                otm_calls = calls[
-                    (calls['strike'] >= current_price * 0.98) &  # Allow slightly ITM
-                    (calls['strike'] <= current_price * 1.50) &   # Wider OTM range
+                # Find all viable call options
+                viable_calls = calls[
+                    (calls['strike'] >= current_price * 0.90) &  # Allow more ITM
+                    (calls['strike'] <= current_price * 2.00) &   # Much wider range
                     ((calls['bid'] > 0) | (calls['ask'] > 0) | (calls['lastPrice'] > 0))  # Any price data
                 ]
                 
-                # Sort by liquidity indicators
-                if 'volume' in otm_calls.columns:
-                    otm_calls = otm_calls.sort_values(['volume', 'bid'], ascending=[False, False])
-                else:
-                    otm_calls = otm_calls.sort_values('bid', ascending=False)
+                print(f"Found {len(viable_calls)} viable calls for {symbol} (price: ${current_price})")
                 
-                if not otm_calls.empty:
-                    best_call = otm_calls.iloc[0]
+                # Process all viable calls, not just the best one
+                if 'volume' in viable_calls.columns:
+                    viable_calls = viable_calls.sort_values(['volume', 'bid'], ascending=[False, False])
+                else:
+                    viable_calls = viable_calls.sort_values('bid', ascending=False)
+                
+                for _, call_option in viable_calls.iterrows():
                     try:
                         exp_datetime = pd.to_datetime(exp_date)
                         now_datetime = pd.Timestamp.now(tz=timezone.utc).tz_localize(None)
@@ -281,163 +267,158 @@ class OptionsAnalyzer:
                         days_to_exp = 30  # Default fallback
                     
                     if days_to_exp > 0:
-                        bid_price = float(best_call.get('bid', 0))
-                        ask_price = float(best_call.get('ask', 0))
-                        last_price = float(best_call.get('lastPrice', 0))
+                        bid_price = float(call_option.get('bid', 0))
+                        ask_price = float(call_option.get('ask', 0))
+                        last_price = float(call_option.get('lastPrice', 0))
                         
-                        # More aggressive price estimation for covered calls
-                        if bid_price > 0:
+                        # Use real market prices without artificial estimates
+                        if bid_price > 0 and ask_price > 0:
+                            mid_price = (bid_price + ask_price) / 2
+                        elif bid_price > 0:
                             mid_price = bid_price
                         elif ask_price > 0:
-                            mid_price = ask_price * 0.7  # Conservative bid estimate
+                            mid_price = ask_price
                         elif last_price > 0:
-                            mid_price = last_price * 0.8  # Use last price with discount
+                            mid_price = last_price
                         else:
-                            # Estimate based on intrinsic value and time value
-                            strike_price = float(best_call.get('strike', current_price))
-                            if strike_price > current_price:
-                                # OTM option - estimate time value
-                                mid_price = max(0.50, current_price * 0.02)  # At least $0.50 or 2% of stock price
-                            else:
-                                # ITM option - intrinsic + time value
-                                intrinsic = max(0, current_price - strike_price)
-                                time_value = current_price * 0.01  # 1% time value estimate
-                                mid_price = intrinsic + time_value
+                            continue  # Skip if no real market data
                         
                         if mid_price > 0 and days_to_exp > 0:
-                            annualized_return = (mid_price / current_price) * (365 / days_to_exp)
-                        else:
-                            annualized_return = 0
-                        
-                        print(f"Found covered call for {symbol}: premium=${mid_price:.2f}, strike=${best_call['strike']}, return={annualized_return:.2%}")
-                        
-                        opportunities.append({
-                            'symbol': symbol,
-                            'strategy': 'covered_calls',
-                            'premium': mid_price,
-                            'strike': best_call['strike'],
-                            'annualized_return': annualized_return,
-                            'expiry': exp_date
-                        })
+                            # Apply moneyness filter
+                            strike_price = float(call_option.get('strike', current_price))
+                            if moneyness != 'All':
+                                if moneyness == 'ITM' and strike_price >= current_price:
+                                    print(f"Filtered out {symbol}: ITM filter (strike ${strike_price} >= price ${current_price})")
+                                    continue
+                                elif moneyness == 'ATM' and abs(strike_price - current_price) / current_price > 0.05:
+                                    print(f"Filtered out {symbol}: ATM filter (strike ${strike_price} not near price ${current_price})")
+                                    continue
+                                elif moneyness == 'OTM' and strike_price <= current_price:
+                                    print(f"Filtered out {symbol}: OTM filter (strike ${strike_price} <= price ${current_price})")
+                                    continue
+                            
+                            # Apply delta range filter
+                            delta = self._get_delta(call_option, current_price, days_to_exp, 'call')
+                            if delta_range != 'All':
+                                if not delta or delta == 0:
+                                    print(f"Filtered out {symbol}: No delta available")
+                                    continue
+                                if delta_range == '0.1-0.3' and not (0.1 <= abs(delta) <= 0.3):
+                                    print(f"Filtered out {symbol}: Delta {delta} not in 0.1-0.3 range")
+                                    continue
+                                elif delta_range == '0.3-0.7' and not (0.3 <= abs(delta) <= 0.7):
+                                    print(f"Filtered out {symbol}: Delta {delta} not in 0.3-0.7 range")
+                                    continue
+                                elif delta_range == '0.7-1.0' and not (0.7 <= abs(delta) <= 1.0):
+                                    print(f"Filtered out {symbol}: Delta {delta} not in 0.7-1.0 range")
+                                    continue
+                            
+                            # Apply minimum premium filter last
+                            if mid_price >= min_premium:
+                                annualized_return = (mid_price / current_price) * (365 / days_to_exp)
+                                print(f"Found covered call for {symbol}: premium=${mid_price:.2f}, strike=${strike_price}, return={annualized_return:.2%}")
+                                
+                                opportunities.append({
+                                    'symbol': symbol,
+                                    'strategy': 'covered_calls',
+                                    'premium': mid_price,
+                                    'strike': strike_price,
+                                    'annualized_return': annualized_return,
+                                    'expiry': exp_date,
+                                    'delta': delta
+                                })
+                            else:
+                                print(f"Filtered out {symbol}: premium ${mid_price:.2f} below minimum ${min_premium:.2f}")
+                else:
+                    print(f"No viable covered calls found for {symbol}")
             except Exception as e:
                 logger.warning(f"Error processing covered calls for {symbol}: {e}")
+                print(f"Error processing {symbol}: {e}")
                 continue
         
-        print(f"2025-10-26 16:55:46,500 - hedge_fund_app - INFO - Covered calls scan completed - Found {len(opportunities)} opportunities")
-        
-        # If no opportunities found, try with even more lenient criteria
-        if len(opportunities) == 0:
-            print(f"No covered calls found for {symbol}, trying more lenient criteria...")
-            try:
-                # Try any call option with any price data
-                all_calls = calls[
-                    ((calls['bid'] > 0) | (calls['ask'] > 0) | (calls['lastPrice'] > 0))
-                ]
-                
-                if not all_calls.empty:
-                    # Take the first available option
-                    best_call = all_calls.iloc[0]
-                    
-                    # Estimate a reasonable premium
-                    bid_price = float(best_call.get('bid', 0))
-                    ask_price = float(best_call.get('ask', 0))
-                    last_price = float(best_call.get('lastPrice', 0))
-                    
-                    if bid_price > 0:
-                        mid_price = bid_price
-                    elif ask_price > 0:
-                        mid_price = ask_price * 0.6
-                    elif last_price > 0:
-                        mid_price = last_price * 0.7
-                    else:
-                        mid_price = current_price * 0.02  # 2% estimate
-                    
-                    if mid_price > 0:
-                        opportunities.append({
-                            'symbol': symbol,
-                            'strategy': 'covered_calls',
-                            'premium': mid_price,
-                            'strike': best_call['strike'],
-                            'annualized_return': (mid_price / current_price) * 4,  # Quarterly estimate
-                            'expiry': exp_date
-                        })
-                        print(f"Added fallback covered call for {symbol}: premium=${mid_price:.2f}")
-            except Exception as e:
-                print(f"Fallback covered call search failed for {symbol}: {e}")
-        
+        print(f"hedge_fund_app - INFO - Covered calls scan completed - Processed {processed_count} symbols, found {len(opportunities)} opportunities")
         return opportunities
     
     def scan_all_strategies(self, symbols: List[str], options: Dict = {}) -> List[Dict]:
         """Scan for all three options strategies and return combined results"""
-        print(f"2025-10-26 16:55:46,001 - hedge_fund_app - INFO - Starting options analysis for {len(symbols)} symbols")
+        print(f"hedge_fund_app - INFO - Starting options analysis for {len(symbols)} symbols: {symbols}")
         logger.info(f"Starting options analysis for symbols: {symbols}")
         all_opportunities = []
         
-        # Parse options parameters
+        # Parse options parameters with validation
         expiration = options.get('expiration', '3M')
         moneyness = options.get('moneyness', 'All')
         strategy_filter = options.get('strategy', 'All')
         min_premium = float(options.get('min_premium', 0.50))
         delta_range = options.get('delta_range', 'All')
         
+        # Validate parameters
+        valid_expirations = ['1M', '2M', '3M', '6M', '1Y']
+        valid_moneyness = ['All', 'ITM', 'ATM', 'OTM']
+        valid_strategies = ['All', 'CoveredCalls', 'ProtectivePuts', 'Spreads']
+        valid_delta_ranges = ['All', '0.1-0.3', '0.3-0.7', '0.7-1.0']
+        
+        if expiration not in valid_expirations:
+            expiration = '3M'
+        if moneyness not in valid_moneyness:
+            moneyness = 'All'
+        if strategy_filter not in valid_strategies:
+            strategy_filter = 'All'
+        if delta_range not in valid_delta_ranges:
+            delta_range = 'All'
+        
+        print(f"Options parameters: expiration={expiration}, moneyness={moneyness}, strategy={strategy_filter}, min_premium={min_premium}")
+        
         # Covered Calls
         if strategy_filter in ['All', 'CoveredCalls']:
+            print(f"Scanning covered calls for {len(symbols)} symbols...")
             covered_calls = self.scan_covered_calls(symbols, min_premium, expiration, moneyness, delta_range)
+            print(f"Found {len(covered_calls)} covered call opportunities")
             all_opportunities.extend(covered_calls)
         
         # Protective Puts
         if strategy_filter in ['All', 'ProtectivePuts']:
-            protective_puts = self.scan_protective_puts(symbols)
+            print(f"Scanning protective puts for {len(symbols)} symbols...")
+            protective_puts = self.scan_protective_puts(symbols, 0.05, expiration, moneyness, delta_range)
             for put in protective_puts:
                 put['strategy'] = 'protective_puts'
+            print(f"Found {len(protective_puts)} protective put opportunities")
             all_opportunities.extend(protective_puts)
         
         # Iron Condors (simplified - using collar strategy as base)
         if strategy_filter in ['All', 'Spreads']:
+            print(f"Scanning iron condors for {len(symbols)} symbols...")
             collars = self.scan_collar_strategies(symbols)
             for collar in collars:
                 collar['strategy'] = 'iron_condors'
                 collar['premium'] = collar.get('net_premium', 0)
+            print(f"Found {len(collars)} iron condor opportunities")
             all_opportunities.extend(collars)
         
-        print(f"2025-10-26 16:55:47,234 - hedge_fund_app - INFO - Options analysis completed - Found {len(all_opportunities)} opportunities")
-        logger.info(f"Options analysis completed with {len(all_opportunities)} opportunities")
+        print(f"hedge_fund_app - INFO - Options analysis completed - Found {len(all_opportunities)} total opportunities from {len(symbols)} symbols")
+        logger.info(f"Options analysis completed with {len(all_opportunities)} opportunities from {len(symbols)} symbols")
         return all_opportunities
     
     def get_strategy_summary(self, symbols: List[str]) -> Dict:
         """Get summary of all options strategies with total values"""
-        opportunities = self.scan_all_strategies(symbols)
-        
-        summary = {
+        # Don't call scan_all_strategies again to avoid double processing
+        return {
             'covered_calls': {'total_premium': 0, 'count': 0},
             'protective_puts': {'total_cost': 0, 'count': 0},
             'iron_condors': {'total_premium': 0, 'count': 0}
         }
-        
-        cc_premium = 0
-        pp_cost = 0
-        ic_premium = 0
-        
-        for opp in opportunities:
-            strategy = opp.get('strategy', 'covered_calls')
-            premium = opp.get('premium', 0)
+    
+    def _get_delta(self, option, current_price, days_to_exp, option_type):
+        """Calculate delta using Black-Scholes only"""
+        try:
+            strike = float(option.get('strike', current_price))
+            T = max(days_to_exp / 365.0, 0.01)  # Minimum 1 day
+            sigma = 0.25  # Default 25% volatility
             
-            if strategy == 'covered_calls' and premium > 0:
-                cc_premium += premium * 100  # Premium per contract (100 shares)
-                summary['covered_calls']['count'] += 1
-                print(f"Adding covered call premium: ${premium * 100:.2f}")
-            elif strategy == 'protective_puts' and premium > 0:
-                pp_cost += premium * 100
-                summary['protective_puts']['count'] += 1
-                print(f"Adding protective put cost: ${premium * 100:.2f}")
-            elif strategy == 'iron_condors' and premium != 0:
-                ic_premium += abs(premium) * 100
-                summary['iron_condors']['count'] += 1
-                print(f"Adding iron condor premium: ${abs(premium) * 100:.2f}")
-        
-        # Always set values, even if 0
-        summary['covered_calls']['total_premium'] = cc_premium
-        summary['protective_puts']['total_cost'] = pp_cost
-        summary['iron_condors']['total_premium'] = ic_premium
-        
-        return summary
+            calculated_delta = self.calculate_delta(current_price, strike, T, self.risk_free_rate, sigma, option_type)
+            # Round very small values to zero for display
+            if abs(calculated_delta) < 1e-10:
+                return 0.0
+            return round(calculated_delta, 4)
+        except Exception:
+            return 0.0  # Return 0.0 instead of None

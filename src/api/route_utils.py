@@ -2,6 +2,7 @@ import pandas as pd
 import polars as pl
 import numpy as np
 import math
+import re
 
 def normalize_portfolio_format(df):
     """Normalize portfolio data format"""
@@ -79,37 +80,120 @@ def sanitize_for_json(obj):
         return obj
 
 def extract_valid_symbols(portfolio_data):
-    """Extract valid symbols from portfolio data"""
-    symbols = []
+    """Extract valid symbols from portfolio data, including underlying symbols from options"""
+    symbols = set()
+    
+    def extract_underlying_symbol(options_symbol):
+        """Extract underlying symbol from options contract"""
+        try:
+            import re
+            match = re.search(r'(\w+)(\d{6})[CP]\d+', options_symbol)
+            if match:
+                return match.group(1)
+        except:
+            pass
+        return None
+    
     for position in portfolio_data:
         try:
             if isinstance(position, dict) and 'symbol' in position:
                 symbol = str(position['symbol']).strip().upper()
-                if symbol and len(symbol) <= 10 and not symbol.startswith(('CUR:', 'CASH')):
-                    symbols.append(symbol)
+                
+                if not symbol:
+                    continue
+                
+                # Handle options contracts - extract underlying symbol
+                if any(x in symbol for x in ['C00', 'P00']):
+                    underlying = extract_underlying_symbol(symbol)
+                    if underlying and not underlying.startswith(('CUR:', 'CASH', 'USD')):
+                        symbols.add(underlying)
+                    continue
+                
+                # Skip various non-equity symbols
+                skip_patterns = ['CUR:', 'CASH', 'USD', 'FX:', 'CRYPTO:', 'BOND:', 'FUND:', 'INDEX:', 'COMMODITY:', 'FUTURE:', 'WARRANT:']
+                skip_symbols = ['ACHN', 'CASH', 'N/A', 'NULL', 'UNKNOWN']
+                
+                if (any(symbol.startswith(pattern) for pattern in skip_patterns) or 
+                    symbol in skip_symbols or 
+                    len(symbol) < 1 or len(symbol) > 20):
+                    continue
+                
+                # Add regular stock symbols
+                symbols.add(symbol)
+                
         except (ValueError, TypeError):
             continue
-    return symbols
+    
+    return list(symbols)
 
 def calculate_portfolio_weights(portfolio_data):
-    """Calculate normalized portfolio weights"""
+    """Calculate normalized portfolio weights, handling options contracts"""
     weights = {}
     total_value = 0
+    
+    def extract_underlying_symbol(options_symbol):
+        """Extract underlying symbol from options contract"""
+        try:
+            import re
+            match = re.search(r'(\w+)(\d{6})[CP]\d+', options_symbol)
+            if match:
+                return match.group(1)
+        except:
+            pass
+        return None
+    
+    # Group positions by underlying symbol
+    underlying_positions = {}
     
     for position in portfolio_data:
         try:
             symbol = str(position.get('symbol', '')).strip().upper()
-            if symbol and not symbol.startswith(('CUR:', 'CASH')):
-                quantity = float(position.get('quantity', 0))
-                price = float(position.get('avg_cost', 0))
-                value = quantity * price
-                weights[symbol] = value
-                total_value += value
+            if not symbol:
+                continue
+            
+            quantity = float(position.get('quantity', 0))
+            price = float(position.get('price', position.get('avg_cost', 100.0)))
+            
+            # Handle missing or zero prices
+            if price <= 0:
+                price = 100.0
+            
+            value = abs(quantity) * price
+            
+            # Handle options contracts - group by underlying
+            if any(x in symbol for x in ['C00', 'P00']):
+                underlying = extract_underlying_symbol(symbol)
+                if underlying and not underlying.startswith(('CUR:', 'CASH', 'USD')):
+                    if underlying not in underlying_positions:
+                        underlying_positions[underlying] = 0
+                    underlying_positions[underlying] += value
+                continue
+            
+            # Skip various non-equity symbols
+            skip_patterns = ['CUR:', 'CASH', 'USD', 'FX:', 'CRYPTO:', 'BOND:', 'FUND:', 'INDEX:', 'COMMODITY:', 'FUTURE:', 'WARRANT:']
+            skip_symbols = ['ACHN', 'CASH', 'N/A', 'NULL', 'UNKNOWN']
+            
+            if (any(symbol.startswith(pattern) for pattern in skip_patterns) or 
+                symbol in skip_symbols):
+                continue
+            
+            # Add regular stock symbols
+            if symbol not in underlying_positions:
+                underlying_positions[symbol] = 0
+            underlying_positions[symbol] += value
+            
         except (ValueError, TypeError):
             continue
     
-    # Normalize weights
+    # Calculate total value and weights
+    total_value = sum(underlying_positions.values())
+    
     if total_value > 0:
-        weights = {k: v/total_value for k, v in weights.items()}
+        weights = {k: v/total_value for k, v in underlying_positions.items()}
+    elif underlying_positions:
+        # Equal weights fallback
+        equal_weight = 1.0 / len(underlying_positions)
+        weights = {k: equal_weight for k in underlying_positions.keys()}
+        total_value = sum(underlying_positions.values()) or 1000.0
     
     return weights, total_value
