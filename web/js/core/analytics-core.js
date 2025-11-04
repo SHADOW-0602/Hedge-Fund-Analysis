@@ -152,6 +152,12 @@ class AnalyticsCore {
             console.log('Using Monte Carlo settings:', this.monteCarloSettings);
         }
         
+        // For portfolio optimization, use stored settings if available
+        if (endpoint === 'portfolio-optimization' && this.optimizationSettings) {
+            options = { ...options, ...this.optimizationSettings };
+            console.log('Using optimization settings:', this.optimizationSettings);
+        }
+        
         // Filter out options contracts and currency symbols for options analysis
         let filteredData = portfolioData;
         if (endpoint === 'scan-options') {

@@ -175,8 +175,8 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             # Initialize attributor and calculate results
             attributor = PerformanceAttributor(data_client, benchmark)
             
-            # Limit symbols to prevent API overload
-            limited_symbols = symbols[:10] if len(symbols) > 10 else symbols
+            # Process all symbols for performance attribution
+            limited_symbols = symbols
             
             results = attributor.factor_based_attribution(
                 limited_symbols, weights, period, 
@@ -202,14 +202,18 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             if not portfolio:
                 return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
             
-            # Use default values for optimization
+            # Read parameters from frontend settings
             objective = options.get('objective', 'max_sharpe')
             constraint = options.get('constraint', 'long_only')
             rebalancing = options.get('rebalancing', 'monthly')
-            risk_budget = options.get('risk_budget', '0.15')
+            risk_budget = options.get('risk_budget', 'equal')
             lookback_period = options.get('lookback_period', '1y')
             
             symbols = extract_valid_symbols(portfolio)
+            
+            print(f"Portfolio Optimization Parameters: objective={objective}, constraint={constraint}, rebalancing={rebalancing}, risk_budget={risk_budget}, lookback={lookback_period}")
+            print(f"Full options received: {options}")
+            print(f"Symbols to optimize: {symbols}")
             
             if len(symbols) < 1:
                 return jsonify({'success': False, 'error': 'Need at least 1 symbol for optimization'}), 400
@@ -217,12 +221,9 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             # Initialize optimizer
             optimizer = PortfolioOptimizer(data_client)
             
-            # Limit symbols to prevent API overload
-            limited_symbols = symbols[:10] if len(symbols) > 10 else symbols
-            
             # Perform optimization with enhanced parameters
             optimization_results = optimizer.optimize_portfolio(
-                limited_symbols,
+                symbols,
                 period=lookback_period.lower(),
                 objective=objective,
                 constraint=constraint,
@@ -231,6 +232,7 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 lookback_period=lookback_period
             )
             
+            print(f"Optimization completed successfully with results keys: {list(optimization_results.keys()) if optimization_results else 'None'}")
             return jsonify({
                 'success': True,
                 'optimization': optimization_results

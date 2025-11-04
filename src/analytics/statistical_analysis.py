@@ -10,7 +10,7 @@ class StatisticalAnalyzer:
     def correlation_analysis(self, symbols: List[str], period: str = "3mo") -> Dict:
         """Simplified correlation analysis"""
         try:
-            price_data = self.data_client.get_price_data(symbols[:15], period)  # Increased limit
+            price_data = self.data_client.get_price_data(symbols, period)  # Process all symbols
             if price_data.empty:
                 return {}
             
@@ -48,7 +48,7 @@ class StatisticalAnalyzer:
     
     def diversification_ratio(self, symbols: List[str], weights: Dict[str, float], period: str = "3mo") -> float:
         """Portfolio diversification effectiveness measurement"""
-        price_data = self.data_client.get_price_data(symbols[:15], period)
+        price_data = self.data_client.get_price_data(symbols, period)
         returns = price_data.pct_change().dropna()
         
         # Individual volatilities
@@ -74,7 +74,7 @@ class StatisticalAnalyzer:
     def simple_clustering(self, symbols: List[str], period: str = "3mo") -> Dict:
         """Simple correlation-based grouping"""
         try:
-            price_data = self.data_client.get_price_data(symbols[:15], period)
+            price_data = self.data_client.get_price_data(symbols, period)
             returns = price_data.pct_change().dropna()
             correlation_matrix = returns.corr()
             
@@ -83,14 +83,14 @@ class StatisticalAnalyzer:
             used_symbols = set()
             cluster_id = 1
             
-            for symbol in symbols[:15]:
+            for symbol in symbols:
                 if symbol in used_symbols:
                     continue
                 
                 cluster = [symbol]
                 used_symbols.add(symbol)
                 
-                for other_symbol in symbols[:15]:
+                for other_symbol in symbols:
                     if other_symbol != symbol and other_symbol not in used_symbols:
                         if symbol in correlation_matrix.columns and other_symbol in correlation_matrix.columns:
                             corr = abs(correlation_matrix.loc[symbol, other_symbol])
@@ -103,7 +103,7 @@ class StatisticalAnalyzer:
             
             return {'clusters': clusters}
         except Exception:
-            return {'clusters': {1: symbols[:15]}}
+            return {'clusters': {1: symbols}}
     
     def comprehensive_analysis(self, symbols: List[str], weights: Dict[str, float]) -> Dict:
         """Comprehensive statistical analysis with all metrics"""

@@ -270,7 +270,7 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                         if underlying and underlying not in symbols:
                             symbols.append(underlying)
             
-            symbols = symbols[:10]  # Limit to 10 symbols
+            # Process all symbols for correlation analysis
             
             if len(symbols) < 2:
                 return jsonify({'success': False, 'error': 'Need at least 2 symbols for correlation'}), 400

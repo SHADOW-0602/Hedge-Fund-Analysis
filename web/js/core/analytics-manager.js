@@ -833,15 +833,82 @@ class AnalyticsManager {
         const optimization = result.optimization || {};
         const optimal = optimization.optimal_portfolio || {};
         
+        // Get current settings
+        const currentObjective = options?.objective || 'max_sharpe';
+        const currentConstraint = options?.constraint || 'long_only';
+        const currentRebalancing = options?.rebalancing || 'monthly';
+        const currentRiskBudget = options?.risk_budget || 'equal';
+        const currentLookback = options?.lookback_period || '1y';
+        
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">Portfolio Optimization</h2>
-                <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                    </svg>
-                </button>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleOptimizationSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="updatePortfolioOptimization()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Optimize
+                    </button>
+                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
+            
+            <!-- Portfolio Optimization Settings Panel -->
+            <div id="optimizationSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Objective</label>
+                        <select id="optimizationObjective" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updatePortfolioOptimization()">
+                            <option value="max_sharpe" ${currentObjective === 'max_sharpe' ? 'selected' : ''}>Max Sharpe</option>
+                            <option value="min_volatility" ${currentObjective === 'min_volatility' ? 'selected' : ''}>Min Volatility</option>
+                            <option value="max_return" ${currentObjective === 'max_return' ? 'selected' : ''}>Max Return</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Constraints</label>
+                        <select id="optimizationConstraint" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updatePortfolioOptimization()">
+                            <option value="long_only" ${currentConstraint === 'long_only' ? 'selected' : ''}>Long-only</option>
+                            <option value="130_30" ${currentConstraint === '130_30' ? 'selected' : ''}>130/30</option>
+                            <option value="market_neutral" ${currentConstraint === 'market_neutral' ? 'selected' : ''}>Market Neutral</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rebalancing</label>
+                        <select id="optimizationRebalancing" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updatePortfolioOptimization()">
+                            <option value="monthly" ${currentRebalancing === 'monthly' ? 'selected' : ''}>Monthly</option>
+                            <option value="quarterly" ${currentRebalancing === 'quarterly' ? 'selected' : ''}>Quarterly</option>
+                            <option value="semi_annual" ${currentRebalancing === 'semi_annual' ? 'selected' : ''}>Semi-annual</option>
+                            <option value="annual" ${currentRebalancing === 'annual' ? 'selected' : ''}>Annual</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risk Budget</label>
+                        <select id="optimizationRiskBudget" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updatePortfolioOptimization()">
+                            <option value="equal" ${currentRiskBudget === 'equal' ? 'selected' : ''}>Equal</option>
+                            <option value="risk_parity" ${currentRiskBudget === 'risk_parity' ? 'selected' : ''}>Risk Parity</option>
+                            <option value="custom" ${currentRiskBudget === 'custom' ? 'selected' : ''}>Custom</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Lookback Period</label>
+                        <select id="optimizationLookback" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updatePortfolioOptimization()">
+                            <option value="1y" ${currentLookback === '1y' ? 'selected' : ''}>1Y</option>
+                            <option value="2y" ${currentLookback === '2y' ? 'selected' : ''}>2Y</option>
+                            <option value="3y" ${currentLookback === '3y' ? 'selected' : ''}>3Y</option>
+                            <option value="5y" ${currentLookback === '5y' ? 'selected' : ''}>5Y</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
             <div class="space-y-6">
                 <!-- Optimal Portfolio Metrics -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -905,7 +972,7 @@ class AnalyticsManager {
                     <div class="details-box">
                         <h4 class="section-header">Optimal Portfolio Weights</h4>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            ${Object.entries(optimal.weights).map(([symbol, weight]) => `
+                            ${Object.entries(optimal.weights).filter(([symbol, weight]) => weight > 0.001).map(([symbol, weight]) => `
                                 <div class="text-center">
                                     <div class="text-sm font-medium text-gray-900">${symbol}</div>
                                     <div class="text-lg font-bold text-indigo-600">${window.analyticsCore.formatPercent(weight)}</div>
@@ -914,6 +981,18 @@ class AnalyticsManager {
                         </div>
                     </div>
                 ` : ''}
+                
+                <!-- Optimization Parameters -->
+                <div class="details-box">
+                    <h4 class="section-header">Optimization Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                        <div><span class="detail-label">Objective:</span> <span class="detail-value">${currentObjective.replace('_', ' ')}</span></div>
+                        <div><span class="detail-label">Constraints:</span> <span class="detail-value">${currentConstraint.replace('_', ' ')}</span></div>
+                        <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${currentRebalancing.replace('_', ' ')}</span></div>
+                        <div><span class="detail-label">Risk Budget:</span> <span class="detail-value">${currentRiskBudget.replace('_', ' ')}</span></div>
+                        <div><span class="detail-label">Lookback:</span> <span class="detail-value">${currentLookback.toUpperCase()}</span></div>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -1174,6 +1253,27 @@ window.updatePerformanceAttribution = () => {
     window.analyticsManager.loadModule('performance-attribution');
 };
 
+window.updatePortfolioOptimization = () => {
+    // Get settings values from form
+    const objective = document.getElementById('optimizationObjective')?.value || 'max_sharpe';
+    const constraint = document.getElementById('optimizationConstraint')?.value || 'long_only';
+    const rebalancing = document.getElementById('optimizationRebalancing')?.value || 'monthly';
+    const riskBudget = document.getElementById('optimizationRiskBudget')?.value || 'equal';
+    const lookbackPeriod = document.getElementById('optimizationLookback')?.value || '1y';
+    
+    // Store settings for API call
+    window.analyticsCore.optimizationSettings = {
+        objective,
+        constraint,
+        rebalancing,
+        risk_budget: riskBudget,
+        lookback_period: lookbackPeriod
+    };
+    
+    // Force reload with new settings
+    window.analyticsManager.loadModule('portfolio-optimization');
+};
+
 window.togglePerformanceSettings = () => {
     const settings = document.getElementById('performanceSettings');
     if (settings) {
@@ -1299,6 +1399,30 @@ window.toggleOptionsSettings = () => {
         }
         if (!document.getElementById('optionsDeltaRange').value) {
             document.getElementById('optionsDeltaRange').value = 'All';
+        }
+    }
+};
+
+window.toggleOptimizationSettings = () => {
+    const settings = document.getElementById('optimizationSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+        
+        // Set default values if not already set
+        if (!document.getElementById('optimizationObjective').value) {
+            document.getElementById('optimizationObjective').value = 'max_sharpe';
+        }
+        if (!document.getElementById('optimizationConstraint').value) {
+            document.getElementById('optimizationConstraint').value = 'long_only';
+        }
+        if (!document.getElementById('optimizationRebalancing').value) {
+            document.getElementById('optimizationRebalancing').value = 'monthly';
+        }
+        if (!document.getElementById('optimizationRiskBudget').value) {
+            document.getElementById('optimizationRiskBudget').value = 'equal';
+        }
+        if (!document.getElementById('optimizationLookback').value) {
+            document.getElementById('optimizationLookback').value = '1y';
         }
     }
 };

@@ -126,7 +126,7 @@ def register_technical_analysis_routes(app, data_client, smart_cache=None):
             
             portfolio_signals = {'bullish': 0, 'bearish': 0, 'neutral': 0}
             
-            for symbol in symbols[:10]:  # Limit to prevent overload
+            for symbol in symbols:  # Process all symbols
                 if symbol not in price_data.columns:
                     continue
                     
