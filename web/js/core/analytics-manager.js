@@ -825,6 +825,99 @@ class AnalyticsManager {
         `;
     }
 
+    displayPortfolioOptimization(result, options) {
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+        
+        container.classList.remove('hidden');
+        const optimization = result.optimization || {};
+        const optimal = optimization.optimal_portfolio || {};
+        
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Portfolio Optimization</h2>
+                <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="space-y-6">
+                <!-- Optimal Portfolio Metrics -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="details-box">
+                        <h4 class="section-header">Expected Return</h4>
+                        <p class="text-2xl font-bold metric-value positive">${window.analyticsCore.formatPercent(optimal.expected_return || 0)}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Risk (Volatility)</h4>
+                        <p class="text-2xl font-bold metric-value neutral">${window.analyticsCore.formatPercent(optimal.volatility || 0)}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Sharpe Ratio</h4>
+                        <p class="text-2xl font-bold metric-value ${(optimal.sharpe_ratio || 0) > 1 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(optimal.sharpe_ratio || 0)}</p>
+                    </div>
+                </div>
+                
+                <!-- Portfolio Comparison -->
+                <div class="details-box">
+                    <h4 class="section-header">Portfolio Comparison</h4>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Portfolio</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Return</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Risk</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sharpe</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Optimal</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">${window.analyticsCore.formatPercent(optimal.expected_return || 0)}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${window.analyticsCore.formatPercent(optimal.volatility || 0)}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">${window.analyticsCore.formatNumber(optimal.sharpe_ratio || 0)}</td>
+                                </tr>
+                                ${optimization.equal_weight ? `
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Equal Weight</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">${window.analyticsCore.formatPercent(optimization.equal_weight.expected_return || 0)}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${window.analyticsCore.formatPercent(optimization.equal_weight.volatility || 0)}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">${window.analyticsCore.formatNumber(optimization.equal_weight.sharpe_ratio || 0)}</td>
+                                </tr>
+                                ` : ''}
+                                ${optimization.risk_parity ? `
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Risk Parity</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">${window.analyticsCore.formatPercent(optimization.risk_parity.expected_return || 0)}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${window.analyticsCore.formatPercent(optimization.risk_parity.volatility || 0)}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">${window.analyticsCore.formatNumber(optimization.risk_parity.sharpe_ratio || 0)}</td>
+                                </tr>
+                                ` : ''}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Optimal Weights -->
+                ${optimal.weights && Object.keys(optimal.weights).length > 0 ? `
+                    <div class="details-box">
+                        <h4 class="section-header">Optimal Portfolio Weights</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            ${Object.entries(optimal.weights).map(([symbol, weight]) => `
+                                <div class="text-center">
+                                    <div class="text-sm font-medium text-gray-900">${symbol}</div>
+                                    <div class="text-lg font-bold text-indigo-600">${window.analyticsCore.formatPercent(weight)}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
     displayMonteCarloResults(result, options) {
         const container = document.getElementById('analysisContent');
         if (!container) return;
