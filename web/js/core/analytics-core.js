@@ -62,15 +62,41 @@ class AnalyticsCore {
     // Get form options from UI
     getFormOptions(formId) {
         const form = document.getElementById(formId);
-        if (!form) return {};
+        if (!form) {
+            // For correlation analysis, try to get values directly from elements
+            if (formId === 'correlationSettings') {
+                const options = {};
+                const period = document.getElementById('correlationPeriod');
+                const frequency = document.getElementById('correlationFrequency');
+                const method = document.getElementById('correlationMethod');
+                const rollingWindow = document.getElementById('correlationRollingWindow');
+                
+                if (period) options.period = period.value;
+                if (frequency) options.frequency = frequency.value;
+                if (method) options.method = method.value;
+                if (rollingWindow) options.rolling_window = rollingWindow.value;
+                
+                console.log('[ANALYTICS-CORE] Extracted correlation options directly:', options);
+                return options;
+            }
+            return {};
+        }
         
         const options = {};
         const inputs = form.querySelectorAll('select, input');
         inputs.forEach(input => {
             if (input.id) {
-                options[input.id] = input.value;
+                // Map form field IDs to API parameter names
+                let paramName = input.id;
+                if (input.id === 'correlationPeriod') paramName = 'period';
+                else if (input.id === 'correlationFrequency') paramName = 'frequency';
+                else if (input.id === 'correlationMethod') paramName = 'method';
+                else if (input.id === 'correlationRollingWindow') paramName = 'rolling_window';
+                
+                options[paramName] = input.value;
             }
         });
+        console.log(`[ANALYTICS-CORE] Extracted options from form ${formId}:`, options);
         return options;
     }
 
@@ -157,6 +183,17 @@ class AnalyticsCore {
             options = { ...options, ...this.optimizationSettings };
             console.log('Using optimization settings:', this.optimizationSettings);
         }
+        
+        // For correlation analysis, use stored settings if available
+        if (endpoint === 'correlation-analysis') {
+            // Always get fresh settings from form elements
+            const freshOptions = this.getFormOptions('correlationSettings');
+            options = { ...options, ...freshOptions };
+            console.log('Using fresh correlation settings:', freshOptions);
+        }
+        
+        // Debug: Log all options being sent
+        console.log(`[ANALYTICS-CORE] Endpoint: ${endpoint}, Options being sent:`, options);
         
         // Filter out options contracts and currency symbols for options analysis
         let filteredData = portfolioData;

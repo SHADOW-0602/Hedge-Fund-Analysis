@@ -107,7 +107,13 @@ class UserSecretManager:
     
     # Plaid methods
     def store_plaid_token(self, user_id: str, access_token: str):
-        """Store Plaid access token"""
+        """Store Plaid access token with duplicate prevention"""
+        # Check if token already exists for another user
+        existing_user = self._find_user_with_token(access_token)
+        if existing_user and existing_user != user_id:
+            logger.error(f"Token already exists for user {existing_user}, cannot assign to {user_id}")
+            raise ValueError(f"This Plaid connection is already linked to another user")
+        
         data = self._load_user_data(user_id)
         data['plaid_token'] = self._encrypt_data(access_token).decode('latin-1')
         data['plaid_created'] = datetime.now().isoformat()
@@ -115,23 +121,15 @@ class UserSecretManager:
         logger.info(f"Stored Plaid token for user {user_id}")
     
     def get_plaid_token(self, user_id: str) -> Optional[str]:
-        """Get Plaid access token - try both user_id and username"""
-        # Try with the provided user_id first
+        """Get Plaid access token for specific user only"""
         data = self._load_user_data(user_id)
         encrypted_token = data.get('plaid_token')
-        
-        # If not found and user_id looks like UUID, try with 'admin' username
-        if not encrypted_token and len(user_id) > 20:
-            data = self._load_user_data('admin')
-            encrypted_token = data.get('plaid_token')
-            if encrypted_token:
-                logger.info(f"Found Plaid token for admin user instead of {user_id}")
         
         if encrypted_token:
             try:
                 return self._decrypt_data(encrypted_token.encode('latin-1'))
             except Exception as e:
-                logger.error(f"Failed to decrypt Plaid token: {e}")
+                logger.error(f"Failed to decrypt Plaid token for user {user_id}: {e}")
         return None
     
     def delete_plaid_token(self, user_id: str):
@@ -165,11 +163,79 @@ class UserSecretManager:
             'snaptrade_connected': 'snaptrade_secret' in data,
             'plaid_connected': 'plaid_token' in data,
             'snaptrade_user_id': data.get('snaptrade_user_id'),
+            'plaid_created': data.get('plaid_created'),
             'connections_count': sum([
                 'snaptrade_secret' in data,
                 'plaid_token' in data
             ])
         }
+    
+    def list_all_plaid_users(self) -> List[Dict]:
+        """List all users with Plaid connections"""
+        users = []
+        for filename in os.listdir(self.secrets_dir):
+            if filename.endswith('.json') and filename != 'encryption.key':
+                user_id = filename[:-5]  # Remove .json
+                data = self._load_user_data(user_id)
+                if 'plaid_token' in data:
+                    users.append({
+                        'user_id': user_id,
+                        'plaid_created': data.get('plaid_created', 'Unknown'),
+                        'has_token': True
+                    })
+        return users
+    
+    def _find_user_with_token(self, access_token: str) -> Optional[str]:
+        """Find user who already has this token by decrypting and comparing"""
+        try:
+            for filename in os.listdir(self.secrets_dir):
+                if filename.endswith('.json') and filename != 'encryption.key':
+                    user_id = filename[:-5]
+                    data = self._load_user_data(user_id)
+                    stored_encrypted = data.get('plaid_token')
+                    if stored_encrypted:
+                        try:
+                            stored_token = self._decrypt_data(stored_encrypted.encode('latin-1'))
+                            if stored_token == access_token:
+                                return user_id
+                        except Exception:
+                            continue  # Skip corrupted tokens
+        except Exception as e:
+            logger.error(f"Error finding user with token: {e}")
+        return None
+    
+    def cleanup_duplicate_tokens(self) -> Dict:
+        """Clean up duplicate Plaid tokens across users"""
+        token_map = {}
+        duplicates = []
+        
+        # Find all tokens and their users
+        for filename in os.listdir(self.secrets_dir):
+            if filename.endswith('.json') and filename != 'encryption.key':
+                user_id = filename[:-5]
+                data = self._load_user_data(user_id)
+                if 'plaid_token' in data:
+                    token = data['plaid_token']
+                    if token in token_map:
+                        duplicates.append({
+                            'token': token[:20] + '...',
+                            'users': [token_map[token], user_id]
+                        })
+                    else:
+                        token_map[token] = user_id
+        
+        return {
+            'total_tokens': len(token_map),
+            'duplicate_groups': len(duplicates),
+            'duplicates': duplicates
+        }
 
 # Global instance
 user_secret_manager = UserSecretManager()
+
+def get_plaid_connection_debug_info() -> Dict:
+    """Get debug information about Plaid connections"""
+    return {
+        'all_plaid_users': user_secret_manager.list_all_plaid_users(),
+        'duplicate_analysis': user_secret_manager.cleanup_duplicate_tokens()
+    }

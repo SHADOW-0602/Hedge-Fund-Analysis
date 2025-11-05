@@ -31,13 +31,25 @@ def register_auth_routes(app):
             
             if user:
                 print(f"[AUTH] Authentication successful for: {username}, role: {user.role.value}")
+                
+                # Store user info in session for Plaid integration
+                from flask import session
+                from utils.secure_id_manager import secure_id_manager
+                
+                # Use secure token instead of UUID
+                secure_token = secure_id_manager.get_secure_token(user.user_id)
+                session['user_id'] = secure_token
+                session['username'] = user.username
+                session['real_user_id'] = user.user_id  # Keep for internal use
+                
                 return jsonify({
                     'success': True,
                     'user': {
                         'username': user.username,
                         'role': user.role.value,
                         'user_id': user.user_id,
-                        'email': user.email
+                        'email': user.email,
+                        'phone': user.phone
                     }
                 })
             
@@ -55,17 +67,28 @@ def register_auth_routes(app):
             data = request.get_json()
             username = data.get('username')
             email = data.get('email')
-            phone = data.get('phone')
+            phone = data.get('phone')  # Optional field
             password = data.get('password')
             
-            if not all([username, email, phone, password]):
-                return jsonify({'success': False, 'error': 'All fields are required'}), 400
+            # Check required fields (phone is optional)
+            if not all([username, email, password]):
+                return jsonify({'success': False, 'error': 'Username, email, and password are required'}), 400
             
             if not supabase_client or not supabase_client.client:
                 return jsonify({'success': False, 'error': 'Database not available'}), 500
             
+            # Check field uniqueness
+            if user_manager.username_exists(username):
+                return jsonify({'success': False, 'error': 'Username already exists'}), 400
+            
+            if user_manager.email_exists(email):
+                return jsonify({'success': False, 'error': 'Email already exists'}), 400
+            
+            if phone and user_manager.phone_exists(phone):
+                return jsonify({'success': False, 'error': 'Phone number already exists'}), 400
+            
             user_role = UserRole.USER
-            user_id = user_manager.create_user(username, email, password, user_role)
+            user_id = user_manager.create_user(username, email, password, user_role, phone)
             
             if user_id:
                 email_sent = email_service.send_welcome_email(email, username)
@@ -75,7 +98,8 @@ def register_auth_routes(app):
                     'success': True,
                     'message': 'User created successfully',
                     'email_sent': email_sent,
-                    'role_counts': role_counts
+                    'role_counts': role_counts,
+                    'user_id': user_id
                 })
             else:
                 return jsonify({'success': False, 'error': 'Failed to create user'}), 500

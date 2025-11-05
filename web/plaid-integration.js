@@ -13,6 +13,7 @@ async function connectPlaid() {
         const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/create-link-token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ 
                 user_id: window.currentUser?.user_id || window.currentUser?.username || 'admin' 
             })
@@ -53,6 +54,7 @@ async function handlePlaidSuccess(public_token, metadata) {
         const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/exchange-token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({
                 public_token: public_token,
                 user_id: window.currentUser?.user_id || window.currentUser?.username || 'admin'
@@ -72,7 +74,11 @@ async function handlePlaidSuccess(public_token, metadata) {
             }, 2000);
             
         } else {
-            throw new Error(result.error || 'Token exchange failed');
+            let errorMsg = result.error || 'Token exchange failed';
+            if (errorMsg.includes('already linked to another user')) {
+                errorMsg = 'This account is already connected to another user. Please disconnect it first or use a different account.';
+            }
+            throw new Error(errorMsg);
         }
         
     } catch (error) {
@@ -119,7 +125,9 @@ async function loadPlaidPortfolio() {
         updatePlaidStatus('Loading portfolio data...', 'connecting');
         
         const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
-        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-portfolio?user_id=${userId}`);
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-portfolio?user_id=${userId}`, {
+            credentials: 'include'
+        });
         const result = await response.json();
         
         if (result.success && result.holdings) {
@@ -227,17 +235,40 @@ async function testPlaidConnection() {
 // Check if user already has Plaid connection
 async function checkExistingPlaidConnection() {
     try {
-        // Get actual user ID
+        // Get actual user ID from session
         const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
         console.log('[PLAID] Checking connection for user:', userId);
         console.log('[PLAID] Current user object:', window.currentUser);
         
-        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-portfolio?user_id=${userId}`);
+        // First check connection status
+        const statusResponse = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ user_id: userId })
+        });
+        
+        const statusResult = await statusResponse.json();
+        console.log('[PLAID] Status check response:', statusResult);
+        
+        if (!statusResult.connected) {
+            console.log(`[PLAID] No connection found for user: ${userId}`);
+            updatePlaidStatus('Ready to connect', 'info');
+            updateConnectButton(false);
+            return false;
+        }
+        
+        // If connected, try to load portfolio data
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-portfolio`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ user_id: userId })
+        });
+        
         const result = await response.json();
+        console.log('[PLAID] Portfolio check response:', result);
         
-        console.log('[PLAID] Connection check response:', result);
-        
-        // Only show connection if user has actual Plaid token
         if (result.success && result.holdings && result.holdings.length > 0) {
             console.log(`[PLAID] Found existing connection with ${result.holdings.length} holdings for user: ${userId}`);
             
@@ -269,6 +300,12 @@ async function checkExistingPlaidConnection() {
             updatePlaidStatus(`Connected - ${result.holdings.length} positions loaded`, 'success');
             updateConnectButton(true);
             return true;
+        } else if (statusResult.connected) {
+            // Connected but no holdings
+            console.log(`[PLAID] Connection exists but no holdings for user: ${userId}`);
+            updatePlaidStatus('Connected - No holdings found', 'info');
+            updateConnectButton(true);
+            return true;
         } else {
             console.log(`[PLAID] No connection found for user: ${userId}`);
             updatePlaidStatus('Ready to connect', 'info');
@@ -277,6 +314,8 @@ async function checkExistingPlaidConnection() {
         }
     } catch (error) {
         console.log('[PLAID] Connection check failed:', error);
+        updatePlaidStatus('Connection check failed', 'error');
+        updateConnectButton(false);
         return false;
     }
 }
@@ -337,6 +376,7 @@ async function disconnectPlaid() {
         const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/disconnect-plaid`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ user_id: userId })
         });
         
@@ -365,22 +405,96 @@ async function disconnectPlaid() {
 // Update connect button based on connection status
 function updateConnectButton(isConnected) {
     const btn = document.getElementById('plaidConnectBtn');
+    const deleteBtn = document.getElementById('plaidDeleteBtn');
+    
     if (!btn) return;
     
     if (isConnected) {
         btn.textContent = 'Disconnect Account';
         btn.className = 'bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm w-full sm:w-auto';
+        
+        // Show delete button
+        if (deleteBtn) {
+            deleteBtn.classList.remove('hidden');
+        } else {
+            // Create delete button if it doesn't exist
+            createDeleteButton();
+        }
     } else {
         btn.textContent = 'Connect Account';
         btn.className = 'bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto';
+        
+        // Hide delete button
+        if (deleteBtn) {
+            deleteBtn.classList.add('hidden');
+        }
+    }
+}
+
+// Create delete connection button
+function createDeleteButton() {
+    const connectBtn = document.getElementById('plaidConnectBtn');
+    if (!connectBtn || document.getElementById('plaidDeleteBtn')) return;
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.id = 'plaidDeleteBtn';
+    deleteBtn.textContent = 'Delete Connection';
+    deleteBtn.className = 'bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm w-full sm:w-auto ml-2';
+    deleteBtn.onclick = deletePlaidConnection;
+    
+    connectBtn.parentNode.insertBefore(deleteBtn, connectBtn.nextSibling);
+}
+
+// Delete Plaid connection permanently
+async function deletePlaidConnection() {
+    if (!confirm('Are you sure you want to permanently delete your Plaid connection? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        console.log('[PLAID] Deleting connection permanently...');
+        updatePlaidStatus('Deleting connection...', 'connecting');
+        
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/delete-plaid-connection`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('[PLAID] Connection deleted successfully');
+            updatePlaidStatus('Connection deleted', 'info');
+            updateConnectButton(false);
+            
+            // Clear any loaded data
+            if (typeof clearPortfolioData === 'function') {
+                clearPortfolioData();
+            }
+            
+            // Hide Plaid switcher
+            if (typeof hidePlaidSwitcher === 'function') {
+                hidePlaidSwitcher();
+            }
+            
+        } else {
+            throw new Error(result.error || 'Delete failed');
+        }
+        
+    } catch (error) {
+        console.error('[PLAID] Delete failed:', error);
+        updatePlaidStatus(`Delete failed: ${error.message}`, 'error');
     }
 }
 
 // Make functions globally available
 window.connectPlaid = connectPlaid;
 window.disconnectPlaid = disconnectPlaid;
+window.deletePlaidConnection = deletePlaidConnection;
 window.togglePlaidConnection = togglePlaidConnection;
 window.updateConnectButton = updateConnectButton;
+window.createDeleteButton = createDeleteButton;
 window.loadPlaidPortfolio = loadPlaidPortfolio;
 window.testPlaidConnection = testPlaidConnection;
 window.checkExistingPlaidConnection = checkExistingPlaidConnection;
@@ -392,7 +506,9 @@ async function loadPlaidTransactions() {
         console.log('[PLAID] Loading transaction data...');
         
         const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
-        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-transactions?user_id=${userId}`);
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-transactions?user_id=${userId}`, {
+            credentials: 'include'
+        });
         const result = await response.json();
         
         if (result.success && result.transactions) {

@@ -243,7 +243,7 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/correlation-analysis', methods=['POST'])
-    def correlation_analysis():
+    def comprehensive_correlation_analysis():
         try:
             import yfinance as yf
             import warnings
@@ -256,9 +256,14 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             if not portfolio:
                 return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
             
-            # Parse options
+            # Parse interactive options with debug logging
             period = options.get('period', '1Y')
-            method = options.get('method', 'pearson')
+            frequency = options.get('frequency', 'Daily')
+            method = options.get('method', 'pearson').lower()
+            rolling_window = options.get('rolling_window', '30d')
+            
+            print(f"[CORRELATION] Received options: period={period}, frequency={frequency}, method={method}, rolling_window={rolling_window}")
+            print(f"[CORRELATION] Full options dict: {options}")
             
             # Extract symbols with better error handling
             symbols = []
@@ -270,13 +275,11 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                         if underlying and underlying not in symbols:
                             symbols.append(underlying)
             
-            # Process all symbols for correlation analysis
-            
             if len(symbols) < 2:
                 return jsonify({'success': False, 'error': 'Need at least 2 symbols for correlation'}), 400
             
             # Download data
-            period_map = {'6M': '6mo', '1Y': '1y', '2Y': '2y', '3Y': '3y', '5Y': '5y'}
+            period_map = {'1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y', '2Y': '2y'}
             yf_period = period_map.get(period, '1y')
             
             try:
@@ -284,15 +287,9 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             except Exception as download_error:
                 return jsonify({'success': False, 'error': f'Failed to download data: {str(download_error)}'}), 500
             
-            # Check if data is valid with comprehensive checks
-            if price_data is None:
-                return jsonify({'success': False, 'error': 'No data returned from market data provider'}), 500
-            
-            if hasattr(price_data, 'empty') and price_data.empty:
-                return jsonify({'success': False, 'error': 'Empty data returned from market data provider'}), 500
-            
-            if hasattr(price_data, 'shape') and price_data.shape[0] == 0:
-                return jsonify({'success': False, 'error': 'No historical data available for the selected period'}), 500
+            # Validate data
+            if price_data is None or (hasattr(price_data, 'empty') and price_data.empty):
+                return jsonify({'success': False, 'error': 'No data available for the selected period'}), 500
             
             # Get price data
             if 'Adj Close' in price_data.columns:
@@ -300,32 +297,71 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             else:
                 prices = price_data['Close']
             
-            # Handle single symbol case
             if len(symbols) == 1:
                 prices = pd.DataFrame(prices)
+            
+            # Apply frequency resampling
+            if frequency == 'Weekly':
+                prices = prices.resample('W').last().dropna()
+            elif frequency == 'Monthly':
+                prices = prices.resample('M').last().dropna()
             
             # Calculate returns
             returns = prices.pct_change().dropna()
             
-            # Filter symbols with sufficient data (avoid pandas boolean ambiguity)
+            # Filter symbols with sufficient data - reduced requirements
+            min_data_points = 10 if frequency == 'Daily' else 5 if frequency == 'Weekly' else 3
             valid_symbols = []
             for symbol in symbols:
                 if symbol in returns.columns:
                     symbol_returns = returns[symbol].dropna()
-                    # Use explicit shape check instead of len() to avoid pandas boolean issues
-                    if hasattr(symbol_returns, 'shape') and symbol_returns.shape[0] >= 30:
+                    if len(symbol_returns) >= min_data_points:
                         valid_symbols.append(symbol)
             
             if len(valid_symbols) < 2:
-                return jsonify({'success': False, 'error': 'Insufficient data for correlation analysis (need at least 30 data points per symbol)'}), 400
+                # Try with even lower requirements if still insufficient
+                min_data_points = 5 if frequency == 'Daily' else 3 if frequency == 'Weekly' else 2
+                valid_symbols = []
+                for symbol in symbols:
+                    if symbol in returns.columns:
+                        symbol_returns = returns[symbol].dropna()
+                        if len(symbol_returns) >= min_data_points:
+                            valid_symbols.append(symbol)
+                
+                if len(valid_symbols) < 2:
+                    return jsonify({'success': False, 'error': f'Insufficient data for correlation analysis. Available data points: {len(returns)} (need at least {min_data_points} per symbol)'}), 400
             
-            # Calculate correlation matrix
+            # Apply rolling window if specified
+            if rolling_window != '30d':
+                window_days = int(rolling_window.replace('d', ''))
+                if frequency == 'Weekly':
+                    window_size = max(4, window_days // 7)
+                elif frequency == 'Monthly':
+                    window_size = max(3, window_days // 30)
+                else:
+                    window_size = window_days
+                
+                # Use rolling correlation for the last window
+                returns = returns.tail(window_size)
+            
+            # Validate and calculate correlation matrix with specified method
+            valid_methods = ['pearson', 'spearman', 'kendall']
+            if method not in valid_methods:
+                method = 'pearson'  # fallback
+            
+            print(f"[CORRELATION] Calculating correlation using method: {method}")
+            print(f"[CORRELATION] Data shape: {returns[valid_symbols].shape}")
+            print(f"[CORRELATION] Valid symbols: {valid_symbols}")
+            
             try:
                 correlation_data = returns[valid_symbols].corr(method=method)
+                print(f"[CORRELATION] Correlation matrix calculated successfully with {method}")
+                print(f"[CORRELATION] Sample correlation values: {correlation_data.iloc[0, 1] if len(valid_symbols) > 1 else 'N/A'}")
             except Exception as corr_error:
-                return jsonify({'success': False, 'error': f'Correlation calculation failed: {str(corr_error)}'}), 500
+                print(f"[CORRELATION] Correlation calculation failed with {method}: {corr_error}")
+                return jsonify({'success': False, 'error': f'Correlation calculation failed with {method}: {str(corr_error)}'}), 500
             
-            # Convert to dictionary format with error handling
+            # Convert to dictionary format
             correlation_matrix = {}
             for s1 in valid_symbols:
                 correlation_matrix[s1] = {}
@@ -345,7 +381,6 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                         if not np.isnan(corr_val):
                             corr_values.append(corr_val)
             
-            # Use explicit length check to avoid pandas boolean issues
             if len(corr_values) > 0:
                 avg_correlation = float(np.mean(corr_values))
                 max_correlation = float(np.max(corr_values))
@@ -359,8 +394,10 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                 'min_correlation': min_correlation,
                 'method': method,
                 'period': period,
+                'frequency': frequency,
+                'rolling_window': rolling_window,
                 'symbols_analyzed': len(valid_symbols),
-                'data_points': returns.shape[0] if hasattr(returns, 'shape') else 0
+                'data_points': len(returns)
             }
             
             response_data = sanitize_for_json({

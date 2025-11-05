@@ -33,6 +33,7 @@ class User:
     created_at: datetime
     last_login: Optional[datetime] = None
     is_active: bool = True
+    phone: Optional[str] = None
 
 class RolePermissionManager:
     def __init__(self):
@@ -137,7 +138,8 @@ class UserManager:
                 role=UserRole(row['role']),
                 created_at=datetime.fromisoformat(row['created_at']),
                 last_login=datetime.fromisoformat(row['last_login']) if row['last_login'] else None,
-                is_active=row['is_active']
+                is_active=row['is_active'],
+                phone=row.get('phone')
             )
             
             logger.info(f"User authenticated successfully: {username}")
@@ -237,7 +239,8 @@ class UserManager:
                 role=UserRole(row['role']),
                 created_at=datetime.fromisoformat(row['created_at']),
                 last_login=datetime.fromisoformat(row['last_login']) if row['last_login'] else None,
-                is_active=row['is_active']
+                is_active=row['is_active'],
+                phone=row.get('phone')
             ))
         
         return users
@@ -282,6 +285,17 @@ class UserManager:
         
         try:
             result = self.supabase.table('app_users').select('user_id').eq('email', email).execute()
+            return len(result.data) > 0
+        except:
+            return False
+    
+    def phone_exists(self, phone: str) -> bool:
+        """Check if phone number already exists"""
+        if not self.supabase or not phone:
+            return False
+        
+        try:
+            result = self.supabase.table('app_users').select('user_id').eq('phone', phone).execute()
             return len(result.data) > 0
         except:
             return False

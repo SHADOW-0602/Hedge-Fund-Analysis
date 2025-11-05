@@ -271,43 +271,51 @@ function viewLoadedData() {
         return;
     }
     
-    // Collect all available data sources
+    // Collect all available data sources (deduplicated)
     const dataSources = [];
+    const addedTypes = new Set();
     
-    // Check portfolio data
+    // Check portfolio data (prioritize memory over stored)
     if (window.portfolioData && window.portfolioData.length > 0) {
         dataSources.push({ type: 'Portfolio Data (Memory)', data: window.portfolioData, source: 'memory' });
+        addedTypes.add('portfolio');
+    } else {
+        // Only check localStorage if no memory data
+        const storedPortfolio = localStorage.getItem('currentPortfolio');
+        if (storedPortfolio) {
+            try {
+                const data = JSON.parse(storedPortfolio);
+                if (data && data.length > 0) {
+                    dataSources.push({ type: 'Portfolio Data (Stored)', data: data, source: 'localStorage' });
+                    addedTypes.add('portfolio');
+                }
+            } catch (e) {
+                console.error('Error parsing stored portfolio:', e);
+            }
+        }
     }
     
-    // Check transaction data
+    // Check transaction data (prioritize memory over stored)
     if (window.currentTransactions && window.currentTransactions.length > 0) {
         dataSources.push({ type: 'Transaction Data (Memory)', data: window.currentTransactions, source: 'memory' });
-    }
-    
-    // Check localStorage
-    const storedPortfolio = localStorage.getItem('currentPortfolio');
-    if (storedPortfolio) {
-        try {
-            const data = JSON.parse(storedPortfolio);
-            if (data && data.length > 0) {
-                dataSources.push({ type: 'Portfolio Data (Stored)', data: data, source: 'localStorage' });
+        addedTypes.add('transactions');
+    } else {
+        // Only check localStorage if no memory data
+        const storedTransactions = localStorage.getItem('currentTransactions');
+        if (storedTransactions) {
+            try {
+                const data = JSON.parse(storedTransactions);
+                if (data && data.length > 0) {
+                    dataSources.push({ type: 'Transaction Data (Stored)', data: data, source: 'localStorage' });
+                    addedTypes.add('transactions');
+                }
+            } catch (e) {
+                console.error('Error parsing stored transactions:', e);
             }
-        } catch (e) {
-            console.error('Error parsing stored portfolio:', e);
         }
     }
     
-    const storedTransactions = localStorage.getItem('currentTransactions');
-    if (storedTransactions) {
-        try {
-            const data = JSON.parse(storedTransactions);
-            if (data && data.length > 0) {
-                dataSources.push({ type: 'Transaction Data (Stored)', data: data, source: 'localStorage' });
-            }
-        } catch (e) {
-            console.error('Error parsing stored transactions:', e);
-        }
-    }
+
     
     // Check saved files
     const portfolioFiles = JSON.parse(localStorage.getItem('portfolioFiles') || '[]');

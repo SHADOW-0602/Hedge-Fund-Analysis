@@ -306,20 +306,20 @@ class AnalyticsManager {
         if (window.loadingManager) {
             window.loadingManager.clearAll();
         }
-        
+
         const container = document.getElementById('analysisContent');
         if (!container) return;
-        
+
         container.classList.remove('hidden');
         const metrics = result.risk_metrics || {};
-        
+
         // Get current settings or use API response values
         const currentPeriod = options?.period || metrics.period;
         const currentConfidence = options?.var_confidence || metrics.var_confidence;
         const currentModel = options?.risk_model || metrics.risk_model;
         const currentBenchmark = options?.benchmark || metrics.benchmark;
         const currentWindow = options?.rolling_window || metrics.rolling_window;
-        
+
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
                 <h2 class="analysis-title">Risk Metrics Analysis</h2>
@@ -494,9 +494,9 @@ class AnalyticsManager {
     displayOptionsStrategies(result, options) {
         const container = document.getElementById('analysisContent');
         if (!container) return;
-        
+
         container.classList.remove('hidden');
-        
+
         const allOpportunities = (result.opportunities || []).sort((a, b) => a.symbol.localeCompare(b.symbol));
         const summary = result.summary || {};
         const filteredOpportunities = window.getFilteredOpportunities ? window.getFilteredOpportunities() : allOpportunities;
@@ -506,26 +506,26 @@ class AnalyticsManager {
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = startIndex + itemsPerPage;
         const currentOpportunities = filteredOpportunities.slice(startIndex, endIndex);
-        
+
         // Get available strategies and symbols
         const availableStrategies = [...new Set(allOpportunities.map(opp => opp.strategy))];
         const availableSymbols = [...new Set(allOpportunities.map(opp => opp.symbol))].sort();
-        
+
         const strategyOptions = availableStrategies.map(strategy => {
             const displayName = strategy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
             return `<option value="${strategy}">${displayName}</option>`;
         }).join('');
-        
-        const symbolOptions = availableSymbols.map(symbol => 
+
+        const symbolOptions = availableSymbols.map(symbol =>
             `<option value="${symbol}">${symbol}</option>`
         ).join('');
-        
+
         // Get current settings
         const currentExpiration = options?.expiration || '3M';
         const currentMoneyness = options?.moneyness || 'All';
         const currentMinPremium = options?.min_premium || '0.50';
         const currentDeltaRange = options?.delta_range || 'All';
-        
+
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">Options Strategies</h2>
@@ -596,21 +596,19 @@ class AnalyticsManager {
             
             <div class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-blue-50 p-4 rounded-lg">
-                        <h4 class="font-semibold text-blue-800">Covered Calls</h4>
-                        <p class="text-2xl font-bold text-blue-600">${allOpportunities.filter(o => o.strategy === 'covered_calls').length}</p>
-                        <p class="text-sm text-blue-600">Premium: ${window.analyticsCore.formatCurrency(allOpportunities.filter(o => o.strategy === 'covered_calls').reduce((sum, o) => sum + (o.premium || 0), 0))}</p>
-                    </div>
-                    <div class="bg-green-50 p-4 rounded-lg">
-                        <h4 class="font-semibold text-green-800">Protective Puts</h4>
-                        <p class="text-2xl font-bold text-green-600">${allOpportunities.filter(o => o.strategy === 'protective_puts').length}</p>
-                        <p class="text-sm text-green-600">Cost: ${window.analyticsCore.formatCurrency(allOpportunities.filter(o => o.strategy === 'protective_puts').reduce((sum, o) => sum + (o.premium || 0), 0))}</p>
-                    </div>
-                    <div class="bg-purple-50 p-4 rounded-lg">
-                        <h4 class="font-semibold text-purple-800">Iron Condors</h4>
-                        <p class="text-2xl font-bold text-purple-600">${allOpportunities.filter(o => o.strategy === 'iron_condors').length}</p>
-                        <p class="text-sm text-purple-600">Premium: ${window.analyticsCore.formatCurrency(allOpportunities.filter(o => o.strategy === 'iron_condors').reduce((sum, o) => sum + (o.premium || 0), 0))}</p>
-                    </div>
+                    ${availableStrategies.map(strategy => {
+                        const strategyOpportunities = allOpportunities.filter(o => o.strategy === strategy);
+                        const totalPremium = strategyOpportunities.reduce((sum, o) => sum + (o.premium || 0), 0);
+                        const displayName = strategy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        const colorClass = strategy === 'covered_calls' ? 'blue' : strategy === 'protective_puts' ? 'green' : 'purple';
+                        return `
+                            <div class="bg-${colorClass}-50 p-4 rounded-lg">
+                                <h4 class="font-semibold text-${colorClass}-800">${displayName}</h4>
+                                <p class="text-2xl font-bold text-${colorClass}-600">${strategyOpportunities.length}</p>
+                                <p class="text-sm text-${colorClass}-600">${strategy.includes('put') ? 'Cost' : 'Premium'}: ${window.analyticsCore.formatCurrency(totalPremium)}</p>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
                 ${allOpportunities.length > 0 ? `
                     <div class="overflow-x-auto">
@@ -647,28 +645,28 @@ class AnalyticsManager {
                 ` : '<p class="text-gray-500 text-center py-4">No options opportunities found</p>'}
             </div>
         `;
-        
+
         // Store opportunities and summary for pagination
         window.optionsOpportunities = allOpportunities;
         window.optionsSummary = summary;
-        
+
         // Clear loading spinner
         if (window.clearAllLoadingSpinners) {
             window.clearAllLoadingSpinners();
         }
-        
+
         // Restore filter selections
         setTimeout(() => {
             const strategySelect = document.getElementById('strategyFilter');
             const symbolSelect = document.getElementById('symbolFilter');
-            
+
             if (strategySelect && window.optionsStrategyFilter) {
                 strategySelect.value = window.optionsStrategyFilter;
             }
             if (symbolSelect && window.optionsSymbolFilter) {
                 symbolSelect.value = window.optionsSymbolFilter;
             }
-            
+
             if (strategySelect) {
                 strategySelect.addEventListener('change', () => {
                     window.optionsStrategyFilter = strategySelect.value;
@@ -685,17 +683,17 @@ class AnalyticsManager {
     displayPerformanceAttribution(result, options) {
         const container = document.getElementById('analysisContent');
         if (!container) return;
-        
+
         container.classList.remove('hidden');
         const attribution = result.attribution || result;
-        
+
         // Get current settings
         const currentPeriod = options?.period || '1Y';
         const currentModel = options?.attribution_model || 'brinson';
         const currentBenchmark = options?.benchmark || 'SPY';
         const currentCurrency = options?.currency || 'USD';
         const currentFrequency = options?.frequency || 'daily';
-        
+
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">Performance Attribution</h2>
@@ -828,18 +826,18 @@ class AnalyticsManager {
     displayPortfolioOptimization(result, options) {
         const container = document.getElementById('analysisContent');
         if (!container) return;
-        
+
         container.classList.remove('hidden');
         const optimization = result.optimization || {};
         const optimal = optimization.optimal_portfolio || {};
-        
+
         // Get current settings
         const currentObjective = options?.objective || 'max_sharpe';
         const currentConstraint = options?.constraint || 'long_only';
         const currentRebalancing = options?.rebalancing || 'monthly';
         const currentRiskBudget = options?.risk_budget || 'equal';
         const currentLookback = options?.lookback_period || '1y';
-        
+
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">Portfolio Optimization</h2>
@@ -1000,17 +998,17 @@ class AnalyticsManager {
     displayMonteCarloResults(result, options) {
         const container = document.getElementById('analysisContent');
         if (!container) return;
-        
+
         container.classList.remove('hidden');
         const results = result.results || {};
-        
+
         // Get current settings
         const currentPeriod = options?.forecast_period || '3M';
         const currentSimulations = options?.simulations || 10000;
         const currentConfidence = options?.confidence_intervals || 0.95;
         const currentRegime = options?.market_regime || 'normal';
         const currentVolatility = options?.volatility_adjustment || 0.0;
-        
+
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">Monte Carlo Simulation</h2>
@@ -1152,6 +1150,161 @@ class AnalyticsManager {
             </div>
         `;
     }
+
+    displayCorrelationAnalysis(result, options) {
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        container.classList.remove('hidden');
+        const correlation = result.correlation_matrix || {};
+        const summary = result.summary || {};
+
+        // Get current settings from options or summary
+        const currentPeriod = options?.period || summary.period || '1Y';
+        const currentFrequency = options?.frequency || summary.frequency || 'Daily';
+        const currentMethod = options?.method || summary.method || 'pearson';
+        const currentRollingWindow = options?.rolling_window || summary.rolling_window || '30d';
+
+        // Get symbols for matrix display
+        const symbols = Object.keys(correlation);
+
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Correlation Analysis</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleCorrelationSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="updateCorrelationAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Correlation Settings Panel -->
+            <div id="correlationSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="correlationPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                            <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="2Y" ${currentPeriod === '2Y' ? 'selected' : ''}>2 Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select id="correlationFrequency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                            <option value="Daily" ${currentFrequency === 'Daily' ? 'selected' : ''}>Daily</option>
+                            <option value="Weekly" ${currentFrequency === 'Weekly' ? 'selected' : ''}>Weekly</option>
+                            <option value="Monthly" ${currentFrequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
+                        <select id="correlationMethod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                            <option value="pearson" ${currentMethod === 'pearson' ? 'selected' : ''}>Pearson</option>
+                            <option value="spearman" ${currentMethod === 'spearman' ? 'selected' : ''}>Spearman</option>
+                            <option value="kendall" ${currentMethod === 'kendall' ? 'selected' : ''}>Kendall</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rolling Window</label>
+                        <select id="correlationRollingWindow" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                            <option value="30d" ${currentRollingWindow === '30d' ? 'selected' : ''}>30 days</option>
+                            <option value="60d" ${currentRollingWindow === '60d' ? 'selected' : ''}>60 days</option>
+                            <option value="90d" ${currentRollingWindow === '90d' ? 'selected' : ''}>90 days</option>
+                            <option value="252d" ${currentRollingWindow === '252d' ? 'selected' : ''}>252 days</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-y-6">
+                <!-- Summary Statistics -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="details-box">
+                        <h4 class="section-header">Average Correlation</h4>
+                        <p class="text-2xl font-bold metric-value ${(summary.average_correlation || 0) > 0.7 ? 'negative' : (summary.average_correlation || 0) > 0.3 ? 'neutral' : 'positive'}">${window.analyticsCore.formatNumber(summary.average_correlation || 0)}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Max Correlation</h4>
+                        <p class="text-2xl font-bold metric-value ${(summary.max_correlation || 0) > 0.8 ? 'negative' : 'neutral'}">${window.analyticsCore.formatNumber(summary.max_correlation || 0)}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Min Correlation</h4>
+                        <p class="text-2xl font-bold metric-value ${(summary.min_correlation || 0) < -0.3 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(summary.min_correlation || 0)}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Symbols Analyzed</h4>
+                        <p class="text-2xl font-bold metric-value neutral">${summary.symbols_analyzed || symbols.length}</p>
+                    </div>
+                </div>
+                
+                <!-- Correlation Matrix -->
+                ${symbols.length > 0 ? `
+                    <div class="details-box">
+                        <h4 class="section-header">Correlation Matrix</h4>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
+                                        ${symbols.map(symbol => `<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">${symbol}</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${symbols.map(symbol1 => `
+                                        <tr>
+                                            <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${symbol1}</td>
+                                            ${symbols.map(symbol2 => {
+            const corrValue = correlation[symbol1]?.[symbol2] || 0;
+            const colorClass = symbol1 === symbol2 ? 'bg-gray-100' :
+                corrValue > 0.7 ? 'bg-red-100 text-red-800' :
+                    corrValue > 0.3 ? 'bg-yellow-100 text-yellow-800' :
+                        corrValue < -0.3 ? 'bg-green-100 text-green-800' :
+                            'bg-blue-100 text-blue-800';
+            return `<td class="px-4 py-2 whitespace-nowrap text-sm text-center ${colorClass}">${window.analyticsCore.formatNumber(corrValue)}</td>`;
+        }).join('')}
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 text-sm text-gray-600">
+                            <div class="flex flex-wrap gap-4">
+                                <div class="flex items-center"><div class="w-4 h-4 bg-red-100 border mr-2"></div>Strong Positive (>0.7)</div>
+                                <div class="flex items-center"><div class="w-4 h-4 bg-yellow-100 border mr-2"></div>Moderate Positive (0.3-0.7)</div>
+                                <div class="flex items-center"><div class="w-4 h-4 bg-blue-100 border mr-2"></div>Weak (-0.3-0.3)</div>
+                                <div class="flex items-center"><div class="w-4 h-4 bg-green-100 border mr-2"></div>Negative (<-0.3)</div>
+                            </div>
+                        </div>
+                    </div>
+                ` : '<p class="text-gray-500 text-center py-4">No correlation data available</p>'}
+                
+                <!-- Analysis Parameters -->
+                <div class="details-box">
+                    <h4 class="section-header">Analysis Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div><span class="detail-label">Period:</span> <span class="detail-value">${currentPeriod}</span></div>
+                        <div><span class="detail-label">Frequency:</span> <span class="detail-value">${currentFrequency}</span></div>
+                        <div><span class="detail-label">Method:</span> <span class="detail-value">${currentMethod}</span></div>
+                        <div><span class="detail-label">Rolling Window:</span> <span class="detail-value">${currentRollingWindow}</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 }
 
 // Create global instance
@@ -1165,204 +1318,47 @@ document.addEventListener('DOMContentLoaded', () => {
     window.analyticsManager.initialize();
 });
 
-// Global update functions for UI - Portfolio Analysis
-window.updateMonteCarloAnalysis = () => {
-    // Get settings values from form
-    const forecastPeriod = document.getElementById('mcForecastPeriod')?.value || '3M';
-    const simulations = parseInt(document.getElementById('mcSimulations')?.value) || 10000;
-    const confidenceIntervals = parseFloat(document.getElementById('mcConfidenceIntervals')?.value) || 0.95;
-    const marketRegime = document.getElementById('mcMarketRegime')?.value || 'normal';
-    const volatilityAdjustment = parseFloat(document.getElementById('mcVolatilityAdjustment')?.value) || 0.0;
-    
-    // Store settings for API call
-    window.analyticsCore.monteCarloSettings = {
-        forecast_period: forecastPeriod,
-        simulations: simulations,
-        confidence_intervals: confidenceIntervals,
-        market_regime: marketRegime,
-        volatility_adjustment: volatilityAdjustment
-    };
-    
-    // Force reload with new settings
-    window.analyticsManager.loadModule('monte-carlo');
+// Correlation Analysis Functions
+window.toggleCorrelationSettings = () => {
+    const settings = document.getElementById('correlationSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
 };
-window.updateRiskAnalysis = () => {
+
+window.updateCorrelationAnalysis = () => {
     // Get settings values from form - no fallbacks
-    const period = document.getElementById('riskPeriod')?.value;
-    const varConfidence = parseFloat(document.getElementById('riskVarConfidence')?.value);
-    const riskModel = document.getElementById('riskModel')?.value;
-    const benchmark = document.getElementById('riskBenchmark')?.value;
-    const rollingWindow = parseInt(document.getElementById('riskRollingWindow')?.value);
-    
+    const period = document.getElementById('correlationPeriod')?.value;
+    const frequency = document.getElementById('correlationFrequency')?.value;
+    const method = document.getElementById('correlationMethod')?.value;
+    const rollingWindow = document.getElementById('correlationRollingWindow')?.value;
+
     // Validate required settings
-    if (!period || !varConfidence || !riskModel || !benchmark || !rollingWindow) {
-        console.error('Missing required risk analysis settings');
+    if (!period || !frequency || !method || !rollingWindow) {
+        console.error('Missing required correlation analysis settings');
         return;
     }
-    
+
+    console.log('[CORRELATION] Updating with settings:', { period, frequency, method, rolling_window: rollingWindow });
+
     // Store settings for API call
-    window.analyticsCore.riskSettings = {
+    window.analyticsCore.correlationSettings = {
         period,
-        var_confidence: varConfidence,
-        risk_model: riskModel,
-        benchmark,
+        frequency,
+        method,
         rolling_window: rollingWindow
     };
-    
-    // Force reload of risk metrics with new settings
-    window.analyticsManager.loadModule('risk-metrics');
-};
-window.updateOptionsAnalysis = () => {
-    // Get settings values from form
-    const expiration = document.getElementById('optionsExpiration')?.value || '3M';
-    const moneyness = document.getElementById('optionsMoneyness')?.value || 'All';
-    const minPremium = document.getElementById('optionsMinPremium')?.value || '0.50';
-    const deltaRange = document.getElementById('optionsDeltaRange')?.value || 'All';
-    
-    // Store settings for API call
-    window.analyticsCore.optionsSettings = {
-        expiration,
-        moneyness,
-        strategy: 'All',
-        min_premium: minPremium,
-        delta_range: deltaRange
-    };
-    
-    // Force reload of options strategies with new settings
-    window.analyticsManager.loadModule('options-strategies');
-};
-window.updatePerformanceAttribution = () => {
-    // Get settings values from form
-    const period = document.getElementById('performancePeriod')?.value || '1Y';
-    const attributionModel = document.getElementById('performanceModel')?.value || 'brinson';
-    const benchmark = document.getElementById('performanceBenchmark')?.value || 'SPY';
-    const currency = document.getElementById('performanceCurrency')?.value || 'USD';
-    const frequency = document.getElementById('performanceFrequency')?.value || 'daily';
-    
-    // Store settings for API call
-    window.analyticsCore.performanceSettings = {
-        period,
-        attribution_model: attributionModel,
-        benchmark,
-        currency,
-        frequency
-    };
-    console.log('Stored settings:', window.analyticsCore.performanceSettings);
-    
+
     // Force reload with new settings
-    window.analyticsManager.loadModule('performance-attribution');
+    window.analyticsManager.loadModule('correlation-analysis');
 };
 
-window.updatePortfolioOptimization = () => {
-    // Get settings values from form
-    const objective = document.getElementById('optimizationObjective')?.value || 'max_sharpe';
-    const constraint = document.getElementById('optimizationConstraint')?.value || 'long_only';
-    const rebalancing = document.getElementById('optimizationRebalancing')?.value || 'monthly';
-    const riskBudget = document.getElementById('optimizationRiskBudget')?.value || 'equal';
-    const lookbackPeriod = document.getElementById('optimizationLookback')?.value || '1y';
-    
-    // Store settings for API call
-    window.analyticsCore.optimizationSettings = {
-        objective,
-        constraint,
-        rebalancing,
-        risk_budget: riskBudget,
-        lookback_period: lookbackPeriod
-    };
-    
-    // Force reload with new settings
-    window.analyticsManager.loadModule('portfolio-optimization');
-};
-
-window.togglePerformanceSettings = () => {
-    const settings = document.getElementById('performanceSettings');
-    if (settings) {
-        settings.classList.toggle('hidden');
-        
-        // Set default values if not already set
-        if (!document.getElementById('performancePeriod').value) {
-            document.getElementById('performancePeriod').value = '1Y';
-        }
-        if (!document.getElementById('performanceModel').value) {
-            document.getElementById('performanceModel').value = 'brinson';
-        }
-        if (!document.getElementById('performanceBenchmark').value) {
-            document.getElementById('performanceBenchmark').value = 'SPY';
-        }
-        if (!document.getElementById('performanceCurrency').value) {
-            document.getElementById('performanceCurrency').value = 'USD';
-        }
-        if (!document.getElementById('performanceFrequency').value) {
-            document.getElementById('performanceFrequency').value = 'daily';
-        }
-    }
-};
-
-// Options pagination functions
-window.changeOptionsPage = (page) => {
-    if (page < 1 || !window.optionsOpportunities) return;
-    const filteredOpps = window.getFilteredOpportunities();
-    const totalPages = Math.ceil(filteredOpps.length / 10);
-    if (page > totalPages) return;
-    
-    window.optionsCurrentPage = page;
-    window.analyticsManager.displayOptionsStrategies({opportunities: window.optionsOpportunities, summary: window.optionsSummary || {}});
-};
-
-// Filter options strategies
-window.filterOptionsStrategies = () => {
-    window.optionsCurrentPage = 1;
-    window.analyticsManager.displayOptionsStrategies({opportunities: window.optionsOpportunities, summary: window.optionsSummary || {}});
-};
-
-// Get filtered opportunities based on current filters
-window.getFilteredOpportunities = () => {
-    if (!window.optionsOpportunities) return [];
-    const strategyFilter = document.getElementById('strategyFilter')?.value || 'all';
-    const symbolFilter = document.getElementById('symbolFilter')?.value || 'all';
-    
-    let filtered = window.optionsOpportunities;
-    
-    if (strategyFilter !== 'all') {
-        filtered = filtered.filter(opp => opp.strategy === strategyFilter);
-    }
-    
-    if (symbolFilter !== 'all') {
-        filtered = filtered.filter(opp => opp.symbol === symbolFilter);
-    }
-    
-    return filtered;
-};
-
-// Settings toggles - Portfolio Analysis
-window.toggleMonteCarloSettings = () => {
-    const settings = document.getElementById('monteCarloSettings');
-    if (settings) {
-        settings.classList.toggle('hidden');
-        
-        // Set default values if not already set
-        if (!document.getElementById('mcForecastPeriod').value) {
-            document.getElementById('mcForecastPeriod').value = '3M';
-        }
-        if (!document.getElementById('mcSimulations').value) {
-            document.getElementById('mcSimulations').value = '10000';
-        }
-        if (!document.getElementById('mcConfidenceIntervals').value) {
-            document.getElementById('mcConfidenceIntervals').value = '0.95';
-        }
-        if (!document.getElementById('mcMarketRegime').value) {
-            document.getElementById('mcMarketRegime').value = 'normal';
-        }
-        if (!document.getElementById('mcVolatilityAdjustment').value) {
-            document.getElementById('mcVolatilityAdjustment').value = '0.0';
-        }
-    }
-};
+// Settings toggles - Risk Analysis
 window.toggleRiskSettings = () => {
     const settings = document.getElementById('riskSettings');
     if (settings) {
         settings.classList.toggle('hidden');
-        
+
         // Set default values if not already set
         if (!document.getElementById('riskPeriod').value) {
             document.getElementById('riskPeriod').value = '1Y';
@@ -1381,48 +1377,30 @@ window.toggleRiskSettings = () => {
         }
     }
 };
-window.toggleOptionsSettings = () => {
-    const settings = document.getElementById('optionsSettings');
-    if (settings) {
-        settings.classList.toggle('hidden');
-        
-        // Set default values if not already set
-        if (!document.getElementById('optionsExpiration').value) {
-            document.getElementById('optionsExpiration').value = '3M';
-        }
-        if (!document.getElementById('optionsMoneyness').value) {
-            document.getElementById('optionsMoneyness').value = 'All';
-        }
 
-        if (!document.getElementById('optionsMinPremium').value) {
-            document.getElementById('optionsMinPremium').value = '0.50';
-        }
-        if (!document.getElementById('optionsDeltaRange').value) {
-            document.getElementById('optionsDeltaRange').value = 'All';
-        }
-    }
-};
+window.updateRiskAnalysis = () => {
+    // Get settings values from form - no fallbacks
+    const period = document.getElementById('riskPeriod')?.value;
+    const varConfidence = parseFloat(document.getElementById('riskVarConfidence')?.value);
+    const riskModel = document.getElementById('riskModel')?.value;
+    const benchmark = document.getElementById('riskBenchmark')?.value;
+    const rollingWindow = parseInt(document.getElementById('riskRollingWindow')?.value);
 
-window.toggleOptimizationSettings = () => {
-    const settings = document.getElementById('optimizationSettings');
-    if (settings) {
-        settings.classList.toggle('hidden');
-        
-        // Set default values if not already set
-        if (!document.getElementById('optimizationObjective').value) {
-            document.getElementById('optimizationObjective').value = 'max_sharpe';
-        }
-        if (!document.getElementById('optimizationConstraint').value) {
-            document.getElementById('optimizationConstraint').value = 'long_only';
-        }
-        if (!document.getElementById('optimizationRebalancing').value) {
-            document.getElementById('optimizationRebalancing').value = 'monthly';
-        }
-        if (!document.getElementById('optimizationRiskBudget').value) {
-            document.getElementById('optimizationRiskBudget').value = 'equal';
-        }
-        if (!document.getElementById('optimizationLookback').value) {
-            document.getElementById('optimizationLookback').value = '1y';
-        }
+    // Validate required settings
+    if (!period || !varConfidence || !riskModel || !benchmark || !rollingWindow) {
+        console.error('Missing required risk analysis settings');
+        return;
     }
+
+    // Store settings for API call
+    window.analyticsCore.riskSettings = {
+        period,
+        var_confidence: varConfidence,
+        risk_model: riskModel,
+        benchmark,
+        rolling_window: rollingWindow
+    };
+
+    // Force reload of risk metrics with new settings
+    window.analyticsManager.loadModule('risk-metrics');
 };

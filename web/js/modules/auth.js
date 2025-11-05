@@ -10,6 +10,7 @@ async function handleLogin(e) {
         const response = await fetch(`${API_BASE}/api/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ username, password })
         });
 
@@ -68,6 +69,7 @@ async function handleRegister(e) {
         const response = await fetch(`${API_BASE}/api/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ username, email, phone, role, password })
         });
 

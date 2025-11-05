@@ -8,6 +8,8 @@ import os
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
+import pandas as pd
+import numpy as np
 
 # Load environment variables
 load_dotenv()
@@ -30,7 +32,6 @@ from api.auth_routes import register_auth_routes
 from api.portfolio_routes import register_portfolio_routes
 from api.transaction_routes import register_transaction_routes
 from api.admin_routes import register_admin_routes
-from api.plaid_routes import register_plaid_routes
 from api.cache_routes import register_cache_routes
 
 
@@ -95,7 +96,11 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 web_folder = os.path.join(project_root, 'web')
 
 app = Flask(__name__, static_folder=web_folder, static_url_path='')
-CORS(app)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production-12345')
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+CORS(app, supports_credentials=True)
 
 # Initialize data client
 try:
@@ -187,6 +192,8 @@ def get_market_news():
 def test_api():
     return jsonify({'success': True, 'message': 'API is working'})
 
+
+
 # Endpoint to serve Pexels API key
 @app.route('/api/config', methods=['GET'])
 def get_config():
@@ -211,7 +218,9 @@ if redis_client:
     register_cache_routes(app, redis_client)
 else:
     logger.warning("Redis not available - admin and cache routes disabled")
-register_plaid_routes(app)
+# Use secure Plaid routes
+from api.plaid_routes_secure import register_plaid_routes as register_secure_plaid_routes
+register_secure_plaid_routes(app)
 
 if __name__ == '__main__':
     logger.info("Starting Portfolio & Options Analysis Engine")

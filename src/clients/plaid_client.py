@@ -58,8 +58,8 @@ class PlaidClient:
         else:
             self.client = None
     
-    def create_link_token(self, user_id: str) -> str:
-        """Create link token for Plaid Link using official SDK"""
+    def create_link_token(self, user_id: str, username: str = None) -> str:
+        """Create link token for Plaid Link using official SDK with dynamic username"""
         if not self.client:
             return ""
         
@@ -68,13 +68,16 @@ class PlaidClient:
             products = [Products('investments'), Products('transactions')]
             country_codes = [CountryCode(c.strip()) for c in self.country_codes]
             
+            # Use username if provided, otherwise use user_id
+            client_user_id = username if username else user_id
+            
             request = LinkTokenCreateRequest(
                 products=products,
                 client_name="Portfolio Analysis Platform",
                 country_codes=country_codes,
                 language='en',
                 user=LinkTokenCreateRequestUser(
-                    client_user_id=user_id
+                    client_user_id=client_user_id
                 )
             )
             
@@ -141,7 +144,11 @@ class PlaidClient:
             
             # Store token if user_id provided
             if user_id:
-                user_secret_manager.store_plaid_token(user_id, access_token)
+                try:
+                    user_secret_manager.store_plaid_token(user_id, access_token)
+                except ValueError as e:
+                    logger.error(f"Token storage failed: {e}")
+                    return ""
             
             logger.info("Plaid token exchanged successfully")
             return access_token
@@ -364,7 +371,7 @@ class PlaidClient:
             return pd.DataFrame()
     
     def get_investment_transactions(self, user_id: str, days: int = 90) -> pd.DataFrame:
-        """Get investment transactions (buy/sell) using official SDK"""
+        """Get investment transactions (buy/sell) using official SDK with pagination"""
         if not self.client:
             return pd.DataFrame()
         
@@ -378,21 +385,38 @@ class PlaidClient:
             start_date = datetime.now() - timedelta(days=days)
             end_date = datetime.now()
             
-            request = InvestmentsTransactionsGetRequest(
-                access_token=access_token,
-                start_date=start_date.date(),
-                end_date=end_date.date()
-            )
-            response = self.client.investments_transactions_get(request)
+            all_transactions = []
+            all_securities = {}
+            offset = 0
+            count = 500  # Maximum allowed by Plaid API
+            
+            while True:
+                request = InvestmentsTransactionsGetRequest(
+                    access_token=access_token,
+                    start_date=start_date.date(),
+                    end_date=end_date.date()
+                )
+                response = self.client.investments_transactions_get(request)
+                
+                # Add securities to map
+                for sec in response['securities']:
+                    all_securities[sec['security_id']] = sec
+                
+                # Add transactions
+                batch_transactions = response['investment_transactions']
+                all_transactions.extend(batch_transactions)
+                
+                logger.info(f"Plaid batch {offset//count + 1}: {len(batch_transactions)} transactions (total: {len(all_transactions)})")
+                
+                # Plaid returns all transactions in one call, no pagination needed
+                break
             
             transactions_data = []
-            securities_map = {sec['security_id']: sec for sec in response['securities']}
+            logger.info(f"Plaid investment transactions: {len(all_transactions)} found across all pages")
             
-            logger.info(f"Plaid investment transactions: {len(response['investment_transactions'])} found")
-            
-            for txn in response['investment_transactions']:
+            for txn in all_transactions:
                 security_id = txn['security_id']
-                security = securities_map.get(security_id)
+                security = all_securities.get(security_id)
                 
                 if security:
                     ticker = security.get('ticker_symbol', '').strip()
