@@ -101,6 +101,15 @@ class AnalyticsManager {
             type: 'portfolio'
         });
 
+        // Register market news module
+        this.register('market-news', {
+            endpoint: 'news',
+            containerId: 'analysisContent',
+            settingsId: null,
+            displayFunction: this.displayMarketNews,
+            type: 'news'
+        });
+
         // Register transaction modules
         this.register('pnl-attribution', {
             endpoint: 'pnl-attribution',
@@ -269,6 +278,8 @@ class AnalyticsManager {
                     module.displayFunction,
                     module.settingsId
                 );
+            } else if (module.type === 'news') {
+                await this.loadMarketNews(module);
             } else {
                 await window.analyticsCore.analyzeTransactions(
                     module.endpoint,
@@ -1303,6 +1314,124 @@ class AnalyticsManager {
                     </div>
                 </div>
             </div>
+        `;
+    }
+
+    // Load market news
+    async loadMarketNews(module) {
+        const container = document.getElementById(module.containerId);
+        if (!container) return;
+
+        container.classList.remove('hidden');
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Market News & Insights</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="window.analyticsManager.loadModule('market-news')" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh News
+                    </button>
+                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                <p class="text-gray-600">Loading latest market news...</p>
+            </div>
+        `;
+
+        try {
+            const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/news`);
+            const data = await response.json();
+
+            if (data.success && data.articles) {
+                module.displayFunction.call(this, { articles: data.articles });
+            } else {
+                throw new Error('Failed to load news');
+            }
+        } catch (error) {
+            console.error('News loading failed:', error);
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Market News & Insights</h2>
+                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="text-center text-red-600 py-4">
+                    <p class="font-semibold">Failed to load market news</p>
+                    <p class="text-sm mt-2">Please check your internet connection and try again.</p>
+                </div>
+            `;
+        }
+    }
+
+    // Display market news
+    displayMarketNews(result) {
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        container.classList.remove('hidden');
+        const articles = result.articles || [];
+
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Market News & Insights</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="window.analyticsManager.loadModule('market-news')" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh News
+                    </button>
+                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                ${articles.map(article => `
+                    <div class="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow p-6">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="text-sm font-medium text-indigo-600">${article.source?.name || 'Market News'}</span>
+                            <span class="text-xs text-gray-500">${new Date(article.publishedAt).toLocaleDateString()}</span>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3 line-clamp-2">${article.title}</h3>
+                        <p class="text-gray-600 text-sm mb-4 line-clamp-3">${article.description}</p>
+                        ${article.url && article.url !== '#' ? `
+                            <a href="${article.url}" target="_blank" class="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+                                Read More
+                                <svg class="w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                </svg>
+                            </a>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+            
+            ${articles.length === 0 ? `
+                <div class="text-center py-8">
+                    <div class="text-gray-400 mb-4">
+                        <svg class="w-16 h-16 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M2 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 002 2H4a2 2 0 01-2-2V5zm3 1h6v4H5V6zm6 6H5v2h6v-2z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">No News Available</h3>
+                    <p class="text-gray-600">Unable to load market news at this time. Please try again later.</p>
+                </div>
+            ` : ''}
         `;
     }
 }

@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -33,6 +34,9 @@ from api.portfolio_routes import register_portfolio_routes
 from api.transaction_routes import register_transaction_routes
 from api.admin_routes import register_admin_routes
 from api.cache_routes import register_cache_routes
+
+# Add News system to path for integration
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'News'))
 
 
 # Import clients and utilities
@@ -129,68 +133,41 @@ def admin_portal():
 def test_analytics():
     return app.send_static_file('test-analytics.html')
 
-# News endpoint using existing NewsAnalyzer
+# News endpoint using News folder system only
 @app.route('/api/news', methods=['GET'])
 def get_market_news():
     try:
-        from pulling_news_v3 import NewsAnalyzer
-        analyzer = NewsAnalyzer()
+        # Import News system
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'News'))
+        from database import db as news_db
         
-        # Get general market news for major indices
-        symbols = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'GOOGL']
+        # Get summaries from News database
+        tickers = news_db.get_tickers()[:6]
         articles = []
         
-        for symbol in symbols[:3]:  # Limit to 3 symbols to avoid rate limits
-            news_items = analyzer.get_real_news(symbol, limit=2)
-            for item in news_items:
+        for ticker in tickers:
+            summary_data = news_db.get_summary(ticker)
+            if summary_data and summary_data.get('summary'):
                 articles.append({
-                    'title': item['title'],
-                    'description': item['content'],
-                    'source': {'name': item['source']},
-                    'publishedAt': item['timestamp'].isoformat() + 'Z',
-                    'url': item['url']
+                    "title": f"{ticker} Analysis Update",
+                    "description": summary_data['summary'][:200] + '...',
+                    "source": {"name": "AI Analysis"},
+                    "publishedAt": summary_data.get('date', datetime.now().isoformat()) + 'Z',
+                    "url": f"/stock/{ticker}"
                 })
         
-        if articles:
-            return {'success': True, 'articles': articles[:6]}  # Limit to 6 articles
-        else:
-            # Fallback to sample news
-            sample_articles = [
-                {
-                    "title": "Market Analysis: Portfolio Diversification Strategies",
-                    "description": "Expert insights on modern portfolio theory and risk management techniques for institutional investors.",
-                    "source": {"name": "Financial News"},
-                    "publishedAt": datetime.now().isoformat() + 'Z',
-                    "url": "#"
-                },
-                {
-                    "title": "Options Market Update: Volatility Trends",
-                    "description": "Current volatility patterns and their impact on options pricing and portfolio hedging strategies.",
-                    "source": {"name": "Market Watch"},
-                    "publishedAt": datetime.now().isoformat() + 'Z',
-                    "url": "#"
-                }
-            ]
-            return {'success': True, 'articles': sample_articles}
-            
+        return {'success': True, 'articles': articles}
+        
     except Exception as e:
         logger.error(f"News API error: {e}")
-        # Return sample news on error
-        sample_articles = [
-            {
-                "title": "Portfolio Risk Management Best Practices",
-                "description": "Essential strategies for managing portfolio risk in volatile market conditions.",
-                "source": {"name": "Investment Weekly"},
-                "publishedAt": datetime.now().isoformat() + 'Z',
-                "url": "#"
-            }
-        ]
-        return {'success': True, 'articles': sample_articles}
+        return {'success': False, 'articles': []}, 500
 
 # Test endpoint to verify API is working
 @app.route('/api/test', methods=['GET'])
 def test_api():
     return jsonify({'success': True, 'message': 'API is working'})
+
+
 
 
 
@@ -200,6 +177,8 @@ def get_config():
     return jsonify({
         'pexels_api_key': os.getenv('PEXELS_API_KEY', '')
     })
+
+
 
 
 

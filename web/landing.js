@@ -59,6 +59,13 @@ async function fetchPexelsImage(query, size = 'medium') {
     }
 }
 
+// Helper function to decode HTML entities
+function decodeHtmlEntities(text) {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+}
+
 // Load news headlines
 async function loadNews() {
     const cacheKey = 'news_cache';
@@ -95,28 +102,35 @@ async function loadNews() {
         console.warn('News API failed:', error.message);
     }
 
-    // Fallback to sample news
+    // Fallback to enhanced sample news
     const sampleNews = [
         {
-            title: "Market Volatility Continues as Fed Signals Rate Changes",
-            description: "Financial markets show mixed signals as Federal Reserve hints at upcoming policy adjustments affecting portfolio strategies.",
-            source: { name: "Financial Times" },
+            title: "AI-Powered Portfolio Analysis Transforms Investment Strategies",
+            description: "Advanced machine learning algorithms are revolutionizing portfolio risk management and options analysis for institutional investors.",
+            source: { name: "Investment Weekly" },
             publishedAt: new Date().toISOString(),
-            url: "#"
+            url: "/app"
         },
         {
-            title: "Tech Stocks Rally on AI Investment Surge",
-            description: "Technology sector sees significant gains as artificial intelligence investments drive market optimism and portfolio rebalancing.",
-            source: { name: "Bloomberg" },
+            title: "Hedge Funds Embrace Real-Time Risk Analytics",
+            description: "Professional fund managers are leveraging sophisticated analytics platforms to optimize portfolio performance and manage downside risk.",
+            source: { name: "Hedge Fund Review" },
             publishedAt: new Date().toISOString(),
-            url: "#"
+            url: "/app"
         },
         {
-            title: "Options Trading Volume Hits Record High",
-            description: "Derivatives markets experience unprecedented activity as retail and institutional investors increase options strategies.",
-            source: { name: "Reuters" },
+            title: "Options Strategies See Institutional Adoption Surge",
+            description: "Complex derivatives strategies including covered calls and protective puts gain popularity among professional portfolio managers.",
+            source: { name: "Derivatives Weekly" },
             publishedAt: new Date().toISOString(),
-            url: "#"
+            url: "/app"
+        },
+        {
+            title: "Multi-Asset Portfolio Optimization Gains Momentum",
+            description: "Institutional investors are implementing advanced portfolio optimization techniques across multiple asset classes for enhanced returns.",
+            source: { name: "Portfolio Management" },
+            publishedAt: new Date().toISOString(),
+            url: "/app"
         }
     ];
     displayNews(sampleNews);
@@ -135,10 +149,10 @@ function displayNews(articles) {
 
     articles.forEach(article => {
         try {
-            const title = article && article.title ? article.title : 'Untitled';
-            const description = article && article.description ? article.description : 'Market analysis and financial insights for portfolio management.';
+            const title = article && article.title ? decodeHtmlEntities(article.title) : 'Untitled';
+            const description = article && article.description ? decodeHtmlEntities(article.description) : 'Market analysis and financial insights for portfolio management.';
             const url = article && article.url ? article.url : '#';
-            const sourceName = article && article.source && article.source.name ? article.source.name : 'Unknown Source';
+            const sourceName = article && article.source && article.source.name ? decodeHtmlEntities(article.source.name) : 'Unknown Source';
 
             let publishedDate = '';
             if (article && article.publishedAt) {
