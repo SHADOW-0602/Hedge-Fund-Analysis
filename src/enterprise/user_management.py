@@ -300,6 +300,18 @@ class UserManager:
         except:
             return False
     
+    def delete_user(self, username: str) -> bool:
+        """Delete user by username"""
+        if not self.supabase:
+            return False
+        
+        try:
+            result = self.supabase.table('app_users').delete().eq('username', username).execute()
+            return len(result.data) > 0
+        except Exception as e:
+            logger.error(f"User deletion failed for {username}: {e}")
+            return False
+    
     def update_user_email(self, user_id: str, new_email: str) -> bool:
         """Update user email address"""
         if not self.supabase:

@@ -356,94 +356,32 @@ document.addEventListener('DOMContentLoaded', autoConnectPlaid);
 // Also auto-connect when user logs in
 window.addEventListener('userLoggedIn', autoConnectPlaid);
 
-// Toggle Plaid connection (connect/disconnect)
+// Toggle Plaid connection (connect/delete)
 function togglePlaidConnection() {
     const btn = document.getElementById('plaidConnectBtn');
-    if (btn && btn.textContent.includes('Disconnect')) {
-        disconnectPlaid();
+    if (btn && btn.textContent.includes('Delete')) {
+        deletePlaidConnection();
     } else {
         connectPlaid();
-    }
-}
-
-// Disconnect from Plaid
-async function disconnectPlaid() {
-    try {
-        console.log('[PLAID] Disconnecting...');
-        updatePlaidStatus('Disconnecting...', 'connecting');
-        
-        const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
-        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/disconnect-plaid`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ user_id: userId })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            console.log('[PLAID] Disconnected successfully');
-            updatePlaidStatus('Disconnected', 'info');
-            updateConnectButton(false);
-            
-            // Clear any loaded data
-            if (typeof clearPortfolioData === 'function') {
-                clearPortfolioData();
-            }
-            
-        } else {
-            throw new Error(result.error || 'Disconnect failed');
-        }
-        
-    } catch (error) {
-        console.error('[PLAID] Disconnect failed:', error);
-        updatePlaidStatus(`Disconnect failed: ${error.message}`, 'error');
     }
 }
 
 // Update connect button based on connection status
 function updateConnectButton(isConnected) {
     const btn = document.getElementById('plaidConnectBtn');
-    const deleteBtn = document.getElementById('plaidDeleteBtn');
     
     if (!btn) return;
     
     if (isConnected) {
-        btn.textContent = 'Disconnect Account';
+        btn.textContent = 'Delete Connection';
         btn.className = 'bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm w-full sm:w-auto';
-        
-        // Show delete button
-        if (deleteBtn) {
-            deleteBtn.classList.remove('hidden');
-        } else {
-            // Create delete button if it doesn't exist
-            createDeleteButton();
-        }
     } else {
         btn.textContent = 'Connect Account';
         btn.className = 'bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto';
-        
-        // Hide delete button
-        if (deleteBtn) {
-            deleteBtn.classList.add('hidden');
-        }
     }
 }
 
-// Create delete connection button
-function createDeleteButton() {
-    const connectBtn = document.getElementById('plaidConnectBtn');
-    if (!connectBtn || document.getElementById('plaidDeleteBtn')) return;
-    
-    const deleteBtn = document.createElement('button');
-    deleteBtn.id = 'plaidDeleteBtn';
-    deleteBtn.textContent = 'Delete Connection';
-    deleteBtn.className = 'bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm w-full sm:w-auto ml-2';
-    deleteBtn.onclick = deletePlaidConnection;
-    
-    connectBtn.parentNode.insertBefore(deleteBtn, connectBtn.nextSibling);
-}
+
 
 // Delete Plaid connection permanently
 async function deletePlaidConnection() {
@@ -490,11 +428,9 @@ async function deletePlaidConnection() {
 
 // Make functions globally available
 window.connectPlaid = connectPlaid;
-window.disconnectPlaid = disconnectPlaid;
 window.deletePlaidConnection = deletePlaidConnection;
 window.togglePlaidConnection = togglePlaidConnection;
 window.updateConnectButton = updateConnectButton;
-window.createDeleteButton = createDeleteButton;
 window.loadPlaidPortfolio = loadPlaidPortfolio;
 window.testPlaidConnection = testPlaidConnection;
 window.checkExistingPlaidConnection = checkExistingPlaidConnection;

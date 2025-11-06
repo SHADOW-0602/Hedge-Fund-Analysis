@@ -270,3 +270,23 @@ def register_plaid_routes(app):
                 
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/disconnect-plaid', methods=['POST'])
+    def disconnect_plaid():
+        try:
+            user_id = get_real_user_id()
+            from utils.user_secrets import user_secret_manager
+            user_secret_manager.delete_plaid_token(user_id)
+            return jsonify({'success': True, 'message': 'Plaid connection disconnected'})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/delete-plaid-connection', methods=['DELETE'])
+    def delete_plaid_connection():
+        try:
+            user_id = get_real_user_id()
+            from utils.user_secrets import user_secret_manager
+            user_secret_manager.delete_plaid_token(user_id)
+            return jsonify({'success': True, 'message': 'Plaid connection deleted permanently'})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
