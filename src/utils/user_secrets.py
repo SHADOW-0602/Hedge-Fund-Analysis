@@ -106,39 +106,83 @@ class UserSecretManager:
             logger.info(f"Deleted SnapTrade user ID for user {user_id}")
     
     # Plaid methods
-    def store_plaid_token(self, user_id: str, access_token: str):
-        """Store Plaid access token with duplicate prevention"""
-        # Check if token already exists for another user
-        existing_user = self._find_user_with_token(access_token)
-        if existing_user and existing_user != user_id:
-            logger.error(f"Token already exists for user {existing_user}, cannot assign to {user_id}")
-            raise ValueError(f"This Plaid connection is already linked to another user")
-        
+    def store_plaid_token(self, user_id: str, access_token: str, institution_name: str = None) -> str:
+        """Store Plaid access token - supports multiple connections per user"""
         data = self._load_user_data(user_id)
-        data['plaid_token'] = self._encrypt_data(access_token).decode('latin-1')
-        data['plaid_created'] = datetime.now().isoformat()
+        
+        # Initialize plaid_connections if not exists
+        if 'plaid_connections' not in data:
+            data['plaid_connections'] = {}
+        
+        # Generate connection ID
+        connection_id = f"conn_{len(data['plaid_connections']) + 1}_{int(datetime.now().timestamp())}"
+        
+        # Store connection
+        data['plaid_connections'][connection_id] = {
+            'access_token': self._encrypt_data(access_token).decode('latin-1'),
+            'institution_name': institution_name or 'Unknown Institution',
+            'created_at': datetime.now().isoformat(),
+            'is_active': True
+        }
+        
         self._save_user_data(user_id, data)
-        logger.info(f"Stored Plaid token for user {user_id}")
+        logger.info(f"Stored Plaid connection {connection_id} for user {user_id}")
+        return connection_id
     
-    def get_plaid_token(self, user_id: str) -> Optional[str]:
-        """Get Plaid access token for specific user only"""
+    def get_plaid_connections(self, user_id: str) -> Dict[str, Dict]:
+        """Get all Plaid connections for user"""
         data = self._load_user_data(user_id)
-        encrypted_token = data.get('plaid_token')
+        connections = data.get('plaid_connections', {})
         
-        if encrypted_token:
-            try:
-                return self._decrypt_data(encrypted_token.encode('latin-1'))
-            except Exception as e:
-                logger.error(f"Failed to decrypt Plaid token for user {user_id}: {e}")
+        # Decrypt tokens
+        decrypted_connections = {}
+        for conn_id, conn_data in connections.items():
+            if conn_data.get('is_active', True):
+                try:
+                    decrypted_data = conn_data.copy()
+                    decrypted_data['access_token'] = self._decrypt_data(conn_data['access_token'].encode('latin-1'))
+                    decrypted_connections[conn_id] = decrypted_data
+                except Exception as e:
+                    logger.error(f"Failed to decrypt connection {conn_id}: {e}")
+        
+        return decrypted_connections
+    
+    def get_plaid_token(self, user_id: str, connection_id: str = None) -> Optional[str]:
+        """Get Plaid access token - returns first active if no connection_id specified"""
+        connections = self.get_plaid_connections(user_id)
+        
+        if connection_id and connection_id in connections:
+            return connections[connection_id]['access_token']
+        
+        # Return first active connection if no specific ID
+        for conn_data in connections.values():
+            if conn_data.get('is_active', True):
+                return conn_data['access_token']
+        
         return None
     
-    def delete_plaid_token(self, user_id: str):
-        """Delete Plaid token"""
+    def delete_plaid_connection(self, user_id: str, connection_id: str = None):
+        """Delete specific Plaid connection or all if no ID specified"""
         data = self._load_user_data(user_id)
-        if 'plaid_token' in data:
-            del data['plaid_token']
-            self._save_user_data(user_id, data)
-            logger.info(f"Deleted Plaid token for user {user_id}")
+        
+        if connection_id:
+            # Delete specific connection
+            if 'plaid_connections' in data and connection_id in data['plaid_connections']:
+                del data['plaid_connections'][connection_id]
+                logger.info(f"Deleted Plaid connection {connection_id} for user {user_id}")
+        else:
+            # Delete all connections (legacy support)
+            if 'plaid_connections' in data:
+                data['plaid_connections'] = {}
+            if 'plaid_token' in data:  # Legacy cleanup
+                del data['plaid_token']
+            logger.info(f"Deleted all Plaid connections for user {user_id}")
+        
+        self._save_user_data(user_id, data)
+    
+    def delete_plaid_token(self, user_id: str):
+        """Legacy method - delete all connections"""
+        self.delete_plaid_connection(user_id)
     
     # Utility methods
     def list_all_snaptrade_users(self) -> List[Dict]:

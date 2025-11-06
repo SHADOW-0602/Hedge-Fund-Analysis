@@ -50,6 +50,8 @@ async function handlePlaidSuccess(public_token, metadata) {
         console.log('[PLAID] Connection successful, exchanging token...');
         updatePlaidStatus('Exchanging tokens...', 'connecting');
         
+        const institutionName = metadata?.institution?.name || 'Unknown Institution';
+        
         // Exchange public token for access token
         const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/exchange-token`, {
             method: 'POST',
@@ -57,6 +59,7 @@ async function handlePlaidSuccess(public_token, metadata) {
             credentials: 'include',
             body: JSON.stringify({
                 public_token: public_token,
+                institution_name: institutionName,
                 user_id: window.currentUser?.user_id || window.currentUser?.username || 'admin'
             })
         });
@@ -64,26 +67,26 @@ async function handlePlaidSuccess(public_token, metadata) {
         const result = await response.json();
         
         if (result.success) {
-            console.log('[PLAID] Token exchange successful');
-            updatePlaidStatus('Connected successfully!', 'success');
-            updateConnectButton(true);
+            console.log(`[PLAID] Token exchange successful for ${institutionName}`);
+            updatePlaidStatus(`Connected to ${institutionName}!`, 'success');
             
-            // Load portfolio data from Plaid
+            // Reload connections list
+            if (window.plaidConnectionsManager) {
+                await window.plaidConnectionsManager.loadConnections();
+            }
+            
+            // Load portfolio data from new connection
             setTimeout(() => {
                 loadPlaidPortfolio();
             }, 2000);
             
         } else {
-            let errorMsg = result.error || 'Token exchange failed';
-            if (errorMsg.includes('already linked to another user')) {
-                errorMsg = 'This account is already connected to another user. Please disconnect it first or use a different account.';
-            }
-            throw new Error(errorMsg);
+            throw new Error(result.error || 'Token exchange failed');
         }
         
     } catch (error) {
         console.error('[PLAID] Token exchange failed:', error);
-        updatePlaidStatus(`Token exchange failed: ${error.message}`, 'error');
+        updatePlaidStatus(`Connection failed: ${error.message}`, 'error');
     }
 }
 
@@ -237,77 +240,43 @@ async function checkExistingPlaidConnection() {
     try {
         // Get actual user ID from session
         const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
-        console.log('[PLAID] Checking connection for user:', userId);
-        console.log('[PLAID] Current user object:', window.currentUser);
+        console.log('[PLAID] Checking connections for user:', userId);
         
-        // First check connection status
+        // Load connections through manager
+        if (window.plaidConnectionsManager) {
+            const connections = await window.plaidConnectionsManager.loadConnections();
+            
+            if (connections.length === 0) {
+                console.log(`[PLAID] No connections found for user: ${userId}`);
+                updatePlaidStatus('Ready to connect', 'info');
+                updateConnectButton(false);
+                return false;
+            }
+            
+            // Auto-select first connection if none selected
+            if (!window.plaidConnectionsManager.getActiveConnection() && connections.length > 0) {
+                await window.plaidConnectionsManager.selectConnection(connections[0].connection_id);
+            }
+            
+            updatePlaidStatus(`${connections.length} account(s) connected`, 'success');
+            updateConnectButton(true);
+            return true;
+        }
+        
+        
+        // Fallback to direct API check
         const statusResponse = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-status`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ user_id: userId })
+            credentials: 'include'
         });
         
         const statusResult = await statusResponse.json();
-        console.log('[PLAID] Status check response:', statusResult);
         
-        if (!statusResult.connected) {
-            console.log(`[PLAID] No connection found for user: ${userId}`);
-            updatePlaidStatus('Ready to connect', 'info');
-            updateConnectButton(false);
-            return false;
-        }
-        
-        // If connected, try to load portfolio data
-        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-portfolio`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ user_id: userId })
-        });
-        
-        const result = await response.json();
-        console.log('[PLAID] Portfolio check response:', result);
-        
-        if (result.success && result.holdings && result.holdings.length > 0) {
-            console.log(`[PLAID] Found existing connection with ${result.holdings.length} holdings for user: ${userId}`);
-            
-            // Auto-load existing data
-            const portfolioData = result.holdings.map(holding => ({
-                symbol: holding.symbol,
-                quantity: holding.quantity,
-                avg_cost: holding.avg_cost,
-                market_value: holding.market_value,
-                cost_basis: holding.cost_basis,
-                source: 'plaid'
-            }));
-            
-            if (typeof displayPortfolio === 'function') {
-                displayPortfolio(portfolioData);
-            }
-            
-            if (typeof showPlaidSwitcher === 'function') {
-                showPlaidSwitcher();
-            }
-            
-            // Load transaction data as well
-            loadPlaidTransactions();
-            
-            if (typeof showDataActions === 'function') {
-                showDataActions();
-            }
-            
-            updatePlaidStatus(`Connected - ${result.holdings.length} positions loaded`, 'success');
-            updateConnectButton(true);
-            return true;
-        } else if (statusResult.connected) {
-            // Connected but no holdings
-            console.log(`[PLAID] Connection exists but no holdings for user: ${userId}`);
-            updatePlaidStatus('Connected - No holdings found', 'info');
+        if (statusResult.connected && statusResult.connections_count > 0) {
+            updatePlaidStatus(`${statusResult.connections_count} account(s) connected`, 'success');
             updateConnectButton(true);
             return true;
         } else {
-            console.log(`[PLAID] No connection found for user: ${userId}`);
             updatePlaidStatus('Ready to connect', 'info');
             updateConnectButton(false);
             return false;
@@ -373,11 +342,61 @@ function updateConnectButton(isConnected) {
     if (!btn) return;
     
     if (isConnected) {
-        btn.textContent = 'Delete Connection';
-        btn.className = 'bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm w-full sm:w-auto';
+        const connectionCount = window.plaidConnectionsManager?.connections?.length || 1;
+        btn.textContent = connectionCount > 1 ? `Manage ${connectionCount} Accounts` : 'Manage Account';
+        btn.className = 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm w-full sm:w-auto';
+        btn.onclick = () => showConnectionsManager();
     } else {
         btn.textContent = 'Connect Account';
         btn.className = 'bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto';
+        btn.onclick = () => connectPlaid();
+    }
+}
+
+// Show connections manager modal
+function showConnectionsManager() {
+    const modal = document.getElementById('connectionsModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        if (window.plaidConnectionsManager) {
+            window.plaidConnectionsManager.updateConnectionsUI();
+        }
+    } else {
+        // Create modal if it doesn't exist
+        createConnectionsModal();
+    }
+}
+
+// Create connections manager modal
+function createConnectionsModal() {
+    const modal = document.createElement('div');
+    modal.id = 'connectionsModal';
+    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
+    modal.innerHTML = `
+        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Manage Plaid Connections</h3>
+                <button onclick="closeConnectionsModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="plaidConnectionsList"></div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    if (window.plaidConnectionsManager) {
+        window.plaidConnectionsManager.updateConnectionsUI();
+    }
+}
+
+// Close connections modal
+function closeConnectionsModal() {
+    const modal = document.getElementById('connectionsModal');
+    if (modal) {
+        modal.classList.add('hidden');
     }
 }
 

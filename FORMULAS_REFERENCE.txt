@@ -1,0 +1,211 @@
+PORTFOLIO & TRANSACTION ANALYSIS FORMULAS REFERENCE
+=====================================================
+
+PORTFOLIO ANALYSIS
+==================
+
+STRATEGY BACKTESTING
+--------------------
+• Total Return = (Final Value - Initial Value) / Initial Value
+• Annualized Return = (1 + Total Return)^(252/Days) - 1
+• Cumulative Return = Π(1 + Daily Returns) - 1
+• Maximum Drawdown = Max((Peak - Trough) / Peak)
+• Win Rate = Winning Trades / Total Trades
+• Profit Factor = Gross Profit / Gross Loss
+• Expectancy = (Win Rate × Avg Win) - (Loss Rate × Avg Loss)
+
+TECHNICAL INDICATORS
+-------------------
+• Simple Moving Average (SMA) = Σ(Price) / n
+• Exponential Moving Average (EMA) = Price × (2/(n+1)) + EMA_prev × (1 - 2/(n+1))
+• RSI = 100 - (100 / (1 + RS)), where RS = Avg Gain / Avg Loss
+• MACD = EMA_12 - EMA_26
+• MACD Signal = EMA_9(MACD)
+• Bollinger Bands = SMA ± (2 × Standard Deviation)
+• Stochastic %K = ((Close - Low_n) / (High_n - Low_n)) × 100
+• Williams %R = ((High_n - Close) / (High_n - Low_n)) × -100
+• ATR = EMA(True Range), where True Range = Max(H-L, |H-C_prev|, |L-C_prev|)
+
+STATISTICAL ANALYSIS
+-------------------
+• Mean = Σ(Returns) / n
+• Variance = Σ(Return - Mean)² / (n-1)
+• Standard Deviation = √Variance
+• Skewness = E[(X-μ)³] / σ³
+• Kurtosis = E[(X-μ)⁴] / σ⁴
+• Covariance = E[(X-μx)(Y-μy)]
+• Beta = Covariance(Asset, Market) / Variance(Market)
+• R-squared = (Correlation)²
+• Information Ratio = (Portfolio Return - Benchmark Return) / Tracking Error
+
+SECTOR ALLOCATION
+----------------
+• Sector Weight = Sector Value / Total Portfolio Value
+• Sector Return = Σ(Stock Weight × Stock Return) within sector
+• Sector Contribution = Sector Weight × Sector Return
+• Active Weight = Portfolio Weight - Benchmark Weight
+• Allocation Effect = (Portfolio Weight - Benchmark Weight) × Benchmark Return
+• Selection Effect = Portfolio Weight × (Portfolio Return - Benchmark Return)
+
+CORRELATION ANALYSIS
+-------------------
+• Pearson Correlation = Cov(X,Y) / (σx × σy)
+• Spearman Correlation = 1 - (6 × Σd²) / (n(n²-1))
+• Kendall's Tau = (Concordant Pairs - Discordant Pairs) / Total Pairs
+• Rolling Correlation = Correlation over moving window
+• Correlation Matrix = [ρij] where ρij = Corr(Xi, Xj)
+
+PORTFOLIO OPTIMIZATION
+---------------------
+• Expected Return = Σ(Weight × Expected Return)
+• Portfolio Variance = W^T × Σ × W
+• Sharpe Ratio = (Portfolio Return - Risk Free Rate) / Portfolio Volatility
+• Efficient Frontier: Minimize σ²p subject to E(Rp) = target return
+• Optimal Weights = Σ⁻¹ × μ / (1^T × Σ⁻¹ × μ)
+• Maximum Sharpe Portfolio = Σ⁻¹ × (μ - rf × 1) / (1^T × Σ⁻¹ × (μ - rf × 1))
+
+MONTE CARLO SIMULATION
+---------------------
+• Random Return = μ + σ × Z, where Z ~ N(0,1)
+• Geometric Brownian Motion: S(t) = S(0) × exp((μ - σ²/2)t + σ√t × Z)
+• Portfolio Value = Σ(Weight × Simulated Price × Quantity)
+• Value at Risk (VaR) = Percentile(Simulated Returns, α)
+• Expected Shortfall = E[Loss | Loss > VaR]
+• Confidence Interval = [Percentile(α/2), Percentile(1-α/2)]
+
+PERFORMANCE ATTRIBUTION
+----------------------
+• Asset Allocation Effect = Σ(wi,p - wi,b) × Ri,b
+• Security Selection Effect = Σwi,p × (Ri,p - Ri,b)
+• Interaction Effect = Σ(wi,p - wi,b) × (Ri,p - Ri,b)
+• Total Active Return = Allocation + Selection + Interaction
+• Brinson Attribution = Allocation + Selection + Currency (if applicable)
+
+OPTIONS STRATEGIES
+-----------------
+• Black-Scholes Call = S×N(d1) - K×e^(-r×T)×N(d2)
+• Black-Scholes Put = K×e^(-r×T)×N(-d2) - S×N(-d1)
+• d1 = (ln(S/K) + (r + σ²/2)×T) / (σ×√T)
+• d2 = d1 - σ×√T
+• Delta = ∂Option/∂S
+• Gamma = ∂²Option/∂S²
+• Theta = ∂Option/∂T
+• Vega = ∂Option/∂σ
+• Rho = ∂Option/∂r
+• Implied Volatility: Solve BS equation for σ given market price
+
+RISK METRICS
+-----------
+• Value at Risk (VaR) = -Percentile(Returns, α)
+• Conditional VaR (CVaR) = E[Return | Return ≤ -VaR]
+• Sharpe Ratio = (Return - Risk Free Rate) / Volatility
+• Sortino Ratio = (Return - Risk Free Rate) / Downside Deviation
+• Calmar Ratio = Annualized Return / Maximum Drawdown
+• Maximum Drawdown = Max(Peak - Trough) / Peak
+• Tracking Error = √(Σ(Active Return)² / (n-1))
+• Information Ratio = Active Return / Tracking Error
+• Treynor Ratio = (Return - Risk Free Rate) / Beta
+• Jensen's Alpha = Return - (Risk Free Rate + Beta × (Market Return - Risk Free Rate))
+
+TRANSACTION ANALYSIS
+===================
+
+RETURN ATTRIBUTION
+-----------------
+• Total Return = (Ending Value + Dividends - Beginning Value) / Beginning Value
+• Time-Weighted Return = Π(1 + Sub-period Returns) - 1
+• Money-Weighted Return (IRR): NPV = 0 = Σ(Cash Flow / (1+IRR)^t)
+• Attribution by Asset = Weight × Return
+• Attribution by Time Period = (Ending Weight + Beginning Weight)/2 × Return
+
+DRAWDOWN ANALYSIS
+----------------
+• Peak = Running Maximum of Portfolio Value
+• Drawdown = (Peak - Current Value) / Peak
+• Maximum Drawdown = Max(All Drawdowns)
+• Drawdown Duration = Days from Peak to Recovery
+• Average Drawdown = Mean of All Drawdown Periods
+• Recovery Time = Days to Return to Previous Peak
+• Calmar Ratio = Annual Return / Maximum Drawdown
+
+TRADE TIMING
+-----------
+• Market Timing Return = Σ(Weight Change × Subsequent Return)
+• Timing Ratio = Market Timing Return / Benchmark Volatility
+• Up Capture Ratio = Portfolio Up Return / Benchmark Up Return
+• Down Capture Ratio = Portfolio Down Return / Benchmark Down Return
+• Capture Ratio = Up Capture / Down Capture
+
+FIFO/LIFO ACCOUNTING
+-------------------
+• FIFO Cost Basis = Cost of Oldest Shares First
+• LIFO Cost Basis = Cost of Newest Shares First
+• Average Cost Basis = Total Cost / Total Shares
+• Realized Gain/Loss = Sale Price - Cost Basis
+• Unrealized Gain/Loss = Current Price - Cost Basis
+• Tax Lot Matching = Specific Share Identification
+
+CASH FLOW ANALYSIS
+-----------------
+• Net Cash Flow = Cash Inflows - Cash Outflows
+• Cash Flow Yield = Annual Cash Flow / Investment Value
+• Free Cash Flow = Operating Cash Flow - Capital Expenditures
+• Cash Flow Coverage = Operating Cash Flow / Total Debt Service
+• Modified Dietz Return = (Ending Value - Beginning Value - Cash Flows) / (Beginning Value + Weighted Cash Flows)
+
+TAX ANALYSIS
+-----------
+• After-Tax Return = Pre-Tax Return × (1 - Tax Rate)
+• Tax-Adjusted Alpha = After-Tax Return - After-Tax Benchmark Return
+• Tax Efficiency = After-Tax Return / Pre-Tax Return
+• Realized Tax Rate = Taxes Paid / Realized Gains
+• Tax Loss Harvesting Benefit = Tax Rate × Realized Losses
+• Tax-Equivalent Yield = Tax-Free Yield / (1 - Tax Rate)
+
+TURNOVER ANALYSIS
+----------------
+• Portfolio Turnover = Min(Purchases, Sales) / Average Portfolio Value
+• Turnover Rate = (Purchases + Sales) / (2 × Average Portfolio Value)
+• Holding Period = 1 / Turnover Rate
+• Trading Frequency = Number of Trades / Time Period
+• Churn Rate = (Purchases + Sales) / Average Portfolio Value
+
+COST ANALYSIS
+------------
+• Total Cost = Commission + Spread + Market Impact + Opportunity Cost
+• Commission Rate = Commission / Trade Value
+• Bid-Ask Spread = (Ask - Bid) / Mid Price
+• Market Impact = (Execution Price - Decision Price) / Decision Price
+• Implementation Shortfall = Paper Portfolio Return - Actual Portfolio Return
+• Cost per Share = Total Trading Costs / Shares Traded
+
+TRADE PERFORMANCE
+----------------
+• Win Rate = Winning Trades / Total Trades
+• Average Win = Total Winning Amount / Number of Wins
+• Average Loss = Total Losing Amount / Number of Losses
+• Profit Factor = Gross Profit / Gross Loss
+• Expectancy = (Win Rate × Average Win) - (Loss Rate × Average Loss)
+• Largest Win/Loss = Maximum Single Trade Gain/Loss
+• Consecutive Wins/Losses = Maximum Streak Length
+
+P&L ATTRIBUTION
+--------------
+• Realized P&L = Σ(Sale Price - Purchase Price) × Quantity Sold
+• Unrealized P&L = Σ(Current Price - Purchase Price) × Current Quantity
+• Total P&L = Realized P&L + Unrealized P&L
+• P&L by Security = Individual Stock Contribution
+• P&L by Sector = Sector-wise Contribution
+• P&L by Strategy = Strategy-wise Contribution
+• Daily P&L = Today's Portfolio Value - Yesterday's Portfolio Value + Cash Flows
+• Cumulative P&L = Running Sum of Daily P&L
+
+ADDITIONAL METRICS
+=================
+• Compound Annual Growth Rate (CAGR) = (Ending Value / Beginning Value)^(1/Years) - 1
+• Volatility = Standard Deviation of Returns × √252
+• Downside Deviation = √(Σ(Min(Return - Target, 0))² / n)
+• Upside Deviation = √(Σ(Max(Return - Target, 0))² / n)
+• Omega Ratio = Upside Deviation / Downside Deviation
+• Kappa Ratio = (Return - Risk Free Rate) / Lower Partial Moment
+• Sterling Ratio = (Return - Risk Free Rate) / Average Drawdown

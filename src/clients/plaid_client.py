@@ -131,7 +131,7 @@ class PlaidClient:
             logger.error(f"Plaid custom link token error: {e}")
             return ""
     
-    def exchange_public_token(self, public_token: str, user_id: str = None) -> str:
+    def exchange_public_token(self, public_token: str, user_id: str = None, institution_name: str = None) -> str:
         """Exchange public token for access token using official SDK"""
         if not self.client:
             return ""
@@ -145,8 +145,10 @@ class PlaidClient:
             # Store token if user_id provided
             if user_id:
                 try:
-                    user_secret_manager.store_plaid_token(user_id, access_token)
-                except ValueError as e:
+                    connection_id = user_secret_manager.store_plaid_token(user_id, access_token, institution_name)
+                    logger.info(f"Plaid token exchanged and stored as connection {connection_id}")
+                    return connection_id
+                except Exception as e:
                     logger.error(f"Token storage failed: {e}")
                     return ""
             

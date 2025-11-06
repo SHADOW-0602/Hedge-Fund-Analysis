@@ -55,34 +55,33 @@ def register_plaid_routes(app):
             print(f"[PLAID] Checking status for user: {user_id}")
             
             from utils.user_secrets import user_secret_manager
-            access_token = user_secret_manager.get_plaid_token(user_id)
-            print(f"[PLAID] Token found for {user_id}: {bool(access_token)}")
+            connections = user_secret_manager.get_plaid_connections(user_id)
+            print(f"[PLAID] Connections found for {user_id}: {len(connections)}")
             
-            # Debug: List all users with tokens
-            all_plaid_users = user_secret_manager.list_all_plaid_users()
-            print(f"[PLAID] All users with tokens: {[u['user_id'] for u in all_plaid_users]}")
-            print(f"[PLAID] Current user_id being checked: {user_id}")
-            print(f"[PLAID] Token exists for current user: {bool(access_token)}")
-            
-            connection_details = None
-            if access_token:
+            connection_details = []
+            for conn_id, conn_data in connections.items():
                 try:
                     accounts = plaid_client.get_accounts(user_id) if plaid_client else []
-                    connection_details = {
-                        'accounts_count': len(accounts),
-                        'connected_at': user_secret_manager._load_user_data(user_id).get('plaid_created', 'Unknown')
-                    }
+                    connection_details.append({
+                        'connection_id': conn_id,
+                        'institution_name': conn_data.get('institution_name', 'Unknown'),
+                        'created_at': conn_data.get('created_at', 'Unknown'),
+                        'accounts_count': len(accounts)
+                    })
                 except Exception as e:
-                    connection_details = {'status': 'invalid', 'error': str(e)}
+                    connection_details.append({
+                        'connection_id': conn_id,
+                        'status': 'invalid',
+                        'error': str(e)
+                    })
             
-            print(f"[PLAID] Returning status - connected: {bool(access_token)}")
             return jsonify({
                 'success': True,
-                'connected': bool(access_token),
+                'connected': len(connections) > 0,
+                'connections_count': len(connections),
+                'connections': connection_details,
                 'environment': plaid_client.environment if plaid_client else 'production',
-                'connection_details': connection_details,
-                'user_id': user_id,
-                'debug_all_users': [u['user_id'] for u in all_plaid_users]
+                'user_id': user_id
             })
             
         except Exception as e:
@@ -210,6 +209,7 @@ def register_plaid_routes(app):
         try:
             data = request.get_json() or {}
             public_token = data.get('public_token')
+            institution_name = data.get('institution_name', 'Unknown Institution')
             user_id = get_real_user_id()
             
             if not plaid_client or not plaid_client.is_available():
@@ -219,12 +219,13 @@ def register_plaid_routes(app):
                     'environment': 'production'
                 }), 500
             
-            access_token = plaid_client.exchange_public_token(public_token, user_id)
+            connection_id = plaid_client.exchange_public_token(public_token, user_id, institution_name)
             
-            if access_token:
+            if connection_id:
                 return jsonify({
                     'success': True, 
                     'message': 'Token exchanged successfully',
+                    'connection_id': connection_id,
                     'environment': plaid_client.environment
                 })
             else:
