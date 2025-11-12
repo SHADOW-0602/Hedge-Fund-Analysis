@@ -126,7 +126,7 @@ class YFinanceProvider(DataProvider):
                     return None
                 
                 # Validate that we have sufficient data points
-                if len(result) < 5:
+                if len(result) < 3:
                     module_logger.warning(f"Insufficient real market data: {len(result)} data points")
                     return None
                     
@@ -143,7 +143,7 @@ class YFinanceProvider(DataProvider):
                         module_logger.warning("No valid price column found for single symbol")
                         return None
                     
-                    if clean_data.empty or len(clean_data) < 5:
+                    if clean_data.empty or len(clean_data) < 3:
                         module_logger.warning(f"Insufficient real data for {valid_symbols[0]}: {len(clean_data) if not clean_data.empty else 0} points")
                         return None
                     
@@ -153,7 +153,7 @@ class YFinanceProvider(DataProvider):
                 
                 # Multi-symbol data without MultiIndex
                 clean_data = data.dropna(how='all')
-                if clean_data.empty or len(clean_data) < 5:
+                if clean_data.empty or len(clean_data) < 3:
                     module_logger.warning(f"Insufficient real market data: {len(clean_data) if not clean_data.empty else 0} points")
                     return None
                 
