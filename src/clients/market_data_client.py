@@ -79,77 +79,90 @@ class YFinanceProvider(DataProvider):
     
     def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
         try:
-            module_logger.info(f"YFinance: Fetching data for {len(symbols)} symbols, period: {period}")
+            module_logger.info(f"YFinance: Fetching REAL market data for {len(symbols)} symbols, period: {period}")
             self.rate_limiter.wait_if_needed()
             
-            # Filter out invalid symbols using the same logic as MarketDataClient
+            # Strict symbol filtering - only real stock symbols
             valid_symbols = self._filter_symbols(symbols)
             if not valid_symbols:
-                module_logger.warning("No valid symbols after filtering")
+                module_logger.warning("No valid stock symbols after filtering")
                 return None
             
-            import warnings
-            warnings.filterwarnings('ignore', category=FutureWarning)
+            module_logger.info(f"YFinance: Downloading real market data for: {valid_symbols}")
             
-            # Use auto_adjust=False and suppress warnings
             import warnings
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
+                # Download real market data with adjusted prices for accuracy
                 data = yf.download(
                     valid_symbols, 
                     period=period, 
                     progress=False, 
-                    auto_adjust=False,
-                    threads=False
+                    auto_adjust=True,  # Use adjusted prices for real analysis
+                    threads=False,
+                    group_by='ticker' if len(valid_symbols) > 1 else None
                 )
             
-            if data.empty:
+            # Strict validation - NO EMPTY OR INVALID DATA
+            if data is None or data.empty:
+                module_logger.warning("No real market data returned from YFinance")
                 return None
             
-            # Check if data is empty
-            if data.empty:
-                module_logger.warning("No data returned")
-                return None
-            
-            # Handle multi-level columns from yfinance
+            # Extract real price data only
             if isinstance(data.columns, pd.MultiIndex):
-                # Try Adj Close first, then Close
-                if 'Adj Close' in data.columns.levels[0]:
-                    result = data['Adj Close']
-                elif 'Close' in data.columns.levels[0]:
+                # Multi-symbol case - use Close prices (already adjusted)
+                if 'Close' in data.columns.levels[0]:
                     result = data['Close']
+                elif 'Adj Close' in data.columns.levels[0]:
+                    result = data['Adj Close']
                 else:
+                    module_logger.warning("No valid price columns found")
                     return None
                 
-                # Drop rows with all NaN values
+                # Remove any rows with missing data - REAL DATA ONLY
                 result = result.dropna(how='all')
                 if result.empty:
-                    module_logger.warning("No clean data after removing NaN")
+                    module_logger.warning("No valid real market data after cleaning")
+                    return None
+                
+                # Validate that we have sufficient data points
+                if len(result) < 5:
+                    module_logger.warning(f"Insufficient real market data: {len(result)} data points")
                     return None
                     
+                module_logger.info(f"YFinance: Successfully retrieved {len(result)} real data points for {len(result.columns)} symbols")
                 return result
             else:
                 # Single symbol case
                 if len(valid_symbols) == 1:
-                    if 'Adj Close' in data.columns:
-                        clean_data = data['Adj Close'].dropna()
-                        if clean_data.empty:
-                            return None
-                        return pd.DataFrame({valid_symbols[0]: clean_data})
-                    elif 'Close' in data.columns:
+                    if 'Close' in data.columns:
                         clean_data = data['Close'].dropna()
-                        if clean_data.empty:
-                            return None
-                        return pd.DataFrame({valid_symbols[0]: clean_data})
+                    elif 'Adj Close' in data.columns:
+                        clean_data = data['Adj Close'].dropna()
+                    else:
+                        module_logger.warning("No valid price column found for single symbol")
+                        return None
+                    
+                    if clean_data.empty or len(clean_data) < 5:
+                        module_logger.warning(f"Insufficient real data for {valid_symbols[0]}: {len(clean_data) if not clean_data.empty else 0} points")
+                        return None
+                    
+                    result = pd.DataFrame({valid_symbols[0]: clean_data})
+                    module_logger.info(f"YFinance: Successfully retrieved {len(result)} real data points for {valid_symbols[0]}")
+                    return result
                 
-                # Clean and validate multi-symbol data
+                # Multi-symbol data without MultiIndex
                 clean_data = data.dropna(how='all')
-                if clean_data.empty:
+                if clean_data.empty or len(clean_data) < 5:
+                    module_logger.warning(f"Insufficient real market data: {len(clean_data) if not clean_data.empty else 0} points")
                     return None
+                
+                module_logger.info(f"YFinance: Successfully retrieved {len(clean_data)} real data points")
                 return clean_data
+                
         except Exception as e:
-            module_logger.error(f"YFinance provider error: {e}")
-            logger.error(f"YFinance provider error: {e}")
+            module_logger.error(f"YFinance real market data fetch failed: {e}")
+            logger.error(f"YFinance real market data fetch failed: {e}")
             return None
     
     def get_options_chain(self, symbol: str) -> Optional[pd.DataFrame]:
@@ -308,9 +321,12 @@ class FinnhubProvider(DataProvider):
 class MarketDataClient:
     def __init__(self):
         self.providers = []
-        # Removed cache_manager - using direct API calls
+        # Direct API calls only - NO CACHE, NO FALLBACK DATA
         
-        # Add providers based on available API keys (Polygon as primary)
+        # YFinance as primary provider for real market data
+        self.providers.append(YFinanceProvider())
+        
+        # Add premium providers if available (for enhanced data quality)
         if Config.POLYGON_API_KEY:
             self.providers.append(PolygonProvider(Config.POLYGON_API_KEY))
         if Config.FINNHUB_API_KEY:
@@ -319,47 +335,40 @@ class MarketDataClient:
             self.providers.append(AlphaVantageProvider(Config.ALPHA_VANTAGE_API_KEY))
         if Config.TWELVE_DATA_API_KEY:
             self.providers.append(TwelveDataProvider(Config.TWELVE_DATA_API_KEY))
-        
-        # YFinance as fallback (always available)
-        self.providers.append(YFinanceProvider())
     
     def get_price_data(self, symbols: List[str], period: str = "1y") -> pd.DataFrame:
-        # Filter valid symbols before processing
+        # Filter valid symbols before processing - STRICT VALIDATION
         valid_symbols = self._filter_valid_symbols(symbols)
         if not valid_symbols:
+            logger.error("No valid symbols provided for market data")
             return pd.DataFrame()
         
-        # Try YFinance first for reliability, then other providers
-        yfinance_provider = None
-        other_providers = []
+        logger.info(f"Fetching REAL market data for {len(valid_symbols)} symbols: {valid_symbols}")
         
+        # Try each provider in order - NO FALLBACK DATA GENERATION
         for provider in self.providers:
-            if isinstance(provider, YFinanceProvider):
-                yfinance_provider = provider
-            else:
-                other_providers.append(provider)
-        
-        # Try YFinance first
-        if yfinance_provider:
             try:
-                data = yfinance_provider.get_price_data(valid_symbols, period)
-                if data is not None and not data.empty:
-                    logger.info(f"Successfully fetched data using YFinance")
-                    return data
-            except Exception as e:
-                logger.warning(f"YFinance failed: {e}")
-        
-        # Try other providers only if YFinance fails
-        for provider in other_providers[:2]:  # Limit to 2 providers to avoid timeouts
-            try:
+                logger.info(f"Attempting data fetch with {provider.__class__.__name__}")
                 data = provider.get_price_data(valid_symbols, period)
-                if data is not None and not data.empty:
-                    logger.info(f"Successfully fetched data using {provider.__class__.__name__}")
-                    return data
+                
+                # Strict validation - only return real market data
+                if data is not None and not data.empty and len(data) > 0:
+                    # Validate that we have actual price data
+                    if hasattr(data, 'columns') and len(data.columns) > 0:
+                        # Check for valid price values
+                        valid_data = data.dropna(how='all')
+                        if not valid_data.empty:
+                            logger.info(f"Successfully fetched REAL market data using {provider.__class__.__name__}: {len(valid_data)} data points")
+                            return valid_data
+                
+                logger.warning(f"{provider.__class__.__name__} returned empty or invalid data")
+                
             except Exception as e:
                 logger.warning(f"{provider.__class__.__name__} failed: {e}")
                 continue
         
+        # NO FALLBACK DATA - Return empty DataFrame if all providers fail
+        logger.error(f"All market data providers failed for symbols: {valid_symbols}")
         return pd.DataFrame()
     
     def get_current_prices(self, symbols: List[str]) -> Dict[str, float]:

@@ -245,13 +245,21 @@ window.updateCorrelationAnalysis = () => {
     const method = document.getElementById('correlationMethod')?.value || 'pearson';
     const rollingWindow = document.getElementById('correlationRollingWindow')?.value || '30d';
     
-    console.log('[CORRELATION] Updating with settings:', { period, frequency, method, rolling_window: rollingWindow });
+    const options = {
+        period: period,
+        frequency: frequency,
+        method: method,
+        rolling_window: rollingWindow
+    };
     
-    // Direct API call with fresh settings
+    console.log('[CORRELATION] Updating with settings:', options);
+    
+    // Store options temporarily and call analysis
+    window.analyticsCore.correlationOptions = options;
     window.analyticsCore.analyzePortfolio(
         'correlation-analysis',
         'analysisContent',
         window.analyticsManager.displayCorrelationAnalysis,
-        null // Don't use form settings, use direct options
+        'correlationSettings'
     );
 };

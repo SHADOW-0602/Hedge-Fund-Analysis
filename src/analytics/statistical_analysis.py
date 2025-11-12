@@ -8,32 +8,49 @@ class StatisticalAnalyzer:
         self.data_client = data_client
     
     def correlation_analysis(self, symbols: List[str], period: str = "3mo") -> Dict:
-        """Simplified correlation analysis"""
+        """Real market data correlation analysis - NO FALLBACK DATA"""
         try:
-            price_data = self.data_client.get_price_data(symbols, period)  # Process all symbols
-            if price_data.empty:
-                return {}
+            # Fetch REAL market data only
+            price_data = self.data_client.get_price_data(symbols, period)
             
+            # Strict validation - NO EMPTY OR DUMMY DATA
+            if price_data is None or price_data.empty:
+                return {'error': 'No real market data available for correlation analysis'}
+            
+            # Validate minimum data requirements
+            if len(price_data) < 10:
+                return {'error': f'Insufficient real market data: {len(price_data)} data points (minimum 10 required)'}
+            
+            # Calculate returns from real price data
             returns = price_data.pct_change().dropna()
-            if returns.empty:
-                return {}
+            if returns.empty or len(returns) < 5:
+                return {'error': 'Insufficient return data for correlation calculation'}
             
-            correlation_matrix = returns.corr()
+            # Calculate correlation matrix from real data only
+            correlation_matrix = returns.corr(method='pearson')
             
-            # Correlation statistics
-            avg_correlation = float(correlation_matrix.mean().mean())
-            max_correlation = float(correlation_matrix.max().max())
-            min_correlation = float(correlation_matrix.min().min())
+            # Validate correlation matrix
+            if correlation_matrix.empty or correlation_matrix.isna().all().all():
+                return {'error': 'Unable to calculate valid correlations from real market data'}
             
-            # Find highly correlated pairs
+            # Calculate statistics from real correlations
+            valid_corrs = correlation_matrix.values[~np.isnan(correlation_matrix.values)]
+            if len(valid_corrs) == 0:
+                return {'error': 'No valid correlation values calculated'}
+            
+            avg_correlation = float(np.nanmean(correlation_matrix.values))
+            max_correlation = float(np.nanmax(correlation_matrix.values))
+            min_correlation = float(np.nanmin(correlation_matrix.values))
+            
+            # Find highly correlated pairs from real data
             high_corr_pairs = []
             for i in range(len(correlation_matrix.columns)):
                 for j in range(i+1, len(correlation_matrix.columns)):
-                    corr = float(correlation_matrix.iloc[i, j])
-                    if abs(corr) > 0.7:
+                    corr = correlation_matrix.iloc[i, j]
+                    if not np.isnan(corr) and abs(corr) > 0.7:
                         high_corr_pairs.append({
                             'pair': [correlation_matrix.columns[i], correlation_matrix.columns[j]],
-                            'correlation': corr
+                            'correlation': float(corr)
                         })
             
             return {
@@ -41,10 +58,13 @@ class StatisticalAnalyzer:
                 'avg_correlation': avg_correlation,
                 'max_correlation': max_correlation,
                 'min_correlation': min_correlation,
-                'high_correlation_pairs': sorted(high_corr_pairs, key=lambda x: abs(x['correlation']), reverse=True)[:10]
+                'high_correlation_pairs': sorted(high_corr_pairs, key=lambda x: abs(x['correlation']), reverse=True)[:10],
+                'data_source': 'Real Market Data',
+                'data_points': len(returns),
+                'symbols_analyzed': len(correlation_matrix.columns)
             }
         except Exception as e:
-            return {'error': str(e)}
+            return {'error': f'Real market data correlation analysis failed: {str(e)}'}
     
     def diversification_ratio(self, symbols: List[str], weights: Dict[str, float], period: str = "3mo") -> float:
         """Portfolio diversification effectiveness measurement"""

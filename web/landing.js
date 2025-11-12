@@ -61,9 +61,10 @@ async function fetchPexelsImage(query, size = 'medium') {
 
 // Helper function to decode HTML entities
 function decodeHtmlEntities(text) {
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = text;
-    return textarea.value;
+    if (!text) return text;
+    const div = document.createElement('div');
+    div.innerHTML = text;
+    return div.textContent || div.innerText || text;
 }
 
 // Load news headlines
@@ -100,44 +101,17 @@ async function loadNews() {
         throw new Error('Invalid response format');
     } catch (error) {
         console.warn('News API failed:', error.message);
+        displayNews([]);
     }
-
-    // Fallback to enhanced sample news
-    const sampleNews = [
-        {
-            title: "AI-Powered Portfolio Analysis Transforms Investment Strategies",
-            description: "Advanced machine learning algorithms are revolutionizing portfolio risk management and options analysis for institutional investors.",
-            source: { name: "Investment Weekly" },
-            publishedAt: new Date().toISOString(),
-            url: "/app"
-        },
-        {
-            title: "Hedge Funds Embrace Real-Time Risk Analytics",
-            description: "Professional fund managers are leveraging sophisticated analytics platforms to optimize portfolio performance and manage downside risk.",
-            source: { name: "Hedge Fund Review" },
-            publishedAt: new Date().toISOString(),
-            url: "/app"
-        },
-        {
-            title: "Options Strategies See Institutional Adoption Surge",
-            description: "Complex derivatives strategies including covered calls and protective puts gain popularity among professional portfolio managers.",
-            source: { name: "Derivatives Weekly" },
-            publishedAt: new Date().toISOString(),
-            url: "/app"
-        },
-        {
-            title: "Multi-Asset Portfolio Optimization Gains Momentum",
-            description: "Institutional investors are implementing advanced portfolio optimization techniques across multiple asset classes for enhanced returns.",
-            source: { name: "Portfolio Management" },
-            publishedAt: new Date().toISOString(),
-            url: "/app"
-        }
-    ];
-    displayNews(sampleNews);
 }
 
 function displayNews(articles) {
     const newsGrid = document.getElementById('newsGrid');
+    
+    if (!newsGrid) {
+        console.warn('newsGrid element not found');
+        return;
+    }
 
     let html = '';
 
@@ -351,22 +325,28 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check authentication state after utils.js is loaded
         setTimeout(checkAuthState, 100);
 
-        // Load images and news
+        // Load images
         loadImages();
-        loadNews();
+        
+        // Load tickers
+        loadTickers();
+        
+        // Auto-fetch missing logos after initial load
+        setTimeout(() => {
+            fetch(`${API_BASE}/api/fetch-logos`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Auto logo fetch:', data.message);
+                        // Reload tickers to show new logos
+                        setTimeout(() => loadTickers(), 1500);
+                    }
+                })
+                .catch(error => console.debug('Auto logo fetch failed:', error));
+        }, 2000);
     });
 
-    // Set up 6-hour news refresh interval
-    setInterval(() => {
-        const now = new Date();
-        const hours = now.getHours();
-        // Refresh at 12am, 6am, 12pm, 6pm
-        if (hours % 6 === 0 && now.getMinutes() === 0) {
-            localStorage.removeItem('news_cache');
-            localStorage.removeItem('news_cache_time');
-            loadNews();
-        }
-    }, 60000); // Check every minute
+
 
     // Observe feature cards for staggered animation
     const featureCards = document.querySelectorAll('.feature-card');
@@ -469,3 +449,241 @@ document.head.appendChild(styleSheet);
 
 // Show loading on page load
 window.addEventListener('load', showLoading);
+
+// Newsletter subscription function
+async function subscribeNewsletter() {
+    const emailInput = document.getElementById('newsletter-email');
+    const message = document.getElementById('newsletter-message');
+    const email = emailInput.value.trim();
+
+    if (!email || !email.includes('@')) {
+        message.textContent = 'Please enter a valid email address';
+        message.className = 'message error';
+        message.style.color = 'var(--error-color)';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/subscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+        });
+
+        if (response.ok) {
+            message.textContent = '🎉 Successfully subscribed! Check your inbox for daily reports.';
+            message.className = 'message success';
+            message.style.color = 'var(--success-color)';
+            emailInput.value = '';
+            setTimeout(() => {
+                message.textContent = '';
+                message.className = 'message';
+            }, 3000);
+        } else {
+            const error = await response.json();
+            message.textContent = error.error || 'Subscription failed';
+            message.className = 'message error';
+            message.style.color = 'var(--error-color)';
+        }
+    } catch (error) {
+        message.textContent = 'Network error. Please try again.';
+        message.className = 'message error';
+        message.style.color = 'var(--error-color)';
+    }
+}
+
+// Add ticker function
+async function addTicker() {
+    const input = document.getElementById('ticker-input');
+    const symbol = input.value.trim().toUpperCase();
+    const message = document.getElementById('add-message');
+
+    if (!symbol) {
+        message.textContent = 'Please enter a ticker symbol';
+        message.className = 'message error';
+        message.style.color = 'var(--error-color)';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/tickers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticker: symbol })
+        });
+
+        if (response.ok) {
+            message.textContent = `${symbol} added successfully!`;
+            message.className = 'message success';
+            message.style.color = 'var(--success-color)';
+            input.value = '';
+            loadTickers();
+            setTimeout(() => {
+                message.textContent = '';
+                message.className = 'message';
+            }, 3000);
+        } else {
+            const error = await response.json();
+            message.textContent = error.error || 'Failed to add ticker';
+            message.className = 'message error';
+            message.style.color = 'var(--error-color)';
+        }
+    } catch (error) {
+        message.textContent = 'Error adding ticker';
+        message.className = 'message error';
+        message.style.color = 'var(--error-color)';
+    }
+}
+
+// Load tickers from API
+async function loadTickers() {
+    try {
+        const response = await fetch(`${API_BASE}/api/tickers`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const tickers = await response.json();
+        const stocksGrid = document.getElementById('stocks-grid');
+
+        if (!Array.isArray(tickers)) {
+            throw new Error('Invalid response format');
+        }
+
+        if (tickers.length === 0) {
+            stocksGrid.innerHTML = '<p style="text-align: center; color: var(--text-secondary); grid-column: 1 / -1;">No stocks added yet. Add some tickers to get started!</p>';
+            return;
+        }
+
+        // Load logos for each ticker with better error handling
+        const tickersWithLogos = [];
+        for (const tickerData of tickers) {
+            const symbol = typeof tickerData === 'string' ? tickerData : tickerData.symbol;
+            let logoUrl = null;
+            
+            try {
+                const logoResponse = await fetch(`${API_BASE}/api/logo/${symbol}`);
+                if (logoResponse.status === 200) {
+                    const logoData = await logoResponse.json();
+                    logoUrl = logoData?.image || null;
+                }
+                // Consume response to prevent console logging
+                if (!logoResponse.ok) {
+                    await logoResponse.text();
+                }
+            } catch (error) {
+                // Silently handle logo fetch errors
+            }
+            
+            tickersWithLogos.push({
+                symbol: symbol,
+                company_name: typeof tickerData === 'object' ? tickerData.company_name : null,
+                logoUrl: logoUrl
+            });
+        }
+
+        stocksGrid.innerHTML = tickersWithLogos.map(ticker => `
+            <div class="stock-card" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; text-align: center; position: relative; transition: all 0.3s ease; cursor: pointer;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                <button class="remove-btn" onclick="removeTicker('${ticker.symbol}')" style="position: absolute; top: 8px; right: 8px; background: var(--error-color); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+                <div class="stock-logo" onclick="viewStock('${ticker.symbol}')" style="width: 60px; height: 60px; margin: 0 auto 1rem; background: var(--primary-color); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: white;">
+                    ${ticker.logoUrl ?
+                        `<img src="${ticker.logoUrl}" alt="${ticker.symbol}" style="width: 100%; height: 100%; object-fit: contain; border-radius: 12px;">` :
+                        `${ticker.symbol.charAt(0)}`
+                    }
+                </div>
+                <h4 onclick="viewStock('${ticker.symbol}')" style="color: var(--text-primary); margin: 0 0 0.5rem; font-size: 1.1rem; font-weight: 600;">${ticker.symbol}</h4>
+                <p onclick="viewStock('${ticker.symbol}')" style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">${ticker.company_name || 'Company Name'}</p>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading tickers:', error);
+        document.getElementById('stocks-grid').innerHTML = `<p style="text-align: center; color: var(--error-color); grid-column: 1 / -1;">Error loading stocks: ${error.message}</p>`;
+    }
+}
+
+// View stock function
+function viewStock(symbol) {
+    window.open(`/stock/${symbol}`, '_blank');
+}
+
+// Remove ticker function
+async function removeTicker(symbol) {
+    if (!confirm(`Remove ${symbol} from your portfolio?`)) return;
+
+    // Add removing animation
+    const stockCards = document.querySelectorAll('.stock-card');
+    const targetCard = Array.from(stockCards).find(card =>
+        card.querySelector('h4').textContent === symbol
+    );
+
+    if (targetCard) {
+        targetCard.style.opacity = '0.5';
+        targetCard.style.transform = 'scale(0.9)';
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/tickers/${symbol}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            // Wait for animation to complete before reloading
+            setTimeout(() => loadTickers(), 200);
+        } else {
+            // Remove animation if failed
+            if (targetCard) {
+                targetCard.style.opacity = '1';
+                targetCard.style.transform = 'scale(1)';
+            }
+            alert('Failed to remove ticker');
+        }
+    } catch (error) {
+        if (targetCard) {
+            targetCard.style.opacity = '1';
+            targetCard.style.transform = 'scale(1)';
+        }
+        alert('Error removing ticker');
+    }
+}
+
+// Add event listeners for Enter key
+document.addEventListener('DOMContentLoaded', () => {
+    // Newsletter subscription on Enter
+    const newsletterEmail = document.getElementById('newsletter-email');
+    if (newsletterEmail) {
+        newsletterEmail.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') subscribeNewsletter();
+        });
+    }
+
+    // Add ticker on Enter
+    const tickerInput = document.getElementById('ticker-input');
+    if (tickerInput) {
+        tickerInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addTicker();
+        });
+        
+        // Auto-uppercase ticker input
+        tickerInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+        });
+    }
+
+    // Load tickers when page loads
+    loadTickers();
+    
+    // Auto-fetch missing logos on page load
+    setTimeout(() => {
+        fetch(`${API_BASE}/api/fetch-logos`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Logo fetch result:', data.message);
+                    // Reload tickers to show new logos
+                    setTimeout(() => loadTickers(), 2000);
+                }
+            })
+            .catch(error => console.debug('Logo fetch failed:', error));
+    }, 2000);
+});

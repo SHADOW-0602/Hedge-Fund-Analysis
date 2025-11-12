@@ -10,14 +10,25 @@ logger = logging.getLogger(__name__)
 class SupabaseClient:
     def __init__(self):
         self.client = None
+        self.service_client = None
         try:
             url = os.getenv('SUPABASE_URL')
-            key = os.getenv('SUPABASE_ANON_KEY')
+            anon_key = os.getenv('SUPABASE_ANON_KEY')
+            service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_SERVICE_KEY')
             
-            if url and key:
+            if url and anon_key:
                 logger.info(f"Initializing Supabase client for URL: {url}")
-                self.client: Client = create_client(url, key)
-                logger.info("Supabase client created successfully")
+                self.client: Client = create_client(url, anon_key)
+                logger.info("Supabase anon client created successfully")
+                
+                # Create service role client if available
+                if service_key:
+                    self.service_client: Client = create_client(url, service_key)
+                    logger.info("Supabase service client created successfully")
+                else:
+                    logger.warning("Service role key not found - using anon client for admin operations")
+                    self.service_client = self.client
+                
                 print(f"Supabase connected: {url}")
             else:
                 logger.error("Supabase credentials missing - check SUPABASE_URL and SUPABASE_ANON_KEY")
@@ -26,6 +37,7 @@ class SupabaseClient:
             logger.error(f"Supabase connection failed: {e}")
             print(f"Supabase connection failed: {e}")
             self.client = None
+            self.service_client = None
     
     def create_tables(self):
         """Create required tables if they don't exist"""

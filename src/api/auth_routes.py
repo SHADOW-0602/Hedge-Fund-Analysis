@@ -1,9 +1,15 @@
 from flask import request, jsonify
+from datetime import datetime
+import traceback
+import sys
+import os
+
+# Add src directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from clients.supabase_client import supabase_client
 from enterprise.user_management import UserManager, UserRole
 from utils.email_service import email_service
-from datetime import datetime
-import traceback
 
 user_manager = UserManager()
 

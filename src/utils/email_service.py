@@ -8,7 +8,13 @@ from typing import Optional, List, Dict, Any
 import logging
 from datetime import datetime
 from pathlib import Path
-from .config import Config
+try:
+    from config import Config
+except ImportError:
+    try:
+        from .config import Config
+    except ImportError:
+        from utils.config import Config
 
 logger = logging.getLogger(__name__)
 

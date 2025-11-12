@@ -277,7 +277,14 @@ function viewLoadedData() {
     
     // Check portfolio data (prioritize memory over stored)
     if (window.portfolioData && window.portfolioData.length > 0) {
-        dataSources.push({ type: 'Portfolio Data (Memory)', data: window.portfolioData, source: 'memory' });
+        // Detect if data comes from Plaid
+        const isPlaidData = window.portfolioData.some(p => 
+            p.data_source === 'Plaid' || 
+            p.source === 'plaid' || 
+            p.portfolio === 'RobinHood'
+        );
+        const dataType = isPlaidData ? 'Portfolio Data (Plaid)' : 'Portfolio Data (Memory)';
+        dataSources.push({ type: dataType, data: window.portfolioData, source: isPlaidData ? 'plaid' : 'memory' });
         addedTypes.add('portfolio');
     } else {
         // Only check localStorage if no memory data
@@ -297,7 +304,15 @@ function viewLoadedData() {
     
     // Check transaction data (prioritize memory over stored)
     if (window.currentTransactions && window.currentTransactions.length > 0) {
-        dataSources.push({ type: 'Transaction Data (Memory)', data: window.currentTransactions, source: 'memory' });
+        // Detect if data comes from Plaid
+        const isPlaidData = window.currentTransactions.some(t => 
+            t.data_source === 'Plaid' || 
+            t.source === 'plaid' || 
+            t.portfolio === 'RobinHood' ||
+            (t.account_id && t.account_id.includes('Plaid'))
+        );
+        const dataType = isPlaidData ? 'Transaction Data (Plaid)' : 'Transaction Data (Memory)';
+        dataSources.push({ type: dataType, data: window.currentTransactions, source: isPlaidData ? 'plaid' : 'memory' });
         addedTypes.add('transactions');
     } else {
         // Only check localStorage if no memory data

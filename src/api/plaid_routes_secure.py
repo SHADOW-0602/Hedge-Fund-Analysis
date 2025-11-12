@@ -1,6 +1,20 @@
 from flask import request, jsonify, session
-from clients.plaid_client import plaid_client
-from utils.secure_id_manager import secure_id_manager
+try:
+    from clients.plaid_client import plaid_client
+except ImportError:
+    plaid_client = None
+try:
+    from clients.supabase_client import supabase_client
+except ImportError:
+    supabase_client = None
+try:
+    from utils.secure_id_manager import secure_id_manager
+except ImportError:
+    secure_id_manager = None
+try:
+    from utils.plaid_supabase_manager import plaid_supabase_manager
+except ImportError:
+    plaid_supabase_manager = None
 
 def get_real_user_id():
     """Get real UUID from session, handling secure tokens"""
@@ -37,15 +51,27 @@ def get_real_user_id():
     
     # Fallback: check if we have the known UUID with token
     print(f"[PLAID] No user_id in session, checking for existing token holder")
-    from utils.user_secrets import user_secret_manager
-    all_users = user_secret_manager.list_all_plaid_users()
-    if all_users:
-        first_user = all_users[0]['user_id']
-        print(f"[PLAID] Using first user with token: {first_user}")
-        return first_user
     
-    print(f"[PLAID] No user_id found in session, using default")
-    return 'default_user'
+    # Try to find a user with Plaid connections in Supabase
+    try:
+        if supabase_client and supabase_client.service_client:
+            result = supabase_client.service_client.table('plaid_connections')\
+                .select('user_id')\
+                .eq('is_active', True)\
+                .limit(1)\
+                .execute()
+            
+            if result.data:
+                fallback_user_id = result.data[0]['user_id']
+                print(f"[PLAID] Using fallback user with Plaid connection: {fallback_user_id}")
+                return fallback_user_id
+    except Exception as e:
+        print(f"[PLAID] Error finding fallback user: {e}")
+    
+    # Final fallback to known admin user
+    admin_user_id = '744944b4-c861-4950-9cb1-a34ded460d36'
+    print(f"[PLAID] Using admin user as final fallback: {admin_user_id}")
+    return admin_user_id
 
 def register_plaid_routes(app):
     @app.route('/api/plaid-status', methods=['GET', 'POST'])
@@ -54,24 +80,38 @@ def register_plaid_routes(app):
             user_id = get_real_user_id()
             print(f"[PLAID] Checking status for user: {user_id}")
             
-            from utils.user_secrets import user_secret_manager
-            connections = user_secret_manager.get_plaid_connections(user_id)
+            connections = plaid_supabase_manager.get_plaid_connections(user_id)
             print(f"[PLAID] Connections found for {user_id}: {len(connections)}")
             
             connection_details = []
-            for conn_id, conn_data in connections.items():
+            for conn_data in connections:
                 try:
-                    accounts = plaid_client.get_accounts(user_id) if plaid_client else []
-                    connection_details.append({
-                        'connection_id': conn_id,
-                        'institution_name': conn_data.get('institution_name', 'Unknown'),
-                        'created_at': conn_data.get('created_at', 'Unknown'),
-                        'accounts_count': len(accounts)
-                    })
+                    # Test if this specific connection works
+                    token = conn_data.get('access_token')
+                    if token and plaid_client:
+                        # Try to get accounts with this specific token
+                        accounts = plaid_client.get_accounts(user_id)
+                        connection_details.append({
+                            'connection_id': conn_data['connection_id'],
+                            'institution_name': conn_data.get('institution_name', 'Unknown'),
+                            'created_at': conn_data.get('created_at', 'Unknown'),
+                            'accounts_count': len(accounts),
+                            'status': 'active' if len(accounts) > 0 else 'no_accounts'
+                        })
+                    else:
+                        connection_details.append({
+                            'connection_id': conn_data['connection_id'],
+                            'institution_name': conn_data.get('institution_name', 'Unknown'),
+                            'created_at': conn_data.get('created_at', 'Unknown'),
+                            'accounts_count': 0,
+                            'status': 'inactive'
+                        })
                 except Exception as e:
                     connection_details.append({
-                        'connection_id': conn_id,
-                        'status': 'invalid',
+                        'connection_id': conn_data['connection_id'],
+                        'institution_name': conn_data.get('institution_name', 'Unknown'),
+                        'created_at': conn_data.get('created_at', 'Unknown'),
+                        'status': 'error',
                         'error': str(e)
                     })
             
@@ -104,16 +144,8 @@ def register_plaid_routes(app):
                     'environment': 'production'
                 }), 200
             
-            from utils.user_secrets import user_secret_manager
-            access_token = user_secret_manager.get_plaid_token(user_id)
+            access_token = plaid_supabase_manager.get_plaid_token(user_id)
             print(f"[PLAID] Access token found for {user_id}: {bool(access_token)}")
-            if not access_token:
-                # Try the known UUID directly
-                known_uuid = '744944b4-c861-4950-9cb1-a34ded460d36'
-                access_token = user_secret_manager.get_plaid_token(known_uuid)
-                print(f"[PLAID] Trying known UUID {known_uuid}: {bool(access_token)}")
-                if access_token:
-                    user_id = known_uuid
             
             if not access_token:
                 return jsonify({
@@ -219,7 +251,11 @@ def register_plaid_routes(app):
                     'environment': 'production'
                 }), 500
             
-            connection_id = plaid_client.exchange_public_token(public_token, user_id, institution_name)
+            access_token = plaid_client.exchange_public_token_raw(public_token)
+            if access_token:
+                connection_id = plaid_supabase_manager.store_plaid_token(user_id, access_token, institution_name)
+            else:
+                connection_id = None
             
             if connection_id:
                 return jsonify({
@@ -251,8 +287,7 @@ def register_plaid_routes(app):
             if not plaid_client or not plaid_client.is_available():
                 return jsonify({'success': False, 'error': 'Plaid client not available'}), 500
             
-            from utils.user_secrets import user_secret_manager
-            access_token = user_secret_manager.get_plaid_token(user_id)
+            access_token = plaid_supabase_manager.get_plaid_token(user_id)
             
             if not access_token:
                 return jsonify({'success': False, 'error': 'No Plaid connection found'}), 200
@@ -276,8 +311,7 @@ def register_plaid_routes(app):
     def disconnect_plaid():
         try:
             user_id = get_real_user_id()
-            from utils.user_secrets import user_secret_manager
-            user_secret_manager.delete_plaid_token(user_id)
+            plaid_supabase_manager.delete_plaid_connection(user_id)
             return jsonify({'success': True, 'message': 'Plaid connection disconnected'})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
@@ -286,8 +320,7 @@ def register_plaid_routes(app):
     def delete_plaid_connection():
         try:
             user_id = get_real_user_id()
-            from utils.user_secrets import user_secret_manager
-            user_secret_manager.delete_plaid_token(user_id)
+            plaid_supabase_manager.delete_plaid_connection(user_id)
             return jsonify({'success': True, 'message': 'Plaid connection deleted permanently'})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500

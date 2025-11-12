@@ -7,6 +7,7 @@ from .route_utils import normalize_portfolio_format, sanitize_for_json
 
 def register_portfolio_management_routes(app, data_client, smart_cache=None):
     """Register portfolio management routes"""
+    print("[DEBUG] Registering portfolio management routes")
     
     @app.route('/api/upload-portfolio', methods=['POST'])
     def upload_portfolio():
@@ -86,10 +87,14 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
 
     @app.route('/api/load-portfolios', methods=['GET'])
     def load_portfolios():
+        print("[DEBUG] load_portfolios route called")
         try:
             user_id = request.args.get('user_id')
             
             if not supabase_client or not supabase_client.client:
+                return jsonify({'success': True, 'portfolios': []})
+            
+            if not user_id:
                 return jsonify({'success': True, 'portfolios': []})
             
             try:
@@ -99,13 +104,15 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
                 for portfolio in portfolios:
                     portfolio['has_analytics'] = bool(portfolio.get('analytics_data'))
                     
-            except Exception:
+                return jsonify({'success': True, 'portfolios': portfolios})
+                    
+            except Exception as e:
+                print(f"Portfolio load error: {e}")
                 return jsonify({'success': True, 'portfolios': []})
             
-            return jsonify({'success': True, 'portfolios': portfolios})
-            
         except Exception as e:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            print(f"Portfolio load outer error: {e}")
+            return jsonify({'success': True, 'portfolios': []})
 
     @app.route('/api/delete-portfolio', methods=['DELETE'])
     def delete_portfolio():

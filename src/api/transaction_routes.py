@@ -70,6 +70,11 @@ def normalize_transaction_format(transactions_data):
     return df_pl.to_pandas().to_dict('records')
 
 def register_transaction_routes(app):
+    print("[DEBUG] Registering transaction routes")
+    # Test route to verify transaction routes are working
+    @app.route('/api/test-transactions', methods=['GET'])
+    def test_transactions():
+        return jsonify({'success': True, 'message': 'Transaction routes working'})
     @app.route('/api/upload-transactions', methods=['POST'])
     def upload_transactions():
         try:
@@ -398,22 +403,27 @@ def register_transaction_routes(app):
 
     @app.route('/api/load-transactions', methods=['GET'])
     def load_transactions():
+        print("[DEBUG] load_transactions route called")
         try:
             user_id = request.args.get('user_id')
             
             if not supabase_client or not supabase_client.client:
                 return jsonify({'success': True, 'transactions': []})
             
+            if not user_id:
+                return jsonify({'success': True, 'transactions': []})
+            
             try:
                 result = supabase_client.client.table('transactions').select('*').eq('user_id', user_id).execute()
                 transactions = result.data or []
-            except Exception:
-                transactions = []
-            
-            return jsonify({'success': True, 'transactions': transactions})
+                return jsonify({'success': True, 'transactions': transactions})
+            except Exception as e:
+                print(f"Transaction load error: {e}")
+                return jsonify({'success': True, 'transactions': []})
             
         except Exception as e:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            print(f"Transaction load outer error: {e}")
+            return jsonify({'success': True, 'transactions': []})
 
     @app.route('/api/get-transactions', methods=['GET'])
     def get_transactions():

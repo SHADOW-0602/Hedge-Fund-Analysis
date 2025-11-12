@@ -143,12 +143,21 @@ async function loadPlaidPortfolio() {
                 avg_cost: holding.avg_cost,
                 market_value: holding.market_value,
                 cost_basis: holding.cost_basis,
-                source: 'plaid'
+                source: 'plaid',
+                data_source: 'Plaid',
+                portfolio: 'RobinHood'
             }));
             
             // Display portfolio data
+            console.log('[PLAID] Portfolio data ready:', portfolioData.length, 'positions');
             if (typeof displayPortfolio === 'function') {
                 displayPortfolio(portfolioData);
+                console.log('[PLAID] Portfolio displayed successfully');
+            } else {
+                console.log('[PLAID] displayPortfolio function not available');
+                // Store data globally for manual access
+                window.currentPortfolio = portfolioData;
+                localStorage.setItem('currentPortfolio', JSON.stringify(portfolioData));
             }
             
             // Show Plaid switcher for portfolio/transaction analysis
@@ -244,7 +253,9 @@ async function checkExistingPlaidConnection() {
         
         // Load connections through manager
         if (window.plaidConnectionsManager) {
+            console.log('[PLAID] Using connections manager to load connections');
             const connections = await window.plaidConnectionsManager.loadConnections();
+            console.log('[PLAID] Connections manager returned:', connections.length, 'connections');
             
             if (connections.length === 0) {
                 console.log(`[PLAID] No connections found for user: ${userId}`);
@@ -252,18 +263,11 @@ async function checkExistingPlaidConnection() {
                 updateConnectButton(false);
                 return false;
             }
-            
-            // Auto-select first connection if none selected
-            if (!window.plaidConnectionsManager.getActiveConnection() && connections.length > 0) {
-                await window.plaidConnectionsManager.selectConnection(connections[0].connection_id);
-            }
-            
-            updatePlaidStatus(`${connections.length} account(s) connected`, 'success');
-            updateConnectButton(true);
-            return true;
+        } else {
+            console.log('[PLAID] Connections manager not available');
         }
         
-        
+        console.log('[PLAID] Falling back to direct API check');
         // Fallback to direct API check
         const statusResponse = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-status`, {
             method: 'POST',
@@ -345,7 +349,14 @@ function updateConnectButton(isConnected) {
         const connectionCount = window.plaidConnectionsManager?.connections?.length || 1;
         btn.textContent = connectionCount > 1 ? `Manage ${connectionCount} Accounts` : 'Manage Account';
         btn.className = 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm w-full sm:w-auto';
-        btn.onclick = () => showConnectionsManager();
+        btn.onclick = () => {
+            showConnectionsManager();
+            // Also show the upload section when managing accounts
+            const uploadSection = document.getElementById('defaultUploadSection');
+            if (uploadSection) {
+                uploadSection.scrollIntoView({ behavior: 'smooth' });
+            }
+        };
     } else {
         btn.textContent = 'Connect Account';
         btn.className = 'bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto';
@@ -353,52 +364,65 @@ function updateConnectButton(isConnected) {
     }
 }
 
-// Show connections manager modal
+// Show connections manager section
 function showConnectionsManager() {
-    const modal = document.getElementById('connectionsModal');
-    if (modal) {
-        modal.classList.remove('hidden');
+    const section = document.getElementById('plaidConnectionsSection');
+    if (section) {
+        section.classList.remove('hidden');
         if (window.plaidConnectionsManager) {
-            window.plaidConnectionsManager.updateConnectionsUI();
+            // Force reload connections when showing manager
+            window.plaidConnectionsManager.loadConnections();
+        } else {
+            // Manually load connections if manager not available
+            loadConnectionsDirectly();
         }
-    } else {
-        // Create modal if it doesn't exist
-        createConnectionsModal();
     }
 }
 
-// Create connections manager modal
-function createConnectionsModal() {
-    const modal = document.createElement('div');
-    modal.id = 'connectionsModal';
-    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
-    modal.innerHTML = `
-        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-medium text-gray-900">Manage Plaid Connections</h3>
-                <button onclick="closeConnectionsModal()" class="text-gray-400 hover:text-gray-600">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            <div id="plaidConnectionsList"></div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    
-    if (window.plaidConnectionsManager) {
-        window.plaidConnectionsManager.updateConnectionsUI();
+// Direct connection loading fallback
+async function loadConnectionsDirectly() {
+    try {
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-status`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        const result = await response.json();
+        
+        const container = document.getElementById('plaidConnectionsList');
+        if (container && result.success && result.connections) {
+            const connectionsHTML = result.connections.map(conn => `
+                <div class="bg-white border border-gray-200 rounded-lg p-3 mb-2">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-900">${conn.institution_name}</h4>
+                            <p class="text-xs text-gray-500">ID: ${conn.connection_id}</p>
+                            <p class="text-xs text-gray-500">Created: ${conn.created_at}</p>
+                            ${conn.accounts_count ? `<p class="text-xs text-blue-600">Accounts: ${conn.accounts_count}</p>` : ''}
+                            ${conn.status ? `<p class="text-xs text-green-600">Status: ${conn.status}</p>` : ''}
+                        </div>
+                        <button onclick="deleteConnection('${conn.connection_id}')" class="text-xs px-2 py-1 rounded-md bg-red-100 text-red-700 hover:bg-red-200">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            
+            container.innerHTML = connectionsHTML;
+        }
+    } catch (error) {
+        console.error('[PLAID] Direct connection loading failed:', error);
     }
 }
 
-// Close connections modal
-function closeConnectionsModal() {
-    const modal = document.getElementById('connectionsModal');
-    if (modal) {
-        modal.classList.add('hidden');
+// Hide connections manager section
+function hidePlaidConnections() {
+    const section = document.getElementById('plaidConnectionsSection');
+    if (section) {
+        section.classList.add('hidden');
     }
 }
+
+
 
 
 
@@ -454,6 +478,8 @@ window.loadPlaidPortfolio = loadPlaidPortfolio;
 window.testPlaidConnection = testPlaidConnection;
 window.checkExistingPlaidConnection = checkExistingPlaidConnection;
 window.autoConnectPlaid = autoConnectPlaid;
+window.showConnectionsManager = showConnectionsManager;
+window.hidePlaidConnections = hidePlaidConnections;
 
 // Load transaction data from Plaid
 async function loadPlaidTransactions() {
@@ -478,8 +504,9 @@ async function loadPlaidTransactions() {
                 transaction_type: tx.type || tx.transaction_type || 'BUY',
                 fees: parseFloat(tx.fees || 0),
                 currency: tx.currency || 'USD',
-                portfolio: 'Plaid Account',
+                portfolio: 'RobinHood',
                 source: 'plaid',
+                data_source: 'Plaid',
                 account_id: tx.account_id
             }));
             

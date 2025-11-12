@@ -1170,11 +1170,15 @@ class AnalyticsManager {
         const correlation = result.correlation_matrix || {};
         const summary = result.summary || {};
 
+        console.log('[CORRELATION DISPLAY] Received result:', { summary, options });
+
         // Get current settings from options or summary
         const currentPeriod = options?.period || summary.period || '1Y';
         const currentFrequency = options?.frequency || summary.frequency || 'Daily';
         const currentMethod = options?.method || summary.method || 'pearson';
         const currentRollingWindow = options?.rolling_window || summary.rolling_window || '30d';
+
+        console.log('[CORRELATION DISPLAY] Using settings:', { currentPeriod, currentFrequency, currentMethod, currentRollingWindow });
 
         // Get symbols for matrix display
         const symbols = Object.keys(correlation);
@@ -1246,7 +1250,8 @@ class AnalyticsManager {
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div class="details-box">
                         <h4 class="section-header">Average Correlation</h4>
-                        <p class="text-2xl font-bold metric-value ${(summary.average_correlation || 0) > 0.7 ? 'negative' : (summary.average_correlation || 0) > 0.3 ? 'neutral' : 'positive'}">${window.analyticsCore.formatNumber(summary.average_correlation || 0)}</p>
+                        <p class="text-2xl font-bold metric-value ${(summary.average_correlation || 0) > 0.7 ? 'negative' : (summary.average_correlation || 0) > 0.3 ? 'neutral' : 'positive'}" title="Period: ${currentPeriod}, Method: ${currentMethod}">${window.analyticsCore.formatNumber(summary.average_correlation || 0)}</p>
+                        <p class="text-xs text-gray-500 mt-1">${currentMethod} • ${currentPeriod} • ${summary.data_points || 0} pts</p>
                     </div>
                     <div class="details-box">
                         <h4 class="section-header">Max Correlation</h4>
@@ -1468,15 +1473,29 @@ window.updateCorrelationAnalysis = () => {
         return;
     }
 
-    console.log('[CORRELATION] Updating with settings:', { period, frequency, method, rolling_window: rollingWindow });
+    console.log('[CORRELATION] Updating with NEW settings:', { period, frequency, method, rolling_window: rollingWindow });
 
-    // Store settings for API call
+    // Clear any existing cached settings
+    delete window.analyticsCore.correlationSettings;
+    delete window.analyticsCore.correlationOptions;
+
+    // Store fresh settings for API call
     window.analyticsCore.correlationSettings = {
         period,
         frequency,
         method,
         rolling_window: rollingWindow
     };
+
+    // Show immediate feedback that settings are being applied
+    const container = document.getElementById('analysisContent');
+    if (container) {
+        const summaryBoxes = container.querySelectorAll('.details-box .metric-value');
+        summaryBoxes.forEach(box => {
+            box.style.opacity = '0.5';
+            box.textContent = 'Updating...';
+        });
+    }
 
     // Force reload with new settings
     window.analyticsManager.loadModule('correlation-analysis');

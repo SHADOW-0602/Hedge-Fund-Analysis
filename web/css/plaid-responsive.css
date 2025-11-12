@@ -1,0 +1,262 @@
+/* Plaid Connections Responsive Design */
+
+/* Desktop optimizations */
+@media (min-width: 1024px) {
+    /* Plaid connections section */
+    #plaidConnectionsSection {
+        max-width: none;
+    }
+    
+    /* Connection cards layout */
+    #plaidConnectionsList .bg-white {
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
+    }
+    
+    #plaidConnectionsList .bg-white:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+    }
+    
+    /* Connection header */
+    #plaidConnectionsList .flex.items-center.justify-between {
+        gap: 2rem;
+    }
+    
+    /* Connection info section */
+    #plaidConnectionsList .flex.items-center.space-x-2 {
+        gap: 1rem;
+    }
+    
+    /* Institution icon */
+    #plaidConnectionsList .w-6.h-6 {
+        width: 2.5rem;
+        height: 2.5rem;
+        flex-shrink: 0;
+    }
+    
+    /* Institution name and details */
+    #plaidConnectionsList h4 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+    
+    #plaidConnectionsList p {
+        font-size: 0.875rem;
+        margin-bottom: 0.125rem;
+    }
+    
+    /* Action buttons */
+    #plaidConnectionsList .flex.items-center.space-x-1 {
+        gap: 0.75rem;
+        flex-shrink: 0;
+    }
+    
+    #plaidConnectionsList button {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        min-width: 80px;
+    }
+    
+    /* Header section */
+    #plaidConnectionsList .flex.items-center.justify-between.mb-3 h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+    
+    #plaidConnectionsList .flex.items-center.justify-between.mb-3 button {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* Tablet optimizations */
+@media (min-width: 768px) and (max-width: 1023px) {
+    #plaidConnectionsList .bg-white {
+        padding: 1.25rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    #plaidConnectionsList .flex.items-center.justify-between {
+        gap: 1.5rem;
+    }
+    
+    #plaidConnectionsList .w-6.h-6 {
+        width: 2rem;
+        height: 2rem;
+    }
+    
+    #plaidConnectionsList h4 {
+        font-size: 1rem;
+    }
+    
+    #plaidConnectionsList button {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+        min-width: 70px;
+    }
+}
+
+/* Mobile optimizations */
+@media (max-width: 767px) {
+    #plaidConnectionsList .bg-white {
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        border-radius: 8px;
+    }
+    
+    /* Stack connection info vertically on mobile */
+    #plaidConnectionsList .flex.items-center.justify-between {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+    
+    #plaidConnectionsList .flex.items-center.space-x-2 {
+        gap: 0.75rem;
+    }
+    
+    #plaidConnectionsList .w-6.h-6 {
+        width: 1.75rem;
+        height: 1.75rem;
+    }
+    
+    #plaidConnectionsList h4 {
+        font-size: 0.9375rem;
+        font-weight: 600;
+    }
+    
+    #plaidConnectionsList p {
+        font-size: 0.8125rem;
+    }
+    
+    /* Action buttons full width on mobile */
+    #plaidConnectionsList .flex.items-center.space-x-1 {
+        width: 100%;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+    
+    #plaidConnectionsList button {
+        flex: 1;
+        padding: 0.5rem;
+        font-size: 0.8125rem;
+        text-align: center;
+    }
+    
+    /* Header adjustments for mobile */
+    #plaidConnectionsList .flex.items-center.justify-between.mb-3 {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+    
+    #plaidConnectionsList .flex.items-center.justify-between.mb-3 h3 {
+        font-size: 1.125rem;
+        text-align: center;
+    }
+    
+    #plaidConnectionsList .flex.items-center.justify-between.mb-3 button {
+        width: 100%;
+        padding: 0.75rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* Data preview section responsive */
+@media (min-width: 1024px) {
+    #dataPreview {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    
+    #dataPreviewContent table {
+        font-size: 0.875rem;
+    }
+    
+    #dataPreviewContent th,
+    #dataPreviewContent td {
+        padding: 0.75rem 1rem;
+    }
+}
+
+@media (max-width: 767px) {
+    #dataPreview {
+        margin: 1rem 0;
+        padding: 1rem;
+    }
+    
+    #dataPreviewContent {
+        overflow-x: auto;
+    }
+    
+    #dataPreviewContent table {
+        font-size: 0.75rem;
+        min-width: 600px;
+    }
+    
+    #dataPreviewContent th,
+    #dataPreviewContent td {
+        padding: 0.5rem;
+        white-space: nowrap;
+    }
+}
+
+/* Loading states */
+.plaid-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: #6b7280;
+}
+
+.plaid-loading::before {
+    content: '';
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 0.5rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Status indicators */
+.status-active {
+    color: #059669 !important;
+}
+
+.status-error {
+    color: #dc2626 !important;
+}
+
+.status-pending {
+    color: #d97706 !important;
+}
+
+/* Button hover states */
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* Smooth transitions */
+* {
+    transition: all 0.2s ease;
+}

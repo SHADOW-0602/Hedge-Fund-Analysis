@@ -5,7 +5,11 @@ import pandas as pd
 from typing import List, Dict, Optional
 from utils.config import Config
 from utils.logger import logger
-from utils.user_secrets import user_secret_manager
+try:
+    from utils.plaid_supabase_manager import plaid_supabase_manager
+except ImportError:
+    from utils.user_secrets import user_secret_manager
+    plaid_supabase_manager = None
 from datetime import datetime, timedelta
 
 try:
@@ -161,12 +165,28 @@ class PlaidClient:
             logger.error(f"Plaid token exchange error: {e}")
             return ""
     
+    def exchange_public_token_raw(self, public_token: str) -> str:
+        """Exchange public token for access token without storing"""
+        if not self.client:
+            return ""
+        
+        try:
+            request = ItemPublicTokenExchangeRequest(public_token=public_token)
+            response = self.client.item_public_token_exchange(request)
+            return response['access_token']
+        except ApiException as e:
+            logger.error(f"Plaid API error: {e}")
+            return ""
+        except Exception as e:
+            logger.error(f"Plaid token exchange error: {e}")
+            return ""
+    
     def get_accounts(self, user_id: str) -> List[Dict]:
         """Get user accounts using official SDK"""
         if not self.client:
             return []
         
-        access_token = user_secret_manager.get_plaid_token(user_id)
+        access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
         if not access_token:
             return []
         
@@ -198,7 +218,7 @@ class PlaidClient:
         if not self.client:
             return pd.DataFrame()
         
-        access_token = user_secret_manager.get_plaid_token(user_id)
+        access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
         if not access_token:
             return pd.DataFrame()
         
@@ -270,7 +290,7 @@ class PlaidClient:
         if not self.client:
             return pd.DataFrame()
         
-        access_token = user_secret_manager.get_plaid_token(user_id)
+        access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
         if not access_token:
             return pd.DataFrame()
         
@@ -377,7 +397,7 @@ class PlaidClient:
         if not self.client:
             return pd.DataFrame()
         
-        access_token = user_secret_manager.get_plaid_token(user_id)
+        access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
         if not access_token:
             return pd.DataFrame()
         

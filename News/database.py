@@ -34,8 +34,8 @@ class Database:
     
     def _init_client(self):
         """Initialize Supabase client with error handling"""
-        url = os.getenv('SUPABASE_URL')
-        key = os.getenv('SUPABASE_ANON_KEY')
+        url = os.getenv('SUPABASE_URL_2')
+        key = os.getenv('SUPABASE_ANON_KEY_2')
         
         if not url or not key or url == 'your-supabase-url':
             logger.error("Supabase credentials not configured")
@@ -284,6 +284,15 @@ class Database:
         
         return result.data if result.data else []
     
+    @safe_db_operation(default_return=[])
+    def get_articles(self, ticker, limit=100):
+        """Get articles for ticker"""
+        result = self.client.table('news_articles').select(
+            'title, content, source, url, date'
+        ).eq('ticker', ticker).order('date', desc=True).limit(limit).execute()
+        
+        return result.data if result.data else []
+    
     def get_logo(self, ticker):
         """Get cached logo URL"""
         if not self.client:
@@ -291,11 +300,14 @@ class Database:
         
         try:
             result = self.client.table('company_logos').select(
-                'logo_url'
+                'logo_url, company_name'
             ).eq('ticker', ticker).execute()
             
-            if result.data:
-                return result.data[0]['logo_url']
+            if result.data and result.data[0].get('logo_url'):
+                return {
+                    'image': result.data[0]['logo_url'],
+                    'name': result.data[0].get('company_name', ticker)
+                }
         except Exception as e:
             logger.debug(f"Error getting logo for {ticker}: {e}")
         

@@ -15,6 +15,9 @@ import requests
 # Load environment variables
 load_dotenv()
 
+# Keep original portfolio database for main app
+# News database will be handled separately in News module
+
 # Import redis conditionally for Vercel compatibility
 try:
     import redis
@@ -38,17 +41,17 @@ from api.cache_routes import register_cache_routes
 # Add News system to path for integration
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'News'))
 
+# Import Flask render_template for News templates
+from flask import render_template, send_from_directory
 
-# Import clients and utilities
+
+# Import clients and utilities - NO FALLBACK IMPLEMENTATIONS
 try:
     from clients.market_data_client import MarketDataClient
-except ImportError:
-    class MarketDataClient:
-        def get_current_prices(self, symbols):
-            return {symbol: 100.0 for symbol in symbols}
-        def get_price_data(self, symbols, period):
-            import pandas as pd
-            return pd.DataFrame()
+except ImportError as e:
+    print(f"CRITICAL ERROR: MarketDataClient import failed: {e}")
+    print("Application requires real market data client - no fallback available")
+    raise ImportError("MarketDataClient is required for real market data analysis") from e
 
 from clients.supabase_client import supabase_client
 # Removed smart_cache import - using direct API calls
@@ -106,47 +109,90 @@ app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 CORS(app, supports_credentials=True)
 
-# Initialize data client
-try:
-    logger.info("Initializing market data client...")
-    data_client = MarketDataClient()
-    logger.info("Market data client initialized successfully")
-except Exception as e:
-    logger.warning(f"Using fallback market data client: {e}")
-    print(f"Warning: Using fallback market data client: {e}")
-    data_client = MarketDataClient()
+# News static files route - MUST be first
+@app.route('/static/<path:filename>')
+def news_static(filename):
+    try:
+        news_static_path = os.path.join(os.path.dirname(__file__), '..', 'News', 'static')
+        news_file_path = os.path.join(news_static_path, filename)
+        
+        # Check if file exists in News static folder first
+        if os.path.exists(news_file_path):
+            return send_from_directory(news_static_path, filename)
+        
+        # Fallback to main app static files
+        return app.send_static_file(filename)
+        
+    except Exception as e:
+        logger.error(f"Static file error: {e}")
+        # Final fallback to main app static
+        try:
+            return app.send_static_file(filename)
+        except:
+            return '', 404
 
-# Static routes
+# News/static route for direct access
+@app.route('/News/static/<path:filename>')
+def news_static_direct(filename):
+    try:
+        news_static_path = os.path.join(os.path.dirname(__file__), '..', 'News', 'static')
+        return send_from_directory(news_static_path, filename)
+    except Exception as e:
+        logger.error(f"News static file error: {e}")
+        return '', 404
+
+# Initialize data client - REAL DATA ONLY
+try:
+    logger.info("Initializing real market data client...")
+    data_client = MarketDataClient()
+    
+    # Validate that the client has at least one working provider
+    if not data_client.providers:
+        raise Exception("No market data providers available")
+    
+    logger.info(f"Market data client initialized with {len(data_client.providers)} real data providers")
+    print(f"[SUCCESS] Real market data client ready with {len(data_client.providers)} providers")
+    
+except Exception as e:
+    logger.error(f"CRITICAL: Market data client initialization failed: {e}")
+    print(f"[ERROR] Market data client initialization failed: {e}")
+    print("[ERROR] Application requires real market data - no fallback available")
+    raise RuntimeError(f"Real market data client required: {e}") from e
+
+# Root route - Landing Page
 @app.route('/')
-def index():
+def landing():
     return app.send_static_file('landing.html')
 
 @app.route('/app')
 def main_app():
     return app.send_static_file('index.html')
 
+@app.route('/dashboard')
+def dashboard():
+    return app.send_static_file('index.html')
+
 @app.route('/admin')
 def admin_portal():
     return app.send_static_file('admin.html')
 
-@app.route('/test-analytics')
-def test_analytics():
-    return app.send_static_file('test-analytics.html')
+@app.route('/favicon.ico')
+def favicon():
+    return app.send_static_file('favicon.png')
 
-# News endpoint using News folder system only
+# News endpoint using News database
 @app.route('/api/news', methods=['GET'])
 def get_market_news():
     try:
-        # Import News system
-        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'News'))
-        from database import db as news_db
+        from News.database import db as news_db
         
-        # Get summaries from News database
         tickers = news_db.get_tickers()[:6]
+        logger.info(f"Found {len(tickers)} tickers: {tickers}")
         articles = []
         
         for ticker in tickers:
             summary_data = news_db.get_summary(ticker)
+            logger.info(f"Summary for {ticker}: {bool(summary_data)}")
             if summary_data and summary_data.get('summary'):
                 articles.append({
                     "title": f"{ticker} Analysis Update",
@@ -156,42 +202,64 @@ def get_market_news():
                     "url": f"/stock/{ticker}"
                 })
         
+        logger.info(f"Returning {len(articles)} articles")
         return {'success': True, 'articles': articles}
         
     except Exception as e:
         logger.error(f"News API error: {e}")
-        return {'success': False, 'articles': []}, 500
+        return {'success': False, 'articles': [], 'error': str(e)}, 500
 
 # Test endpoint to verify API is working
 @app.route('/api/test', methods=['GET'])
 def test_api():
     return jsonify({'success': True, 'message': 'API is working'})
 
+# Newsletter subscription removed - handled by News app
+
+# Ticker management removed - handled by News app
+
+# Logo endpoint removed - handled by News app
 
 
 
 
-# Endpoint to serve Pexels API key
-@app.route('/api/config', methods=['GET'])
-def get_config():
-    return jsonify({
-        'pexels_api_key': os.getenv('PEXELS_API_KEY', '')
-    })
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Duplicate routes removed - handled by News app
+
+
 
 
 
 
 
 # Register all route modules
-register_auth_routes(app)
+register_auth_routes(app)  # Re-enabled for portfolio database
 try:
-    register_portfolio_routes(app, data_client)
+    register_portfolio_routes(app, data_client, None)
     logger.info("Portfolio routes registered successfully")
 except Exception as e:
     logger.error(f"Failed to register portfolio routes: {e}")
     import traceback
     traceback.print_exc()
-register_transaction_routes(app)
+try:
+    register_transaction_routes(app)
+    logger.info("Transaction routes registered successfully")
+except Exception as e:
+    logger.error(f"Failed to register transaction routes: {e}")
+    import traceback
+    traceback.print_exc()
 if redis_client:
     register_admin_routes(app, redis_client)
     register_cache_routes(app, redis_client)

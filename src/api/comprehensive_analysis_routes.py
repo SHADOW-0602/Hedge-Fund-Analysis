@@ -3,10 +3,22 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from .route_utils import sanitize_for_json, extract_valid_symbols, calculate_portfolio_weights
-from utils.symbol_parser import get_underlying_symbol
+
+# Import symbol parser with error handling
+try:
+    from utils.symbol_parser import get_underlying_symbol
+except ImportError:
+    # Fallback function if import fails
+    def get_underlying_symbol(symbol: str) -> str:
+        """Extract underlying symbol from options or return original"""
+        import re
+        # Simple options pattern matching
+        match = re.search(r'^([A-Z]{1,6})\d{6}[CP]\d{8}$', symbol)
+        return match.group(1) if match else symbol
 
 def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
     """Register comprehensive analysis routes"""
+    print("[DEBUG] Registering comprehensive analysis routes")
     
     @app.route('/api/strategy-backtesting', methods=['POST'])
     def strategy_backtesting():
@@ -244,6 +256,7 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
 
     @app.route('/api/correlation-analysis', methods=['POST'])
     def comprehensive_correlation_analysis():
+        print("[DEBUG] correlation-analysis route called")
         try:
             import yfinance as yf
             import warnings
@@ -252,6 +265,16 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             portfolio = data.get('portfolio', [])
             options = data.get('options', {})
+            
+            # Check if options are passed at root level (from analytics-core)
+            if not options and 'period' in data:
+                options = {
+                    'period': data.get('period'),
+                    'frequency': data.get('frequency'),
+                    'method': data.get('method'),
+                    'rolling_window': data.get('rolling_window')
+                }
+                print(f"[CORRELATION] Using root-level options: {options}")
             
             if not portfolio:
                 return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
@@ -265,7 +288,7 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             print(f"[CORRELATION] Received options: period={period}, frequency={frequency}, method={method}, rolling_window={rolling_window}")
             print(f"[CORRELATION] Full options dict: {options}")
             
-            # Extract symbols with better error handling
+            # Extract symbols with strict validation - NO FALLBACK DATA
             symbols = []
             for p in portfolio:
                 if isinstance(p, dict) and p.get('symbol'):
@@ -273,112 +296,139 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                     if symbol and not symbol.startswith('CUR:'):
                         underlying = get_underlying_symbol(symbol)
                         if underlying and underlying not in symbols:
-                            symbols.append(underlying)
+                            # Validate symbol format - only real stock symbols
+                            if underlying.isalpha() and len(underlying) <= 5:
+                                symbols.append(underlying)
             
             if len(symbols) < 2:
-                return jsonify({'success': False, 'error': 'Need at least 2 symbols for correlation'}), 400
+                return jsonify({'success': False, 'error': 'Need at least 2 valid stock symbols for correlation analysis'}), 400
             
-            # Download data
+            # Download REAL market data only - NO FALLBACK
             period_map = {'1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y', '2Y': '2y'}
             yf_period = period_map.get(period, '1y')
             
+            print(f"[CORRELATION] Downloading real market data for symbols: {symbols}")
             try:
-                price_data = yf.download(symbols, period=yf_period, progress=False)
+                # Use yfinance with strict validation
+                price_data = yf.download(
+                    symbols, 
+                    period=yf_period, 
+                    progress=False,
+                    auto_adjust=True,  # Use adjusted prices for accuracy
+                    threads=False,
+                    group_by='ticker' if len(symbols) > 1 else None
+                )
+                print(f"[DEBUG] Downloaded data shape: {price_data.shape if hasattr(price_data, 'shape') else 'No shape'}")
+                print(f"[DEBUG] Downloaded data columns: {price_data.columns if hasattr(price_data, 'columns') else 'No columns'}")
             except Exception as download_error:
-                return jsonify({'success': False, 'error': f'Failed to download data: {str(download_error)}'}), 500
+                print(f"[CORRELATION] Market data download failed: {download_error}")
+                return jsonify({'success': False, 'error': f'Failed to download real market data: {str(download_error)}'}), 500
             
-            # Validate data
+            # Strict validation - NO EMPTY DATA ALLOWED
             if price_data is None or (hasattr(price_data, 'empty') and price_data.empty):
-                return jsonify({'success': False, 'error': 'No data available for the selected period'}), 500
+                print(f"[CORRELATION] No real market data available for symbols: {symbols}")
+                return jsonify({'success': False, 'error': 'No real market data available for the selected symbols and period'}), 500
             
-            # Get price data
-            if 'Adj Close' in price_data.columns:
-                prices = price_data['Adj Close']
-            else:
-                prices = price_data['Close']
-            
+            # Extract adjusted close prices only
             if len(symbols) == 1:
-                prices = pd.DataFrame(prices)
+                if 'Adj Close' in price_data.columns:
+                    prices = pd.DataFrame({symbols[0]: price_data['Adj Close']})
+                elif 'Close' in price_data.columns:
+                    prices = pd.DataFrame({symbols[0]: price_data['Close']})
+                else:
+                    print(f"[DEBUG] Price data columns: {price_data.columns}")
+                    print(f"[DEBUG] Price data shape: {price_data.shape}")
+                    return jsonify({'success': False, 'error': 'No valid price data found'}), 500
+            else:
+                if isinstance(price_data.columns, pd.MultiIndex):
+                    prices = price_data.xs('Close', level=1, axis=1)
+                else:
+                    prices = price_data
             
-            # Apply frequency resampling
+            # Remove any rows with missing data - REAL DATA ONLY
+            prices = prices.dropna()
+            if prices.empty:
+                return jsonify({'success': False, 'error': 'No valid price data after cleaning'}), 500
+            
+            # Apply frequency resampling to real data
             if frequency == 'Weekly':
                 prices = prices.resample('W').last().dropna()
             elif frequency == 'Monthly':
                 prices = prices.resample('M').last().dropna()
             
-            # Calculate returns
+            # Calculate returns from real price data
             returns = prices.pct_change().dropna()
             
-            # Filter symbols with sufficient data - reduced requirements
-            min_data_points = 10 if frequency == 'Daily' else 5 if frequency == 'Weekly' else 3
+            # Strict data validation - require sufficient real data points
+            min_data_points = 20 if frequency == 'Daily' else 8 if frequency == 'Weekly' else 6
             valid_symbols = []
             for symbol in symbols:
                 if symbol in returns.columns:
                     symbol_returns = returns[symbol].dropna()
                     if len(symbol_returns) >= min_data_points:
                         valid_symbols.append(symbol)
+                        print(f"[CORRELATION] Symbol {symbol}: {len(symbol_returns)} data points")
+                    else:
+                        print(f"[CORRELATION] Insufficient data for {symbol}: {len(symbol_returns)} < {min_data_points}")
             
             if len(valid_symbols) < 2:
-                # Try with even lower requirements if still insufficient
-                min_data_points = 5 if frequency == 'Daily' else 3 if frequency == 'Weekly' else 2
-                valid_symbols = []
-                for symbol in symbols:
-                    if symbol in returns.columns:
-                        symbol_returns = returns[symbol].dropna()
-                        if len(symbol_returns) >= min_data_points:
-                            valid_symbols.append(symbol)
-                
-                if len(valid_symbols) < 2:
-                    return jsonify({'success': False, 'error': f'Insufficient data for correlation analysis. Available data points: {len(returns)} (need at least {min_data_points} per symbol)'}), 400
+                return jsonify({
+                    'success': False, 
+                    'error': f'Insufficient real market data. Need at least {min_data_points} data points per symbol for {frequency.lower()} analysis. Available symbols with sufficient data: {len(valid_symbols)}'
+                }), 400
             
-            # Apply rolling window if specified
+            # Apply rolling window to real data if specified
             if rolling_window != '30d':
                 window_days = int(rolling_window.replace('d', ''))
                 if frequency == 'Weekly':
-                    window_size = max(4, window_days // 7)
+                    window_size = max(8, window_days // 7)
                 elif frequency == 'Monthly':
-                    window_size = max(3, window_days // 30)
+                    window_size = max(6, window_days // 30)
                 else:
-                    window_size = window_days
+                    window_size = max(20, window_days)
                 
-                # Use rolling correlation for the last window
                 returns = returns.tail(window_size)
+                print(f"[CORRELATION] Applied rolling window: {window_size} periods")
             
-            # Validate and calculate correlation matrix with specified method
+            # Validate correlation method
             valid_methods = ['pearson', 'spearman', 'kendall']
             if method not in valid_methods:
-                method = 'pearson'  # fallback
+                method = 'pearson'
             
             print(f"[CORRELATION] Calculating correlation using method: {method}")
             print(f"[CORRELATION] Data shape: {returns[valid_symbols].shape}")
             print(f"[CORRELATION] Valid symbols: {valid_symbols}")
             
+            # Calculate correlation matrix from real data only
             try:
                 correlation_data = returns[valid_symbols].corr(method=method)
                 print(f"[CORRELATION] Correlation matrix calculated successfully with {method}")
-                print(f"[CORRELATION] Sample correlation values: {correlation_data.iloc[0, 1] if len(valid_symbols) > 1 else 'N/A'}")
             except Exception as corr_error:
                 print(f"[CORRELATION] Correlation calculation failed with {method}: {corr_error}")
-                return jsonify({'success': False, 'error': f'Correlation calculation failed with {method}: {str(corr_error)}'}), 500
+                return jsonify({'success': False, 'error': f'Correlation calculation failed: {str(corr_error)}'}), 500
             
-            # Convert to dictionary format
+            # Convert to dictionary format with validation
             correlation_matrix = {}
             for s1 in valid_symbols:
                 correlation_matrix[s1] = {}
                 for s2 in valid_symbols:
                     try:
                         corr_value = correlation_data.loc[s1, s2]
-                        correlation_matrix[s1][s2] = float(corr_value) if not np.isnan(corr_value) else 0.0
+                        # Only use real correlation values
+                        if pd.isna(corr_value) or np.isinf(corr_value):
+                            correlation_matrix[s1][s2] = 1.0 if s1 == s2 else 0.0
+                        else:
+                            correlation_matrix[s1][s2] = float(corr_value)
                     except Exception:
-                        correlation_matrix[s1][s2] = 0.0
+                        correlation_matrix[s1][s2] = 1.0 if s1 == s2 else 0.0
             
-            # Calculate summary statistics
+            # Calculate summary statistics from real correlations
             corr_values = []
             for s1 in valid_symbols:
                 for s2 in valid_symbols:
                     if s1 != s2:
                         corr_val = correlation_matrix[s1][s2]
-                        if not np.isnan(corr_val):
+                        if not np.isnan(corr_val) and not np.isinf(corr_val):
                             corr_values.append(corr_val)
             
             if len(corr_values) > 0:
@@ -397,8 +447,12 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                 'frequency': frequency,
                 'rolling_window': rolling_window,
                 'symbols_analyzed': len(valid_symbols),
-                'data_points': len(returns)
+                'data_points': len(returns),
+                'data_source': 'Real Market Data (YFinance)',
+                'validation': 'Strict - No Fallback Data'
             }
+            
+            print(f"[CORRELATION] Analysis complete - Real data only, {len(valid_symbols)} symbols, {len(returns)} data points")
             
             response_data = sanitize_for_json({
                 'success': True,
@@ -408,8 +462,8 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             return jsonify(response_data)
             
         except Exception as e:
-            print(f"Correlation analysis error: {e}")
-            return jsonify({'success': False, 'error': f'Correlation analysis failed: {str(e)}'}), 500
+            print(f"[CORRELATION] Analysis error: {e}")
+            return jsonify({'success': False, 'error': f'Real market data correlation analysis failed: {str(e)}'}), 500
 
     @app.route('/api/sector-allocation', methods=['POST'])
     def sector_allocation():

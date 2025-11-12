@@ -1,7 +1,7 @@
 from flask import request, jsonify
 import redis
 import pickle
-from enterprise.user_management import UserManager, UserRole
+from src.enterprise.user_management import UserManager, UserRole
 
 user_manager = UserManager()
 

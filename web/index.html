@@ -8,9 +8,10 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="css/navigation-fix.css">
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-    <script src="https://d3js.org/d3.v6.min.js"></script>
-    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link rel="stylesheet" href="css/plaid-responsive.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/apexcharts/3.44.0/apexcharts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/6.7.0/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
     <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
     <script src="js/global-api-config.js"></script>
     <link rel="stylesheet" href="index-styles.css">
@@ -108,8 +109,8 @@
             <!-- Main Content Area -->
             <div class="flex-1">
                 <!-- Hidden file inputs for upload functionality -->
-                <input type="file" id="portfolioFile" accept=".csv,.xlsx,.xls" class="hidden">
-                <input type="file" id="transactionFile" accept=".csv,.xlsx,.xls" class="hidden">
+                <input type="file" id="portfolioFile" accept=".csv,.xlsx,.xls" class="hidden" aria-label="Upload portfolio file">
+                <input type="file" id="transactionFile" accept=".csv,.xlsx,.xls" class="hidden" aria-label="Upload transaction file">
 
                 <!-- Default Upload Section -->
                 <div id="defaultUploadSection" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
@@ -122,7 +123,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Portfolio Files</label>
-                            <select id="portfolioFileSelect" class="w-full p-3 border rounded-lg text-sm" onchange="togglePortfolioDelete()">
+                            <select id="portfolioFileSelect" class="w-full p-3 border rounded-lg text-sm" onchange="togglePortfolioDelete()" aria-label="Select portfolio file">
                                 <option value="" selected>Select portfolio file...</option>
                             </select>
                             <div class="flex flex-col sm:flex-row gap-2 mt-3">
@@ -136,7 +137,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Transaction Files</label>
-                            <select id="transactionFileSelect" class="w-full p-3 border rounded-lg text-sm" onchange="toggleTransactionDelete()">
+                            <select id="transactionFileSelect" class="w-full p-3 border rounded-lg text-sm" onchange="toggleTransactionDelete()" aria-label="Select transaction file">
                                 <option value="" selected>Select transaction file...</option>
                             </select>
                             <div class="flex flex-col sm:flex-row gap-2 mt-3">
@@ -160,6 +161,21 @@
                                 <button id="plaidConnectBtn" onclick="togglePlaidConnection()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto">Connect Account</button>
                                 <div id="plaidStatus" class="mt-2 text-xs text-gray-600">Connect your brokerage account for real-time data</div>
                             </div>
+                            
+                            <!-- Plaid Connections Manager (Hidden by default) -->
+                            <div id="plaidConnectionsSection" class="mt-4 hidden">
+                                <div class="border-2 border-blue-300 rounded-lg p-4">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h4 class="text-sm font-medium text-gray-900">Manage Connections</h4>
+                                        <button onclick="hidePlaidConnections()" class="text-gray-400 hover:text-gray-600">
+                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <div id="plaidConnectionsList"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -175,11 +191,6 @@
                         </button>
                     </div>
                     <div id="dataPreviewContent"></div>
-                </div>
-
-                <!-- Analysis Sections Container -->
-                <div id="analysisContainer" class="hidden">
-                    <!-- Individual analysis views will be loaded here -->
                 </div>
 
                 <!-- Dynamic Analysis Content -->
@@ -914,7 +925,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Attribution</label>
-                                <select id="returnAttribution" class="w-full p-2 border rounded-md text-sm">
+                                <select id="returnAttributionSelect" class="w-full p-2 border rounded-md text-sm">
                                     <option value="Asset Allocation" selected>Asset Allocation</option>
                                     <option value="Security Selection">Security Selection</option>
                                     <option value="Timing">Timing</option>
@@ -955,18 +966,23 @@
                         </div>
                     </div>
                     
-                    <div id="returnAttribution"></div>
+                    <div id="returnAttributionAnalysis"></div>
                 </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Chart.js fallback
+        window.Chart = window.Chart || function() { console.log('Chart.js blocked'); };
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js" onerror="console.log('Chart.js CDN blocked')"></script>
     <script src="utils.js"></script>
     <script src="index-scripts.js"></script>
     <script src="supabase-connect.js"></script>
     <script src="plaid-integration.js"></script>
+    <script src="js/modules/plaid-connections.js"></script>
     
     <!-- Modular JavaScript Files -->
     <script src="js/core/app-core.js"></script>
@@ -993,6 +1009,7 @@
 
     <script src="js/missing-functions.js"></script>
     <script src="js/app-main.js"></script>
+
 </body>
 
 </html>
