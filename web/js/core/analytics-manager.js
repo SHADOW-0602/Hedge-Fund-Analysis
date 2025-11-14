@@ -510,13 +510,19 @@ class AnalyticsManager {
 
         const allOpportunities = (result.opportunities || []).sort((a, b) => a.symbol.localeCompare(b.symbol));
         const summary = result.summary || {};
+        
+        console.log(`[OPTIONS DISPLAY] Total opportunities received: ${allOpportunities.length}`);
+        console.log(`[OPTIONS DISPLAY] Symbols in opportunities:`, [...new Set(allOpportunities.map(o => o.symbol))]);
+        
         const filteredOpportunities = window.getFilteredOpportunities ? window.getFilteredOpportunities(allOpportunities) : allOpportunities;
         const currentPage = window.optionsCurrentPage || 1;
-        const itemsPerPage = 10;
+        const itemsPerPage = 20; // Increased from 10 to show more results
         const totalPages = Math.ceil(filteredOpportunities.length / itemsPerPage);
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = startIndex + itemsPerPage;
         const currentOpportunities = filteredOpportunities.slice(startIndex, endIndex);
+        
+        console.log(`[OPTIONS DISPLAY] Filtered opportunities: ${filteredOpportunities.length}, Current page: ${currentPage}, Showing: ${currentOpportunities.length}`);
 
         // Get available strategies and symbols
         const availableStrategies = [...new Set(allOpportunities.map(opp => opp.strategy))];
@@ -1926,6 +1932,107 @@ class AnalyticsManager {
         }
     }
 
+    // Scan options method for compatibility with refactored app
+    async scanOptions(symbols) {
+        try {
+            console.log(`[ANALYTICS MANAGER] scanOptions called with ${symbols.length} symbols:`, symbols);
+            
+            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
+            const response = await fetch(`${API_BASE}/api/scan-options`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    symbols: symbols,
+                    options: {
+                        expiration: '3M',
+                        moneyness: 'All',
+                        strategy: 'All',
+                        min_premium: 0.50,
+                        delta_range: 'All'
+                    }
+                })
+            });
+            
+            const data = await response.json();
+            console.log(`[ANALYTICS MANAGER] scanOptions response:`, data);
+            
+            return data;
+        } catch (error) {
+            console.error('[ANALYTICS MANAGER] scanOptions error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    // Risk analysis method for compatibility
+    async analyzeRisk(portfolioData, role = 'user') {
+        try {
+            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
+            const response = await fetch(`${API_BASE}/api/analyze-risk`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ portfolio: portfolioData })
+            });
+            
+            return await response.json();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    // Monte Carlo method for compatibility
+    async runMonteCarlo(portfolioData, role = 'user') {
+        try {
+            const symbols = portfolioData.map(p => p.symbol);
+            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
+            const response = await fetch(`${API_BASE}/api/monte-carlo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbols: symbols })
+            });
+            
+            return await response.json();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    // Backtest method for compatibility
+    async runBacktest(strategy, symbols, startDate, endDate) {
+        try {
+            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
+            const response = await fetch(`${API_BASE}/api/strategy-backtesting`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    strategy, 
+                    symbols, 
+                    start_date: startDate, 
+                    end_date: endDate 
+                })
+            });
+            
+            return await response.json();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    // Stock screening method for compatibility
+    async screenStocks(criteria, universe) {
+        try {
+            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
+            const response = await fetch(`${API_BASE}/api/screen-stocks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ criteria, universe })
+            });
+            
+            return await response.json();
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
     // Display market news
     displayMarketNews(result) {
         const container = document.getElementById('analysisContent');
@@ -2032,10 +2139,13 @@ window.getFilteredOpportunities = (opportunities) => {
     
     const symbolFilter = document.getElementById('symbolFilter')?.value || 'all';
     
+    console.log(`[OPTIONS FILTER] Symbol filter: ${symbolFilter}, Total opportunities: ${opportunities.length}`);
+    
     let filtered = opportunities;
     
-    if (symbolFilter !== 'all') {
+    if (symbolFilter && symbolFilter !== 'all') {
         filtered = filtered.filter(opp => opp.symbol === symbolFilter);
+        console.log(`[OPTIONS FILTER] After symbol filter: ${filtered.length} opportunities`);
     }
     
     return filtered;

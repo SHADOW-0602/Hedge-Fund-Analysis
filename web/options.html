@@ -44,10 +44,24 @@
     </div>
 
     <script src="utils.js"></script>
-    <script src="app.js"></script>
+    <script src="js/missing-functions.js"></script>
+    <script src="js/core/analytics-manager.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
+            console.log('Options page loaded');
+            
+            // Set up global API base
+            window.API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
+            
+            // Initialize the refactored app if available, otherwise fall back to legacy
+            if (window.HedgeFundApp) {
+                console.log('Using refactored app');
+            } else if (window.initializeApp) {
+                console.log('Using legacy app');
+                initializeApp();
+            } else {
+                console.log('No app initialization found - options functions should still work');
+            }
         });
     </script>
 </body>

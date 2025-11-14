@@ -108,16 +108,24 @@ def register_options_routes(app, data_client, smart_cache=None):
             opportunities = convert_numpy(opportunities)
             summary = convert_numpy(summary)
             
-            # Remove duplicates based on symbol and strategy
+            # Remove only exact duplicates, not limit per symbol/strategy
             unique_opportunities = []
             seen = set()
             for opp in opportunities:
-                key = (opp.get('symbol'), opp.get('strategy'), opp.get('strike'))
+                # Create key based on symbol, strategy, strike, and premium to identify exact duplicates
+                key = (opp.get('symbol'), opp.get('strategy'), opp.get('strike'), round(opp.get('premium', 0), 2))
                 if key not in seen:
                     seen.add(key)
                     unique_opportunities.append(opp)
             
-            print(f"Options: Removed {len(opportunities) - len(unique_opportunities)} duplicate opportunities")
+            print(f"Options: Kept {len(unique_opportunities)} opportunities from {len(opportunities)} total (removed exact duplicates only)")
+            
+            # Debug: Show final opportunities by symbol
+            final_by_symbol = {}
+            for opp in unique_opportunities:
+                symbol = opp.get('symbol', 'Unknown')
+                final_by_symbol[symbol] = final_by_symbol.get(symbol, 0) + 1
+            print(f"Final opportunities by symbol: {final_by_symbol}")
             
             # Final sanitization before JSON response
             response_data = sanitize_for_json({
@@ -127,7 +135,8 @@ def register_options_routes(app, data_client, smart_cache=None):
                 'debug_info': {
                     'symbols_processed': len(valid_symbols),
                     'total_opportunities': len(unique_opportunities),
-                    'duplicates_removed': len(opportunities) - len(unique_opportunities)
+                    'opportunities_by_symbol': {symbol: len([o for o in unique_opportunities if o.get('symbol') == symbol]) for symbol in valid_symbols},
+                    'original_opportunities': len(opportunities)
                 }
             })
             

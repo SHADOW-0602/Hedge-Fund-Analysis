@@ -286,10 +286,15 @@ class HedgeFundApp {
         this.uiManager.showLoading(true);
 
         const symbols = portfolioData.map(p => p.symbol);
+        console.log(`[OPTIONS ANALYSIS] Starting analysis for ${symbols.length} symbols:`, symbols);
+        
         const result = await this.analyticsManager.scanOptions(symbols);
+        console.log(`[OPTIONS ANALYSIS] Result:`, result);
 
         if (result.success) {
-            this.displayManager.updateOptionsResults(result.opportunities, result.summary);
+            console.log(`[OPTIONS ANALYSIS] Found ${result.opportunities?.length || 0} opportunities`);
+            // Use the analytics manager's display function directly
+            this.analyticsManager.displayOptionsStrategies(result, {});
             this.uiManager.showSuccess('Options analysis completed');
         } else {
             this.uiManager.showError(result.error);

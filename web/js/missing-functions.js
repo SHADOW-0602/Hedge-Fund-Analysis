@@ -615,3 +615,222 @@ document.addEventListener('click', (event) => {
 window.toggleMobileSidebar = toggleMobileSidebar;
 window.closeMobileSidebar = closeMobileSidebar;
 window.initMobileSidebar = initMobileSidebar;
+
+// Options analysis functions
+async function scanOptions() {
+    console.log('scanOptions called');
+    
+    // Check if we have portfolio data
+    const portfolioData = window.portfolioData || window.currentPortfolioData;
+    if (!portfolioData || portfolioData.length === 0) {
+        if (window.showError) {
+            window.showError('Please upload portfolio data first');
+        } else {
+            alert('Please upload portfolio data first');
+        }
+        return;
+    }
+    
+    // Extract symbols from portfolio
+    const symbols = portfolioData.map(p => p.symbol).filter(s => s && s.trim());
+    console.log('Scanning options for symbols:', symbols);
+    
+    if (symbols.length === 0) {
+        if (window.showError) {
+            window.showError('No valid symbols found in portfolio');
+        } else {
+            alert('No valid symbols found in portfolio');
+        }
+        return;
+    }
+    
+    // Show loading
+    const resultsContainer = document.getElementById('optionsResults');
+    if (resultsContainer) {
+        resultsContainer.innerHTML = `
+            <div class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                <p class="text-gray-600">Scanning options for ${symbols.length} symbols...</p>
+                <p class="text-sm text-gray-500 mt-2">Symbols: ${symbols.join(', ')}</p>
+            </div>
+        `;
+    }
+    
+    try {
+        const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
+        const response = await fetch(`${API_BASE}/api/scan-options`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                symbols: symbols,
+                options: {
+                    expiration: '3M',
+                    moneyness: 'All',
+                    strategy: 'All',
+                    min_premium: 0.50,
+                    delta_range: 'All'
+                }
+            })
+        });
+        
+        const data = await response.json();
+        console.log('Options scan response:', data);
+        
+        if (data.success) {
+            displayOptionsResults(data.opportunities || [], data.summary || {});
+            if (window.showSuccess) {
+                window.showSuccess(`Found ${data.opportunities?.length || 0} options opportunities`);
+            }
+        } else {
+            throw new Error(data.error || 'Options scan failed');
+        }
+    } catch (error) {
+        console.error('Options scan error:', error);
+        if (resultsContainer) {
+            resultsContainer.innerHTML = `
+                <div class="text-center py-8 text-red-600">
+                    <p class="font-semibold">Options scan failed</p>
+                    <p class="text-sm mt-2">${error.message}</p>
+                </div>
+            `;
+        }
+        if (window.showError) {
+            window.showError('Options scan failed: ' + error.message);
+        }
+    }
+}
+
+function displayOptionsResults(opportunities, summary) {
+    const resultsContainer = document.getElementById('optionsResults');
+    if (!resultsContainer) return;
+    
+    console.log('Displaying options results:', { opportunities: opportunities.length, summary });
+    
+    if (opportunities.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="text-center py-8">
+                <div class="text-gray-400 mb-4">
+                    <svg class="w-16 h-16 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No Options Opportunities Found</h3>
+                <p class="text-gray-600">No viable options strategies were found for the current portfolio.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Group opportunities by symbol
+    const bySymbol = {};
+    opportunities.forEach(opp => {
+        const symbol = opp.symbol;
+        if (!bySymbol[symbol]) bySymbol[symbol] = [];
+        bySymbol[symbol].push(opp);
+    });
+    
+    // Group by strategy
+    const byStrategy = {};
+    opportunities.forEach(opp => {
+        const strategy = opp.strategy || 'unknown';
+        if (!byStrategy[strategy]) byStrategy[strategy] = [];
+        byStrategy[strategy].push(opp);
+    });
+    
+    let html = `
+        <div class="space-y-6">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-blue-800">Total Opportunities</h4>
+                    <p class="text-2xl font-bold text-blue-600">${opportunities.length}</p>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-green-800">Symbols Analyzed</h4>
+                    <p class="text-2xl font-bold text-green-600">${Object.keys(bySymbol).length}</p>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-purple-800">Strategies Found</h4>
+                    <p class="text-2xl font-bold text-purple-600">${Object.keys(byStrategy).length}</p>
+                </div>
+            </div>
+            
+            <!-- Opportunities by Symbol -->
+            <div class="bg-white border rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4">Opportunities by Symbol</h3>
+                <div class="space-y-4">
+    `;
+    
+    Object.entries(bySymbol).forEach(([symbol, opps]) => {
+        const strategies = [...new Set(opps.map(o => o.strategy))];
+        html += `
+            <div class="border-l-4 border-indigo-500 pl-4">
+                <div class="flex justify-between items-center">
+                    <h4 class="font-semibold text-gray-900">${symbol}</h4>
+                    <span class="text-sm text-gray-500">${opps.length} opportunities</span>
+                </div>
+                <p class="text-sm text-gray-600">Strategies: ${strategies.join(', ')}</p>
+            </div>
+        `;
+    });
+    
+    html += `
+                </div>
+            </div>
+            
+            <!-- Detailed Opportunities Table -->
+            <div class="bg-white border rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4">All Opportunities</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Strategy</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Strike</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Premium</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Delta</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+    `;
+    
+    opportunities.forEach(opp => {
+        html += `
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${opp.symbol}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${opp.strategy}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">$${(opp.strike || 0).toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">$${(opp.premium || 0).toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${opp.delta ? opp.delta.toFixed(3) : 'N/A'}</td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    resultsContainer.innerHTML = html;
+}
+
+// Protective puts and collar strategies functions
+async function scanProtectivePuts() {
+    console.log('scanProtectivePuts called - using main scanOptions function');
+    await scanOptions();
+}
+
+async function scanCollarStrategies() {
+    console.log('scanCollarStrategies called - using main scanOptions function');
+    await scanOptions();
+}
+
+// Export options functions
+window.scanOptions = scanOptions;
+window.displayOptionsResults = displayOptionsResults;
+window.scanProtectivePuts = scanProtectivePuts;
+window.scanCollarStrategies = scanCollarStrategies;
