@@ -103,19 +103,55 @@ class SectorAnalysis {
      */
     getSectorColor(sector) {
         const colors = {
-            'Technology': '#4CAF50',
-            'Healthcare': '#2196F3',
-            'Financial': '#FF9800',
-            'Consumer Cyclical': '#9C27B0',
-            'Communication Services': '#F44336',
-            'Industrials': '#607D8B',
-            'Consumer Staples': '#795548',
-            'Energy': '#FF5722',
-            'Utilities': '#009688',
-            'Real Estate': '#3F51B5',
-            'Materials': '#8BC34A'
+            // Technology sectors
+            'Technology': '#3B82F6',
+            'Software': '#1E40AF',
+            
+            // Financial sectors
+            'Financials': '#10B981',
+            'Financial': '#059669',
+            'Financial Services': '#047857',
+            
+            // Healthcare
+            'Healthcare': '#F59E0B',
+            'Health Care': '#D97706',
+            
+            // Consumer sectors
+            'Consumer Discretionary': '#EF4444',
+            'Consumer Cyclical': '#DC2626',
+            'Consumer Staples': '#84CC16',
+            'Consumer Defensive': '#65A30D',
+            
+            // Communication
+            'Communication Services': '#14B8A6',
+            'Communication': '#0F766E',
+            
+            // Industrial
+            'Industrials': '#06B6D4',
+            'Industrial': '#0891B2',
+            
+            // Materials & Energy
+            'Materials': '#8B5CF6',
+            'Basic Materials': '#7C3AED',
+            'Energy': '#F97316',
+            
+            // Utilities & Real Estate
+            'Utilities': '#6366F1',
+            'Real Estate': '#EC4899',
+            
+            // ETFs and Special
+            'Broad Market ETF': '#F59E0B',
+            'Technology ETF': '#3B82F6',
+            'Financial ETF': '#10B981',
+            'Healthcare ETF': '#F59E0B',
+            'Energy ETF': '#F97316',
+            'International ETF': '#8B5CF6',
+            
+            // Other
+            'Other': '#6B7280',
+            'Unknown': '#9CA3AF'
         };
-        return colors[sector] || '#757575';
+        return colors[sector] || '#6B7280';
     }
 
     /**

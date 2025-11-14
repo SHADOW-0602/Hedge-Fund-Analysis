@@ -232,18 +232,53 @@ class SectorCharts {
 
     getColor(sector) {
         const colors = {
+            // Technology sectors
             'Technology': '#3B82F6',
+            'Software': '#1E40AF',
+            
+            // Financial sectors
             'Financials': '#10B981',
+            'Financial': '#059669',
+            'Financial Services': '#047857',
+            
+            // Healthcare
             'Healthcare': '#F59E0B',
+            'Health Care': '#D97706',
+            
+            // Consumer sectors
             'Consumer Discretionary': '#EF4444',
-            'Materials': '#8B5CF6',
-            'Energy': '#F97316',
-            'Industrials': '#06B6D4',
+            'Consumer Cyclical': '#DC2626',
             'Consumer Staples': '#84CC16',
+            'Consumer Defensive': '#65A30D',
+            
+            // Communication
+            'Communication Services': '#14B8A6',
+            'Communication': '#0F766E',
+            
+            // Industrial
+            'Industrials': '#06B6D4',
+            'Industrial': '#0891B2',
+            
+            // Materials & Energy
+            'Materials': '#8B5CF6',
+            'Basic Materials': '#7C3AED',
+            'Energy': '#F97316',
+            
+            // Utilities & Real Estate
             'Utilities': '#6366F1',
             'Real Estate': '#EC4899',
-            'Communication Services': '#14B8A6',
-            'Other': '#6B7280'
+            
+            // ETFs and Special
+            'Broad Market ETF': '#F59E0B',
+            'Technology ETF': '#3B82F6',
+            'Financial ETF': '#10B981',
+            'Healthcare ETF': '#F59E0B',
+            'Energy ETF': '#F97316',
+            'International ETF': '#8B5CF6',
+            
+            // Other
+            'Other': '#6B7280',
+            'Unknown': '#9CA3AF'
         };
         return colors[sector] || '#6B7280';
     }
