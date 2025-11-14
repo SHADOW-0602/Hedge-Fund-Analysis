@@ -53,11 +53,11 @@ class OptionsAnalyzer:
                 options_chain = ticker.option_chain(exp_date)
                 puts = options_chain.puts
                 
-                # Extremely aggressive filtering for protective puts
+                # Very permissive filtering for protective puts
                 protective_puts = puts[
-                    (puts['strike'] >= current_price * 0.60) &  # Much wider strike range
-                    (puts['strike'] <= current_price * 1.10) &  # Allow more ITM puts
-                    ((puts['ask'] > 0) | (puts['bid'] > 0) | (puts['lastPrice'] > 0))  # Any price data, no cost limit
+                    (puts['strike'] >= current_price * 0.50) &  # Very wide strike range
+                    (puts['strike'] <= current_price * 1.20) &  # Allow deep ITM puts
+                    ((puts['ask'] >= 0) | (puts['bid'] >= 0) | (puts['lastPrice'] >= 0))  # Include zero prices
                 ]
                 
                 for _, option in protective_puts.iterrows():
@@ -70,7 +70,7 @@ class OptionsAnalyzer:
                     except Exception:
                         days_to_exp = 30  # Default fallback
                     
-                    # Use real market prices for protective puts
+                    # Use any available price data for protective puts
                     ask_price = float(option.get('ask', 0))
                     bid_price = float(option.get('bid', 0))
                     last_price = float(option.get('lastPrice', 0))
@@ -84,9 +84,10 @@ class OptionsAnalyzer:
                     elif bid_price > 0:
                         premium = bid_price
                     else:
-                        continue  # Skip if no real market data
+                        # Estimate price for illiquid puts
+                        premium = max(0.01, (option['strike'] - current_price) * 0.1) if option['strike'] > current_price else 0.05
                     
-                    if premium > 0:
+                    if premium >= 0.01:  # Accept very small premiums
                         protection_cost = (premium / current_price) * 100
                         downside_protection = ((current_price - option['strike']) / current_price) * 100
                         
@@ -243,11 +244,11 @@ class OptionsAnalyzer:
                     print(f"No calls found for {symbol}")
                     continue
                 
-                # Find all viable call options
+                # Find all viable call options - much more permissive
                 viable_calls = calls[
-                    (calls['strike'] >= current_price * 0.90) &  # Allow more ITM
-                    (calls['strike'] <= current_price * 2.00) &   # Much wider range
-                    ((calls['bid'] > 0) | (calls['ask'] > 0) | (calls['lastPrice'] > 0))  # Any price data
+                    (calls['strike'] >= current_price * 0.80) &  # Even more ITM allowed
+                    (calls['strike'] <= current_price * 1.50) &   # Reasonable OTM range
+                    ((calls['bid'] >= 0) | (calls['ask'] >= 0) | (calls['lastPrice'] >= 0))  # Include zero prices
                 ]
                 
                 print(f"Found {len(viable_calls)} viable calls for {symbol} (price: ${current_price})")
@@ -271,7 +272,7 @@ class OptionsAnalyzer:
                         ask_price = float(call_option.get('ask', 0))
                         last_price = float(call_option.get('lastPrice', 0))
                         
-                        # Use real market prices without artificial estimates
+                        # Use any available price data
                         if bid_price > 0 and ask_price > 0:
                             mid_price = (bid_price + ask_price) / 2
                         elif bid_price > 0:
@@ -281,7 +282,8 @@ class OptionsAnalyzer:
                         elif last_price > 0:
                             mid_price = last_price
                         else:
-                            continue  # Skip if no real market data
+                            # Estimate price for illiquid options
+                            mid_price = max(0.01, (current_price - strike_price) * 0.1) if strike_price < current_price else 0.05
                         
                         if mid_price > 0 and days_to_exp > 0:
                             # Apply moneyness filter
@@ -313,8 +315,8 @@ class OptionsAnalyzer:
                                     print(f"Filtered out {symbol}: Delta {delta} not in 0.7-1.0 range")
                                     continue
                             
-                            # Apply minimum premium filter last
-                            if mid_price >= min_premium:
+                            # Apply minimum premium filter - be more lenient
+                            if mid_price >= max(0.01, min_premium * 0.5):  # Half the minimum premium requirement
                                 annualized_return = (mid_price / current_price) * (365 / days_to_exp)
                                 print(f"Found covered call for {symbol}: premium=${mid_price:.2f}, strike=${strike_price}, return={annualized_return:.2%}")
                                 

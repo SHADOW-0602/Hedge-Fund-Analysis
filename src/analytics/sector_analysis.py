@@ -2,80 +2,103 @@ import yfinance as yf
 import pandas as pd
 from typing import Dict, List
 from clients.market_data_client import MarketDataClient
+import sys
+import os
+
+# Add parent directory to path for sector_mapper import
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+from sector_mapper import SectorMapper
 
 import requests
-import os
 
 class SectorAnalyzer:
     def __init__(self, data_client: MarketDataClient):
         self.data_client = data_client
         self.finnhub_key = os.getenv('FINNHUB_API_KEY')
+        self.sector_mapper = SectorMapper()
         
-    def get_sector_mapping(self) -> Dict[str, str]:
-        """Default sector mapping for common stocks"""
-        return {
-            'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Communication Services',
-            'AMZN': 'Consumer Discretionary', 'TSLA': 'Consumer Discretionary', 'META': 'Communication Services',
-            'NVDA': 'Technology', 'JPM': 'Financials', 'JNJ': 'Healthcare', 'PG': 'Consumer Staples',
-            'V': 'Financials', 'UNH': 'Healthcare', 'HD': 'Consumer Discretionary', 'MA': 'Financials',
-            'PFE': 'Healthcare', 'BAC': 'Financials', 'XOM': 'Energy', 'KO': 'Consumer Staples'
-        }
+
     
     def analyze_sector_allocation(self, symbols: List[str], weights: Dict[str, float] = None, portfolio_positions=None) -> Dict:
         """Analyze portfolio sector and geographic allocation"""
         sector_data = {}
         country_data = {}
-        sector_mapping = self.get_sector_mapping()
         
-        # Default equal weights if none provided
         if weights is None:
             weights = {symbol: 1/len(symbols) for symbol in symbols}
         
         for symbol in symbols:
             try:
-                # Use default mapping first
-                sector = sector_mapping.get(symbol, 'Unknown')
-                country = 'US'  # Default for US stocks
+                sector = self.sector_mapper.get_sector(symbol)
+                country = self.sector_mapper.get_country(symbol)
                 
-                # Try to get from portfolio positions if available
+                # Debug sector lookup
+                print(f"Symbol {symbol} mapped to sector: {sector}")
+                
+                # If sector is Unknown, skip this symbol entirely
+                if sector == 'Unknown':
+                    print(f"Warning: {symbol} not found in Excel file, skipping")
+                    continue
+                
                 if portfolio_positions:
                     position = next((p for p in portfolio_positions if p.symbol == symbol), None)
                     if position and hasattr(position, 'sector'):
                         sector = position.sector or sector
-                        country = getattr(position, 'country', 'US') or country
+                        country = getattr(position, 'country', country) or country
                 
-                # Fallback to yfinance for unknown sectors
-                if sector == 'Unknown':
-                    try:
-                        ticker = yf.Ticker(symbol)
-                        info = ticker.info
-                        sector = info.get('sector', 'Technology')  # Default fallback
-                        country = info.get('country', 'US')
-                    except:
-                        sector = 'Technology'  # Final fallback
+                weight = max(0, weights.get(symbol, 0))
                 
-                weight = weights.get(symbol, 0)
-                
-                # Sector allocation
                 if sector not in sector_data:
-                    sector_data[sector] = {'weight': 0, 'symbols': []}
+                    sector_data[sector] = {'weight': 0, 'symbols': [], 'value': 0}
                 sector_data[sector]['weight'] += weight
-                sector_data[sector]['symbols'].append(symbol)
+                if symbol not in sector_data[sector]['symbols']:
+                    sector_data[sector]['symbols'].append(symbol)
                 
-                # Geographic allocation
                 if country not in country_data:
-                    country_data[country] = {'weight': 0, 'symbols': []}
+                    country_data[country] = {'weight': 0, 'symbols': [], 'value': 0}
                 country_data[country]['weight'] += weight
-                country_data[country]['symbols'].append(symbol)
+                if symbol not in country_data[country]['symbols']:
+                    country_data[country]['symbols'].append(symbol)
                 
             except Exception as e:
-                print(f"Error getting sector data for {symbol}: {e}")
+                print(f"Error processing symbol {symbol}: {e}")
+                # Add to 'Other' sector as fallback
+                weight = max(0, weights.get(symbol, 0))
+                if 'Other' not in sector_data:
+                    sector_data['Other'] = {'weight': 0, 'symbols': [], 'value': 0}
+                sector_data['Other']['weight'] += weight
+                sector_data['Other']['symbols'].append(symbol)
                 continue
         
-        # Calculate diversification metrics
+        # Calculate portfolio values if available
+        if portfolio_positions:
+            total_portfolio_value = 0
+            for position in portfolio_positions:
+                if hasattr(position, 'market_value') and position.market_value:
+                    total_portfolio_value += position.market_value
+                elif hasattr(position, 'quantity') and hasattr(position, 'price'):
+                    total_portfolio_value += position.quantity * (position.price or 0)
+            
+            # Update sector values
+            for sector in sector_data:
+                sector_value = 0
+                for symbol in sector_data[sector]['symbols']:
+                    position = next((p for p in portfolio_positions if getattr(p, 'symbol', '') == symbol), None)
+                    if position:
+                        if hasattr(position, 'market_value') and position.market_value:
+                            sector_value += position.market_value
+                        elif hasattr(position, 'quantity') and hasattr(position, 'price'):
+                            sector_value += position.quantity * (position.price or 0)
+                sector_data[sector]['value'] = sector_value
+        
         sector_weights = [data['weight'] for data in sector_data.values()]
         herfindahl_index = sum(w**2 for w in sector_weights) if sector_weights else 0
-        effective_sectors = 1 / herfindahl_index if herfindahl_index > 0 else len(sector_weights)
+        effective_sectors = 1 / herfindahl_index if herfindahl_index > 0 else len(sector_data)
+        sector_concentration = max(sector_weights) if sector_weights else 0
+        
+        print(f"Sector analysis complete: {len(sector_data)} sectors found")
+        for sector, data in sector_data.items():
+            print(f"  {sector}: {len(data['symbols'])} symbols, weight: {data['weight']:.2%}")
         
         return {
             'sector_allocation': sector_data,
@@ -83,7 +106,7 @@ class SectorAnalyzer:
             'diversification_metrics': {
                 'herfindahl_index': herfindahl_index,
                 'effective_number_sectors': effective_sectors,
-                'sector_concentration': max(sector_weights) if sector_weights else 0
+                'sector_concentration': sector_concentration
             },
             'sector_performance': self.get_sector_performance_summary(sector_data)
         }

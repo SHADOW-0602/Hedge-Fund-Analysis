@@ -219,23 +219,32 @@ def register_transaction_routes(app):
             # current_prices_xirr = data_client.get_current_prices(symbols_for_xirr) if symbols_for_xirr else {}
             # xirr_metrics = xirr_analyzer.calculate_detailed_xirr(current_prices_xirr)
             
-            # Placeholder XIRR metrics
-            class MockXIRRMetrics:
-                def __init__(self):
-                    self.xirr = 0.0
-                    self.twr = 0.0
-                    self.mwr = 0.0
-                    self.total_return_pct = 0.0
-                    self.annualized_return = 0.0
-                    self.sharpe_ratio = 0.0
-                    self.sortino_ratio = 0.0
-                    self.max_drawdown = 0.0
-                    self.volatility = 0.0
-                    self.win_rate = 0.0
-                    self.profit_factor = 0.0
-                    self.holding_period_days = 0
-            
-            xirr_metrics = MockXIRRMetrics()
+            # XIRR Analysis with real calculation
+            from analytics.xirr_analyzer import DetailedXIRRAnalyzer
+            try:
+                xirr_analyzer = DetailedXIRRAnalyzer(data_client)
+                xirr_analyzer.load_transactions(transactions)
+                symbols_for_xirr = list(set(t.symbol for t in transactions))
+                current_prices_xirr = data_client.get_current_prices(symbols_for_xirr) if symbols_for_xirr else {}
+                xirr_metrics = xirr_analyzer.calculate_detailed_xirr(current_prices_xirr)
+            except Exception as e:
+                print(f"XIRR calculation failed: {e}")
+                # Only use fallback if real calculation fails
+                class XIRRFallback:
+                    def __init__(self):
+                        self.xirr = 0.0
+                        self.twr = 0.0
+                        self.mwr = 0.0
+                        self.total_return_pct = 0.0
+                        self.annualized_return = 0.0
+                        self.sharpe_ratio = 0.0
+                        self.sortino_ratio = 0.0
+                        self.max_drawdown = 0.0
+                        self.volatility = 0.0
+                        self.win_rate = 0.0
+                        self.profit_factor = 0.0
+                        self.holding_period_days = 0
+                xirr_metrics = XIRRFallback()
             
             # Run comprehensive enterprise analytics
             enterprise_analytics = {

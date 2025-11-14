@@ -1,0 +1,248 @@
+/* Sector Analysis Styles */
+
+.sector-analysis-results {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin: 20px 0;
+}
+
+.analysis-summary {
+    display: flex;
+    gap: 30px;
+    margin-bottom: 25px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.metric {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.metric label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.metric span {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.sector-breakdown, .top-industries {
+    margin: 25px 0;
+}
+
+.sector-breakdown h4, .top-industries h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* Sector Chart Styles */
+.sector-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sector-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 30px;
+}
+
+.sector-label {
+    min-width: 200px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+}
+
+.sector-bar {
+    height: 20px;
+    border-radius: 10px;
+    min-width: 2px;
+    transition: all 0.3s ease;
+}
+
+.sector-bar:hover {
+    opacity: 0.8;
+    transform: scaleY(1.1);
+}
+
+.sector-value {
+    min-width: 80px;
+    text-align: right;
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+}
+
+/* Industry List Styles */
+.industry-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.industry-item:last-child {
+    border-bottom: none;
+}
+
+.industry-name {
+    flex: 1;
+    font-size: 13px;
+    color: #333;
+}
+
+.industry-percentage {
+    min-width: 50px;
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+}
+
+.industry-value {
+    min-width: 80px;
+    text-align: right;
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .analysis-summary {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .sector-bar-container {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .sector-label {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .sector-bar {
+        width: 100% !important;
+        max-width: 300px;
+    }
+    
+    .industry-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .industry-percentage, .industry-value {
+        min-width: auto;
+    }
+}
+
+/* Chart Controls */
+.chart-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.chart-controls button {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.chart-controls button:hover {
+    background: #f0f0f0;
+    border-color: #007bff;
+}
+
+.chart-controls button.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+/* Visualization Container */
+.visualization-container {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin: 20px 0;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .sector-analysis-results, .visualization-container {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+    
+    .analysis-summary {
+        background: #4a5568;
+    }
+    
+    .chart-controls button {
+        background: #4a5568;
+        color: #e2e8f0;
+        border-color: #718096;
+    }
+    
+    .chart-controls button:hover {
+        background: #718096;
+        border-color: #63b3ed;
+    }
+    
+    .chart-controls button.active {
+        background: #63b3ed;
+        border-color: #63b3ed;
+    }
+    
+    .metric label {
+        color: #a0aec0;
+    }
+    
+    .metric span {
+        color: #e2e8f0;
+    }
+    
+    .sector-breakdown h4, .top-industries h4 {
+        color: #e2e8f0;
+    }
+    
+    .sector-label, .industry-name {
+        color: #e2e8f0;
+    }
+    
+    .sector-value, .industry-percentage, .industry-value {
+        color: #a0aec0;
+    }
+    
+    .industry-item {
+        border-bottom-color: #4a5568;
+    }
+}

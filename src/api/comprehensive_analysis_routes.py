@@ -20,6 +20,13 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
     """Register comprehensive analysis routes"""
     print("[DEBUG] Registering comprehensive analysis routes")
     
+    # Import sector analyzer
+    try:
+        from analytics.sector_analysis import SectorAnalyzer
+        print("[DEBUG] SectorAnalyzer imported successfully")
+    except ImportError as e:
+        print(f"[WARNING] SectorAnalyzer import failed: {e}")
+    
     @app.route('/api/strategy-backtesting', methods=['POST'])
     def strategy_backtesting():
         try:
@@ -468,7 +475,7 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
     @app.route('/api/sector-allocation', methods=['POST'])
     def sector_allocation():
         try:
-            import yfinance as yf
+            from analytics.sector_analysis import SectorAnalyzer
             
             data = request.get_json()
             portfolio = data.get('portfolio', [])
@@ -483,72 +490,74 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             if not symbols:
                 return jsonify({'success': False, 'error': 'No valid symbols found'}), 400
             
-            # Get sector information for each symbol
-            sector_allocation = {}
-            total_allocated = 0
+            # Read parameters from frontend settings (matching Performance Attribution structure)
+            classification = options.get('classification', 'GICS')
+            level = options.get('level', 'Sector')
+            currency = options.get('currency', 'USD')
+            benchmark = options.get('benchmark', 'SPY')
+            period = options.get('period', '1Y')
             
-            for symbol in symbols:
-                try:
-                    ticker = yf.Ticker(symbol)
-                    info = ticker.info
-                    sector = info.get('sector', 'Unknown')
-                    
-                    symbol_weight = weights.get(symbol, 1.0 / len(symbols))
-                    symbol_value = total_value * symbol_weight
-                    
-                    if sector not in sector_allocation:
-                        sector_allocation[sector] = {
-                            'weight': 0,
-                            'symbols': [],
-                            'value': 0
-                        }
-                    
-                    sector_allocation[sector]['weight'] += symbol_weight
-                    sector_allocation[sector]['symbols'].append(symbol)
-                    sector_allocation[sector]['value'] += symbol_value
-                    total_allocated += symbol_weight
-                    
-                except Exception:
-                    # Fallback sector classification
-                    sector = 'Technology' if symbol in ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA'] else 'Unknown'
-                    symbol_weight = weights.get(symbol, 1.0 / len(symbols))
-                    symbol_value = total_value * symbol_weight
-                    
-                    if sector not in sector_allocation:
-                        sector_allocation[sector] = {
-                            'weight': 0,
-                            'symbols': [],
-                            'value': 0
-                        }
-                    
-                    sector_allocation[sector]['weight'] += symbol_weight
-                    sector_allocation[sector]['symbols'].append(symbol)
-                    sector_allocation[sector]['value'] += symbol_value
-                    total_allocated += symbol_weight
+            print(f"Sector Allocation Parameters: classification={classification}, level={level}, currency={currency}, benchmark={benchmark}, period={period}")
+            print(f"Symbols: {symbols}, Total Value: ${total_value:,.2f}")
             
-            # Calculate diversification metrics
-            sector_weights = [s['weight'] for s in sector_allocation.values()]
-            herfindahl_index = sum(w**2 for w in sector_weights)
-            effective_sectors = 1 / herfindahl_index if herfindahl_index > 0 else 1
-            concentration_ratio = max(sector_weights) if sector_weights else 0
+            # Initialize sector analyzer
+            analyzer = SectorAnalyzer(data_client)
             
-            results = {
-                'sector_allocation': sector_allocation,
-                'diversification_metrics': {
-                    'herfindahl_index': float(herfindahl_index),
-                    'effective_sectors': float(effective_sectors),
-                    'concentration_ratio': float(concentration_ratio)
-                },
+            # Get comprehensive sector analysis
+            results = analyzer.analyze_sector_allocation(symbols, weights, portfolio)
+            
+            # Add geographic allocation if multi-currency
+            if currency == 'MULTI' or len(set(s[:2] for s in symbols if '.' in s)) > 1:
+                geographic_data = results.get('geographic_allocation', {})
+                results['geographic_summary'] = {
+                    'total_countries': len(geographic_data),
+                    'domestic_weight': geographic_data.get('US', {}).get('weight', 0),
+                    'international_weight': sum(data.get('weight', 0) for country, data in geographic_data.items() if country != 'US')
+                }
+            
+            # Add style analysis
+            style_analysis = analyzer.analyze_style_factors(symbols, weights)
+            results['style_analysis'] = style_analysis
+            
+            # Add sector performance comparison
+            sector_performance = analyzer.get_sector_performance(symbols, period)
+            results['sector_performance'] = sector_performance
+            
+            # Format response to match Performance Attribution structure
+            formatted_results = {
+                'sector_allocation': results['sector_allocation'],
+                'geographic_allocation': results.get('geographic_allocation', {}),
+                'style_analysis': results.get('style_analysis', {}),
+                'sector_performance': results.get('sector_performance', {}),
+                'diversification_metrics': results['diversification_metrics'],
                 'summary': {
-                    'total_sectors': len(sector_allocation),
-                    'classification': 'GICS',
-                    'level': 'Sector',
-                    'symbols_analyzed': len(symbols)
+                    'total_sectors': len(results['sector_allocation']),
+                    'classification': classification,
+                    'level': level,
+                    'currency': currency,
+                    'benchmark': benchmark,
+                    'period': period,
+                    'symbols_analyzed': len(symbols),
+                    'total_value': total_value
                 }
             }
             
-            return jsonify({'success': True, 'allocation': results})
+            print(f"Sector allocation successful: {list(formatted_results.keys())}")
+            
+            # Add chart initialization
+            response = jsonify({'success': True, 'allocation': formatted_results})
+            response.headers['X-Chart-Data'] = 'true'
+            return response
             
         except Exception as e:
             print(f"Sector allocation error: {e}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'success': False, 
+                'error': f'Sector allocation failed: {str(e)}',
+                'debug_info': {
+                    'symbols': symbols if 'symbols' in locals() else 'unknown',
+                    'error_type': type(e).__name__
+                }
+            }), 500

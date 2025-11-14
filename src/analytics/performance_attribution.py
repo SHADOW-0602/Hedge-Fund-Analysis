@@ -22,6 +22,7 @@ class PerformanceAttributor:
         """Calculate performance attribution using actual market data"""
         try:
             if not symbols:
+                module_logger.warning("No symbols provided for attribution")
                 return self._empty_attribution_result()
             
             # Ensure weights dict exists
@@ -35,16 +36,26 @@ class PerformanceAttributor:
             }
             yf_period = period_map.get(period.upper(), period.lower())
             
-            # Get market data
+            module_logger.info(f"Starting attribution for {len(symbols)} symbols: {symbols[:3]}{'...' if len(symbols) > 3 else ''}")
+            
+            # Get market data - no fallbacks, fix the real issue
             try:
                 price_data = self.data_client.get_price_data(symbols + [benchmark], yf_period)
                 if price_data.empty:
+                    module_logger.error(f"Market data client returned empty data for symbols: {symbols + [benchmark]}")
                     return self._empty_attribution_result()
-            except Exception:
+                module_logger.info(f"Retrieved price data: {price_data.shape[0]} rows, {price_data.shape[1]} columns")
+            except Exception as e:
+                module_logger.error(f"Market data client failed: {e}")
                 return self._empty_attribution_result()
             
             returns = price_data.pct_change().dropna()
-            if returns.empty or benchmark not in returns.columns:
+            if returns.empty:
+                module_logger.error("No returns data after calculating percentage changes")
+                return self._empty_attribution_result()
+            
+            if benchmark not in returns.columns:
+                module_logger.error(f"Benchmark {benchmark} not found in returns data. Available columns: {list(returns.columns)}")
                 return self._empty_attribution_result()
             
             # Resample based on frequency
@@ -56,19 +67,35 @@ class PerformanceAttributor:
             # Filter symbols that have data
             available_symbols = [s for s in symbols if s in returns.columns]
             if not available_symbols:
+                module_logger.error(f"No symbols found in returns data. Requested: {symbols}, Available: {list(returns.columns)}")
                 return self._empty_attribution_result()
+            
+            module_logger.info(f"Using {len(available_symbols)} symbols for attribution: {available_symbols}")
             
             # Calculate portfolio and benchmark returns
             portfolio_returns = self._calculate_portfolio_returns(returns[available_symbols], weights, available_symbols)
             benchmark_returns = returns[benchmark]
             
-            if portfolio_returns.empty or benchmark_returns.empty:
+            if portfolio_returns.empty:
+                module_logger.error("Portfolio returns calculation failed")
                 return self._empty_attribution_result()
             
+            if benchmark_returns.empty:
+                module_logger.error(f"Benchmark returns for {benchmark} are empty")
+                return self._empty_attribution_result()
+            
+            module_logger.info(f"Calculated returns: Portfolio {len(portfolio_returns)} points, Benchmark {len(benchmark_returns)} points")
+            
             # Calculate annualized returns
-            portfolio_return = (1 + portfolio_returns).prod() - 1
-            benchmark_return = (1 + benchmark_returns).prod() - 1
-            active_return = portfolio_return - benchmark_return
+            try:
+                portfolio_return = (1 + portfolio_returns).prod() - 1
+                benchmark_return = (1 + benchmark_returns).prod() - 1
+                active_return = portfolio_return - benchmark_return
+                
+                module_logger.info(f"Returns calculated - Portfolio: {portfolio_return:.4f}, Benchmark: {benchmark_return:.4f}, Active: {active_return:.4f}")
+            except Exception as e:
+                module_logger.error(f"Failed to calculate returns: {e}")
+                return self._empty_attribution_result()
             
             # Calculate attribution effects based on model
             if attribution_model == 'brinson':
@@ -80,6 +107,8 @@ class PerformanceAttributor:
             else:  # factor-based
                 asset_allocation = self._calculate_asset_allocation_effect(returns, available_symbols, weights)
                 security_selection = self._calculate_security_selection_effect(returns, available_symbols, weights, benchmark_returns)
+            
+            module_logger.info(f"Attribution effects - Asset Allocation: {asset_allocation:.4f}, Security Selection: {security_selection:.4f}")
             
             # Calculate currency effect based on currency setting
             currency_effect = self._calculate_currency_effect_enhanced(returns, available_symbols, weights, currency)
@@ -120,10 +149,13 @@ class PerformanceAttributor:
                 'market_timing': market_timing
             }
             
+            module_logger.info(f"Performance attribution completed successfully: {result}")
             return result
         
         except Exception as e:
-            module_logger.error(f"Attribution failed: {e}")
+            module_logger.error(f"Attribution failed for symbols {symbols}: {e}")
+            import traceback
+            module_logger.error(f"Attribution traceback: {traceback.format_exc()}")
             return self._empty_attribution_result()
     
 

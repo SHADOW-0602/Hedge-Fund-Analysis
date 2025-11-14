@@ -60,109 +60,109 @@ class YFinanceProvider(DataProvider):
                 continue
             
             symbol = symbol.strip().upper()
+            module_logger.info(f"Processing symbol: {symbol}")
             
             # Handle options contracts - extract underlying symbol
             if any(x in symbol for x in ['C00', 'P00']):
                 underlying = self._extract_underlying_symbol(symbol)
-                if underlying and underlying not in ['ACHN', 'CASH']:
+                module_logger.info(f"Options symbol {symbol} -> underlying {underlying}")
+                if underlying and underlying not in ['ACHN', 'CASH', 'CUR']:
                     valid_symbols.add(underlying)
                 continue
             
-            # Skip delisted/invalid symbols
-            if symbol in ['ACHN', 'CASH']:
+            # Skip currency and cash symbols
+            if symbol.startswith('CUR:') or symbol in ['ACHN', 'CASH', 'USD']:
+                module_logger.info(f"Skipping non-equity symbol: {symbol}")
                 continue
             
             # Add regular stock symbols
             valid_symbols.add(symbol)
+            module_logger.info(f"Added stock symbol: {symbol}")
         
-        return list(valid_symbols)
+        result = list(valid_symbols)
+        module_logger.info(f"Filtered symbols result: {result}")
+        return result
     
     def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
         try:
-            module_logger.info(f"YFinance: Fetching REAL market data for {len(symbols)} symbols, period: {period}")
+            module_logger.info(f"YFinance: Fetching data for {len(symbols)} symbols")
             self.rate_limiter.wait_if_needed()
             
-            # Strict symbol filtering - only real stock symbols
+            # Filter symbols but keep the original logic simple
             valid_symbols = self._filter_symbols(symbols)
             if not valid_symbols:
-                module_logger.warning("No valid stock symbols after filtering")
+                module_logger.warning("No valid symbols after filtering")
                 return None
             
-            module_logger.info(f"YFinance: Downloading real market data for: {valid_symbols}")
+            module_logger.info(f"YFinance: Valid symbols: {valid_symbols}")
             
             import warnings
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                # Download real market data with adjusted prices for accuracy
+                # Simple download with basic parameters
                 data = yf.download(
                     valid_symbols, 
                     period=period, 
                     progress=False, 
-                    auto_adjust=True,  # Use adjusted prices for real analysis
+                    auto_adjust=False,  # Use raw prices first
                     threads=False,
-                    group_by='ticker' if len(valid_symbols) > 1 else None
+                    group_by='ticker' if len(valid_symbols) > 1 else None,
+                    timeout=10
                 )
             
-            # Strict validation - NO EMPTY OR INVALID DATA
+            module_logger.info(f"YFinance raw data shape: {data.shape if data is not None else 'None'}")
+            module_logger.info(f"YFinance raw columns: {list(data.columns) if data is not None and hasattr(data, 'columns') else 'None'}")
+            
+            # Basic validation
             if data is None or data.empty:
-                module_logger.warning("No real market data returned from YFinance")
+                module_logger.warning(f"YFinance returned empty data for symbols: {valid_symbols}")
                 return None
             
-            # Extract real price data only
+            # Extract price data
             if isinstance(data.columns, pd.MultiIndex):
-                # Multi-symbol case - use Close prices (already adjusted)
-                if 'Close' in data.columns.levels[0]:
-                    result = data['Close']
-                elif 'Adj Close' in data.columns.levels[0]:
-                    result = data['Adj Close']
+                # Multi-symbol case - levels are [symbols, price_types]
+                if 'Close' in data.columns.levels[1]:
+                    result = data.xs('Close', level=1, axis=1)
+                elif 'Adj Close' in data.columns.levels[1]:
+                    result = data.xs('Adj Close', level=1, axis=1)
                 else:
-                    module_logger.warning("No valid price columns found")
+                    module_logger.warning(f"No Close/Adj Close columns. Available levels: {data.columns.levels}")
                     return None
                 
-                # Remove any rows with missing data - REAL DATA ONLY
                 result = result.dropna(how='all')
                 if result.empty:
-                    module_logger.warning("No valid real market data after cleaning")
-                    return None
-                
-                # Validate that we have sufficient data points
-                if len(result) < 3:
-                    module_logger.warning(f"Insufficient real market data: {len(result)} data points")
+                    module_logger.warning("Empty result after dropna")
                     return None
                     
-                module_logger.info(f"YFinance: Successfully retrieved {len(result)} real data points for {len(result.columns)} symbols")
+                result = result.dropna(how='all')
+                if result.empty:
+                    module_logger.warning("Empty result after dropna")
+                    return None
+                    
+                module_logger.info(f"YFinance: Multi-symbol result shape: {result.shape}")
                 return result
             else:
                 # Single symbol case
-                if len(valid_symbols) == 1:
-                    if 'Close' in data.columns:
-                        clean_data = data['Close'].dropna()
-                    elif 'Adj Close' in data.columns:
-                        clean_data = data['Adj Close'].dropna()
-                    else:
-                        module_logger.warning("No valid price column found for single symbol")
-                        return None
-                    
-                    if clean_data.empty or len(clean_data) < 3:
-                        module_logger.warning(f"Insufficient real data for {valid_symbols[0]}: {len(clean_data) if not clean_data.empty else 0} points")
-                        return None
-                    
-                    result = pd.DataFrame({valid_symbols[0]: clean_data})
-                    module_logger.info(f"YFinance: Successfully retrieved {len(result)} real data points for {valid_symbols[0]}")
-                    return result
-                
-                # Multi-symbol data without MultiIndex
-                clean_data = data.dropna(how='all')
-                if clean_data.empty or len(clean_data) < 3:
-                    module_logger.warning(f"Insufficient real market data: {len(clean_data) if not clean_data.empty else 0} points")
+                if 'Close' in data.columns:
+                    clean_data = data['Close'].dropna()
+                elif 'Adj Close' in data.columns:
+                    clean_data = data['Adj Close'].dropna()
+                else:
+                    module_logger.warning(f"No Close/Adj Close columns. Available: {list(data.columns)}")
                     return None
                 
-                module_logger.info(f"YFinance: Successfully retrieved {len(clean_data)} real data points")
-                return clean_data
+                if clean_data.empty:
+                    module_logger.warning("Empty clean_data")
+                    return None
+                
+                result = pd.DataFrame({valid_symbols[0]: clean_data})
+                module_logger.info(f"YFinance: Single symbol result shape: {result.shape}")
+                return result
                 
         except Exception as e:
-            module_logger.error(f"YFinance real market data fetch failed: {e}")
-            logger.error(f"YFinance real market data fetch failed: {e}")
+            module_logger.error(f"YFinance fetch failed: {e}")
+            import traceback
+            module_logger.error(f"YFinance traceback: {traceback.format_exc()}")
             return None
     
     def get_options_chain(self, symbol: str) -> Optional[pd.DataFrame]:
@@ -475,9 +475,9 @@ class MarketDataClient:
         """Validate stock symbol format"""
         try:
             import re
-            # Standard stock symbols: 1-5 letters, optional dot and suffix
-            # Examples: AAPL, BRK.A, BRK.B, GOOGL
-            pattern = r'^[A-Z]{1,5}(\.[A-Z]{1,2})?$'
+            # Allow alphanumeric symbols with dots, hyphens, up to 6 chars
+            # Examples: AAPL, BRK.A, BRK.B, GOOGL, BRK-A, GOOG, etc.
+            pattern = r'^[A-Z0-9]{1,6}([.-][A-Z0-9]{1,3})?$'
             return bool(re.match(pattern, symbol))
         except:
             return False

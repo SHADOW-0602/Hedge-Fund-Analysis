@@ -171,6 +171,7 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             frequency = options.get('frequency', 'daily')
             
             print(f"Performance Attribution Parameters: period={period}, model={attribution_model}, benchmark={benchmark}, currency={currency}, frequency={frequency}")
+            print(f"Symbols: {symbols}, Total Value: ${total_value:,.2f}")
             
             # Initialize attributor and calculate results
             attributor = PerformanceAttributor(data_client, benchmark)
@@ -183,13 +184,35 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 attribution_model, benchmark, currency, frequency
             )
             
+            # Check if results are empty and provide better error message
+            if not results or all(v == 0.0 for v in results.values()):
+                print(f"Performance attribution returned empty results for symbols: {symbols}")
+                return jsonify({
+                    'success': False, 
+                    'error': 'Unable to calculate performance attribution. This may be due to market data provider issues or insufficient historical data.',
+                    'debug_info': {
+                        'symbols': symbols,
+                        'period': period,
+                        'benchmark': benchmark,
+                        'results': results
+                    }
+                }), 500
+            
+            print(f"Performance attribution successful: {list(results.keys())}")
             return jsonify({'success': True, 'attribution': results})
             
         except Exception as e:
             print(f"Performance attribution error: {e}")
             import traceback
             traceback.print_exc()
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({
+                'success': False, 
+                'error': f'Performance attribution failed: {str(e)}',
+                'debug_info': {
+                    'symbols': symbols if 'symbols' in locals() else 'unknown',
+                    'error_type': type(e).__name__
+                }
+            }), 500
 
     @app.route('/api/portfolio-optimization', methods=['POST'])
     def portfolio_optimization():
@@ -260,6 +283,9 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             if not symbols:
                 return jsonify({'success': False, 'error': 'No valid symbols found'}), 400
             
+            print(f"Options Strategies - Portfolio data count: {len(portfolio_data)}")
+            print(f"Options Strategies - Extracted symbols: {symbols}")
+            
             # Read parameters from frontend settings
             expiration = options.get('expiration', '3M')
             moneyness = options.get('moneyness', 'All')
@@ -271,6 +297,8 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             # Initialize options analyzer
             analyzer = OptionsAnalyzer(data_client)
             
+            print(f"Calling scan_all_strategies with {len(symbols)} symbols: {symbols}")
+            
             # Get opportunities with settings
             opportunities = analyzer.scan_all_strategies(symbols, {
                 'expiration': expiration,
@@ -279,8 +307,19 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 'delta_range': delta_range
             })
             
-            # Filter out opportunities with no premium data
-            opportunities = [opp for opp in opportunities if opp.get('premium', 0) > 0]
+            print(f"scan_all_strategies returned {len(opportunities)} opportunities")
+            
+            # Don't filter out zero premium - keep all opportunities
+            print(f"Total opportunities found: {len(opportunities)}")
+            
+            # Group by symbol for debugging
+            symbol_counts = {}
+            for opp in opportunities:
+                symbol = opp.get('symbol', 'Unknown')
+                if symbol not in symbol_counts:
+                    symbol_counts[symbol] = 0
+                symbol_counts[symbol] += 1
+            print(f"Opportunities per symbol: {symbol_counts}")
             
             # Calculate summary from all opportunities
             summary = {
@@ -293,21 +332,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 strategy = opp.get('strategy', 'covered_calls')
                 premium = opp.get('premium', 0)
                 
-                if strategy == 'covered_calls' and premium > 0:
+                if strategy == 'covered_calls':
                     summary['covered_calls']['total_premium'] += premium * 100
                     summary['covered_calls']['count'] += 1
-                elif strategy == 'protective_puts' and premium > 0:
+                elif strategy == 'protective_puts':
                     summary['protective_puts']['total_cost'] += premium * 100
                     summary['protective_puts']['count'] += 1
-                elif strategy == 'iron_condors' and premium > 0:
+                elif strategy == 'iron_condors':
                     summary['iron_condors']['total_premium'] += premium * 100
                     summary['iron_condors']['count'] += 1
             
-            return jsonify({
+            print(f"Final result: {len(opportunities)} opportunities")
+            print(f"Sample opportunities: {opportunities[:3] if opportunities else 'None'}")
+            print(f"Summary: {summary}")
+            
+            result = {
                 'success': True, 
                 'opportunities': opportunities, 
                 'summary': summary
-            })
+            }
+            print(f"Returning {len(opportunities)} opportunities to frontend")
+            return jsonify(result)
             
         except Exception as e:
             print(f"Options strategies error: {e}")

@@ -510,7 +510,7 @@ class AnalyticsManager {
 
         const allOpportunities = (result.opportunities || []).sort((a, b) => a.symbol.localeCompare(b.symbol));
         const summary = result.summary || {};
-        const filteredOpportunities = window.getFilteredOpportunities ? window.getFilteredOpportunities() : allOpportunities;
+        const filteredOpportunities = window.getFilteredOpportunities ? window.getFilteredOpportunities(allOpportunities) : allOpportunities;
         const currentPage = window.optionsCurrentPage || 1;
         const itemsPerPage = 10;
         const totalPages = Math.ceil(filteredOpportunities.length / itemsPerPage);
@@ -660,6 +660,7 @@ class AnalyticsManager {
         // Store opportunities and summary for pagination
         window.optionsOpportunities = allOpportunities;
         window.optionsSummary = summary;
+        window.optionsCurrentPage = currentPage;
 
         // Clear loading spinner
         if (window.clearAllLoadingSpinners) {
@@ -1162,6 +1163,552 @@ class AnalyticsManager {
         `;
     }
 
+    displaySectorAllocation(result, options) {
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        container.classList.remove('hidden');
+        const allocation = result.allocation || {};
+        const sectorData = allocation.sector_allocation || {};
+        const geoData = allocation.geographic_allocation || {};
+        const styleData = allocation.style_analysis || {};
+        const diversification = allocation.diversification_metrics || {};
+        const summary = allocation.summary || {};
+
+        // Get current settings from stored settings or defaults
+        const storedSettings = window.analyticsCore?.sectorSettings || {};
+        const currentClassification = storedSettings.classification || options?.classification || summary.classification || 'GICS';
+        const currentView = storedSettings.view || options?.view || 'pie';
+        const currentCurrency = storedSettings.currency || options?.currency || summary.currency || 'USD';
+        const currentBenchmark = storedSettings.benchmark || options?.benchmark || summary.benchmark || 'SPY';
+        const currentPeriod = storedSettings.period || options?.period || summary.period || '1Y';
+
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Sector Allocation Analysis</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleSectorSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="updateSectorAllocation()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Sector Settings Panel -->
+            <div id="sectorSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Classification</label>
+                        <select id="sectorClassification" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateSectorAllocation()">
+                            <option value="GICS" ${currentClassification === 'GICS' ? 'selected' : ''}>GICS</option>
+                            <option value="ICB" ${currentClassification === 'ICB' ? 'selected' : ''}>ICB</option>
+                            <option value="NAICS" ${currentClassification === 'NAICS' ? 'selected' : ''}>NAICS</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">View</label>
+                        <select id="sectorView" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateSectorView()">
+                            <option value="pie">Pie Chart</option>
+                            <option value="bar">Bar Chart</option>
+                            <option value="treemap">Treemap</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                        <select id="sectorCurrency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateSectorAllocation()">
+                            <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>USD</option>
+                            <option value="EUR" ${currentCurrency === 'EUR' ? 'selected' : ''}>EUR</option>
+                            <option value="GBP" ${currentCurrency === 'GBP' ? 'selected' : ''}>GBP</option>
+                            <option value="MULTI" ${currentCurrency === 'MULTI' ? 'selected' : ''}>Multi-currency</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                        <select id="sectorBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateSectorAllocation()">
+                            <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
+                            <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>NASDAQ (QQQ)</option>
+                            <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
+                            <option value="VTI" ${currentBenchmark === 'VTI' ? 'selected' : ''}>Total Stock Market (VTI)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="sectorPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateSectorAllocation()">
+                            <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="YTD" ${currentPeriod === 'YTD' ? 'selected' : ''}>Year to Date</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-y-6">
+                <!-- Portfolio Summary -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="details-box">
+                        <h4 class="section-header">Total Sectors</h4>
+                        <p class="text-2xl font-bold metric-value neutral">${summary.total_sectors || Object.keys(sectorData).length}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Portfolio Value</h4>
+                        <p class="text-2xl font-bold metric-value neutral">${summary.total_value ? window.analyticsCore.formatCurrency(summary.total_value) : 'N/A'}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Effective Sectors</h4>
+                        <p class="text-2xl font-bold metric-value ${(diversification.effective_number_sectors || 0) > 5 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(diversification.effective_number_sectors || 0)}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Concentration Ratio</h4>
+                        <p class="text-2xl font-bold metric-value ${(diversification.sector_concentration || 0) > 0.5 ? 'negative' : 'neutral'}">${window.analyticsCore.formatPercent(diversification.sector_concentration || 0)}</p>
+                    </div>
+                </div>
+                
+                <!-- Sector Chart Visualization -->
+                <div id="sectorChartContainer" class="mb-6">
+                    <div class="bg-gray-100 p-4 rounded-lg text-center text-gray-500">
+                        <p>Loading sector visualization...</p>
+                    </div>
+                </div>
+                
+                <!-- Sector Allocation -->
+                ${Object.keys(sectorData).length > 0 ? `
+                    <div class="details-box">
+                        <h4 class="section-header">Sector Breakdown</h4>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sector</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Weight</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Symbols</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${Object.entries(sectorData).sort((a, b) => b[1].weight - a[1].weight).map(([sector, data]) => `
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${sector}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-indigo-600">${window.analyticsCore.formatPercent(data.weight)}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">${window.analyticsCore.formatCurrency(data.value || 0)}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(data.symbols || []).join(', ')}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ` : '<p class="text-gray-500 text-center py-4">No sector allocation data available</p>'}
+                
+                <!-- Geographic Allocation -->
+                ${Object.keys(geoData).length > 0 ? `
+                    <div class="details-box">
+                        <h4 class="section-header">Geographic Allocation</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            ${Object.entries(geoData).sort((a, b) => b[1].weight - a[1].weight).map(([country, data]) => `
+                                <div class="text-center">
+                                    <div class="text-sm font-medium text-gray-900">${country}</div>
+                                    <div class="text-lg font-bold text-indigo-600">${window.analyticsCore.formatPercent(data.weight)}</div>
+                                    <div class="text-xs text-gray-500">${(data.symbols || []).length} symbols</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <!-- Style Analysis -->
+                ${styleData.market_cap || styleData.style ? `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        ${styleData.market_cap ? `
+                            <div class="details-box">
+                                <h4 class="section-header">Market Cap Allocation</h4>
+                                <div class="space-y-2">
+                                    <div class="metric-row">
+                                        <span class="metric-label">Large Cap</span>
+                                        <span class="metric-value neutral">${window.analyticsCore.formatPercent(styleData.market_cap.large || 0)}</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Mid Cap</span>
+                                        <span class="metric-value neutral">${window.analyticsCore.formatPercent(styleData.market_cap.mid || 0)}</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Small Cap</span>
+                                        <span class="metric-value neutral">${window.analyticsCore.formatPercent(styleData.market_cap.small || 0)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${styleData.style ? `
+                            <div class="details-box">
+                                <h4 class="section-header">Investment Style</h4>
+                                <div class="space-y-2">
+                                    <div class="metric-row">
+                                        <span class="metric-label">Growth</span>
+                                        <span class="metric-value positive">${window.analyticsCore.formatPercent(styleData.style.growth || 0)}</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Value</span>
+                                        <span class="metric-value positive">${window.analyticsCore.formatPercent(styleData.style.value || 0)}</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Blend</span>
+                                        <span class="metric-value neutral">${window.analyticsCore.formatPercent(styleData.style.blend || 0)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : ''}
+                
+                <!-- Diversification Metrics -->
+                <div class="details-box">
+                    <h4 class="section-header">Diversification Analysis</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="metric-row">
+                            <span class="metric-label">Herfindahl Index</span>
+                            <span class="metric-value ${(diversification.herfindahl_index || 0) > 0.25 ? 'negative' : 'positive'}">${window.analyticsCore.formatNumber(diversification.herfindahl_index || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Effective Number of Sectors</span>
+                            <span class="metric-value ${(diversification.effective_number_sectors || 0) > 5 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(diversification.effective_number_sectors || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Sector Concentration</span>
+                            <span class="metric-value ${(diversification.sector_concentration || 0) > 0.5 ? 'negative' : 'positive'}">${window.analyticsCore.formatPercent(diversification.sector_concentration || 0)}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Analysis Parameters -->
+                <div class="details-box">
+                    <h4 class="section-header">Analysis Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                        <div><span class="detail-label">Classification:</span> <span class="detail-value">${currentClassification}</span></div>
+                        <div><span class="detail-label">View:</span> <span class="detail-value" data-param="view">${currentView === 'pie' ? 'Pie Chart' : currentView === 'bar' ? 'Bar Chart' : currentView === 'treemap' ? 'Treemap' : 'Pie Chart'}</span></div>
+                        <div><span class="detail-label">Currency:</span> <span class="detail-value">${currentCurrency}</span></div>
+                        <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${currentBenchmark}</span></div>
+                        <div><span class="detail-label">Period:</span> <span class="detail-value">${currentPeriod}</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Initialize sector charts if module is available
+        setTimeout(() => {
+            if (window.sectorCharts && Object.keys(sectorData).length > 0) {
+                console.log('Initializing sector charts with data:', sectorData);
+                window.sectorCharts.currentData = { sector_allocation: sectorData };
+                window.sectorCharts.currentView = 'pie'; // Set default view
+                window.sectorCharts.renderChart();
+            } else {
+                console.log('Sector charts not available or no data');
+            }
+        }, 200);
+    }
+
+    displayStatisticalAnalysis(result, options) {
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        container.classList.remove('hidden');
+        const statistics = result.statistics || {};
+        const portfolioStats = statistics.portfolio_statistics || {};
+        const riskMetrics = statistics.risk_metrics || {};
+        const performanceMetrics = statistics.performance_metrics || {};
+        const summary = statistics.summary || {};
+
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Statistical Analysis</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleStatisticalSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="updateStatisticalAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="space-y-6">
+                <!-- Portfolio Statistics -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-3">
+                        <h4 class="section-header">Portfolio Statistics</h4>
+                        <div class="metric-row">
+                            <span class="metric-label">Benchmark Correlation</span>
+                            <span class="metric-value ${(portfolioStats.benchmark_correlation || 0) > 0.7 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(portfolioStats.benchmark_correlation || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Beta</span>
+                            <span class="metric-value ${(portfolioStats.beta || 0) > 1.2 ? 'negative' : (portfolioStats.beta || 0) < 0.8 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(portfolioStats.beta || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Alpha</span>
+                            <span class="metric-value ${(portfolioStats.alpha || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(portfolioStats.alpha || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">R-Squared</span>
+                            <span class="metric-value neutral">${window.analyticsCore.formatNumber(portfolioStats.r_squared || 0)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <h4 class="section-header">Risk Metrics</h4>
+                        <div class="metric-row">
+                            <span class="metric-label">Portfolio Volatility</span>
+                            <span class="metric-value ${(riskMetrics.portfolio_volatility || 0) > 0.3 ? 'negative' : 'neutral'}">${window.analyticsCore.formatPercent(riskMetrics.portfolio_volatility || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Benchmark Volatility</span>
+                            <span class="metric-value neutral">${window.analyticsCore.formatPercent(riskMetrics.benchmark_volatility || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Tracking Error</span>
+                            <span class="metric-value ${(riskMetrics.tracking_error || 0) > 0.1 ? 'negative' : 'neutral'}">${window.analyticsCore.formatPercent(riskMetrics.tracking_error || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Information Ratio</span>
+                            <span class="metric-value ${(riskMetrics.information_ratio || 0) > 0.5 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(riskMetrics.information_ratio || 0)}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Performance Metrics -->
+                <div class="details-box">
+                    <h4 class="section-header">Performance Metrics</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="metric-row">
+                            <span class="metric-label">Annualized Return</span>
+                            <span class="metric-value ${(performanceMetrics.annualized_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(performanceMetrics.annualized_return || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Annualized Volatility</span>
+                            <span class="metric-value neutral">${window.analyticsCore.formatPercent(performanceMetrics.annualized_volatility || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Sharpe Ratio</span>
+                            <span class="metric-value ${(performanceMetrics.sharpe_ratio || 0) > 1 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(performanceMetrics.sharpe_ratio || 0)}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Analysis Summary -->
+                <div class="details-box">
+                    <h4 class="section-header">Analysis Summary</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div><span class="detail-label">Lookback Period:</span> <span class="detail-value">${summary.lookback_period || 'N/A'}</span></div>
+                        <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${summary.benchmark || 'N/A'}</span></div>
+                        <div><span class="detail-label">Confidence Level:</span> <span class="detail-value">${summary.confidence_level || 'N/A'}%</span></div>
+                        <div><span class="detail-label">Data Points:</span> <span class="detail-value">${summary.data_points || 'N/A'}</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    displayTechnicalIndicators(result, options) {
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        container.classList.remove('hidden');
+        const analysis = result.analysis || {};
+
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Technical Analysis</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleTechnicalSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="updateTechnicalAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="text-center py-8">
+                <div class="text-gray-400 mb-4">
+                    <svg class="w-16 h-16 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Technical Analysis</h3>
+                <p class="text-gray-600">Technical indicators and signals analysis will be displayed here.</p>
+            </div>
+        `;
+    }
+
+    // Add missing display functions as class methods
+    displayPnLAttribution(result, options) {
+        console.log('P&L Attribution result:', result);
+    }
+
+    displayTradePerformance(result, options) {
+        console.log('Trade Performance result:', result);
+    }
+
+    displayCostAnalysis(result, options) {
+        console.log('Cost Analysis result:', result);
+    }
+
+    displayTurnoverAnalysis(result, options) {
+        console.log('Turnover Analysis result:', result);
+    }
+
+    displayTaxAnalysis(result, options) {
+        console.log('Tax Analysis result:', result);
+    }
+
+    displayCashFlowAnalysis(result, options) {
+        console.log('Cash Flow Analysis result:', result);
+    }
+
+    displayFifoLifoAccounting(result, options) {
+        console.log('FIFO/LIFO Accounting result:', result);
+    }
+
+    displayTradeTiming(result, options) {
+        console.log('Trade Timing result:', result);
+    }
+
+    displayDrawdownAnalysis(result, options) {
+        console.log('Drawdown Analysis result:', result);
+    }
+
+    displayReturnAttribution(result, options) {
+        console.log('Return Attribution result:', result);
+    }
+
+    displayStrategyBacktesting(result, options) {
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        container.classList.remove('hidden');
+        const backtest = result.backtest || {};
+        const performance = backtest.performance_metrics || {};
+        const risk = backtest.risk_metrics || {};
+        const benchmark = backtest.benchmark_comparison || {};
+        const parameters = backtest.backtest_parameters || {};
+
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Strategy Backtesting</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleBacktestingSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="updateStrategyBacktesting()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Run Backtest
+                    </button>
+                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="space-y-6">
+                <!-- Performance Summary -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="details-box">
+                        <h4 class="section-header">Total Return</h4>
+                        <p class="text-2xl font-bold metric-value ${(performance.total_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(performance.total_return || 0)}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Annual Return</h4>
+                        <p class="text-2xl font-bold metric-value ${(performance.annual_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(performance.annual_return || 0)}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Volatility</h4>
+                        <p class="text-2xl font-bold metric-value neutral">${window.analyticsCore.formatPercent(performance.volatility || 0)}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Win Rate</h4>
+                        <p class="text-2xl font-bold metric-value ${(performance.win_rate || 0) > 0.5 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(performance.win_rate || 0)}</p>
+                    </div>
+                </div>
+                
+                <!-- Risk Metrics -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-3">
+                        <h4 class="section-header">Risk Metrics</h4>
+                        <div class="metric-row">
+                            <span class="metric-label">Sharpe Ratio</span>
+                            <span class="metric-value ${(risk.sharpe_ratio || 0) > 1 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(risk.sharpe_ratio || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Max Drawdown</span>
+                            <span class="metric-value negative">${window.analyticsCore.formatPercent(Math.abs(risk.max_drawdown || 0))}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Calmar Ratio</span>
+                            <span class="metric-value ${(risk.calmar_ratio || 0) > 1 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(risk.calmar_ratio || 0)}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <h4 class="section-header">Benchmark Comparison</h4>
+                        <div class="metric-row">
+                            <span class="metric-label">Benchmark Return</span>
+                            <span class="metric-value neutral">${window.analyticsCore.formatPercent(benchmark.benchmark_annual_return || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Excess Return</span>
+                            <span class="metric-value ${(benchmark.excess_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(benchmark.excess_return || 0)}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Volatility Ratio</span>
+                            <span class="metric-value neutral">${window.analyticsCore.formatNumber(benchmark.volatility_ratio || 0)}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Backtest Parameters -->
+                <div class="details-box">
+                    <h4 class="section-header">Backtest Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div><span class="detail-label">Period:</span> <span class="detail-value">${parameters.period || 'N/A'}</span></div>
+                        <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${parameters.rebalancing || 'N/A'}</span></div>
+                        <div><span class="detail-label">Transaction Costs:</span> <span class="detail-value">${parameters.transaction_costs || 0}%</span></div>
+                        <div><span class="detail-label">Data Points:</span> <span class="detail-value">${parameters.data_points || 'N/A'}</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     displayCorrelationAnalysis(result, options) {
         const container = document.getElementById('analysisContent');
         if (!container) return;
@@ -1447,6 +1994,61 @@ window.analyticsManager = new AnalyticsManager();
 // Export the class for external use
 window.AnalyticsManager = AnalyticsManager;
 
+// Options pagination functions
+window.changeOptionsPage = (newPage) => {
+    if (!window.optionsOpportunities) return;
+    
+    const itemsPerPage = 10;
+    const totalPages = Math.ceil(window.optionsOpportunities.length / itemsPerPage);
+    
+    if (newPage < 1 || newPage > totalPages) return;
+    
+    window.optionsCurrentPage = newPage;
+    
+    // Re-display with new page
+    const result = {
+        opportunities: window.optionsOpportunities,
+        summary: window.optionsSummary
+    };
+    
+    window.analyticsManager.displayOptionsStrategies(result, {});
+};
+
+window.filterOptionsStrategies = () => {
+    if (!window.optionsOpportunities) return;
+    
+    window.optionsCurrentPage = 1; // Reset to first page
+    
+    const result = {
+        opportunities: window.optionsOpportunities,
+        summary: window.optionsSummary
+    };
+    
+    window.analyticsManager.displayOptionsStrategies(result, {});
+};
+
+window.getFilteredOpportunities = (opportunities) => {
+    if (!opportunities) return [];
+    
+    const symbolFilter = document.getElementById('symbolFilter')?.value || 'all';
+    
+    let filtered = opportunities;
+    
+    if (symbolFilter !== 'all') {
+        filtered = filtered.filter(opp => opp.symbol === symbolFilter);
+    }
+    
+    return filtered;
+};
+
+// Hide analysis content function
+window.hideAnalysisContent = () => {
+    const container = document.getElementById('analysisContent');
+    if (container) {
+        container.classList.add('hidden');
+    }
+};
+
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
     window.analyticsManager.initialize();
@@ -1526,6 +2128,37 @@ window.toggleRiskSettings = () => {
     }
 };
 
+// Performance Attribution Settings
+window.togglePerformanceSettings = () => {
+    const settings = document.getElementById('performanceSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updatePerformanceAttribution = () => {
+    const period = document.getElementById('performancePeriod')?.value;
+    const model = document.getElementById('performanceModel')?.value;
+    const benchmark = document.getElementById('performanceBenchmark')?.value;
+    const currency = document.getElementById('performanceCurrency')?.value;
+    const frequency = document.getElementById('performanceFrequency')?.value;
+
+    if (!period || !model || !benchmark || !currency || !frequency) {
+        console.error('Missing required performance attribution settings');
+        return;
+    }
+
+    window.analyticsCore.performanceSettings = {
+        period,
+        attribution_model: model,
+        benchmark,
+        currency,
+        frequency
+    };
+
+    window.analyticsManager.loadModule('performance-attribution');
+};
+
 window.updateRiskAnalysis = () => {
     // Get settings values from form - no fallbacks
     const period = document.getElementById('riskPeriod')?.value;
@@ -1552,3 +2185,157 @@ window.updateRiskAnalysis = () => {
     // Force reload of risk metrics with new settings
     window.analyticsManager.loadModule('risk-metrics');
 };
+
+// Options Settings
+window.toggleOptionsSettings = () => {
+    const settings = document.getElementById('optionsSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updateOptionsAnalysis = () => {
+    const expiration = document.getElementById('optionsExpiration')?.value;
+    const moneyness = document.getElementById('optionsMoneyness')?.value;
+    const minPremium = document.getElementById('optionsMinPremium')?.value;
+    const deltaRange = document.getElementById('optionsDeltaRange')?.value;
+
+    if (!expiration || !moneyness || !minPremium || !deltaRange) {
+        console.error('Missing required options settings');
+        return;
+    }
+
+    window.analyticsCore.optionsSettings = {
+        expiration,
+        moneyness,
+        min_premium: minPremium,
+        delta_range: deltaRange
+    };
+
+    window.analyticsManager.loadModule('options-strategies');
+};
+
+// Monte Carlo Settings
+window.toggleMonteCarloSettings = () => {
+    const settings = document.getElementById('monteCarloSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updateMonteCarloAnalysis = () => {
+    const period = document.getElementById('mcForecastPeriod')?.value;
+    const simulations = parseInt(document.getElementById('mcSimulations')?.value);
+    const confidence = parseFloat(document.getElementById('mcConfidenceIntervals')?.value);
+    const regime = document.getElementById('mcMarketRegime')?.value;
+    const volatility = parseFloat(document.getElementById('mcVolatilityAdjustment')?.value);
+
+    if (!period || !simulations || !confidence || !regime || volatility === undefined) {
+        console.error('Missing required Monte Carlo settings');
+        return;
+    }
+
+    window.analyticsCore.monteCarloSettings = {
+        forecast_period: period,
+        simulations,
+        confidence_intervals: confidence,
+        market_regime: regime,
+        volatility_adjustment: volatility
+    };
+
+    window.analyticsManager.loadModule('monte-carlo');
+};
+
+// Portfolio Optimization Settings
+window.toggleOptimizationSettings = () => {
+    const settings = document.getElementById('optimizationSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updatePortfolioOptimization = () => {
+    const objective = document.getElementById('optimizationObjective')?.value;
+    const constraint = document.getElementById('optimizationConstraint')?.value;
+    const rebalancing = document.getElementById('optimizationRebalancing')?.value;
+    const riskBudget = document.getElementById('optimizationRiskBudget')?.value;
+    const lookback = document.getElementById('optimizationLookback')?.value;
+
+    if (!objective || !constraint || !rebalancing || !riskBudget || !lookback) {
+        console.error('Missing required optimization settings');
+        return;
+    }
+
+    window.analyticsCore.optimizationSettings = {
+        objective,
+        constraint,
+        rebalancing,
+        risk_budget: riskBudget,
+        lookback_period: lookback
+    };
+
+    window.analyticsManager.loadModule('portfolio-optimization');
+};
+
+// Sector Allocation Settings
+window.toggleSectorSettings = () => {
+    const settings = document.getElementById('sectorSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updateSectorAllocation = () => {
+    const classification = document.getElementById('sectorClassification')?.value || 'GICS';
+    const view = document.getElementById('sectorView')?.value || 'pie';
+    const currency = document.getElementById('sectorCurrency')?.value || 'USD';
+    const benchmark = document.getElementById('sectorBenchmark')?.value || 'SPY';
+    const period = document.getElementById('sectorPeriod')?.value || '1Y';
+
+    window.analyticsCore.sectorSettings = {
+        classification,
+        view,
+        currency,
+        benchmark,
+        period
+    };
+
+    window.analyticsManager.loadModule('sector-allocation');
+};
+
+// Statistical Analysis Settings
+window.toggleStatisticalSettings = () => {
+    const settings = document.getElementById('statisticalSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updateStatisticalAnalysis = () => {
+    window.analyticsManager.loadModule('statistical-analysis');
+};
+
+// Technical Analysis Settings
+window.toggleTechnicalSettings = () => {
+    const settings = document.getElementById('technicalSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updateTechnicalAnalysis = () => {
+    window.analyticsManager.loadModule('technical-indicators');
+};
+
+// Strategy Backtesting Settings
+window.toggleBacktestingSettings = () => {
+    const settings = document.getElementById('backtestingSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updateStrategyBacktesting = () => {
+    window.analyticsManager.loadModule('strategy-backtesting');
+};
+

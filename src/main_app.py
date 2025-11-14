@@ -37,6 +37,7 @@ from api.portfolio_routes import register_portfolio_routes
 from api.transaction_routes import register_transaction_routes
 from api.admin_routes import register_admin_routes
 from api.cache_routes import register_cache_routes
+from api.sector_routes import sector_bp
 
 # Add News system to path for integration
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'News'))
@@ -268,6 +269,9 @@ else:
 # Use secure Plaid routes
 from api.plaid_routes_secure import register_plaid_routes as register_secure_plaid_routes
 register_secure_plaid_routes(app)
+
+# Register sector analysis routes
+app.register_blueprint(sector_bp)
 
 if __name__ == '__main__':
     logger.info("Starting Portfolio & Options Analysis Engine")
