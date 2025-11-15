@@ -1653,7 +1653,25 @@ class AnalyticsManager {
         if (!container) return;
 
         container.classList.remove('hidden');
-        const analysis = result.analysis || {};
+        const analysis = result.technical_analysis || {};
+        const parameters = analysis.parameters || {};
+        const individualAnalysis = analysis.individual_analysis || {};
+        const portfolioSignals = analysis.portfolio_signals || {};
+        const summary = analysis.summary || {};
+
+        // Get current settings
+        const currentPeriod = options?.period || parameters.period || '6M';
+        const currentTimeframe = options?.timeframe || parameters.timeframe || 'Daily';
+        const currentIndicators = options?.indicators || parameters.indicators || ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'];
+        const currentRsiPeriod = options?.rsi_period || parameters.rsi_parameters?.period || 14;
+        const currentRsiOversold = options?.rsi_oversold || parameters.rsi_parameters?.oversold || 30;
+        const currentRsiOverbought = options?.rsi_overbought || parameters.rsi_parameters?.overbought || 70;
+        const currentMacdFast = options?.macd_fast || parameters.macd_parameters?.fast || 12;
+        const currentMacdSlow = options?.macd_slow || parameters.macd_parameters?.slow || 26;
+        const currentMacdSignal = options?.macd_signal || parameters.macd_parameters?.signal || 9;
+        const currentBbPeriod = options?.bb_period || parameters.bollinger_parameters?.period || 20;
+        const currentBbStd = options?.bb_std || parameters.bollinger_parameters?.std_dev || 2;
+        const currentSignalStrength = options?.signal_strength || parameters.signal_strength || 'Medium';
 
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
@@ -1676,14 +1694,176 @@ class AnalyticsManager {
                 </div>
             </div>
             
-            <div class="text-center py-8">
-                <div class="text-gray-400 mb-4">
-                    <svg class="w-16 h-16 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-                    </svg>
+            <!-- Technical Settings Panel -->
+            <div id="technicalSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="technicalPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTechnicalAnalysis()">
+                            <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+                        <select id="technicalTimeframe" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTechnicalAnalysis()">
+                            <option value="Daily" ${currentTimeframe === 'Daily' ? 'selected' : ''}>Daily</option>
+                            <option value="Weekly" ${currentTimeframe === 'Weekly' ? 'selected' : ''}>Weekly</option>
+                            <option value="Monthly" ${currentTimeframe === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">RSI Period</label>
+                        <select id="technicalRsiPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTechnicalAnalysis()">
+                            <option value="14" ${currentRsiPeriod == 14 ? 'selected' : ''}>14</option>
+                            <option value="21" ${currentRsiPeriod == 21 ? 'selected' : ''}>21</option>
+                            <option value="30" ${currentRsiPeriod == 30 ? 'selected' : ''}>30</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Signal Strength</label>
+                        <select id="technicalSignalStrength" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTechnicalAnalysis()">
+                            <option value="Weak" ${currentSignalStrength === 'Weak' ? 'selected' : ''}>Weak</option>
+                            <option value="Medium" ${currentSignalStrength === 'Medium' ? 'selected' : ''}>Medium</option>
+                            <option value="Strong" ${currentSignalStrength === 'Strong' ? 'selected' : ''}>Strong</option>
+                        </select>
+                    </div>
                 </div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">Technical Analysis</h3>
-                <p class="text-gray-600">Technical indicators and signals analysis will be displayed here.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">RSI Oversold</label>
+                        <input type="number" id="technicalRsiOversold" value="${currentRsiOversold}" min="10" max="40" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTechnicalAnalysis()">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">RSI Overbought</label>
+                        <input type="number" id="technicalRsiOverbought" value="${currentRsiOverbought}" min="60" max="90" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTechnicalAnalysis()">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">MACD Fast</label>
+                        <input type="number" id="technicalMacdFast" value="${currentMacdFast}" min="5" max="20" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTechnicalAnalysis()">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">MACD Slow</label>
+                        <input type="number" id="technicalMacdSlow" value="${currentMacdSlow}" min="20" max="40" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTechnicalAnalysis()">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-y-6">
+                <!-- Portfolio Summary -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="details-box">
+                        <h4 class="section-header">Overall Signal</h4>
+                        <p class="text-2xl font-bold metric-value ${portfolioSignals.overall === 'Bullish' ? 'positive' : portfolioSignals.overall === 'Bearish' ? 'negative' : 'neutral'}">${portfolioSignals.overall || 'Neutral'}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Symbols Analyzed</h4>
+                        <p class="text-2xl font-bold metric-value neutral">${summary.symbols_analyzed || Object.keys(individualAnalysis).length}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Data Points</h4>
+                        <p class="text-2xl font-bold metric-value neutral">${summary.data_points || 'N/A'}</p>
+                    </div>
+                    <div class="details-box">
+                        <h4 class="section-header">Timeframe</h4>
+                        <p class="text-2xl font-bold metric-value neutral">${summary.timeframe || currentTimeframe}</p>
+                    </div>
+                </div>
+                
+                <!-- Portfolio Signals -->
+                ${portfolioSignals.bullish_weight !== undefined ? `
+                    <div class="details-box">
+                        <h4 class="section-header">Portfolio Signal Distribution</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="metric-row">
+                                <span class="metric-label">Bullish Weight</span>
+                                <span class="metric-value positive">${window.analyticsCore.formatPercent(portfolioSignals.bullish_weight)}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Bearish Weight</span>
+                                <span class="metric-value negative">${window.analyticsCore.formatPercent(portfolioSignals.bearish_weight)}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Neutral Weight</span>
+                                <span class="metric-value neutral">${window.analyticsCore.formatPercent(portfolioSignals.neutral_weight)}</span>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <!-- Individual Analysis -->
+                ${Object.keys(individualAnalysis).length > 0 ? `
+                    <div class="details-box">
+                        <h4 class="section-header">Individual Symbol Analysis</h4>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overall Signal</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Signal Strength</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">RSI</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">MACD</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bollinger</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SMA</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">EMA</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${Object.entries(individualAnalysis).map(([symbol, analysis]) => `
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${symbol}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
+                                                analysis.overall_signal === 'Bullish' ? 'text-green-600' :
+                                                analysis.overall_signal === 'Bearish' ? 'text-red-600' : 'text-gray-500'
+                                            }">${analysis.overall_signal || 'Neutral'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${analysis.signal_strength || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
+                                                analysis.signals?.rsi?.includes('Bullish') ? 'text-green-600' :
+                                                analysis.signals?.rsi?.includes('Bearish') ? 'text-red-600' : 'text-gray-500'
+                                            }">${analysis.signals?.rsi || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
+                                                analysis.signals?.macd === 'Bullish' ? 'text-green-600' :
+                                                analysis.signals?.macd === 'Bearish' ? 'text-red-600' : 'text-gray-500'
+                                            }">${analysis.signals?.macd || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
+                                                analysis.signals?.bollinger?.includes('Bullish') ? 'text-green-600' :
+                                                analysis.signals?.bollinger?.includes('Bearish') ? 'text-red-600' : 'text-gray-500'
+                                            }">${analysis.signals?.bollinger || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
+                                                analysis.signals?.sma === 'Bullish' ? 'text-green-600' :
+                                                analysis.signals?.sma === 'Bearish' ? 'text-red-600' : 'text-gray-500'
+                                            }">${analysis.signals?.sma || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
+                                                analysis.signals?.ema === 'Bullish' ? 'text-green-600' :
+                                                analysis.signals?.ema === 'Bearish' ? 'text-red-600' : 'text-gray-500'
+                                            }">${analysis.signals?.ema || 'N/A'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ` : '<p class="text-gray-500 text-center py-4">No technical analysis data available</p>'}
+                
+                <!-- Analysis Parameters -->
+                <div class="details-box">
+                    <h4 class="section-header">Analysis Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div><span class="detail-label">Period:</span> <span class="detail-value">${currentPeriod}</span></div>
+                        <div><span class="detail-label">Timeframe:</span> <span class="detail-value">${currentTimeframe}</span></div>
+                        <div><span class="detail-label">Indicators:</span> <span class="detail-value">${Array.isArray(currentIndicators) ? currentIndicators.join(', ') : currentIndicators}</span></div>
+                        <div><span class="detail-label">Signal Strength:</span> <span class="detail-value">${currentSignalStrength}</span></div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
+                        <div><span class="detail-label">RSI:</span> <span class="detail-value">${currentRsiPeriod} (${currentRsiOversold}/${currentRsiOverbought})</span></div>
+                        <div><span class="detail-label">MACD:</span> <span class="detail-value">(${currentMacdFast},${currentMacdSlow},${currentMacdSignal})</span></div>
+                        <div><span class="detail-label">Bollinger:</span> <span class="detail-value">${currentBbPeriod}, ${currentBbStd}σ</span></div>
+                        <div><span class="detail-label">Data Points:</span> <span class="detail-value">${summary.data_points || 'N/A'}</span></div>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -1734,11 +1914,19 @@ class AnalyticsManager {
         if (!container) return;
 
         container.classList.remove('hidden');
-        const backtest = result.backtest || {};
+        
+        // Handle both direct results and nested results
+        const backtest = result.backtesting_results || result.backtest || result;
         const performance = backtest.performance_metrics || {};
         const risk = backtest.risk_metrics || {};
-        const benchmark = backtest.benchmark_comparison || {};
-        const parameters = backtest.backtest_parameters || {};
+        const summary = backtest.summary || {};
+        const parameters = backtest.parameters || summary || {};
+
+        // Get current settings
+        const currentPeriod = options?.backtest_period || parameters.backtest_period || '1Y';
+        const currentRebalancing = options?.rebalancing || parameters.rebalancing_frequency || 'Quarterly';
+        const currentTransactionCosts = options?.transaction_costs || parameters.transaction_cost_rate || '0.1%';
+        const currentBenchmark = options?.benchmark || parameters.benchmark_used || 'SPY';
 
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
@@ -1749,7 +1937,7 @@ class AnalyticsManager {
                     </button>
                     <button onclick="updateStrategyBacktesting()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
                         <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
                         </svg>
                         Run Backtest
                     </button>
@@ -1758,6 +1946,48 @@ class AnalyticsManager {
                             <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
                         </svg>
                     </button>
+                </div>
+            </div>
+            
+            <!-- Backtesting Settings Panel -->
+            <div id="backtestingSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Backtest Period</label>
+                        <select id="backtestPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateStrategyBacktesting()">
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="2Y" ${currentPeriod === '2Y' ? 'selected' : ''}>2 Years</option>
+                            <option value="3Y" ${currentPeriod === '3Y' ? 'selected' : ''}>3 Years</option>
+                            <option value="5Y" ${currentPeriod === '5Y' ? 'selected' : ''}>5 Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rebalancing</label>
+                        <select id="backtestRebalancing" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateStrategyBacktesting()">
+                            <option value="Monthly" ${currentRebalancing === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                            <option value="Quarterly" ${currentRebalancing === 'Quarterly' ? 'selected' : ''}>Quarterly</option>
+                            <option value="Semi-annual" ${currentRebalancing === 'Semi-annual' ? 'selected' : ''}>Semi-annual</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Costs</label>
+                        <select id="backtestTransactionCosts" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateStrategyBacktesting()">
+                            <option value="0" ${currentTransactionCosts === '0%' ? 'selected' : ''}>0%</option>
+                            <option value="0.1" ${currentTransactionCosts === '0.1%' ? 'selected' : ''}>0.1%</option>
+                            <option value="0.25" ${currentTransactionCosts === '0.25%' ? 'selected' : ''}>0.25%</option>
+                            <option value="0.5" ${currentTransactionCosts === '0.5%' ? 'selected' : ''}>0.5%</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                        <select id="backtestBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateStrategyBacktesting()">
+                            <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
+                            <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>NASDAQ 100 (QQQ)</option>
+                            <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
+                            <option value="VTI" ${currentBenchmark === 'VTI' ? 'selected' : ''}>Total Stock Market (VTI)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             
@@ -1770,7 +2000,7 @@ class AnalyticsManager {
                     </div>
                     <div class="details-box">
                         <h4 class="section-header">Annual Return</h4>
-                        <p class="text-2xl font-bold metric-value ${(performance.annual_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(performance.annual_return || 0)}</p>
+                        <p class="text-2xl font-bold metric-value ${(performance.annualized_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(performance.annualized_return || 0)}</p>
                     </div>
                     <div class="details-box">
                         <h4 class="section-header">Volatility</h4>
@@ -1778,7 +2008,7 @@ class AnalyticsManager {
                     </div>
                     <div class="details-box">
                         <h4 class="section-header">Win Rate</h4>
-                        <p class="text-2xl font-bold metric-value ${(performance.win_rate || 0) > 0.5 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(performance.win_rate || 0)}</p>
+                        <p class="text-2xl font-bold metric-value ${window.analyticsManager.calculateWinRate(backtest) > 50 ? 'positive' : 'negative'}">${window.analyticsManager.calculateWinRate(backtest)}%</p>
                     </div>
                 </div>
                 
@@ -1788,7 +2018,7 @@ class AnalyticsManager {
                         <h4 class="section-header">Risk Metrics</h4>
                         <div class="metric-row">
                             <span class="metric-label">Sharpe Ratio</span>
-                            <span class="metric-value ${(risk.sharpe_ratio || 0) > 1 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(risk.sharpe_ratio || 0)}</span>
+                            <span class="metric-value ${(performance.sharpe_ratio || 0) > 1 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(performance.sharpe_ratio || 0)}</span>
                         </div>
                         <div class="metric-row">
                             <span class="metric-label">Max Drawdown</span>
@@ -1804,15 +2034,15 @@ class AnalyticsManager {
                         <h4 class="section-header">Benchmark Comparison</h4>
                         <div class="metric-row">
                             <span class="metric-label">Benchmark Return</span>
-                            <span class="metric-value neutral">${window.analyticsCore.formatPercent(benchmark.benchmark_annual_return || 0)}</span>
+                            <span class="metric-value neutral">${window.analyticsCore.formatPercent(performance.benchmark_return || 0)}</span>
                         </div>
                         <div class="metric-row">
                             <span class="metric-label">Excess Return</span>
-                            <span class="metric-value ${(benchmark.excess_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(benchmark.excess_return || 0)}</span>
+                            <span class="metric-value ${(performance.excess_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(performance.excess_return || 0)}</span>
                         </div>
                         <div class="metric-row">
-                            <span class="metric-label">Volatility Ratio</span>
-                            <span class="metric-value neutral">${window.analyticsCore.formatNumber(benchmark.volatility_ratio || 0)}</span>
+                            <span class="metric-label">Beta</span>
+                            <span class="metric-value neutral">${window.analyticsCore.formatNumber(performance.beta || 0)}</span>
                         </div>
                     </div>
                 </div>
@@ -1821,14 +2051,24 @@ class AnalyticsManager {
                 <div class="details-box">
                     <h4 class="section-header">Backtest Parameters</h4>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div><span class="detail-label">Period:</span> <span class="detail-value">${parameters.period || 'N/A'}</span></div>
-                        <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${parameters.rebalancing || 'N/A'}</span></div>
-                        <div><span class="detail-label">Transaction Costs:</span> <span class="detail-value">${parameters.transaction_costs || 0}%</span></div>
-                        <div><span class="detail-label">Data Points:</span> <span class="detail-value">${parameters.data_points || 'N/A'}</span></div>
+                        <div><span class="detail-label">Period:</span> <span class="detail-value">${currentPeriod}</span></div>
+                        <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${currentRebalancing}</span></div>
+                        <div><span class="detail-label">Transaction Costs:</span> <span class="detail-value">${currentTransactionCosts}</span></div>
+                        <div><span class="detail-label">Data Points:</span> <span class="detail-value">${summary.total_periods || 'N/A'}</span></div>
                     </div>
                 </div>
             </div>
         `;
+    }
+
+    calculateWinRate(results) {
+        if (!results.portfolio_returns || results.portfolio_returns.length === 0) {
+            return '0.00';
+        }
+        
+        const positiveReturns = results.portfolio_returns.filter(r => r > 0).length;
+        const totalReturns = results.portfolio_returns.length;
+        return ((positiveReturns / totalReturns) * 100).toFixed(2);
     }
 
     displayCorrelationAnalysis(result, options) {
@@ -2768,8 +3008,94 @@ window.toggleTechnicalSettings = () => {
     }
 };
 
-window.updateTechnicalAnalysis = () => {
-    window.analyticsManager.loadModule('technical-indicators');
+window.updateTechnicalAnalysis = async () => {
+    const period = document.getElementById('technicalPeriod')?.value || '6M';
+    const timeframe = document.getElementById('technicalTimeframe')?.value || 'Daily';
+    const rsiPeriod = parseInt(document.getElementById('technicalRsiPeriod')?.value) || 14;
+    const rsiOversold = parseInt(document.getElementById('technicalRsiOversold')?.value) || 30;
+    const rsiOverbought = parseInt(document.getElementById('technicalRsiOverbought')?.value) || 70;
+    const macdFast = parseInt(document.getElementById('technicalMacdFast')?.value) || 12;
+    const macdSlow = parseInt(document.getElementById('technicalMacdSlow')?.value) || 26;
+    const signalStrength = document.getElementById('technicalSignalStrength')?.value || 'Medium';
+
+    // Store settings for API call
+    window.analyticsCore.technicalSettings = {
+        period,
+        timeframe,
+        indicators: ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'],
+        rsi_period: rsiPeriod,
+        rsi_oversold: rsiOversold,
+        rsi_overbought: rsiOverbought,
+        macd_fast: macdFast,
+        macd_slow: macdSlow,
+        macd_signal: 9,
+        bb_period: 20,
+        bb_std: 2,
+        signal_strength: signalStrength
+    };
+
+    // Show loading state
+    const container = document.getElementById('analysisContent');
+    if (container) {
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Technical Analysis</h2>
+                <div class="text-gray-400">Updating...</div>
+            </div>
+            <div class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                <p class="text-gray-600">Calculating technical indicators...</p>
+                <p class="text-sm text-gray-500 mt-2">Period: ${period}, Timeframe: ${timeframe}</p>
+            </div>
+        `;
+    }
+
+    // Get portfolio data
+    const portfolioData = window.analyticsCore?.portfolioData || [];
+    if (!portfolioData || portfolioData.length === 0) {
+        alert('Please upload a portfolio first');
+        return;
+    }
+
+    try {
+        const response = await fetch('http://127.0.0.1:8080/api/technical-analysis?' + Date.now(), {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            },
+            body: JSON.stringify({
+                portfolio: portfolioData,
+                options: window.analyticsCore.technicalSettings
+            })
+        });
+
+        const data = await response.json();
+        console.log('[TECHNICAL UPDATE] API Response:', data);
+        
+        if (data.success) {
+            window.analyticsManager.displayTechnicalIndicators(data, window.analyticsCore.technicalSettings);
+        } else {
+            if (container) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-red-600">
+                        <p class="font-semibold">Analysis Failed</p>
+                        <p class="text-sm mt-2">${data.error || 'Unknown error'}</p>
+                    </div>
+                `;
+            }
+        }
+    } catch (error) {
+        console.error('[TECHNICAL UPDATE] Error:', error);
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center py-8 text-red-600">
+                    <p class="font-semibold">Request Failed</p>
+                    <p class="text-sm mt-2">${error.message}</p>
+                </div>
+            `;
+        }
+    }
 };
 
 // Strategy Backtesting Settings
@@ -2780,7 +3106,84 @@ window.toggleBacktestingSettings = () => {
     }
 };
 
-window.updateStrategyBacktesting = () => {
-    window.analyticsManager.loadModule('strategy-backtesting');
+window.updateStrategyBacktesting = async () => {
+    // Get portfolio data
+    const portfolioData = window.analyticsCore?.portfolioData || [];
+    if (!portfolioData || portfolioData.length === 0) {
+        alert('Please upload a portfolio first');
+        return;
+    }
+
+    // Get settings from form
+    const period = document.getElementById('backtestPeriod')?.value || '1Y';
+    const rebalancing = document.getElementById('backtestRebalancing')?.value || 'Quarterly';
+    const transactionCosts = parseFloat(document.getElementById('backtestTransactionCosts')?.value || '0.1');
+    const benchmark = document.getElementById('backtestBenchmark')?.value || 'SPY';
+
+    // Show loading state
+    const container = document.getElementById('analysisContent');
+    if (container) {
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Strategy Backtesting</h2>
+                <div class="text-gray-400">Running backtest...</div>
+            </div>
+            <div class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                <p class="text-gray-600">Running strategy backtest...</p>
+                <p class="text-sm text-gray-500 mt-2">Period: ${period}, Rebalancing: ${rebalancing}, Costs: ${transactionCosts}%</p>
+            </div>
+        `;
+    }
+
+    try {
+        const response = await fetch('http://127.0.0.1:8080/api/strategy-backtesting', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            },
+            body: JSON.stringify({
+                portfolio: portfolioData,
+                options: {
+                    backtest_period: period,
+                    rebalancing: rebalancing,
+                    transaction_costs: transactionCosts,
+                    benchmark: benchmark
+                }
+            })
+        });
+
+        const data = await response.json();
+        console.log('[BACKTESTING] API Response:', data);
+        
+        if (data.success && data.backtesting_results) {
+            window.analyticsManager.displayStrategyBacktesting(data, {
+                backtest_period: period,
+                rebalancing: rebalancing,
+                transaction_costs: transactionCosts,
+                benchmark: benchmark
+            });
+        } else {
+            if (container) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-red-600">
+                        <p class="font-semibold">Backtesting Failed</p>
+                        <p class="text-sm mt-2">${data.error || 'Unknown error'}</p>
+                    </div>
+                `;
+            }
+        }
+    } catch (error) {
+        console.error('[BACKTESTING] Error:', error);
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center py-8 text-red-600">
+                    <p class="font-semibold">Request Failed</p>
+                    <p class="text-sm mt-2">${error.message}</p>
+                </div>
+            `;
+        }
+    }
 };
 

@@ -38,6 +38,7 @@ from api.transaction_routes import register_transaction_routes
 from api.admin_routes import register_admin_routes
 from api.cache_routes import register_cache_routes
 from api.sector_routes import sector_bp
+from api.backtesting_routes import register_backtesting_routes
 
 # Add News system to path for integration
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'News'))
@@ -272,6 +273,15 @@ register_secure_plaid_routes(app)
 
 # Register sector analysis routes
 app.register_blueprint(sector_bp)
+
+# Register backtesting routes
+try:
+    register_backtesting_routes(app, data_client, None)
+    logger.info("Backtesting routes registered successfully")
+except Exception as e:
+    logger.error(f"Failed to register backtesting routes: {e}")
+    import traceback
+    traceback.print_exc()
 
 if __name__ == '__main__':
     logger.info("Starting Portfolio & Options Analysis Engine")

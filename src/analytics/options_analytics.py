@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 class OptionsAnalyzer:
     def __init__(self, data_client: MarketDataClient):
         self.data_client = data_client
-        self.risk_free_rate = 0.0422  # Current fed rate
+        from utils.fed_rate import get_risk_free_rate
+        self.risk_free_rate = get_risk_free_rate()  # Real Fed rate
     
     def calculate_delta(self, S, K, T, r, sigma, option_type='call'):
         """Calculate Black-Scholes delta"""

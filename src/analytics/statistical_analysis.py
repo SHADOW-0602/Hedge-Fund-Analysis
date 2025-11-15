@@ -252,8 +252,9 @@ class StatisticalAnalyzer:
             var = float(symbol_returns.quantile(1 - confidence_level))
             cvar = float(symbol_returns[symbol_returns <= var].mean())
             
-            # Sharpe ratio (assuming risk-free rate of 4%)
-            risk_free_rate = 0.04 / 252  # Daily risk-free rate
+            # Sharpe ratio (using real Fed rate)
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate() / 252  # Daily risk-free rate
             excess_return = mean_return - risk_free_rate
             sharpe = float(excess_return / volatility) if volatility > 0 else 0
             
@@ -303,7 +304,8 @@ class StatisticalAnalyzer:
             beta = float(covariance / benchmark_variance) if benchmark_variance > 0 else 0
             
             # Alpha calculation (CAPM)
-            risk_free_rate = 0.04 / 252
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate() / 252
             expected_return = risk_free_rate + beta * (aligned_benchmark.mean() - risk_free_rate)
             alpha = float(aligned_symbol.mean() - expected_return)
             
@@ -346,7 +348,8 @@ class StatisticalAnalyzer:
         portfolio_beta = float(covariance / benchmark_variance) if benchmark_variance > 0 else 0
         
         # Portfolio alpha
-        risk_free_rate = 0.04 / 252
+        from utils.fed_rate import get_risk_free_rate
+        risk_free_rate = get_risk_free_rate() / 252
         expected_return = risk_free_rate + portfolio_beta * (aligned_benchmark.mean() - risk_free_rate)
         portfolio_alpha = float(aligned_portfolio.mean() - expected_return)
         

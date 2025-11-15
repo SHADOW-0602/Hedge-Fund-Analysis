@@ -2,20 +2,44 @@ from flask import request, jsonify
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from .route_utils import sanitize_for_json
+from .route_utils import sanitize_for_json, extract_valid_symbols, calculate_portfolio_weights
 from utils.symbol_parser import get_underlying_symbol
 
 def register_technical_analysis_routes(app, data_client, smart_cache=None):
     """Register technical analysis routes"""
     
-    @app.route('/api/technical-analysis', methods=['POST'])
+    @app.route('/api/technical-analysis', methods=['GET', 'POST'])
     def technical_analysis():
         try:
-            import yfinance as yf
-            
-            data = request.get_json()
-            portfolio = data.get('portfolio', [])
-            options = data.get('options', {})
+            # Handle both GET and POST requests
+            if request.method == 'GET':
+                # Parse query parameters for GET request
+                symbols_param = request.args.get('symbols', '')
+                symbols = [s.strip() for s in symbols_param.split(',') if s.strip()]
+                
+                # Create portfolio data from symbols
+                portfolio = [{'symbol': symbol, 'quantity': 100, 'avg_cost': 100} for symbol in symbols]
+                
+                # Parse options from query parameters
+                options = {
+                    'period': request.args.get('period', '1Y'),
+                    'indicators': request.args.get('indicators', 'RSI,MACD,Bollinger,SMA,EMA').split(','),
+                    'timeframe': request.args.get('timeframe', 'Daily'),
+                    'rsi_period': int(request.args.get('rsi_period', 14)),
+                    'rsi_oversold': int(request.args.get('rsi_oversold', 30)),
+                    'rsi_overbought': int(request.args.get('rsi_overbought', 70)),
+                    'macd_fast': int(request.args.get('macd_fast', 12)),
+                    'macd_slow': int(request.args.get('macd_slow', 26)),
+                    'macd_signal': int(request.args.get('macd_signal', 9)),
+                    'bb_period': int(request.args.get('bb_period', 20)),
+                    'bb_std': int(request.args.get('bb_std', 2)),
+                    'signal_strength': request.args.get('signal_strength', 'Medium')
+                }
+            else:
+                # Handle POST request as before
+                data = request.get_json()
+                portfolio = data.get('portfolio', [])
+                options = data.get('options', {})
             
             if not portfolio:
                 return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
@@ -34,79 +58,36 @@ def register_technical_analysis_routes(app, data_client, smart_cache=None):
             bb_std = int(options.get('bb_std', 2))
             signal_strength = options.get('signal_strength', 'Medium')
             
-            # Map period to yfinance format
-            if timeframe.lower() == 'monthly':
-                period_map = {'1M': '6mo', '3M': '1y', '6M': '2y', '1Y': '3y'}
-            elif timeframe.lower() == 'weekly':
-                period_map = {'1M': '3mo', '3M': '6mo', '6M': '1y', '1Y': '2y'}
-            else:
-                period_map = {'1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y'}
-            yf_period = period_map.get(period, '1y')
+            # Map period to data client format
+            period_map = {'1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y'}
+            data_period = period_map.get(period, '1y')
             
-            # Filter and process portfolio symbols
-            symbols = []
-            weights = {}
-            total_value = 0
-            
-            for position in portfolio:
-                symbol = get_underlying_symbol(position.get('symbol', ''))
-                if symbol and not symbol.startswith('CUR:') and len(symbol) <= 10:
-                    quantity = float(position.get('quantity', 0))
-                    price = float(position.get('avg_cost', 0))
-                    value = quantity * price
-                    symbols.append(symbol)
-                    total_value += value
-            
-            # Calculate normalized weights
-            for position in portfolio:
-                symbol = get_underlying_symbol(position.get('symbol', ''))
-                if symbol in symbols:
-                    quantity = float(position.get('quantity', 0))
-                    price = float(position.get('avg_cost', 0))
-                    value = quantity * price
-                    weights[symbol] = value / total_value if total_value > 0 else 0
+            # Extract symbols and weights using utility functions
+            symbols = extract_valid_symbols(portfolio)
+            weights, total_value = calculate_portfolio_weights(portfolio)
             
             if len(symbols) < 1:
                 return jsonify({'success': False, 'error': 'No valid symbols for analysis'}), 400
             
-            # Get market data
-            price_data = yf.download(symbols, period=yf_period, progress=False)
+            # Get REAL market data using data client - NO FALLBACK
+            price_data = data_client.get_price_data(symbols, period=data_period)
             
-            if isinstance(price_data.columns, pd.MultiIndex):
-                if 'Adj Close' in price_data.columns.levels[0]:
-                    price_data = price_data['Adj Close']
-                elif 'Close' in price_data.columns.levels[0]:
-                    price_data = price_data['Close']
-            elif len(symbols) == 1:
-                price_data = pd.DataFrame({symbols[0]: price_data['Adj Close'] if 'Adj Close' in price_data.columns else price_data['Close']})
+            if price_data is None or price_data.empty:
+                return jsonify({'success': False, 'error': 'No real market data available for technical analysis'}), 400
             
             # Resample based on timeframe
             original_length = len(price_data)
             if timeframe.lower() == 'weekly':
-                price_data = price_data.resample('W').last().dropna()
-                min_required = 20
+                price_data = price_data.resample('W-SUN').last().dropna()
+                min_required = 10
             elif timeframe.lower() == 'monthly':
-                price_data = price_data.resample('M').last().dropna()
-                min_required = 6
+                price_data = price_data.resample('ME').last().dropna()
+                min_required = 3
             else:
-                min_required = 50
+                min_required = 20
             
             if price_data.empty or len(price_data) < min_required:
-                # Fallback to daily data if resampling fails
-                if timeframe.lower() != 'daily':
-                    price_data = yf.download(symbols, period=yf_period, progress=False)
-                    if isinstance(price_data.columns, pd.MultiIndex):
-                        if 'Adj Close' in price_data.columns.levels[0]:
-                            price_data = price_data['Adj Close']
-                        elif 'Close' in price_data.columns.levels[0]:
-                            price_data = price_data['Close']
-                    elif len(symbols) == 1:
-                        price_data = pd.DataFrame({symbols[0]: price_data['Adj Close'] if 'Adj Close' in price_data.columns else price_data['Close']})
-                    timeframe = 'Daily'
-                    min_required = 50
-                
-                if price_data.empty or len(price_data) < min_required:
-                    return jsonify({'success': False, 'error': f'Insufficient data for {timeframe.lower()} analysis. Need at least {min_required} data points, got {len(price_data)}'}), 400
+                return jsonify({'success': False, 'error': f'Insufficient real market data for {timeframe.lower()} analysis. Need at least {min_required} data points, got {len(price_data)}'}), 400
             
             # Calculate technical indicators for each symbol
             results = {
@@ -131,7 +112,7 @@ def register_technical_analysis_routes(app, data_client, smart_cache=None):
                     continue
                     
                 prices = price_data[symbol].dropna()
-                min_data_required = 20 if timeframe.lower() == 'weekly' else 6 if timeframe.lower() == 'monthly' else 50
+                min_data_required = 10 if timeframe.lower() == 'weekly' else 3 if timeframe.lower() == 'monthly' else 20
                 if len(prices) < min_data_required:
                     continue
                 
@@ -184,6 +165,95 @@ def register_technical_analysis_routes(app, data_client, smart_cache=None):
                         symbol_signals.append('bearish')
                     else:
                         symbol_analysis['signals']['macd'] = 'Neutral'
+                        symbol_signals.append('neutral')
+                
+                # Bollinger Bands Calculation
+                if 'Bollinger' in indicators:
+                    ma = prices.rolling(window=bb_period).mean()
+                    std = prices.rolling(window=bb_period).std()
+                    upper_band = ma + (std * bb_std)
+                    lower_band = ma - (std * bb_std)
+                    
+                    current_price = float(prices.iloc[-1])
+                    current_upper = float(upper_band.iloc[-1])
+                    current_lower = float(lower_band.iloc[-1])
+                    current_ma = float(ma.iloc[-1])
+                    
+                    # Validate all values are real
+                    if pd.isna(current_upper) or pd.isna(current_lower) or pd.isna(current_ma):
+                        continue  # Skip this symbol if calculations failed
+                    
+                    symbol_analysis['values']['bollinger'] = {
+                        'upper': current_upper,
+                        'middle': current_ma,
+                        'lower': current_lower,
+                        'current_price': current_price
+                    }
+                    
+                    if current_price > current_upper:
+                        symbol_analysis['signals']['bollinger'] = 'Bearish (Above Upper)'
+                        symbol_signals.append('bearish')
+                    elif current_price < current_lower:
+                        symbol_analysis['signals']['bollinger'] = 'Bullish (Below Lower)'
+                        symbol_signals.append('bullish')
+                    else:
+                        symbol_analysis['signals']['bollinger'] = 'Neutral'
+                        symbol_signals.append('neutral')
+                
+                # SMA Calculation
+                if 'SMA' in indicators:
+                    sma_20 = prices.rolling(window=20).mean()
+                    sma_50 = prices.rolling(window=50).mean() if len(prices) >= 50 else sma_20
+                    
+                    current_sma_20 = float(sma_20.iloc[-1])
+                    current_sma_50 = float(sma_50.iloc[-1])
+                    
+                    # Validate all values are real
+                    if pd.isna(current_sma_20) or pd.isna(current_sma_50):
+                        continue  # Skip this symbol if calculations failed
+                    
+                    symbol_analysis['values']['sma'] = {
+                        'sma_20': current_sma_20,
+                        'sma_50': current_sma_50,
+                        'current_price': current_price
+                    }
+                    
+                    if current_price > current_sma_20 and current_sma_20 > current_sma_50:
+                        symbol_analysis['signals']['sma'] = 'Bullish'
+                        symbol_signals.append('bullish')
+                    elif current_price < current_sma_20 and current_sma_20 < current_sma_50:
+                        symbol_analysis['signals']['sma'] = 'Bearish'
+                        symbol_signals.append('bearish')
+                    else:
+                        symbol_analysis['signals']['sma'] = 'Neutral'
+                        symbol_signals.append('neutral')
+                
+                # EMA Calculation
+                if 'EMA' in indicators:
+                    ema_12 = prices.ewm(span=12).mean()
+                    ema_26 = prices.ewm(span=26).mean()
+                    
+                    current_ema_12 = float(ema_12.iloc[-1])
+                    current_ema_26 = float(ema_26.iloc[-1])
+                    
+                    # Validate all values are real
+                    if pd.isna(current_ema_12) or pd.isna(current_ema_26):
+                        continue  # Skip this symbol if calculations failed
+                    
+                    symbol_analysis['values']['ema'] = {
+                        'ema_12': current_ema_12,
+                        'ema_26': current_ema_26,
+                        'current_price': current_price
+                    }
+                    
+                    if current_price > current_ema_12 and current_ema_12 > current_ema_26:
+                        symbol_analysis['signals']['ema'] = 'Bullish'
+                        symbol_signals.append('bullish')
+                    elif current_price < current_ema_12 and current_ema_12 < current_ema_26:
+                        symbol_analysis['signals']['ema'] = 'Bearish'
+                        symbol_signals.append('bearish')
+                    else:
+                        symbol_analysis['signals']['ema'] = 'Neutral'
                         symbol_signals.append('neutral')
                 
                 # Overall signal for this symbol

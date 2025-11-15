@@ -9,81 +9,75 @@ class TechnicalAnalyzer:
         self.data_client = data_client
     
     def calculate_rsi(self, prices: pd.Series, period: int = 14) -> float:
-        """Calculate RSI (Relative Strength Index)"""
-        try:
-            if len(prices) < period + 1:
-                return 50.0
-            
-            delta = prices.diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-            
-            # Avoid division by zero
-            loss = loss.replace(0, 0.0001)
-            
-            rs = gain / loss
-            rsi = 100 - (100 / (1 + rs))
-            
-            final_rsi = rsi.iloc[-1] if not pd.isna(rsi.iloc[-1]) else 50.0
-            return float(final_rsi)
-        except Exception:
-            return 50.0
+        """Calculate RSI (Relative Strength Index) - NO FALLBACK DATA"""
+        if len(prices) < period + 1:
+            raise ValueError(f"Insufficient data for RSI calculation: need {period + 1}, got {len(prices)}")
+        
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        
+        # Avoid division by zero
+        loss = loss.replace(0, 0.0001)
+        
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        
+        final_rsi = rsi.iloc[-1]
+        if pd.isna(final_rsi):
+            raise ValueError("RSI calculation resulted in NaN - insufficient real market data")
+        
+        return float(final_rsi)
     
     def calculate_macd(self, prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> str:
-        """Calculate MACD signal"""
-        try:
-            if len(prices) < slow + signal:
-                return "Neutral"
-            
-            ema_fast = prices.ewm(span=fast).mean()
-            ema_slow = prices.ewm(span=slow).mean()
-            macd_line = ema_fast - ema_slow
-            signal_line = macd_line.ewm(span=signal).mean()
-            
-            current_macd = macd_line.iloc[-1]
-            current_signal = signal_line.iloc[-1]
-            
-            if pd.isna(current_macd) or pd.isna(current_signal):
-                return "Neutral"
-            
-            if current_macd > current_signal:
-                return "Bullish"
-            elif current_macd < current_signal:
-                return "Bearish"
-            else:
-                return "Neutral"
-        except Exception:
+        """Calculate MACD signal - NO FALLBACK DATA"""
+        if len(prices) < slow + signal:
+            raise ValueError(f"Insufficient data for MACD calculation: need {slow + signal}, got {len(prices)}")
+        
+        ema_fast = prices.ewm(span=fast).mean()
+        ema_slow = prices.ewm(span=slow).mean()
+        macd_line = ema_fast - ema_slow
+        signal_line = macd_line.ewm(span=signal).mean()
+        
+        current_macd = macd_line.iloc[-1]
+        current_signal = signal_line.iloc[-1]
+        
+        if pd.isna(current_macd) or pd.isna(current_signal):
+            raise ValueError("MACD calculation resulted in NaN - insufficient real market data")
+        
+        if current_macd > current_signal:
+            return "Bullish"
+        elif current_macd < current_signal:
+            return "Bearish"
+        else:
             return "Neutral"
     
     def calculate_bollinger_position(self, prices: pd.Series, period: int = 20, std_dev: int = 2) -> str:
-        """Calculate Bollinger Bands position"""
-        try:
-            if len(prices) < period:
-                return "Middle Range"
-            
-            ma = prices.rolling(window=period).mean()
-            std = prices.rolling(window=period).std()
-            upper_band = ma + (std * std_dev)
-            lower_band = ma - (std * std_dev)
-            
-            current_price = prices.iloc[-1]
-            current_upper = upper_band.iloc[-1]
-            current_lower = lower_band.iloc[-1]
-            current_ma = ma.iloc[-1]
-            
-            if pd.isna(current_price) or pd.isna(current_upper) or pd.isna(current_lower) or pd.isna(current_ma):
-                return "Middle Range"
-            
-            if current_price > current_upper:
-                return "Above Upper Band"
-            elif current_price < current_lower:
-                return "Below Lower Band"
-            elif current_price > current_ma:
-                return "Above Middle"
-            else:
-                return "Below Middle"
-        except Exception:
-            return "Middle Range"
+        """Calculate Bollinger Bands position - NO FALLBACK DATA"""
+        if len(prices) < period:
+            raise ValueError(f"Insufficient data for Bollinger Bands calculation: need {period}, got {len(prices)}")
+        
+        ma = prices.rolling(window=period).mean()
+        std = prices.rolling(window=period).std()
+        upper_band = ma + (std * std_dev)
+        lower_band = ma - (std * std_dev)
+        
+        current_price = prices.iloc[-1]
+        current_upper = upper_band.iloc[-1]
+        current_lower = lower_band.iloc[-1]
+        current_ma = ma.iloc[-1]
+        
+        if pd.isna(current_price) or pd.isna(current_upper) or pd.isna(current_lower) or pd.isna(current_ma):
+            raise ValueError("Bollinger Bands calculation resulted in NaN - insufficient real market data")
+        
+        if current_price > current_upper:
+            return "Above Upper Band"
+        elif current_price < current_lower:
+            return "Below Lower Band"
+        elif current_price > current_ma:
+            return "Above Middle"
+        else:
+            return "Below Middle"
     
     def analyze_portfolio_technical(self, symbols: List[str], weights: Dict[str, float]) -> Dict:
         """Analyze technical indicators for portfolio using real market data"""
@@ -103,14 +97,7 @@ class TechnicalAnalyzer:
                     continue
             
             if price_data is None or price_data.empty:
-                logger.warning("No market data available - returning default values")
-                return {
-                    'rsi_14': 50.0,
-                    'macd_signal': 'Neutral',
-                    'bollinger_position': 'Middle Range',
-                    'momentum_score': 0.0,
-                    'bollinger_score': 0.0
-                }
+                raise ValueError("No real market data available for technical analysis")
             
             valid_symbols = []
             for symbol in symbols:
@@ -125,14 +112,7 @@ class TechnicalAnalyzer:
                     logger.warning(f"No data found for {symbol}")
             
             if not valid_symbols:
-                logger.warning("No symbols have sufficient data - returning default values")
-                return {
-                    'rsi_14': 50.0,
-                    'macd_signal': 'Neutral',
-                    'bollinger_position': 'Middle Range',
-                    'momentum_score': 0.0,
-                    'bollinger_score': 0.0
-                }
+                raise ValueError("No symbols have sufficient real market data for technical analysis")
             
             weighted_rsi = 0.0
             portfolio_momentum = 0.0
@@ -167,14 +147,7 @@ class TechnicalAnalyzer:
                     continue
             
             if total_weight == 0:
-                logger.warning("No valid weighted positions - returning default values")
-                return {
-                    'rsi_14': 50.0,
-                    'macd_signal': 'Neutral',
-                    'bollinger_position': 'Middle Range',
-                    'momentum_score': 0.0,
-                    'bollinger_score': 0.0
-                }
+                raise ValueError("No valid weighted positions with sufficient real market data")
             
             weighted_rsi = weighted_rsi / total_weight
             portfolio_momentum = portfolio_momentum / total_weight
@@ -196,11 +169,4 @@ class TechnicalAnalyzer:
             
         except Exception as e:
             logger.error(f"Technical analysis failed: {e}")
-            # Return default values instead of raising exception
-            return {
-                'rsi_14': 50.0,
-                'macd_signal': 'Neutral',
-                'bollinger_position': 'Middle Range',
-                'momentum_score': 0.0,
-                'bollinger_score': 0.0
-            }
+            raise ValueError(f"Technical analysis failed with real market data: {e}")

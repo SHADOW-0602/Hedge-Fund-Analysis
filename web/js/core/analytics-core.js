@@ -3,7 +3,7 @@ class AnalyticsCore {
     constructor() {
         this.portfolioData = null;
         this.transactionData = null;
-        this.apiBase = window.API_BASE || 'http://127.0.0.1:8080';
+        this.apiBase = window.API_BASE || window.location.origin;
     }
 
     // Generic API call handler
@@ -11,11 +11,14 @@ class AnalyticsCore {
         try {
             console.log(`Making API call to ${endpoint} with data:`, data);
             console.log(`Making API call to ${endpoint} with options:`, options);
-            const requestBody = { ...data, ...options, options };
+            const requestBody = { ...data, options };
             console.log(`Final request body for ${endpoint}:`, requestBody);
-            const response = await fetch(`${this.apiBase}/api/${endpoint}`, {
+            const response = await fetch(`${this.apiBase}/api/${endpoint}?t=${Date.now()}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache'
+                },
                 body: JSON.stringify(requestBody)
             });
             const result = await response.json();

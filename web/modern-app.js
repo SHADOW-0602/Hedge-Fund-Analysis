@@ -4,7 +4,7 @@ let portfolioData = null;
 let plaidHandler = null;
 let userPortfolios = [];
 
-const API_BASE = 'http://127.0.0.1:8080/api';
+const API_BASE = `${window.location.origin}/api`;
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function() {
@@ -508,6 +508,23 @@ async function portfolioOptimization() {
 
 async function sectorAnalysis() {
     showError('Sector analysis not yet implemented');
+}
+
+// Strategy Backtesting
+async function strategyBacktesting() {
+    console.log('Strategy backtesting button clicked');
+    
+    if (!portfolioData || portfolioData.length === 0) {
+        showError('Please upload a portfolio first');
+        return;
+    }
+    
+    // Show backtesting settings interface
+    if (window.backtestingManager) {
+        window.backtestingManager.showBacktestingSettings();
+    } else {
+        showError('Backtesting module not loaded');
+    }
 }
 
 async function analyzeTradePerformance() {
