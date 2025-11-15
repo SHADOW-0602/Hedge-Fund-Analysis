@@ -1,11 +1,22 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from clients.market_data_client import MarketDataClient
+from scipy import stats
+import warnings
+warnings.filterwarnings('ignore')
 
 class StatisticalAnalyzer:
     def __init__(self, data_client: MarketDataClient):
         self.data_client = data_client
+        self.benchmarks = {
+            'SPY': 'S&P 500',
+            'QQQ': 'NASDAQ 100', 
+            'IWM': 'Russell 2000',
+            'VTI': 'Total Stock Market',
+            'EFA': 'International Developed',
+            'EEM': 'Emerging Markets'
+        }
     
     def correlation_analysis(self, symbols: List[str], period: str = "3mo") -> Dict:
         """Real market data correlation analysis - NO FALLBACK DATA"""
@@ -124,6 +135,233 @@ class StatisticalAnalyzer:
             return {'clusters': clusters}
         except Exception:
             return {'clusters': {1: symbols}}
+    
+    def advanced_statistical_analysis(self, symbols: List[str], weights: Dict[str, float] = None, 
+                                    lookback_period: str = '1Y', frequency: str = 'Daily',
+                                    benchmark: str = 'SPY', confidence_level: float = 0.95) -> Dict:
+        """Advanced statistical analysis with interactive parameters"""
+        try:
+            # Convert parameters
+            period_map = {'3M': '3mo', '6M': '6mo', '1Y': '1y', '2Y': '2y', '3Y': '3y'}
+            period = period_map.get(lookback_period, '1y')
+            
+            # Get market data
+            all_symbols = symbols + [benchmark] if benchmark not in symbols else symbols
+            price_data = self.data_client.get_price_data(all_symbols, period)
+            
+            if price_data is None or price_data.empty:
+                return {'error': 'No market data available'}
+            
+            # Resample based on frequency
+            if frequency == 'Weekly':
+                price_data = price_data.resample('W').last()
+            elif frequency == 'Monthly':
+                price_data = price_data.resample('M').last()
+            
+            # Calculate returns
+            returns = price_data.pct_change().dropna()
+            if returns.empty:
+                return {'error': 'Insufficient return data'}
+            
+            # Portfolio returns if weights provided
+            portfolio_returns = None
+            if weights:
+                portfolio_returns = (returns[symbols] * pd.Series(weights)).sum(axis=1)
+            
+            # Benchmark returns
+            benchmark_returns = returns[benchmark] if benchmark in returns.columns else None
+            
+            results = {
+                'parameters': {
+                    'lookback_period': lookback_period,
+                    'frequency': frequency,
+                    'benchmark': f"{benchmark} ({self.benchmarks.get(benchmark, 'Custom')})",
+                    'confidence_level': confidence_level,
+                    'data_points': len(returns)
+                },
+                'correlation_analysis': self._calculate_correlations(returns[symbols], confidence_level),
+                'risk_metrics': self._calculate_risk_metrics(returns[symbols], confidence_level, frequency),
+                'performance_metrics': self._calculate_performance_metrics(returns[symbols], benchmark_returns, confidence_level, frequency)
+            }
+            
+            # Add portfolio-specific metrics if weights provided
+            if portfolio_returns is not None and benchmark_returns is not None:
+                results['portfolio_metrics'] = self._calculate_portfolio_metrics(
+                    portfolio_returns, benchmark_returns, confidence_level, frequency
+                )
+            
+            return results
+            
+        except Exception as e:
+            return {'error': f'Statistical analysis failed: {str(e)}'}
+    
+    def _calculate_correlations(self, returns: pd.DataFrame, confidence_level: float) -> Dict:
+        """Calculate correlation matrix with confidence intervals"""
+        corr_matrix = returns.corr()
+        n = len(returns)
+        
+        # Calculate confidence intervals for correlations
+        z_score = stats.norm.ppf((1 + confidence_level) / 2)
+        
+        correlations = {}
+        for i, symbol1 in enumerate(corr_matrix.columns):
+            for j, symbol2 in enumerate(corr_matrix.columns):
+                if i < j:  # Only upper triangle
+                    r = corr_matrix.loc[symbol1, symbol2]
+                    if not np.isnan(r):
+                        # Fisher transformation for confidence interval
+                        z_r = 0.5 * np.log((1 + r) / (1 - r))
+                        se = 1 / np.sqrt(n - 3)
+                        z_lower = z_r - z_score * se
+                        z_upper = z_r + z_score * se
+                        
+                        # Transform back
+                        r_lower = (np.exp(2 * z_lower) - 1) / (np.exp(2 * z_lower) + 1)
+                        r_upper = (np.exp(2 * z_upper) - 1) / (np.exp(2 * z_upper) + 1)
+                        
+                        correlations[f"{symbol1}-{symbol2}"] = {
+                            'correlation': float(r),
+                            'confidence_interval': [float(r_lower), float(r_upper)],
+                            'significant': abs(r_lower) > 0 or abs(r_upper) > 0
+                        }
+        
+        return {
+            'matrix': corr_matrix.to_dict(),
+            'pairs': correlations,
+            'average_correlation': float(np.nanmean(corr_matrix.values))
+        }
+    
+    def _calculate_risk_metrics(self, returns: pd.DataFrame, confidence_level: float, frequency: str = 'Daily') -> Dict:
+        """Calculate comprehensive risk metrics"""
+        metrics = {}
+        
+        for symbol in returns.columns:
+            symbol_returns = returns[symbol].dropna()
+            # Adjust minimum data requirements based on frequency
+            min_required = 10 if frequency == 'Daily' else 6 if frequency == 'Weekly' else 3
+            if len(symbol_returns) < min_required:
+                continue
+                
+            # Basic statistics
+            mean_return = float(symbol_returns.mean())
+            volatility = float(symbol_returns.std())
+            skewness = float(symbol_returns.skew())
+            kurtosis = float(symbol_returns.kurtosis())
+            
+            # VaR and CVaR
+            var = float(symbol_returns.quantile(1 - confidence_level))
+            cvar = float(symbol_returns[symbol_returns <= var].mean())
+            
+            # Sharpe ratio (assuming risk-free rate of 4%)
+            risk_free_rate = 0.04 / 252  # Daily risk-free rate
+            excess_return = mean_return - risk_free_rate
+            sharpe = float(excess_return / volatility) if volatility > 0 else 0
+            
+            # Handle NaN/inf values
+            if np.isnan(sharpe) or np.isinf(sharpe):
+                sharpe = 0.0
+            
+            # Maximum drawdown
+            cumulative = (1 + symbol_returns).cumprod()
+            running_max = cumulative.expanding().max()
+            drawdown = (cumulative - running_max) / running_max
+            max_drawdown = float(drawdown.min())
+            
+            metrics[symbol] = {
+                'mean_return': mean_return,
+                'volatility': volatility,
+                'sharpe_ratio': sharpe,
+                'skewness': skewness,
+                'kurtosis': kurtosis,
+                'var': var,
+                'cvar': cvar,
+                'max_drawdown': max_drawdown
+            }
+        
+        return metrics
+    
+    def _calculate_performance_metrics(self, returns: pd.DataFrame, benchmark_returns: pd.Series, confidence_level: float, frequency: str = 'Daily') -> Dict:
+        """Calculate performance metrics vs benchmark"""
+        if benchmark_returns is None:
+            return {}
+        
+        metrics = {}
+        
+        for symbol in returns.columns:
+            symbol_returns = returns[symbol].dropna()
+            aligned_benchmark = benchmark_returns.reindex(symbol_returns.index).dropna()
+            aligned_symbol = symbol_returns.reindex(aligned_benchmark.index).dropna()
+            
+            # Adjust minimum data requirements based on frequency
+            min_required = 10 if frequency == 'Daily' else 6 if frequency == 'Weekly' else 3
+            if len(aligned_symbol) < min_required or len(aligned_benchmark) < min_required:
+                continue
+            
+            # Beta calculation
+            covariance = np.cov(aligned_symbol, aligned_benchmark)[0, 1]
+            benchmark_variance = np.var(aligned_benchmark)
+            beta = float(covariance / benchmark_variance) if benchmark_variance > 0 else 0
+            
+            # Alpha calculation (CAPM)
+            risk_free_rate = 0.04 / 252
+            expected_return = risk_free_rate + beta * (aligned_benchmark.mean() - risk_free_rate)
+            alpha = float(aligned_symbol.mean() - expected_return)
+            
+            # R-squared
+            correlation = np.corrcoef(aligned_symbol, aligned_benchmark)[0, 1]
+            r_squared = float(correlation ** 2) if not np.isnan(correlation) else 0
+            
+            # Tracking error
+            tracking_error = float((aligned_symbol - aligned_benchmark).std())
+            
+            # Information ratio
+            excess_returns = aligned_symbol - aligned_benchmark
+            information_ratio = float(excess_returns.mean() / excess_returns.std()) if excess_returns.std() > 0 else 0
+            
+            metrics[symbol] = {
+                'beta': beta,
+                'alpha': alpha,
+                'r_squared': r_squared,
+                'tracking_error': tracking_error,
+                'information_ratio': information_ratio,
+                'correlation_with_benchmark': float(correlation) if not np.isnan(correlation) else 0
+            }
+        
+        return metrics
+    
+    def _calculate_portfolio_metrics(self, portfolio_returns: pd.Series, benchmark_returns: pd.Series, confidence_level: float, frequency: str = 'Daily') -> Dict:
+        """Calculate portfolio-level metrics"""
+        aligned_portfolio = portfolio_returns.dropna()
+        aligned_benchmark = benchmark_returns.reindex(aligned_portfolio.index).dropna()
+        aligned_portfolio = aligned_portfolio.reindex(aligned_benchmark.index).dropna()
+        
+        # Adjust minimum data requirements based on frequency
+        min_required = 10 if frequency == 'Daily' else 6 if frequency == 'Weekly' else 3
+        if len(aligned_portfolio) < min_required:
+            return {}
+        
+        # Portfolio beta
+        covariance = np.cov(aligned_portfolio, aligned_benchmark)[0, 1]
+        benchmark_variance = np.var(aligned_benchmark)
+        portfolio_beta = float(covariance / benchmark_variance) if benchmark_variance > 0 else 0
+        
+        # Portfolio alpha
+        risk_free_rate = 0.04 / 252
+        expected_return = risk_free_rate + portfolio_beta * (aligned_benchmark.mean() - risk_free_rate)
+        portfolio_alpha = float(aligned_portfolio.mean() - expected_return)
+        
+        # Portfolio R-squared
+        correlation = np.corrcoef(aligned_portfolio, aligned_benchmark)[0, 1]
+        portfolio_r_squared = float(correlation ** 2) if not np.isnan(correlation) else 0
+        
+        return {
+            'portfolio_beta': portfolio_beta,
+            'portfolio_alpha': portfolio_alpha,
+            'portfolio_r_squared': portfolio_r_squared,
+            'portfolio_sharpe': float((aligned_portfolio.mean() - risk_free_rate) / aligned_portfolio.std()) if aligned_portfolio.std() > 0 else 0,
+            'portfolio_volatility': float(aligned_portfolio.std()),
+            'excess_return': float(aligned_portfolio.mean() - aligned_benchmark.mean())
+        }
     
     def comprehensive_analysis(self, symbols: List[str], weights: Dict[str, float]) -> Dict:
         """Comprehensive statistical analysis with all metrics"""

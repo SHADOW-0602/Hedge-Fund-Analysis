@@ -1428,11 +1428,17 @@ class AnalyticsManager {
         if (!container) return;
 
         container.classList.remove('hidden');
-        const statistics = result.statistics || {};
-        const portfolioStats = statistics.portfolio_statistics || {};
-        const riskMetrics = statistics.risk_metrics || {};
-        const performanceMetrics = statistics.performance_metrics || {};
-        const summary = statistics.summary || {};
+        const analysis = result.statistical_analysis || result.analysis || {};
+        const portfolioStats = analysis.parameters || {};
+        const riskMetrics = analysis.risk_metrics || {};
+        const performanceMetrics = analysis.performance_metrics || {};
+        const correlationAnalysis = analysis.correlation_analysis || {};
+
+        // Get current settings
+        const currentLookback = options?.lookback_period || 252;
+        const currentFrequency = options?.frequency || 'daily';
+        const currentBenchmark = options?.benchmark || 'SPY';
+        const currentConfidence = options?.confidence_level || 0.95;
 
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
@@ -1455,66 +1461,161 @@ class AnalyticsManager {
                 </div>
             </div>
             
+            <!-- Statistical Analysis Settings Panel -->
+            <div id="statisticalSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Lookback Period</label>
+                        <select id="statisticalLookback" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateStatisticalAnalysis()">
+                            <option value="63" ${currentLookback == 63 ? 'selected' : ''}>3 Months</option>
+                            <option value="126" ${currentLookback == 126 ? 'selected' : ''}>6 Months</option>
+                            <option value="252" ${currentLookback == 252 ? 'selected' : ''}>1 Year</option>
+                            <option value="504" ${currentLookback == 504 ? 'selected' : ''}>2 Years</option>
+                            <option value="756" ${currentLookback == 756 ? 'selected' : ''}>3 Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select id="statisticalFrequency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateStatisticalAnalysis()">
+                            <option value="daily" ${currentFrequency === 'daily' ? 'selected' : ''}>Daily</option>
+                            <option value="weekly" ${currentFrequency === 'weekly' ? 'selected' : ''}>Weekly</option>
+                            <option value="monthly" ${currentFrequency === 'monthly' ? 'selected' : ''}>Monthly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                        <select id="statisticalBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateStatisticalAnalysis()">
+                            <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
+                            <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>NASDAQ 100 (QQQ)</option>
+                            <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
+                            <option value="VTI" ${currentBenchmark === 'VTI' ? 'selected' : ''}>Total Stock Market (VTI)</option>
+                            <option value="EFA" ${currentBenchmark === 'EFA' ? 'selected' : ''}>International Developed (EFA)</option>
+                            <option value="EEM" ${currentBenchmark === 'EEM' ? 'selected' : ''}>Emerging Markets (EEM)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Confidence Level</label>
+                        <select id="statisticalConfidence" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateStatisticalAnalysis()">
+                            <option value="0.90" ${currentConfidence === 0.90 ? 'selected' : ''}>90%</option>
+                            <option value="0.95" ${currentConfidence === 0.95 ? 'selected' : ''}>95%</option>
+                            <option value="0.99" ${currentConfidence === 0.99 ? 'selected' : ''}>99%</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
             <div class="space-y-6">
                 <!-- Portfolio Statistics -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="space-y-3">
-                        <h4 class="section-header">Portfolio Statistics</h4>
+                <div class="details-box">
+                    <h4 class="section-header">Portfolio Statistics</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div class="metric-row">
-                            <span class="metric-label">Benchmark Correlation</span>
-                            <span class="metric-value ${(portfolioStats.benchmark_correlation || 0) > 0.7 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(portfolioStats.benchmark_correlation || 0)}</span>
+                            <span class="metric-label">Total Symbols</span>
+                            <span class="metric-value ${Math.max(Object.keys(riskMetrics).length, Object.keys(performanceMetrics).length) === 0 ? 'negative' : 'neutral'}">${Math.max(Object.keys(riskMetrics).length, Object.keys(performanceMetrics).length) || 'Insufficient Data'}</span>
                         </div>
                         <div class="metric-row">
-                            <span class="metric-label">Beta</span>
-                            <span class="metric-value ${(portfolioStats.beta || 0) > 1.2 ? 'negative' : (portfolioStats.beta || 0) < 0.8 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(portfolioStats.beta || 0)}</span>
+                            <span class="metric-label">Data Points</span>
+                            <span class="metric-value neutral">${Math.round(portfolioStats.data_points) || 'N/A'}</span>
                         </div>
                         <div class="metric-row">
-                            <span class="metric-label">Alpha</span>
-                            <span class="metric-value ${(portfolioStats.alpha || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(portfolioStats.alpha || 0)}</span>
+                            <span class="metric-label">Period</span>
+                            <span class="metric-value neutral">${portfolioStats.converted_period || portfolioStats.lookback_period || (currentLookback + ' days')}</span>
                         </div>
                         <div class="metric-row">
-                            <span class="metric-label">R-Squared</span>
-                            <span class="metric-value neutral">${window.analyticsCore.formatNumber(portfolioStats.r_squared || 0)}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="space-y-3">
-                        <h4 class="section-header">Risk Metrics</h4>
-                        <div class="metric-row">
-                            <span class="metric-label">Portfolio Volatility</span>
-                            <span class="metric-value ${(riskMetrics.portfolio_volatility || 0) > 0.3 ? 'negative' : 'neutral'}">${window.analyticsCore.formatPercent(riskMetrics.portfolio_volatility || 0)}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">Benchmark Volatility</span>
-                            <span class="metric-value neutral">${window.analyticsCore.formatPercent(riskMetrics.benchmark_volatility || 0)}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">Tracking Error</span>
-                            <span class="metric-value ${(riskMetrics.tracking_error || 0) > 0.1 ? 'negative' : 'neutral'}">${window.analyticsCore.formatPercent(riskMetrics.tracking_error || 0)}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">Information Ratio</span>
-                            <span class="metric-value ${(riskMetrics.information_ratio || 0) > 0.5 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(riskMetrics.information_ratio || 0)}</span>
+                            <span class="metric-label">Frequency</span>
+                            <span class="metric-value neutral">${portfolioStats.frequency || currentFrequency}</span>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Performance Metrics -->
-                <div class="details-box">
-                    <h4 class="section-header">Performance Metrics</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="metric-row">
-                            <span class="metric-label">Annualized Return</span>
-                            <span class="metric-value ${(performanceMetrics.annualized_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent(performanceMetrics.annualized_return || 0)}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">Annualized Volatility</span>
-                            <span class="metric-value neutral">${window.analyticsCore.formatPercent(performanceMetrics.annualized_volatility || 0)}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span class="metric-label">Sharpe Ratio</span>
-                            <span class="metric-value ${(performanceMetrics.sharpe_ratio || 0) > 1 ? 'positive' : 'neutral'}">${window.analyticsCore.formatNumber(performanceMetrics.sharpe_ratio || 0)}</span>
-                        </div>
+                <!-- Risk Metrics -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-3">
+                        <h4 class="section-header">Risk Metrics</h4>
+                        ${Object.keys(riskMetrics).length > 0 ? (() => {
+                            const firstSymbol = Object.keys(riskMetrics)[0];
+                            const metrics = riskMetrics[firstSymbol];
+                            return `
+                                <div class="metric-row">
+                                    <span class="metric-label">Volatility (${firstSymbol})</span>
+                                    <span class="metric-value ${(metrics.volatility || 0) > 0.3 ? 'negative' : 'neutral'}">${metrics.volatility ? window.analyticsCore.formatPercent(metrics.volatility) : 'N/A'}</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">VaR (${(currentConfidence * 100).toFixed(0)}%)</span>
+                                    <span class="metric-value negative">${metrics.var ? window.analyticsCore.formatPercent(Math.abs(metrics.var)) : 'N/A'}</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">CVaR (${(currentConfidence * 100).toFixed(0)}%)</span>
+                                    <span class="metric-value negative">${metrics.cvar ? window.analyticsCore.formatPercent(Math.abs(metrics.cvar)) : 'N/A'}</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Max Drawdown</span>
+                                    <span class="metric-value negative">${metrics.max_drawdown ? window.analyticsCore.formatPercent(Math.abs(metrics.max_drawdown)) : 'N/A'}</span>
+                                </div>
+                            `;
+                        })() : `
+                            <div class="metric-row">
+                                <span class="metric-label">Volatility</span>
+                                <span class="metric-value neutral">N/A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">VaR (${(currentConfidence * 100).toFixed(0)}%)</span>
+                                <span class="metric-value negative">N/A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">CVaR (${(currentConfidence * 100).toFixed(0)}%)</span>
+                                <span class="metric-value negative">N/A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Max Drawdown</span>
+                                <span class="metric-value negative">N/A</span>
+                            </div>
+                        `}
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <h4 class="section-header">Performance Metrics</h4>
+                        ${Object.keys(performanceMetrics).length > 0 ? (() => {
+                            const firstSymbol = Object.keys(performanceMetrics)[0];
+                            const metrics = performanceMetrics[firstSymbol];
+                            // Get Sharpe ratio from risk metrics if not in performance metrics
+                            const sharpeRatio = metrics.sharpe_ratio || (riskMetrics[firstSymbol] && riskMetrics[firstSymbol].sharpe_ratio);
+                            return `
+                                <div class="metric-row">
+                                    <span class="metric-label">Sharpe Ratio (${firstSymbol})</span>
+                                    <span class="metric-value ${(sharpeRatio || 0) > 1 ? 'positive' : (sharpeRatio || 0) > 0 ? 'neutral' : 'negative'}">${sharpeRatio !== null && sharpeRatio !== undefined && !isNaN(sharpeRatio) ? window.analyticsCore.formatNumber(sharpeRatio) : 'N/A'}</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Beta (vs ${currentBenchmark})</span>
+                                    <span class="metric-value ${(metrics.beta || 0) > 1.2 ? 'negative' : (metrics.beta || 0) < 0.8 ? 'positive' : 'neutral'}">${metrics.beta !== null && metrics.beta !== undefined ? window.analyticsCore.formatNumber(metrics.beta) : 'N/A'}</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Alpha</span>
+                                    <span class="metric-value ${(metrics.alpha || 0) > 0 ? 'positive' : 'negative'}">${metrics.alpha !== null && metrics.alpha !== undefined ? window.analyticsCore.formatPercent(metrics.alpha) : 'N/A'}</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">R-Squared</span>
+                                    <span class="metric-value neutral">${metrics.r_squared !== null && metrics.r_squared !== undefined ? window.analyticsCore.formatPercent(metrics.r_squared) : 'N/A'}</span>
+                                </div>
+                            `;
+                        })() : `
+                            <div class="metric-row">
+                                <span class="metric-label">Sharpe Ratio</span>
+                                <span class="metric-value neutral">N/A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Beta (vs ${currentBenchmark})</span>
+                                <span class="metric-value neutral">N/A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Alpha</span>
+                                <span class="metric-value neutral">N/A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">R-Squared</span>
+                                <span class="metric-value neutral">N/A</span>
+                            </div>
+                        `}
                     </div>
                 </div>
                 
@@ -1522,15 +1623,30 @@ class AnalyticsManager {
                 <div class="details-box">
                     <h4 class="section-header">Analysis Summary</h4>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div><span class="detail-label">Lookback Period:</span> <span class="detail-value">${summary.lookback_period || 'N/A'}</span></div>
-                        <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${summary.benchmark || 'N/A'}</span></div>
-                        <div><span class="detail-label">Confidence Level:</span> <span class="detail-value">${summary.confidence_level || 'N/A'}%</span></div>
-                        <div><span class="detail-label">Data Points:</span> <span class="detail-value">${summary.data_points || 'N/A'}</span></div>
+                        <div><span class="detail-label">Lookback:</span> <span class="detail-value">${currentLookback} days</span></div>
+                        <div><span class="detail-label">Frequency:</span> <span class="detail-value">${currentFrequency}</span></div>
+                        <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${currentBenchmark}</span></div>
+                        <div><span class="detail-label">Confidence:</span> <span class="detail-value">${(currentConfidence * 100).toFixed(0)}%</span></div>
                     </div>
+                    ${(portfolioStats.data_points && portfolioStats.data_points < 10) ? `
+                        <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                <div>
+                                    <p class="text-sm font-medium text-yellow-800">Insufficient Data Warning</p>
+                                    <p class="text-xs text-yellow-700 mt-1">Only ${Math.round(portfolioStats.data_points)} data points available. Consider using a longer lookback period or higher frequency (daily) for more reliable analysis.</p>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
             </div>
         `;
     }
+
+
 
     displayTechnicalIndicators(result, options) {
         const container = document.getElementById('analysisContent');
@@ -2413,6 +2529,146 @@ window.updateSectorAllocation = () => {
     window.analyticsManager.loadModule('sector-allocation');
 };
 
+// Statistical Analysis Modal Functions
+window.showStatisticalSettings = () => {
+    // Create settings modal
+    let settingsModal = document.getElementById('statisticalSettingsModal');
+    if (!settingsModal) {
+        settingsModal = document.createElement('div');
+        settingsModal.id = 'statisticalSettingsModal';
+        settingsModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        settingsModal.style.display = 'none';
+        document.body.appendChild(settingsModal);
+    }
+
+    settingsModal.innerHTML = `
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900">Statistical Analysis Settings</h3>
+                <button onclick="closeStatisticalSettingsModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Lookback Period</label>
+                        <select id="lookbackPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="63">3 Months</option>
+                            <option value="126">6 Months</option>
+                            <option value="252" selected>1 Year</option>
+                            <option value="504">2 Years</option>
+                            <option value="756">3 Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Frequency</label>
+                        <select id="frequency" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="daily" selected>Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Benchmark</label>
+                        <select id="benchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="SPY" selected>S&P 500 (SPY)</option>
+                            <option value="QQQ">NASDAQ 100 (QQQ)</option>
+                            <option value="IWM">Russell 2000 (IWM)</option>
+                            <option value="VTI">Total Stock Market (VTI)</option>
+                            <option value="EFA">International Developed (EFA)</option>
+                            <option value="EEM">Emerging Markets (EEM)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Confidence Level</label>
+                        <select id="confidenceLevel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="0.90">90%</option>
+                            <option value="0.95" selected>95%</option>
+                            <option value="0.99">99%</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button onclick="closeStatisticalSettingsModal()" class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">
+                        Cancel
+                    </button>
+                    <button onclick="runStatisticalAnalysisWithSettings()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+                        Run Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    settingsModal.style.display = 'flex';
+};
+
+window.closeStatisticalSettingsModal = () => {
+    const modal = document.getElementById('statisticalSettingsModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+};
+
+window.closeStatisticalModal = () => {
+    const modal = document.getElementById('statisticalModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+};
+
+window.refreshStatisticalAnalysis = () => {
+    window.runStatisticalAnalysisWithSettings();
+};
+
+window.runStatisticalAnalysisWithSettings = async () => {
+    const lookbackPeriod = document.getElementById('lookbackPeriod')?.value || 252;
+    const frequency = document.getElementById('frequency')?.value || 'daily';
+    const benchmark = document.getElementById('benchmark')?.value || 'SPY';
+    const confidenceLevel = parseFloat(document.getElementById('confidenceLevel')?.value || 0.95);
+
+    // Close settings modal
+    window.closeStatisticalSettingsModal();
+
+    // Get portfolio data
+    const portfolioData = window.analyticsCore?.portfolioData || [];
+    if (!portfolioData || portfolioData.length === 0) {
+        alert('Please upload a portfolio first');
+        return;
+    }
+
+    try {
+        const response = await fetch('http://127.0.0.1:8080/api/statistical-analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                portfolio: portfolioData,
+                lookback_period: parseInt(lookbackPeriod),
+                frequency: frequency,
+                benchmark: benchmark,
+                confidence_level: confidenceLevel
+            })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            window.analyticsManager.displayStatisticalAnalysis(data, {
+                lookback_period: lookbackPeriod,
+                frequency: frequency,
+                benchmark: benchmark,
+                confidence_level: confidenceLevel
+            });
+        } else {
+            alert('Statistical analysis failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Failed to run statistical analysis: ' + error.message);
+    }
+};
+
 // Statistical Analysis Settings
 window.toggleStatisticalSettings = () => {
     const settings = document.getElementById('statisticalSettings');
@@ -2421,8 +2677,87 @@ window.toggleStatisticalSettings = () => {
     }
 };
 
-window.updateStatisticalAnalysis = () => {
-    window.analyticsManager.loadModule('statistical-analysis');
+window.updateStatisticalAnalysis = async () => {
+    const lookback = parseInt(document.getElementById('statisticalLookback')?.value) || 252;
+    const frequency = document.getElementById('statisticalFrequency')?.value || 'daily';
+    const benchmark = document.getElementById('statisticalBenchmark')?.value || 'SPY';
+    const confidence = parseFloat(document.getElementById('statisticalConfidence')?.value) || 0.95;
+
+    console.log('[STATISTICAL UPDATE] New settings:', { lookback, frequency, benchmark, confidence });
+
+    // Show loading state
+    const container = document.getElementById('analysisContent');
+    if (container) {
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Statistical Analysis</h2>
+                <div class="text-gray-400">Updating...</div>
+            </div>
+            <div class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                <p class="text-gray-600">Recalculating with new parameters...</p>
+                <p class="text-sm text-gray-500 mt-2">Lookback: ${lookback} days, Frequency: ${frequency}, Benchmark: ${benchmark}</p>
+            </div>
+        `;
+    }
+
+    // Get portfolio data
+    const portfolioData = window.analyticsCore?.portfolioData || [];
+    if (!portfolioData || portfolioData.length === 0) {
+        alert('Please upload a portfolio first');
+        return;
+    }
+
+    try {
+        // Add timestamp to prevent caching
+        const response = await fetch('http://127.0.0.1:8080/api/statistical-analysis?' + Date.now(), {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            },
+            body: JSON.stringify({
+                portfolio: portfolioData,
+                options: {
+                    lookback_period: lookback,
+                    frequency: frequency,
+                    benchmark: benchmark,
+                    confidence_level: confidence
+                }
+            })
+        });
+
+        const data = await response.json();
+        console.log('[STATISTICAL UPDATE] API Response:', data);
+        
+        if (data.success) {
+            window.analyticsManager.displayStatisticalAnalysis(data, {
+                lookback_period: lookback,
+                frequency: frequency,
+                benchmark: benchmark,
+                confidence_level: confidence
+            });
+        } else {
+            if (container) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-red-600">
+                        <p class="font-semibold">Analysis Failed</p>
+                        <p class="text-sm mt-2">${data.error || 'Unknown error'}</p>
+                    </div>
+                `;
+            }
+        }
+    } catch (error) {
+        console.error('[STATISTICAL UPDATE] Error:', error);
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center py-8 text-red-600">
+                    <p class="font-semibold">Request Failed</p>
+                    <p class="text-sm mt-2">${error.message}</p>
+                </div>
+            `;
+        }
+    }
 };
 
 // Technical Analysis Settings

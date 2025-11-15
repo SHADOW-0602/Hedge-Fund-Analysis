@@ -658,3 +658,110 @@ def register_analytics_routes(app, data_client, smart_cache=None):
         except Exception as e:
             print(f"Trade timing analysis error: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/statistical-analysis', methods=['GET', 'POST'])
+    def statistical_analysis():
+        try:
+            from analytics.statistical_analysis import StatisticalAnalyzer
+            
+            # Handle both GET and POST requests
+            if request.method == 'GET':
+                # Parse query parameters for GET request
+                symbols_param = request.args.get('symbols', '')
+                symbols = [s.strip() for s in symbols_param.split(',') if s.strip()]
+                
+                # Create portfolio data from symbols
+                portfolio_data = [{'symbol': symbol, 'quantity': 100, 'avg_cost': 100} for symbol in symbols]
+                
+                # Parse options from query parameters
+                options = {
+                    'lookback_period': int(request.args.get('lookback', 252)),
+                    'frequency': request.args.get('frequency', 'daily'),
+                    'benchmark': request.args.get('benchmark', 'SPY'),
+                    'confidence_level': float(request.args.get('confidence', 0.95))
+                }
+            else:
+                # Handle POST request as before
+                data = request.get_json()
+                portfolio_data = data.get('portfolio', [])
+                options = data.get('options', {})
+            
+            if not portfolio_data:
+                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
+            
+            symbols = extract_valid_symbols(portfolio_data)
+            weights, total_value = calculate_portfolio_weights(portfolio_data)
+            
+            if not symbols:
+                return jsonify({'success': False, 'error': 'No valid symbols found'}), 400
+            
+            # Read parameters from frontend
+            lookback_days = options.get('lookback_period', 252)
+            frequency = options.get('frequency', 'daily')
+            benchmark = options.get('benchmark', 'SPY')
+            confidence_level = float(options.get('confidence_level', 0.95))
+            
+            # Convert lookback days to period format
+            if isinstance(lookback_days, int):
+                if lookback_days <= 63:
+                    lookback_period = '3M'
+                elif lookback_days <= 126:
+                    lookback_period = '6M'
+                elif lookback_days <= 252:
+                    lookback_period = '1Y'
+                elif lookback_days <= 504:
+                    lookback_period = '2Y'
+                else:
+                    lookback_period = '3Y'
+            else:
+                lookback_period = str(lookback_days)
+            
+            # Capitalize frequency for backend
+            frequency = frequency.capitalize()
+            
+            print(f"Statistical Analysis Parameters: lookback_days={lookback_days}, period={lookback_period}, frequency={frequency}, benchmark={benchmark}, confidence={confidence_level}")
+            print(f"Input symbols: {symbols}")
+            print(f"Weights: {weights}")
+            
+            # Initialize analyzer
+            analyzer = StatisticalAnalyzer(data_client)
+            
+            # Run advanced statistical analysis with converted parameters
+            results = analyzer.advanced_statistical_analysis(
+                symbols, weights, lookback_period, frequency, benchmark, confidence_level
+            )
+            
+            # Add original parameters to results for frontend display
+            if 'parameters' in results:
+                results['parameters']['original_lookback_days'] = lookback_days
+                results['parameters']['converted_period'] = lookback_period
+            
+            print(f"Analysis results keys: {list(results.keys()) if results else 'None'}")
+            if 'performance_metrics' in results:
+                print(f"Symbols in performance_metrics: {list(results['performance_metrics'].keys())}")
+            if 'risk_metrics' in results:
+                print(f"Symbols in risk_metrics: {list(results['risk_metrics'].keys())}")
+            
+            if 'error' in results:
+                print(f"Statistical analysis error: {results['error']}")
+                return jsonify({'success': False, 'error': results['error']}), 500
+            
+            # Count actual symbols processed
+            symbols_processed = 0
+            if 'performance_metrics' in results:
+                symbols_processed = len(results['performance_metrics'])
+            elif 'risk_metrics' in results:
+                symbols_processed = len(results['risk_metrics'])
+            
+            print(f"Statistical analysis completed: {symbols_processed}/{len(symbols)} symbols processed")
+            return jsonify({
+                'success': True,
+                'statistical_analysis': sanitize_for_json(results)
+            })
+            
+        except Exception as e:
+            print(f"Statistical analysis error: {e}")
+            print(f"Symbols attempted: {symbols if 'symbols' in locals() else 'unknown'}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500

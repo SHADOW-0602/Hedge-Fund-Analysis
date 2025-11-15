@@ -4,7 +4,7 @@ let portfolioData = null;
 let plaidHandler = null;
 let userPortfolios = [];
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'http://127.0.0.1:8080/api';
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', function() {
@@ -470,7 +470,11 @@ async function loadUserTransactions() {
 }
 
 async function analyzeRisk() {
-    // Keep existing implementation
+    if (!portfolioData || portfolioData.length === 0) {
+        showError('Please upload a portfolio first');
+        return;
+    }
+    showError('Risk analysis integration pending');
 }
 
 async function scanOptions() {
@@ -483,6 +487,51 @@ async function runMonteCarlo() {
 
 async function technicalAnalysis() {
     // Keep existing implementation
+}
+
+// Analytics placeholder functions
+async function runMonteCarlo() {
+    showError('Monte Carlo analysis not yet implemented');
+}
+
+async function analyzeSentiment() {
+    showError('Sentiment analysis not yet implemented');
+}
+
+async function runMLPrediction() {
+    showError('ML prediction not yet implemented');
+}
+
+async function portfolioOptimization() {
+    showError('Portfolio optimization not yet implemented');
+}
+
+async function sectorAnalysis() {
+    showError('Sector analysis not yet implemented');
+}
+
+async function analyzeTradePerformance() {
+    showError('Trade performance analysis not yet implemented');
+}
+
+async function analyzeTurnover() {
+    showError('Turnover analysis not yet implemented');
+}
+
+async function analyzeTaxHarvesting() {
+    showError('Tax harvesting analysis not yet implemented');
+}
+
+async function analyzeCashFlow() {
+    showError('Cash flow analysis not yet implemented');
+}
+
+async function analyzeTradeTimimg() {
+    showError('Trade timing analysis not yet implemented');
+}
+
+async function analyzeDrawdown() {
+    showError('Drawdown analysis not yet implemented');
 }
 
 async function downloadSamplePortfolio() {
@@ -500,6 +549,271 @@ async function refreshPortfolios() {
 
 async function deleteSelectedPortfolio() {
     // Keep existing implementation
+}
+
+// Statistical Analysis Functions
+function statisticalAnalysis() {
+    console.log('Statistical analysis button clicked');
+    
+    // Check if we have portfolio data
+    if (!portfolioData || portfolioData.length === 0) {
+        showError('Please upload a portfolio first');
+        return;
+    }
+    
+    // Use analytics manager to load statistical analysis
+    if (window.analyticsManager && window.analyticsManager.loadModule) {
+        window.analyticsManager.loadModule('statistical-analysis');
+    }
+}
+
+async function runStatisticalAnalysis() {
+    if (!portfolioData || portfolioData.length === 0) {
+        showError('Please upload a portfolio first');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const options = {
+            lookback_period: document.getElementById('lookbackPeriod').value,
+            frequency: document.getElementById('frequency').value,
+            benchmark: document.getElementById('benchmark').value,
+            confidence_level: parseFloat(document.getElementById('confidenceLevel').value)
+        };
+        
+        console.log('Sending statistical analysis request:', { portfolio: portfolioData, options });
+        
+        const response = await fetch(`${API_BASE}/statistical-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                portfolio: portfolioData,
+                options: options
+            })
+        });
+        
+        const data = await response.json();
+        console.log('Statistical analysis response:', data);
+        
+        if (data.success && data.statistical_analysis) {
+            displayStatisticalResults(data.statistical_analysis);
+            showSuccess('Statistical analysis completed');
+        } else {
+            console.error('Statistical analysis error:', data.error);
+            showError(data.error || 'Statistical analysis failed');
+        }
+    } catch (error) {
+        showError('Statistical analysis failed: ' + error.message);
+    }
+    
+    showLoading(false);
+}
+
+function displayStatisticalResults(results) {
+    console.log('Displaying statistical results:', results);
+    
+    const resultsDiv = document.getElementById('statisticalResults');
+    const contentDiv = document.getElementById('statisticalContent');
+    
+    if (!resultsDiv || !contentDiv) {
+        console.error('Statistical results containers not found');
+        return;
+    }
+    
+    if (!results) {
+        console.error('No results to display');
+        contentDiv.innerHTML = '<p class="text-red-600">No statistical analysis results available</p>';
+        resultsDiv.style.display = 'block';
+        return;
+    }
+    
+    resultsDiv.style.display = 'block';
+    
+    let html = '';
+    
+    // Parameters Summary
+    if (results.parameters) {
+        html += '<div class="mb-6 p-4 bg-gray-50 rounded-lg">';
+        html += '<h4 class="font-semibold text-gray-900 mb-2">Analysis Parameters</h4>';
+        html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">';
+        html += `<div><span class="font-medium">Period:</span> ${results.parameters.lookback_period}</div>`;
+        html += `<div><span class="font-medium">Frequency:</span> ${results.parameters.frequency}</div>`;
+        html += `<div><span class="font-medium">Benchmark:</span> ${results.parameters.benchmark}</div>`;
+        html += `<div><span class="font-medium">Confidence:</span> ${(results.parameters.confidence_level * 100).toFixed(0)}%</div>`;
+        html += '</div></div>';
+    }
+    
+    // Correlation Analysis
+    if (results.correlation_analysis) {
+        html += '<div class="mb-6">';
+        html += '<h4 class="font-semibold text-gray-900 mb-3">Correlation Analysis</h4>';
+        html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">';
+        html += `<div class="bg-blue-50 p-4 rounded-lg text-center">`;
+        html += `<div class="text-2xl font-bold text-blue-600">${(results.correlation_analysis.average_correlation * 100).toFixed(1)}%</div>`;
+        html += `<div class="text-sm text-gray-600">Average Correlation</div>`;
+        html += `</div>`;
+        html += `<div class="bg-green-50 p-4 rounded-lg text-center">`;
+        html += `<div class="text-2xl font-bold text-green-600">${(Math.max(...Object.values(results.correlation_analysis.matrix).map(row => Math.max(...Object.values(row).filter(v => v < 1)))) * 100).toFixed(1)}%</div>`;
+        html += `<div class="text-sm text-gray-600">Highest Correlation</div>`;
+        html += `</div>`;
+        html += `<div class="bg-red-50 p-4 rounded-lg text-center">`;
+        html += `<div class="text-2xl font-bold text-red-600">${(Math.min(...Object.values(results.correlation_analysis.matrix).map(row => Math.min(...Object.values(row)))) * 100).toFixed(1)}%</div>`;
+        html += `<div class="text-sm text-gray-600">Lowest Correlation</div>`;
+        html += `</div>`;
+        html += '</div>';
+        
+        // High correlation pairs
+        if (results.correlation_analysis.pairs && Object.keys(results.correlation_analysis.pairs).length > 0) {
+            html += '<div class="bg-yellow-50 p-4 rounded-lg">';
+            html += '<h5 class="font-medium text-gray-900 mb-2">Significant Correlations</h5>';
+            html += '<div class="space-y-1 text-sm">';
+            Object.entries(results.correlation_analysis.pairs).slice(0, 5).forEach(([pair, data]) => {
+                const correlation = (data.correlation * 100).toFixed(1);
+                const color = Math.abs(data.correlation) > 0.7 ? 'text-red-600' : 'text-yellow-600';
+                html += `<div class="flex justify-between"><span>${pair}</span><span class="${color} font-medium">${correlation}%</span></div>`;
+            });
+            html += '</div></div>';
+        }
+        html += '</div>';
+    }
+    
+    // Risk Metrics
+    if (results.risk_metrics) {
+        html += '<div class="mb-6">';
+        html += '<h4 class="font-semibold text-gray-900 mb-3">Risk Metrics</h4>';
+        html += '<div class="overflow-x-auto">';
+        html += '<table class="min-w-full bg-white border border-gray-200 rounded-lg">';
+        html += '<thead class="bg-gray-50"><tr>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Symbol</th>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Volatility</th>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Sharpe Ratio</th>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">VaR</th>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Max Drawdown</th>';
+        html += '</tr></thead><tbody>';
+        
+        Object.entries(results.risk_metrics).forEach(([symbol, metrics]) => {
+            html += '<tr class="border-t">';
+            html += `<td class="px-4 py-2 font-medium text-indigo-600">${symbol}</td>`;
+            html += `<td class="px-4 py-2">${(metrics.volatility * 100).toFixed(2)}%</td>`;
+            html += `<td class="px-4 py-2">${metrics.sharpe_ratio.toFixed(3)}</td>`;
+            html += `<td class="px-4 py-2">${(metrics.var * 100).toFixed(2)}%</td>`;
+            html += `<td class="px-4 py-2">${(metrics.max_drawdown * 100).toFixed(2)}%</td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div></div>';
+    }
+    
+    // Performance Metrics
+    if (results.performance_metrics) {
+        html += '<div class="mb-6">';
+        html += '<h4 class="font-semibold text-gray-900 mb-3">Performance vs Benchmark</h4>';
+        html += '<div class="overflow-x-auto">';
+        html += '<table class="min-w-full bg-white border border-gray-200 rounded-lg">';
+        html += '<thead class="bg-gray-50"><tr>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Symbol</th>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Beta</th>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Alpha</th>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">R-squared</th>';
+        html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Correlation</th>';
+        html += '</tr></thead><tbody>';
+        
+        Object.entries(results.performance_metrics).forEach(([symbol, metrics]) => {
+            html += '<tr class="border-t">';
+            html += `<td class="px-4 py-2 font-medium text-indigo-600">${symbol}</td>`;
+            html += `<td class="px-4 py-2">${metrics.beta.toFixed(3)}</td>`;
+            html += `<td class="px-4 py-2">${(metrics.alpha * 100).toFixed(3)}%</td>`;
+            html += `<td class="px-4 py-2">${(metrics.r_squared * 100).toFixed(1)}%</td>`;
+            html += `<td class="px-4 py-2">${(metrics.correlation_with_benchmark * 100).toFixed(1)}%</td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div></div>';
+    }
+    
+    // Portfolio Metrics (if available)
+    if (results.portfolio_metrics) {
+        html += '<div class="mb-6">';
+        html += '<h4 class="font-semibold text-gray-900 mb-3">Portfolio Summary</h4>';
+        html += '<div class="grid grid-cols-2 md:grid-cols-3 gap-4">';
+        html += `<div class="bg-indigo-50 p-4 rounded-lg text-center">`;
+        html += `<div class="text-2xl font-bold text-indigo-600">${results.portfolio_metrics.portfolio_beta.toFixed(3)}</div>`;
+        html += `<div class="text-sm text-gray-600">Portfolio Beta</div>`;
+        html += `</div>`;
+        html += `<div class="bg-green-50 p-4 rounded-lg text-center">`;
+        html += `<div class="text-2xl font-bold text-green-600">${(results.portfolio_metrics.portfolio_alpha * 100).toFixed(3)}%</div>`;
+        html += `<div class="text-sm text-gray-600">Portfolio Alpha</div>`;
+        html += `</div>`;
+        html += `<div class="bg-blue-50 p-4 rounded-lg text-center">`;
+        html += `<div class="text-2xl font-bold text-blue-600">${(results.portfolio_metrics.portfolio_r_squared * 100).toFixed(1)}%</div>`;
+        html += `<div class="text-sm text-gray-600">R-squared</div>`;
+        html += `</div>`;
+        html += '</div></div>';
+    }
+    
+    contentDiv.innerHTML = html;
+}
+
+// Simple fallback display for statistical results
+function displaySimpleStatisticalResults(data) {
+    console.log('Using simple display for:', data);
+    
+    const contentDiv = document.getElementById('statisticalContent');
+    if (!contentDiv) return;
+    
+    let html = '<div class="p-4 bg-gray-50 rounded-lg">';
+    html += '<h4 class="font-semibold text-gray-900 mb-4">Statistical Analysis Results</h4>';
+    
+    // Handle different response formats
+    if (data.portfolio_statistics) {
+        html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
+        html += `<div class="bg-blue-50 p-3 rounded text-center">`;
+        html += `<div class="text-xl font-bold text-blue-600">${(data.portfolio_statistics.benchmark_correlation * 100).toFixed(1)}%</div>`;
+        html += `<div class="text-sm text-gray-600">Correlation</div></div>`;
+        html += `<div class="bg-green-50 p-3 rounded text-center">`;
+        html += `<div class="text-xl font-bold text-green-600">${data.portfolio_statistics.beta.toFixed(3)}</div>`;
+        html += `<div class="text-sm text-gray-600">Beta</div></div>`;
+        html += `<div class="bg-purple-50 p-3 rounded text-center">`;
+        html += `<div class="text-xl font-bold text-purple-600">${(data.portfolio_statistics.alpha * 100).toFixed(2)}%</div>`;
+        html += `<div class="text-sm text-gray-600">Alpha</div></div>`;
+        html += `<div class="bg-red-50 p-3 rounded text-center">`;
+        html += `<div class="text-xl font-bold text-red-600">${(data.portfolio_statistics.r_squared * 100).toFixed(1)}%</div>`;
+        html += `<div class="text-sm text-gray-600">R-Squared</div></div>`;
+        html += '</div>';
+    }
+    
+    if (data.risk_metrics) {
+        html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
+        html += `<div class="bg-yellow-50 p-3 rounded text-center">`;
+        html += `<div class="text-xl font-bold text-yellow-600">${(data.risk_metrics.portfolio_volatility * 100).toFixed(2)}%</div>`;
+        html += `<div class="text-sm text-gray-600">Portfolio Volatility</div></div>`;
+        html += `<div class="bg-orange-50 p-3 rounded text-center">`;
+        html += `<div class="text-xl font-bold text-orange-600">${(data.risk_metrics.tracking_error * 100).toFixed(2)}%</div>`;
+        html += `<div class="text-sm text-gray-600">Tracking Error</div></div>`;
+        html += `<div class="bg-indigo-50 p-3 rounded text-center">`;
+        html += `<div class="text-xl font-bold text-indigo-600">${data.risk_metrics.information_ratio.toFixed(3)}</div>`;
+        html += `<div class="text-sm text-gray-600">Information Ratio</div></div>`;
+        html += `<div class="bg-teal-50 p-3 rounded text-center">`;
+        html += `<div class="text-xl font-bold text-teal-600">${(data.performance_metrics.sharpe_ratio || 0).toFixed(3)}</div>`;
+        html += `<div class="text-sm text-gray-600">Sharpe Ratio</div></div>`;
+        html += '</div>';
+    }
+    
+    if (data.summary) {
+        html += '<div class="mt-4 p-3 bg-white rounded border">';
+        html += '<h5 class="font-medium text-gray-900 mb-2">Analysis Summary</h5>';
+        html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">';
+        html += `<div><span class="font-medium">Period:</span> ${data.summary.lookback_period || 'N/A'}</div>`;
+        html += `<div><span class="font-medium">Benchmark:</span> ${data.summary.benchmark || 'N/A'}</div>`;
+        html += `<div><span class="font-medium">Confidence:</span> ${data.summary.confidence_level || 'N/A'}%</div>`;
+        html += `<div><span class="font-medium">Data Points:</span> ${data.summary.data_points || 'N/A'}</div>`;
+        html += '</div></div>';
+    }
+    
+    html += '</div>';
+    contentDiv.innerHTML = html;
 }
 
 // Analysis type switching for analytics tab
