@@ -136,3 +136,53 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
                 
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/delete-uploaded-file', methods=['DELETE'])
+    def delete_uploaded_file():
+        try:
+            data = request.get_json()
+            file_id = data.get('file_id')
+            user_id = request.headers.get('X-User-ID')
+            
+            if not supabase_client or not supabase_client.client:
+                return jsonify({'success': False, 'error': 'Database not available'}), 500
+            
+            if not file_id or not user_id:
+                return jsonify({'success': False, 'error': 'Missing file ID or user ID'}), 400
+            
+            # Check if file exists and belongs to user
+            # Note: This assumes 'uploaded_files' table has 'id' and 'user_id' columns
+            result = supabase_client.client.table('uploaded_files').delete().eq('id', file_id).eq('user_id', user_id).execute()
+            
+            if result.data:
+                return jsonify({'success': True, 'message': 'File deleted successfully'})
+            else:
+                return jsonify({'success': False, 'error': 'File not found or access denied'}), 404
+                
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/download-sample-portfolio', methods=['GET'])
+    def download_sample_portfolio():
+        try:
+            # Create a sample portfolio dataframe
+            data = {
+                'Symbol': ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'],
+                'Quantity': [100, 50, 30, 40, 20],
+                'Date': [datetime.now().strftime('%Y-%m-%d')] * 5,
+                'Price': [150.0, 300.0, 2800.0, 3400.0, 700.0], # Approximate prices
+                'Type': ['Buy', 'Buy', 'Buy', 'Buy', 'Buy']
+            }
+            df = pd.DataFrame(data)
+            
+            # Convert to CSV
+            csv_data = df.to_csv(index=False)
+            
+            from flask import Response
+            return Response(
+                csv_data,
+                mimetype="text/csv",
+                headers={"Content-disposition": "attachment; filename=sample_portfolio.csv"}
+            )
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500

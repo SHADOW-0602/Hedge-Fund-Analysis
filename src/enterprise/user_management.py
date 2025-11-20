@@ -121,12 +121,11 @@ class UserManager:
     
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
         logger.info(f"Authenticating user: {username}")
+        
         if not self.supabase:
-            logger.warning("Authentication failed - database not available")
-            return None
+            raise ConnectionError("Database connection not available. Please check SUPABASE_URL and SUPABASE_ANON_KEY environment variables.")
         
         password_hash = self._hash_password(password)
-        
         result = self.supabase.table('app_users').select('*').eq('username', username).eq('password_hash', password_hash).eq('is_active', True).execute()
         
         if result.data:

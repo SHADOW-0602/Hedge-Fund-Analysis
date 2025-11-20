@@ -5,6 +5,12 @@ async function loadAllTransactionAnalytics(transactions) {
         return;
     }
     
+    // Store transactions globally for all modules to access
+    window.currentTransactions = transactions;
+    window.currentTradeTransactions = transactions;
+    window.currentPnlTransactions = transactions;
+    console.log('[TRANSACTION-ANALYTICS] Stored transactions globally:', transactions.length);
+    
     // Show transaction analysis section
     const analysisSection = document.getElementById('transactionAnalysis');
     if (analysisSection) {
@@ -15,6 +21,9 @@ async function loadAllTransactionAnalytics(transactions) {
     updateTransactionOverview(transactions);
     
     // Load all analysis modules
+    console.log('[TRANSACTION-ANALYTICS] Loading trade performance module...');
+    console.log('[TRANSACTION-ANALYTICS] loadTradePerformance function exists:', typeof loadTradePerformance);
+    
     const analysisPromises = [
         loadPnlAttribution && loadPnlAttribution(transactions),
         loadTradePerformance && loadTradePerformance(transactions),

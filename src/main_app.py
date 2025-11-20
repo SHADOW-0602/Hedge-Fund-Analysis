@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Main Flask Application"""
 
 from flask import Flask, request, jsonify
@@ -282,6 +281,18 @@ except Exception as e:
     logger.error(f"Failed to register backtesting routes: {e}")
     import traceback
     traceback.print_exc()
+
+# Register P&L attribution routes
+try:
+    from api.pnl_attribution_routes import register_pnl_attribution_routes
+    register_pnl_attribution_routes(app, data_client, None)
+    logger.info("Enhanced P&L Attribution routes registered successfully")
+except Exception as e:
+    logger.error(f"Failed to register enhanced P&L attribution routes: {e}")
+    import traceback
+    traceback.print_exc()
+
+# Transaction analysis routes are registered via portfolio_routes.py
 
 if __name__ == '__main__':
     logger.info("Starting Portfolio & Options Analysis Engine")

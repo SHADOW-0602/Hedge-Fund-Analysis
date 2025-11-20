@@ -233,6 +233,51 @@ class AnalyticsManager {
             return;
         }
 
+        // Special handling for P&L Attribution to use its own dedicated handler
+        // This ensures the enhanced filters and controls are rendered correctly
+        if (name === 'pnl-attribution' && window.loadPnlAttribution) {
+            console.log('Delegating to loadPnlAttribution');
+            // Ensure container is visible
+            const container = document.getElementById('analysisContent');
+            if (container) container.classList.remove('hidden');
+
+            // Use the P&L container ID defined in registration
+            const pnlContainer = document.getElementById(module.containerId);
+            if (pnlContainer) {
+                // Clear any previous content/spinner from AnalyticsManager
+                if (container && container !== pnlContainer) {
+                    container.innerHTML = '';
+                    container.appendChild(pnlContainer);
+                }
+                pnlContainer.classList.remove('hidden');
+            }
+
+            window.loadPnlAttribution(this.transactionData || window.currentTransactions);
+            return;
+        }
+
+        // Special handling for Trade Performance to use its own dedicated handler
+        if (name === 'trade-performance' && window.loadTradePerformance) {
+            console.log('Delegating to loadTradePerformance');
+            // Ensure container is visible
+            const container = document.getElementById('analysisContent');
+            if (container) container.classList.remove('hidden');
+
+            // Use the Trade Performance container ID defined in registration
+            const tpContainer = document.getElementById(module.containerId);
+            if (tpContainer) {
+                // Clear any previous content/spinner from AnalyticsManager
+                if (container && container !== tpContainer) {
+                    container.innerHTML = '';
+                    container.appendChild(tpContainer);
+                }
+                tpContainer.classList.remove('hidden');
+            }
+
+            window.loadTradePerformance(this.transactionData || window.currentTransactions);
+            return;
+        }
+
         // For risk-metrics, ensure default settings are available
         if (name === 'risk-metrics' && !window.analyticsCore.riskSettings) {
             window.analyticsCore.riskSettings = {
@@ -510,10 +555,10 @@ class AnalyticsManager {
 
         const allOpportunities = (result.opportunities || []).sort((a, b) => a.symbol.localeCompare(b.symbol));
         const summary = result.summary || {};
-        
+
         console.log(`[OPTIONS DISPLAY] Total opportunities received: ${allOpportunities.length}`);
         console.log(`[OPTIONS DISPLAY] Symbols in opportunities:`, [...new Set(allOpportunities.map(o => o.symbol))]);
-        
+
         const filteredOpportunities = window.getFilteredOpportunities ? window.getFilteredOpportunities(allOpportunities) : allOpportunities;
         const currentPage = window.optionsCurrentPage || 1;
         const itemsPerPage = 20; // Increased from 10 to show more results
@@ -521,7 +566,7 @@ class AnalyticsManager {
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = startIndex + itemsPerPage;
         const currentOpportunities = filteredOpportunities.slice(startIndex, endIndex);
-        
+
         console.log(`[OPTIONS DISPLAY] Filtered opportunities: ${filteredOpportunities.length}, Current page: ${currentPage}, Showing: ${currentOpportunities.length}`);
 
         // Get available strategies and symbols
@@ -542,6 +587,9 @@ class AnalyticsManager {
         const currentMoneyness = options?.moneyness || 'All';
         const currentMinPremium = options?.min_premium || '0.50';
         const currentDeltaRange = options?.delta_range || 'All';
+
+        // Define fixed list of strategies to ensure all are displayed
+        const definedStrategies = ['covered_calls', 'protective_puts', 'iron_condors'];
 
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
@@ -613,19 +661,19 @@ class AnalyticsManager {
             
             <div class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    ${availableStrategies.map(strategy => {
-                        const strategyOpportunities = allOpportunities.filter(o => o.strategy === strategy);
-                        const totalPremium = strategyOpportunities.reduce((sum, o) => sum + (o.premium || 0), 0);
-                        const displayName = strategy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        const colorClass = strategy === 'covered_calls' ? 'blue' : strategy === 'protective_puts' ? 'green' : 'purple';
-                        return `
+                    ${definedStrategies.map(strategy => {
+            const strategyOpportunities = allOpportunities.filter(o => o.strategy === strategy);
+            const totalPremium = strategyOpportunities.reduce((sum, o) => sum + (o.premium || 0), 0);
+            const displayName = strategy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const colorClass = strategy === 'covered_calls' ? 'blue' : strategy === 'protective_puts' ? 'green' : 'purple';
+            return `
                             <div class="bg-${colorClass}-50 p-4 rounded-lg">
                                 <h4 class="font-semibold text-${colorClass}-800">${displayName}</h4>
                                 <p class="text-2xl font-bold text-${colorClass}-600">${strategyOpportunities.length}</p>
                                 <p class="text-sm text-${colorClass}-600">${strategy.includes('put') ? 'Cost' : 'Premium'}: ${window.analyticsCore.formatCurrency(totalPremium)}</p>
                             </div>
                         `;
-                    }).join('')}
+        }).join('')}
                 </div>
                 ${allOpportunities.length > 0 ? `
                     <div class="overflow-x-auto">
@@ -1409,7 +1457,7 @@ class AnalyticsManager {
                 </div>
             </div>
         `;
-        
+
         // Initialize sector charts if module is available
         setTimeout(() => {
             if (window.sectorCharts && Object.keys(sectorData).length > 0) {
@@ -1533,9 +1581,9 @@ class AnalyticsManager {
                     <div class="space-y-3">
                         <h4 class="section-header">Risk Metrics</h4>
                         ${Object.keys(riskMetrics).length > 0 ? (() => {
-                            const firstSymbol = Object.keys(riskMetrics)[0];
-                            const metrics = riskMetrics[firstSymbol];
-                            return `
+                const firstSymbol = Object.keys(riskMetrics)[0];
+                const metrics = riskMetrics[firstSymbol];
+                return `
                                 <div class="metric-row">
                                     <span class="metric-label">Volatility (${firstSymbol})</span>
                                     <span class="metric-value ${(metrics.volatility || 0) > 0.3 ? 'negative' : 'neutral'}">${metrics.volatility ? window.analyticsCore.formatPercent(metrics.volatility) : 'N/A'}</span>
@@ -1553,7 +1601,7 @@ class AnalyticsManager {
                                     <span class="metric-value negative">${metrics.max_drawdown ? window.analyticsCore.formatPercent(Math.abs(metrics.max_drawdown)) : 'N/A'}</span>
                                 </div>
                             `;
-                        })() : `
+            })() : `
                             <div class="metric-row">
                                 <span class="metric-label">Volatility</span>
                                 <span class="metric-value neutral">N/A</span>
@@ -1576,11 +1624,11 @@ class AnalyticsManager {
                     <div class="space-y-3">
                         <h4 class="section-header">Performance Metrics</h4>
                         ${Object.keys(performanceMetrics).length > 0 ? (() => {
-                            const firstSymbol = Object.keys(performanceMetrics)[0];
-                            const metrics = performanceMetrics[firstSymbol];
-                            // Get Sharpe ratio from risk metrics if not in performance metrics
-                            const sharpeRatio = metrics.sharpe_ratio || (riskMetrics[firstSymbol] && riskMetrics[firstSymbol].sharpe_ratio);
-                            return `
+                const firstSymbol = Object.keys(performanceMetrics)[0];
+                const metrics = performanceMetrics[firstSymbol];
+                // Get Sharpe ratio from risk metrics if not in performance metrics
+                const sharpeRatio = metrics.sharpe_ratio || (riskMetrics[firstSymbol] && riskMetrics[firstSymbol].sharpe_ratio);
+                return `
                                 <div class="metric-row">
                                     <span class="metric-label">Sharpe Ratio (${firstSymbol})</span>
                                     <span class="metric-value ${(sharpeRatio || 0) > 1 ? 'positive' : (sharpeRatio || 0) > 0 ? 'neutral' : 'negative'}">${sharpeRatio !== null && sharpeRatio !== undefined && !isNaN(sharpeRatio) ? window.analyticsCore.formatNumber(sharpeRatio) : 'N/A'}</span>
@@ -1598,7 +1646,7 @@ class AnalyticsManager {
                                     <span class="metric-value neutral">${metrics.r_squared !== null && metrics.r_squared !== undefined ? window.analyticsCore.formatPercent(metrics.r_squared) : 'N/A'}</span>
                                 </div>
                             `;
-                        })() : `
+            })() : `
                             <div class="metric-row">
                                 <span class="metric-label">Sharpe Ratio</span>
                                 <span class="metric-value neutral">N/A</span>
@@ -1815,31 +1863,25 @@ class AnalyticsManager {
                                     ${Object.entries(individualAnalysis).map(([symbol, analysis]) => `
                                         <tr>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${symbol}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
-                                                analysis.overall_signal === 'Bullish' ? 'text-green-600' :
-                                                analysis.overall_signal === 'Bearish' ? 'text-red-600' : 'text-gray-500'
-                                            }">${analysis.overall_signal || 'Neutral'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${analysis.overall_signal === 'Bullish' ? 'text-green-600' :
+                analysis.overall_signal === 'Bearish' ? 'text-red-600' : 'text-gray-500'
+            }">${analysis.overall_signal || 'Neutral'}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${analysis.signal_strength || 'N/A'}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
-                                                analysis.signals?.rsi?.includes('Bullish') ? 'text-green-600' :
-                                                analysis.signals?.rsi?.includes('Bearish') ? 'text-red-600' : 'text-gray-500'
-                                            }">${analysis.signals?.rsi || 'N/A'}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
-                                                analysis.signals?.macd === 'Bullish' ? 'text-green-600' :
-                                                analysis.signals?.macd === 'Bearish' ? 'text-red-600' : 'text-gray-500'
-                                            }">${analysis.signals?.macd || 'N/A'}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
-                                                analysis.signals?.bollinger?.includes('Bullish') ? 'text-green-600' :
-                                                analysis.signals?.bollinger?.includes('Bearish') ? 'text-red-600' : 'text-gray-500'
-                                            }">${analysis.signals?.bollinger || 'N/A'}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
-                                                analysis.signals?.sma === 'Bullish' ? 'text-green-600' :
-                                                analysis.signals?.sma === 'Bearish' ? 'text-red-600' : 'text-gray-500'
-                                            }">${analysis.signals?.sma || 'N/A'}</td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${
-                                                analysis.signals?.ema === 'Bullish' ? 'text-green-600' :
-                                                analysis.signals?.ema === 'Bearish' ? 'text-red-600' : 'text-gray-500'
-                                            }">${analysis.signals?.ema || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${analysis.signals?.rsi?.includes('Bullish') ? 'text-green-600' :
+                analysis.signals?.rsi?.includes('Bearish') ? 'text-red-600' : 'text-gray-500'
+            }">${analysis.signals?.rsi || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${analysis.signals?.macd === 'Bullish' ? 'text-green-600' :
+                analysis.signals?.macd === 'Bearish' ? 'text-red-600' : 'text-gray-500'
+            }">${analysis.signals?.macd || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${analysis.signals?.bollinger?.includes('Bullish') ? 'text-green-600' :
+                analysis.signals?.bollinger?.includes('Bearish') ? 'text-red-600' : 'text-gray-500'
+            }">${analysis.signals?.bollinger || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${analysis.signals?.sma === 'Bullish' ? 'text-green-600' :
+                analysis.signals?.sma === 'Bearish' ? 'text-red-600' : 'text-gray-500'
+            }">${analysis.signals?.sma || 'N/A'}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm ${analysis.signals?.ema === 'Bullish' ? 'text-green-600' :
+                analysis.signals?.ema === 'Bearish' ? 'text-red-600' : 'text-gray-500'
+            }">${analysis.signals?.ema || 'N/A'}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -1869,12 +1911,25 @@ class AnalyticsManager {
     }
 
     // Add missing display functions as class methods
+    // displayPnLAttribution removed to prevent conflict with specialized module
     displayPnLAttribution(result, options) {
-        console.log('P&L Attribution result:', result);
+        // No-op: Handled by pnl-attribution.js
     }
 
     displayTradePerformance(result, options) {
         console.log('Trade Performance result:', result);
+
+        // Use the dedicated display function directly
+        if (window.displayTradePerformanceResults && result.trade_performance) {
+            window.displayTradePerformanceResults(result.trade_performance, options);
+            return;
+        }
+
+        // Simple fallback display
+        const container = document.getElementById('analysisContent');
+        if (container) {
+            container.innerHTML = `<div class="text-center py-4">Trade performance data received but display function not available</div>`;
+        }
     }
 
     displayCostAnalysis(result, options) {
@@ -1914,7 +1969,7 @@ class AnalyticsManager {
         if (!container) return;
 
         container.classList.remove('hidden');
-        
+
         // Handle both direct results and nested results
         const backtest = result.backtesting_results || result.backtest || result;
         const performance = backtest.performance_metrics || {};
@@ -2065,7 +2120,7 @@ class AnalyticsManager {
         if (!results.portfolio_returns || results.portfolio_returns.length === 0) {
             return '0.00';
         }
-        
+
         const positiveReturns = results.portfolio_returns.filter(r => r > 0).length;
         const totalReturns = results.portfolio_returns.length;
         return ((positiveReturns / totalReturns) * 100).toFixed(2);
@@ -2292,12 +2347,12 @@ class AnalyticsManager {
     async scanOptions(symbols) {
         try {
             console.log(`[ANALYTICS MANAGER] scanOptions called with ${symbols.length} symbols:`, symbols);
-            
+
             const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
             const response = await fetch(`${API_BASE}/api/scan-options`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     symbols: symbols,
                     options: {
                         expiration: '3M',
@@ -2308,10 +2363,10 @@ class AnalyticsManager {
                     }
                 })
             });
-            
+
             const data = await response.json();
             console.log(`[ANALYTICS MANAGER] scanOptions response:`, data);
-            
+
             return data;
         } catch (error) {
             console.error('[ANALYTICS MANAGER] scanOptions error:', error);
@@ -2328,7 +2383,7 @@ class AnalyticsManager {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ portfolio: portfolioData })
             });
-            
+
             return await response.json();
         } catch (error) {
             return { success: false, error: error.message };
@@ -2345,7 +2400,7 @@ class AnalyticsManager {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ symbols: symbols })
             });
-            
+
             return await response.json();
         } catch (error) {
             return { success: false, error: error.message };
@@ -2359,14 +2414,14 @@ class AnalyticsManager {
             const response = await fetch(`${API_BASE}/api/strategy-backtesting`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    strategy, 
-                    symbols, 
-                    start_date: startDate, 
-                    end_date: endDate 
+                body: JSON.stringify({
+                    strategy,
+                    symbols,
+                    start_date: startDate,
+                    end_date: endDate
                 })
             });
-            
+
             return await response.json();
         } catch (error) {
             return { success: false, error: error.message };
@@ -2382,7 +2437,7 @@ class AnalyticsManager {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ criteria, universe })
             });
-            
+
             return await response.json();
         } catch (error) {
             return { success: false, error: error.message };
@@ -2460,50 +2515,50 @@ window.AnalyticsManager = AnalyticsManager;
 // Options pagination functions
 window.changeOptionsPage = (newPage) => {
     if (!window.optionsOpportunities) return;
-    
+
     const itemsPerPage = 10;
     const totalPages = Math.ceil(window.optionsOpportunities.length / itemsPerPage);
-    
+
     if (newPage < 1 || newPage > totalPages) return;
-    
+
     window.optionsCurrentPage = newPage;
-    
+
     // Re-display with new page
     const result = {
         opportunities: window.optionsOpportunities,
         summary: window.optionsSummary
     };
-    
+
     window.analyticsManager.displayOptionsStrategies(result, {});
 };
 
 window.filterOptionsStrategies = () => {
     if (!window.optionsOpportunities) return;
-    
+
     window.optionsCurrentPage = 1; // Reset to first page
-    
+
     const result = {
         opportunities: window.optionsOpportunities,
         summary: window.optionsSummary
     };
-    
+
     window.analyticsManager.displayOptionsStrategies(result, {});
 };
 
 window.getFilteredOpportunities = (opportunities) => {
     if (!opportunities) return [];
-    
+
     const symbolFilter = document.getElementById('symbolFilter')?.value || 'all';
-    
+
     console.log(`[OPTIONS FILTER] Symbol filter: ${symbolFilter}, Total opportunities: ${opportunities.length}`);
-    
+
     let filtered = opportunities;
-    
+
     if (symbolFilter && symbolFilter !== 'all') {
         filtered = filtered.filter(opp => opp.symbol === symbolFilter);
         console.log(`[OPTIONS FILTER] After symbol filter: ${filtered.length} opportunities`);
     }
-    
+
     return filtered;
 };
 
@@ -2952,7 +3007,7 @@ window.updateStatisticalAnalysis = async () => {
         // Add timestamp to prevent caching
         const response = await fetch('http://127.0.0.1:8080/api/statistical-analysis?' + Date.now(), {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Cache-Control': 'no-cache'
             },
@@ -2969,7 +3024,7 @@ window.updateStatisticalAnalysis = async () => {
 
         const data = await response.json();
         console.log('[STATISTICAL UPDATE] API Response:', data);
-        
+
         if (data.success) {
             window.analyticsManager.displayStatisticalAnalysis(data, {
                 lookback_period: lookback,
@@ -3060,7 +3115,7 @@ window.updateTechnicalAnalysis = async () => {
     try {
         const response = await fetch('http://127.0.0.1:8080/api/technical-analysis?' + Date.now(), {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Cache-Control': 'no-cache'
             },
@@ -3072,7 +3127,7 @@ window.updateTechnicalAnalysis = async () => {
 
         const data = await response.json();
         console.log('[TECHNICAL UPDATE] API Response:', data);
-        
+
         if (data.success) {
             window.analyticsManager.displayTechnicalIndicators(data, window.analyticsCore.technicalSettings);
         } else {
@@ -3139,7 +3194,7 @@ window.updateStrategyBacktesting = async () => {
     try {
         const response = await fetch('http://127.0.0.1:8080/api/strategy-backtesting', {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Cache-Control': 'no-cache'
             },
@@ -3156,7 +3211,7 @@ window.updateStrategyBacktesting = async () => {
 
         const data = await response.json();
         console.log('[BACKTESTING] API Response:', data);
-        
+
         if (data.success && data.backtesting_results) {
             window.analyticsManager.displayStrategyBacktesting(data, {
                 backtest_period: period,

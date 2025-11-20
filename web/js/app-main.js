@@ -47,7 +47,7 @@ async function connectPlaid() {
                                 if (portfolioData.success && portfolioData.holdings && portfolioData.holdings.length > 0) {
                                     window.portfolioData = portfolioData.holdings;
                                     window.currentPortfolioData = portfolioData.holdings;
-                                    
+
                                     // Update portfolio value display
                                     const aumElement = document.getElementById('totalAUM');
                                     if (aumElement && portfolioData.portfolio_value) {
@@ -58,7 +58,7 @@ async function connectPlaid() {
                                             aumElement.textContent = `$${value.toFixed(2)}`;
                                         }
                                     }
-                                    
+
                                     if (window.displayPortfolio) {
                                         window.displayPortfolio(portfolioData.holdings);
                                     }
@@ -196,38 +196,38 @@ async function loadTransactionAnalytics(transactions) {
             // Use the actual transactions data directly
             const actualTransactions = transactions;
             const totalTrades = actualTransactions.length;
-            
+
             console.log('Transaction metrics - total transactions:', totalTrades);
             console.log('Sample transaction:', actualTransactions[0]);
-            
+
             // Calculate metrics from actual transaction data
             const totalVolume = actualTransactions.reduce((sum, t) => {
                 const qty = Math.abs(parseFloat(t.quantity) || 0);
                 const price = parseFloat(t.price) || 0;
                 return sum + (qty * price);
             }, 0);
-            
+
             const avgTradeSize = totalTrades > 0 ? totalVolume / totalTrades : 0;
-            
+
             // Calculate win rate
-            const sellTrades = actualTransactions.filter(t => 
+            const sellTrades = actualTransactions.filter(t =>
                 (t.transaction_type && t.transaction_type.toLowerCase().includes('sell')) || parseFloat(t.quantity) < 0
             );
-            const buyTrades = actualTransactions.filter(t => 
+            const buyTrades = actualTransactions.filter(t =>
                 (t.transaction_type && t.transaction_type.toLowerCase().includes('buy')) || parseFloat(t.quantity) > 0
             );
-            
+
             let winRate = 0;
             if (sellTrades.length > 0 && buyTrades.length > 0) {
                 const avgSellPrice = sellTrades.reduce((sum, t) => sum + parseFloat(t.price), 0) / sellTrades.length;
                 const avgBuyPrice = buyTrades.reduce((sum, t) => sum + parseFloat(t.price), 0) / buyTrades.length;
                 winRate = avgSellPrice > avgBuyPrice ? ((avgSellPrice - avgBuyPrice) / avgBuyPrice * 100) : 0;
             }
-            
+
             // Calculate turnover ratio
             const portfolioValue = totalVolume / 2; // Estimate portfolio value
             const turnoverRatio = portfolioValue > 0 ? (totalVolume / portfolioValue) : 1.0;
-            
+
             console.log('Calculated metrics:', { totalTrades, totalVolume, avgTradeSize, winRate, turnoverRatio });
 
             const totalTradesEl = document.getElementById('totalTrades');
@@ -239,7 +239,7 @@ async function loadTransactionAnalytics(transactions) {
             if (winRateEl) winRateEl.textContent = winRate.toFixed(1) + '%';
             if (avgTradeSizeEl) avgTradeSizeEl.textContent = `$${avgTradeSize > 1000 ? (avgTradeSize / 1000).toFixed(0) + 'K' : avgTradeSize.toFixed(0)}`;
             if (turnoverRatioEl) turnoverRatioEl.textContent = turnoverRatio.toFixed(1) + 'x';
-            
+
             // Update XIRR metrics if available
             if (data.summary) {
                 const xirrEl = document.getElementById('xirrMetric');
@@ -293,7 +293,7 @@ async function loadDetailedTransactionAnalytics(transactions) {
 async function loadPnLAttribution(transactions) {
     const container = document.getElementById('pnlAttribution');
     if (!container) return;
-    
+
     if (!transactions || transactions.length === 0) {
         container.innerHTML = '<p class="text-gray-500">No transaction data available</p>';
         return;
@@ -306,18 +306,18 @@ async function loadPnLAttribution(transactions) {
     }, 0);
 
     const totalFees = transactions.reduce((sum, t) => sum + (parseFloat(t.fees) || 0), 0);
-    
+
     // Calculate actual P&L from buy/sell transactions
     let realizedPnL = 0;
     const positions = {};
-    
+
     transactions.forEach(t => {
         const symbol = t.symbol;
         const qty = parseFloat(t.quantity) || 0;
         const price = parseFloat(t.price) || 0;
-        
+
         if (!positions[symbol]) positions[symbol] = { qty: 0, avgCost: 0, totalCost: 0 };
-        
+
         if (qty > 0) { // Buy
             const newTotalCost = positions[symbol].totalCost + (qty * price);
             const newQty = positions[symbol].qty + qty;
@@ -332,7 +332,7 @@ async function loadPnLAttribution(transactions) {
             positions[symbol].qty += qty; // qty is negative
         }
     });
-    
+
     container.innerHTML = `
         <div class="space-y-3">
             <div class="flex justify-between"><span>Total Volume</span><span class="font-semibold">$${totalVolume > 1000 ? (totalVolume / 1000).toFixed(0) + 'K' : totalVolume.toFixed(0)}</span></div>
@@ -346,11 +346,11 @@ async function loadPnLAttribution(transactions) {
 
 async function loadReturnAttribution(transactions) {
     const symbols = [...new Set(transactions.map(t => t.symbol).filter(s => s !== 'CASH'))];
-    const sellTrades = transactions.filter(t => 
+    const sellTrades = transactions.filter(t =>
         (t.transaction_type && t.transaction_type.toLowerCase().includes('sell')) || parseFloat(t.quantity) < 0
     );
     const avgSellPrice = sellTrades.length > 0 ? sellTrades.reduce((sum, t) => sum + parseFloat(t.price), 0) / sellTrades.length : 0;
-    const buyTrades = transactions.filter(t => 
+    const buyTrades = transactions.filter(t =>
         (t.transaction_type && t.transaction_type.toLowerCase().includes('buy')) || parseFloat(t.quantity) > 0
     );
     const avgBuyPrice = buyTrades.length > 0 ? buyTrades.reduce((sum, t) => sum + parseFloat(t.price), 0) / buyTrades.length : 0;
@@ -501,11 +501,11 @@ async function savePortfolioToSupabase(filename, data) {
             portfolio_data: data
         })
     });
-    
+
     if (!response.ok) {
         throw new Error(`Server connection failed: HTTP ${response.status}`);
     }
-    
+
     return await response.json();
 }
 
@@ -519,33 +519,12 @@ async function saveTransactionsToSupabase(filename, data) {
             transactions_data: data
         })
     });
-    
+
     if (!response.ok) {
         throw new Error(`Server connection failed: HTTP ${response.status}`);
     }
-    
-    return await response.json();
-}
 
-async function loadTradePerformance(transactions) {
-    const totalTrades = transactions.length;
-    const totalVolume = transactions.reduce((sum, t) => {
-        const qty = Math.abs(parseFloat(t.quantity) || 0);
-        const price = parseFloat(t.price) || 0;
-        return sum + (qty * price);
-    }, 0);
-    const avgTradeSize = totalTrades > 0 ? totalVolume / totalTrades : 0;
-    
-    console.log('Trade Performance - Total Volume:', totalVolume, 'Avg Trade Size:', avgTradeSize);
-    
-    document.getElementById('tradePerformance').innerHTML = `
-        <div class="space-y-3">
-            <div class="flex justify-between"><span>Total Trades</span><span class="font-semibold">${totalTrades}</span></div>
-            <div class="flex justify-between"><span>Avg Trade Size</span><span class="font-semibold">$${avgTradeSize > 1000 ? (avgTradeSize / 1000).toFixed(0) + 'K' : avgTradeSize.toFixed(0)}</span></div>
-            <div class="flex justify-between"><span>Best Trade</span><span class="font-semibold text-green-600">N/A</span></div>
-            <div class="flex justify-between"><span>Worst Trade</span><span class="font-semibold text-red-600">N/A</span></div>
-        </div>
-    `;
+    return await response.json();
 }
 
 async function loadTurnoverAnalysis(transactions) {
@@ -553,7 +532,7 @@ async function loadTurnoverAnalysis(transactions) {
     const portfolioValue = totalVolume / 2;
     const turnoverRatio = portfolioValue > 0 ? totalVolume / portfolioValue : 1.0;
     const annualizedTurnover = turnoverRatio * 4; // Quarterly to annual
-    
+
     document.getElementById('turnoverAnalysis').innerHTML = `
         <div class="space-y-3">
             <div class="flex justify-between"><span>Turnover Ratio</span><span class="font-semibold">${turnoverRatio.toFixed(1)}x</span></div>
@@ -563,44 +542,42 @@ async function loadTurnoverAnalysis(transactions) {
     `;
 }
 
-// Tax Analysis moved to separate file
-
 async function loadCashFlowAnalysis(transactions) {
     console.log('Cash Flow Analysis - transactions:', transactions);
-    
+
     if (!transactions || transactions.length === 0) {
         document.getElementById('cashFlowAnalysis').innerHTML = '<div class="text-center text-gray-500 py-4">No transaction data</div>';
         return;
     }
-    
+
     // Calculate based on transaction types
-    const sellTrades = transactions.filter(t => 
-        (t.transaction_type && t.transaction_type.toLowerCase().includes('sell')) || 
+    const sellTrades = transactions.filter(t =>
+        (t.transaction_type && t.transaction_type.toLowerCase().includes('sell')) ||
         parseFloat(t.quantity) < 0
     );
-    const buyTrades = transactions.filter(t => 
-        (t.transaction_type && t.transaction_type.toLowerCase().includes('buy')) || 
+    const buyTrades = transactions.filter(t =>
+        (t.transaction_type && t.transaction_type.toLowerCase().includes('buy')) ||
         parseFloat(t.quantity) > 0
     );
-    
+
     console.log('Sell trades:', sellTrades.length, 'Buy trades:', buyTrades.length);
-    
+
     const sellVolume = sellTrades.reduce((sum, t) => {
         const qty = Math.abs(parseFloat(t.quantity) || 0);
         const price = parseFloat(t.price) || 0;
         return sum + (qty * price);
     }, 0);
-    
+
     const buyVolume = buyTrades.reduce((sum, t) => {
         const qty = Math.abs(parseFloat(t.quantity) || 0);
         const price = parseFloat(t.price) || 0;
         return sum + (qty * price);
     }, 0);
-    
+
     console.log('Sell volume:', sellVolume, 'Buy volume:', buyVolume);
-    
+
     const netCashFlow = sellVolume - buyVolume;
-    
+
     document.getElementById('cashFlowAnalysis').innerHTML = `
         <div class="space-y-3">
             <div class="flex justify-between"><span>Net Cash Flow</span><span class="font-semibold ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}">${netCashFlow >= 0 ? '+' : ''}$${Math.abs(netCashFlow) > 1000 ? (netCashFlow / 1000).toFixed(0) + 'K' : netCashFlow.toFixed(0)}</span></div>
@@ -626,7 +603,7 @@ async function loadTradeTimingAnalysis(transactions) {
         return hour >= 9 && hour <= 11;
     }).length;
     const afternoonTrades = transactions.length - morningTrades;
-    
+
     document.getElementById('tradeTimingAnalysis').innerHTML = `
         <div class="space-y-3">
             <div class="flex justify-between"><span>Morning Trades</span><span class="font-semibold">${morningTrades}</span></div>
@@ -644,36 +621,36 @@ async function loadDrawdownAnalysis(transactions) {
         }
         return;
     }
-    
+
     // Calculate actual drawdown from transaction data
     let runningValue = 0;
     let peakValue = 0;
     let maxDrawdown = 0;
     let currentDrawdown = 0;
-    
+
     transactions.forEach(t => {
         const qty = parseFloat(t.quantity) || 0;
         const price = parseFloat(t.price) || 0;
         const value = qty * price;
-        
+
         if (qty > 0) { // Buy - reduces cash
             runningValue -= value;
         } else { // Sell - increases cash
             runningValue += Math.abs(value);
         }
-        
+
         if (runningValue > peakValue) {
             peakValue = runningValue;
         }
-        
+
         const drawdown = peakValue > 0 ? (peakValue - runningValue) / peakValue : 0;
         if (drawdown > maxDrawdown) {
             maxDrawdown = drawdown;
         }
     });
-    
+
     currentDrawdown = peakValue > 0 ? (peakValue - runningValue) / peakValue : 0;
-    
+
     container.innerHTML = `
         <div class="space-y-3">
             <div class="flex justify-between"><span>Max Drawdown</span><span class="font-semibold text-red-600">${(maxDrawdown * 100).toFixed(1)}%</span></div>
@@ -690,21 +667,21 @@ async function loadXIRRAnalysis(transactions) {
         console.log('XIRR container not found - add xirrAnalysis div to transaction analysis HTML');
         return;
     }
-    
+
     if (!transactions || transactions.length === 0) {
         container.innerHTML = '<div class="text-center text-gray-500 py-4">No transaction data</div>';
         return;
     }
-    
+
     container.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>Calculating XIRR...</div>';
-    
+
     try {
         const response = await fetch(`${API_BASE}/analyze-transactions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transactions })
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             if (data.success && data.summary) {
@@ -714,17 +691,17 @@ async function loadXIRRAnalysis(transactions) {
                 const sharpeRatio = data.summary.sharpe_ratio || 0;
                 const volatility = data.summary.volatility || 0;
                 const holdingDays = data.summary.holding_period_days || 0;
-                
+
                 container.innerHTML = `
-                    <div class="space-y-3">
-                        <div class="flex justify-between"><span>XIRR</span><span class="font-semibold ${xirr >= 0 ? 'text-green-600' : 'text-red-600'}">${xirr >= 0 ? '+' : ''}${xirr.toFixed(1)}%</span></div>
-                        <div class="flex justify-between"><span>Time-Weighted Return</span><span class="font-semibold ${twr >= 0 ? 'text-green-600' : 'text-red-600'}">${twr >= 0 ? '+' : ''}${twr.toFixed(1)}%</span></div>
-                        <div class="flex justify-between"><span>Annualized Return</span><span class="font-semibold ${annualizedReturn >= 0 ? 'text-green-600' : 'text-red-600'}">${annualizedReturn >= 0 ? '+' : ''}${annualizedReturn.toFixed(1)}%</span></div>
-                        <div class="flex justify-between"><span>Sharpe Ratio</span><span class="font-semibold">${sharpeRatio.toFixed(2)}</span></div>
-                        <div class="flex justify-between"><span>Volatility</span><span class="font-semibold">${volatility.toFixed(1)}%</span></div>
-                        <div class="flex justify-between"><span>Holding Period</span><span class="font-semibold">${holdingDays} days</span></div>
-                    </div>
-                `;
+                <div class="space-y-3">
+                    <div class="flex justify-between"><span>XIRR</span><span class="font-semibold ${xirr >= 0 ? 'text-green-600' : 'text-red-600'}">${xirr >= 0 ? '+' : ''}${xirr.toFixed(1)}%</span></div>
+                    <div class="flex justify-between"><span>Time-Weighted Return</span><span class="font-semibold ${twr >= 0 ? 'text-green-600' : 'text-red-600'}">${twr >= 0 ? '+' : ''}${twr.toFixed(1)}%</span></div>
+                    <div class="flex justify-between"><span>Annualized Return</span><span class="font-semibold ${annualizedReturn >= 0 ? 'text-green-600' : 'text-red-600'}">${annualizedReturn >= 0 ? '+' : ''}${annualizedReturn.toFixed(1)}%</span></div>
+                    <div class="flex justify-between"><span>Sharpe Ratio</span><span class="font-semibold">${sharpeRatio.toFixed(2)}</span></div>
+                    <div class="flex justify-between"><span>Volatility</span><span class="font-semibold">${volatility.toFixed(1)}%</span></div>
+                    <div class="flex justify-between"><span>Holding Period</span><span class="font-semibold">${holdingDays} days</span></div>
+                </div>
+            `;
             } else {
                 throw new Error('XIRR calculation failed');
             }
@@ -737,31 +714,30 @@ async function loadXIRRAnalysis(transactions) {
     }
 }
 
-// Add Plaid-specific transaction processing functions
 function processPlaidTransactionData(transactions) {
     if (!transactions || !Array.isArray(transactions)) {
         console.error('Invalid Plaid transaction data');
         return null;
     }
-    
+
     // Validate Plaid transaction structure
     const validTransactions = transactions.filter(t => {
-        return t && 
-               typeof t.symbol === 'string' && 
-               t.symbol.length > 0 &&
-               !isNaN(parseFloat(t.quantity)) &&
-               !isNaN(parseFloat(t.price)) &&
-               t.date &&
-               t.transaction_type;
+        return t &&
+            typeof t.symbol === 'string' &&
+            t.symbol.length > 0 &&
+            !isNaN(parseFloat(t.quantity)) &&
+            !isNaN(parseFloat(t.price)) &&
+            t.date &&
+            t.transaction_type;
     });
-    
+
     console.log(`Processed ${validTransactions.length} valid Plaid transactions from ${transactions.length} total`);
     return validTransactions;
 }
 
 function analyzePlaidTransactionPatterns(transactions) {
     if (!transactions || transactions.length === 0) return null;
-    
+
     const patterns = {
         account_ids: [...new Set(transactions.map(t => t.account_id).filter(Boolean))],
         symbols: [...new Set(transactions.map(t => t.symbol).filter(Boolean))],
@@ -771,7 +747,7 @@ function analyzePlaidTransactionPatterns(transactions) {
             end: Math.max(...transactions.map(t => new Date(t.date).getTime()))
         }
     };
-    
+
     console.log('Plaid transaction patterns:', patterns);
     return patterns;
 }

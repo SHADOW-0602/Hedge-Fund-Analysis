@@ -389,63 +389,9 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             print(f"FIFO/LIFO analysis error: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
-    @app.route('/api/pnl-attribution', methods=['POST'])
-    def pnl_attribution():
-        try:
-            from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
-            from core.transactions import TransactionPortfolio
-            
-            data = request.get_json()
-            transactions = data.get('transactions', [])
-            
-            if not transactions:
-                return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
-            
-            # Create transaction portfolio
-            df = pd.DataFrame(transactions)
-            txn_portfolio = TransactionPortfolio.from_dataframe(df)
-            
-            # Analyze P&L attribution
-            analyzer = AdvancedTransactionAnalyzer(data_client)
-            results = analyzer.calculate_pnl_attribution(txn_portfolio)
-            
-            return jsonify({
-                'success': True,
-                'pnl_attribution': results
-            })
-            
-        except Exception as e:
-            print(f"P&L attribution error: {e}")
-            return jsonify({'success': False, 'error': str(e)}), 500
 
-    @app.route('/api/trade-performance', methods=['POST'])
-    def trade_performance():
-        try:
-            from analytics.trading_operations_analyzer import TradingOperationsAnalyzer
-            from core.transactions import TransactionPortfolio
-            
-            data = request.get_json()
-            transactions = data.get('transactions', [])
-            
-            if not transactions:
-                return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
-            
-            # Create transaction portfolio
-            df = pd.DataFrame(transactions)
-            txn_portfolio = TransactionPortfolio.from_dataframe(df)
-            
-            # Analyze trade performance
-            analyzer = TradingOperationsAnalyzer(data_client)
-            results = analyzer.analyze_trade_performance(txn_portfolio)
-            
-            return jsonify({
-                'success': True,
-                'trade_performance': results
-            })
-            
-        except Exception as e:
-            print(f"Trade performance error: {e}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
     @app.route('/api/cost-analysis', methods=['POST'])
     def cost_analysis():

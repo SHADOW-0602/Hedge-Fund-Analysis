@@ -1,9 +1,9 @@
 // Individual Analysis View Handler
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const analysisButtons = document.querySelectorAll('[data-analysis]');
-    
+
     analysisButtons.forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function () {
             const analysisType = this.getAttribute('data-analysis');
             showIndividualAnalysis(analysisType);
         });
@@ -13,14 +13,14 @@ document.addEventListener('DOMContentLoaded', function() {
 function showIndividualAnalysis(analysisType) {
     // Hide all main sections
     hideAllSections();
-    
+
     // Show individual analysis container
-    const container = document.getElementById('analysisContainer');
+    const container = document.getElementById('analysisContent');
     if (container) {
         container.innerHTML = createIndividualAnalysisHTML(analysisType);
         container.classList.remove('hidden');
     }
-    
+
     // Load the specific analysis
     setTimeout(() => {
         loadSpecificAnalysis(analysisType);
@@ -33,16 +33,15 @@ function hideAllSections() {
         window.navigationManager.hideAllSections();
         return;
     }
-    
+
     // Fallback implementation
     const sections = [
-        'defaultUploadSection', 
-        'portfolioAnalysis', 
-        'transactionAnalysis', 
+        'defaultUploadSection',
+        'portfolioAnalysis',
+        'transactionAnalysis',
         'dataPreview',
         'analysisContent',
-        'loadingSection',
-        'analysisContainer'
+        'loadingSection'
     ];
     sections.forEach(id => {
         const element = document.getElementById(id);
@@ -51,7 +50,7 @@ function hideAllSections() {
             element.style.display = 'none'; // Force hide
         }
     });
-    
+
     // Clear any existing loading spinners
     if (window.clearAllLoadingSpinners) {
         window.clearAllLoadingSpinners();
@@ -60,7 +59,7 @@ function hideAllSections() {
 
 function createIndividualAnalysisHTML(analysisType) {
     const analysisConfig = getAnalysisConfig(analysisType);
-    
+
     return `
         <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
             <div class="flex justify-between items-center mb-6">
@@ -102,7 +101,7 @@ function getAnalysisConfig(analysisType) {
         'statistical-analysis': { title: 'Statistical Analysis', containerId: 'statisticalAnalysis' },
         'technical-indicators': { title: 'Technical Indicators', containerId: 'technicalAnalysis' },
         'strategy-backtesting': { title: 'Strategy Backtesting', containerId: 'strategyBacktesting' },
-        
+
         'pnl-attribution': { title: 'P&L Attribution', containerId: 'pnlAttribution' },
         'trade-performance': { title: 'Trade Performance', containerId: 'tradePerformance' },
         'cost-analysis': { title: 'Cost Analysis', containerId: 'costAnalysis' },
@@ -114,7 +113,7 @@ function getAnalysisConfig(analysisType) {
         'drawdown-analysis': { title: 'Drawdown Analysis', containerId: 'drawdownAnalysis' },
         'return-attribution': { title: 'Return Attribution', containerId: 'returnAttribution' }
     };
-    
+
     return configs[analysisType] || { title: 'Analysis', containerId: 'analysisResults' };
 }
 
@@ -129,10 +128,10 @@ function refreshAnalysis(analysisType) {
 }
 
 // Section toggle function
-window.toggleSection = function(sectionId) {
+window.toggleSection = function (sectionId) {
     const section = document.getElementById(sectionId);
     const chevron = document.getElementById(sectionId.replace('Section', 'Chevron'));
-    
+
     if (section) {
         section.classList.toggle('hidden');
         if (chevron) {
