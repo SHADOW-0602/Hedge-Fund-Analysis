@@ -387,13 +387,15 @@ class MarketDataClient:
         
         prices = {}
         
-        # Get options prices first
+        # Get options prices first - these will have actual estimated values
         if options_symbols:
             options_prices = self.get_options_prices(options_symbols)
             prices.update(options_prices)
+            logger.info(f"Got options prices: {options_prices}")
         
         # Get stock prices
         if not valid_symbols:
+            logger.info(f"No valid stock symbols, returning options prices: {prices}")
             return prices
         
         # Method 1: Try YFinance Ticker.info for each symbol individually
@@ -584,9 +586,11 @@ class MarketDataClient:
                 # Parse strike price (remove leading zeros, divide by 1000)
                 strike_price = float(strike_raw.lstrip('0') or '0') / 1000
                 
-                # Get underlying stock price
+                # Get underlying stock price - NO FALLBACK
                 underlying_prices = self.get_current_prices([underlying])
-                if underlying not in underlying_prices:
+                logger.info(f"Underlying prices for {underlying}: {underlying_prices}")
+                if underlying not in underlying_prices or underlying_prices[underlying] <= 0:
+                    logger.error(f"Cannot price option {options_symbol}: no valid underlying price for {underlying}")
                     continue
                 
                 stock_price = underlying_prices[underlying]
@@ -597,19 +601,19 @@ class MarketDataClient:
                 days_to_exp = (exp_date_obj - date.today()).days
                 
                 if days_to_exp <= 0:
-                    # Expired option
+                    # Expired option - intrinsic value only
                     if option_type == 'C':
                         option_price = max(0, stock_price - strike_price)
                     else:
                         option_price = max(0, strike_price - stock_price)
                 else:
-                    # Simple intrinsic + time value estimation
+                    # Calculate intrinsic and time value
                     if option_type == 'C':
                         intrinsic = max(0, stock_price - strike_price)
-                        time_value = max(0.01, min(2.0, days_to_exp / 365 * stock_price * 0.2))
+                        time_value = days_to_exp / 365 * stock_price * 0.20
                     else:
                         intrinsic = max(0, strike_price - stock_price)
-                        time_value = max(0.01, min(2.0, days_to_exp / 365 * strike_price * 0.2))
+                        time_value = days_to_exp / 365 * strike_price * 0.20
                     
                     option_price = intrinsic + time_value
                 
@@ -617,7 +621,7 @@ class MarketDataClient:
                 logger.info(f"Estimated options price: {options_symbol} = ${option_price:.2f}")
                 
             except Exception as e:
-                logger.warning(f"Failed to price options contract {options_symbol}: {e}")
+                logger.error(f"Failed to price options contract {options_symbol}: {e}")
                 continue
         
         return prices

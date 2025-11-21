@@ -129,7 +129,7 @@ class AnalyticsManager {
 
         this.register('cost-analysis', {
             endpoint: 'cost-analysis',
-            containerId: 'costAnalysis',
+            containerId: 'analysisContent',
             settingsId: 'costSettings',
             displayFunction: this.displayCostAnalysis,
             type: 'transaction'
@@ -216,6 +216,7 @@ class AnalyticsManager {
         });
 
         document.addEventListener('transactionsLoaded', (event) => {
+            this.transactionData = event.detail.transactions;
             window.analyticsCore.setTransactionData(event.detail.transactions);
         });
     }
@@ -278,6 +279,19 @@ class AnalyticsManager {
             return;
         }
 
+        // Special handling for Cost Analysis to use its own dedicated handler
+        if (name === 'cost-analysis' && window.loadCostAnalysis) {
+            console.log('Delegating to loadCostAnalysis');
+            
+            // Ensure container is visible
+            const container = document.getElementById('analysisContent');
+            if (container) container.classList.remove('hidden');
+            
+            // Use the dedicated cost analysis handler directly
+            window.loadCostAnalysis(this.transactionData || window.currentTransactions);
+            return;
+        }
+
         // For risk-metrics, ensure default settings are available
         if (name === 'risk-metrics' && !window.analyticsCore.riskSettings) {
             window.analyticsCore.riskSettings = {
@@ -294,25 +308,27 @@ class AnalyticsManager {
             window.loadingManager.clearAll();
         }
 
-        // Show loading indicator
-        const container = document.getElementById('analysisContent');
-        if (container) {
-            container.classList.remove('hidden');
-            container.innerHTML = `
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-900">Loading Analysis...</h2>
-                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                        </svg>
-                    </button>
-                </div>
-                <div class="text-center py-8">
-                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
-                    <p class="text-gray-600">Making API call to backend...</p>
-                    <p class="text-sm text-gray-500 mt-2">Endpoint: ${module.endpoint}</p>
-                </div>
-            `;
+        // Show loading indicator - skip for cost analysis as it handles its own UI
+        if (name !== 'cost-analysis') {
+            const container = document.getElementById('analysisContent');
+            if (container) {
+                container.classList.remove('hidden');
+                container.innerHTML = `
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900">Loading Analysis...</h2>
+                        <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="text-center py-8">
+                        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                        <p class="text-gray-600">Making API call to backend...</p>
+                        <p class="text-sm text-gray-500 mt-2">Endpoint: ${module.endpoint}</p>
+                    </div>
+                `;
+            }
         }
 
         try {

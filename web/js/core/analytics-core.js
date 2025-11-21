@@ -228,7 +228,15 @@ class AnalyticsCore {
         // Check for transaction data - no fallbacks
         let transactionData = this.transactionData || window.currentTransactions;
         
+        console.log('[ANALYTICS-CORE] Transaction data check:', {
+            hasTransactionData: !!transactionData,
+            isArray: Array.isArray(transactionData),
+            length: transactionData?.length || 0,
+            endpoint: endpoint
+        });
+        
         if (!transactionData || !Array.isArray(transactionData) || transactionData.length === 0) {
+            console.log('[ANALYTICS-CORE] No transaction data available for', endpoint);
             this.showDataSourceSelection('transaction');
             return;
         }
@@ -240,6 +248,14 @@ class AnalyticsCore {
         }
         
         const options = settingsId ? this.getFormOptions(settingsId) : {};
+        
+        console.log('[ANALYTICS-CORE] Calling API:', {
+            endpoint: endpoint,
+            transactionCount: transactionData.length,
+            sampleTransaction: transactionData[0],
+            options: options
+        });
+        
         const result = await this.callAPI(endpoint, { transactions: transactionData }, options);
         
         if (result.success) {

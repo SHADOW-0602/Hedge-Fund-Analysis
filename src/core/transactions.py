@@ -17,6 +17,7 @@ class Transaction:
     fees: float = 0.0
     portfolio: Optional[str] = None
     currency: Optional[str] = None
+    broker: Optional[str] = None
 
 @dataclass
 class TransactionPortfolio:
@@ -37,7 +38,9 @@ class TransactionPortfolio:
             'ticker': 'symbol',
             'shares': 'quantity', 
             'action': 'transaction_type',
-            'commission': 'fees'
+            'commission': 'fees',
+            'brokerage': 'broker',
+            'platform': 'broker'
         }
         
         # Apply column mapping
@@ -61,6 +64,7 @@ class TransactionPortfolio:
             df['price'] = 0.0
         df['portfolio'] = df.get('portfolio', None)
         df['currency'] = df.get('currency', None)
+        df['broker'] = df.get('broker', None)
         
         # Normalize transaction types
         df['transaction_type'] = df['transaction_type'].str.upper()
@@ -74,7 +78,8 @@ class TransactionPortfolio:
                 transaction_type=row['transaction_type'],
                 fees=row['fees'],
                 portfolio=row.get('portfolio', None),
-                currency=row.get('currency', None)
+                currency=row.get('currency', None),
+                broker=row.get('broker', row.get('portfolio', 'Unknown'))
             ) for _, row in df.iterrows()
         ]
         logger.info(f"Successfully created {len(transactions)} transactions")
@@ -92,7 +97,8 @@ class TransactionPortfolio:
                 'price': txn.price,
                 'currency': txn.currency,
                 'shares': txn.quantity,
-                'commission': txn.fees
+                'commission': txn.fees,
+                'broker': txn.broker
             })
         
         df = pd.DataFrame(data)
@@ -118,7 +124,8 @@ class TransactionPortfolio:
                 'price': txn.price,
                 'currency': txn.currency,
                 'shares': txn.quantity,
-                'commission': txn.fees
+                'commission': txn.fees,
+                'broker': txn.broker
             })
         
         result = supabase_client.save_transactions(user_id, transaction_set_name, transactions_data)

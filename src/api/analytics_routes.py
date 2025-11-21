@@ -9,18 +9,12 @@ from utils.symbol_parser import get_underlying_symbol
 def _convert_transactions_data(transactions_data):
     """Helper function to convert transaction data to Transaction objects"""
     from core.transactions import Transaction
+    from utils.date_parser import UniversalDateParser
     
     transactions = []
     for tx_data in transactions_data:
         try:
-            date_str = tx_data.get('date', '')
-            if isinstance(date_str, str) and date_str.strip():
-                if 'T' in date_str:
-                    date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                else:
-                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-            else:
-                date_obj = datetime.now()
+            date_obj = UniversalDateParser.parse_date(tx_data.get('date', ''))
             
             transaction = Transaction(
                 symbol=tx_data.get('symbol', ''),
@@ -400,42 +394,51 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             from core.transactions import Transaction
             
             data = request.get_json()
+            print(f"[COST-ANALYSIS] Raw request data: {data}")
+            
             transactions_data = data.get('transactions', [])
+            options = data.get('options', {})
+            
+            print(f"[COST-ANALYSIS] Transactions count: {len(transactions_data)}")
+            print(f"[COST-ANALYSIS] Options: {options}")
             
             if not transactions_data:
+                print(f"[COST-ANALYSIS] ERROR: No transaction data provided")
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
             
-            # Convert to Transaction objects
-            transactions = []
-            for tx_data in transactions_data:
-                try:
-                    date_str = tx_data.get('date', '')
-                    if isinstance(date_str, str) and date_str.strip():
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    else:
-                        date_obj = datetime.now()
-                    
-                    transaction = Transaction(
-                        symbol=tx_data.get('symbol', ''),
-                        quantity=float(tx_data.get('quantity', 0)),
-                        price=float(tx_data.get('price', 0)),
-                        date=date_obj,
-                        transaction_type=tx_data.get('transaction_type', 'BUY'),
-                        fees=float(tx_data.get('fees', 0))
-                    )
-                    transactions.append(transaction)
-                except Exception:
-                    continue
+            # Convert to Transaction objects using the helper function
+            transactions = _convert_transactions_data(transactions_data)
+            
+            for i, transaction in enumerate(transactions):
+                print(f"[COST-ANALYSIS] Successfully created transaction {i+1}: {transaction.symbol} {transaction.quantity} {transaction.transaction_type} on {transaction.date}")
+            
+            print(f"[COST-ANALYSIS] Total valid transactions created: {len(transactions)}")
             
             if not transactions:
+                print(f"[COST-ANALYSIS] ERROR: No valid transactions found after processing")
                 return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
             
-            # Use the advanced transaction analyzer
+            # Use the advanced transaction analyzer with options
             analyzer = AdvancedTransactionAnalyzer(data_client)
-            cost_result = analyzer.cost_analysis(transactions)
+            
+            period = options.get('period', '1Y')
+            breakdown = options.get('breakdown', 'By Symbol')
+            benchmark = options.get('benchmark', 'Industry average')
+            view = options.get('view', 'Absolute $')
+            
+            print(f"[COST-ANALYSIS] Calling analyzer with: period={period}, breakdown={breakdown}, benchmark={benchmark}, view={view}")
+            print(f"[COST-ANALYSIS] Sample transaction: {transactions[0].__dict__ if transactions else 'No transactions'}")
+            
+            cost_result = analyzer.cost_analysis(
+                transactions,
+                period=period,
+                breakdown=breakdown,
+                benchmark=benchmark,
+                view=view
+            )
+            
+            print(f"[COST-ANALYSIS] Total costs: {cost_result.get('total_costs', 'N/A')}, Commissions: {cost_result.get('total_commissions', 'N/A')}")
+            print(f"[COST-ANALYSIS] Breakdown count: {len(cost_result.get('breakdown', []))}")
             
             return jsonify({
                 'success': True,
@@ -443,14 +446,15 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             })
             
         except Exception as e:
-            print(f"Cost analysis error: {e}")
+            print(f"[COST-ANALYSIS] Exception occurred: {e}")
+            import traceback
+            traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/cash-flow-analysis', methods=['POST'])
     def cash_flow_analysis():
         try:
             from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
-            from core.transactions import Transaction
             
             data = request.get_json()
             transactions_data = data.get('transactions', [])
@@ -458,30 +462,8 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
             
-            # Convert to Transaction objects
-            transactions = []
-            for tx_data in transactions_data:
-                try:
-                    date_str = tx_data.get('date', '')
-                    if isinstance(date_str, str) and date_str.strip():
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    else:
-                        date_obj = datetime.now()
-                    
-                    transaction = Transaction(
-                        symbol=tx_data.get('symbol', ''),
-                        quantity=float(tx_data.get('quantity', 0)),
-                        price=float(tx_data.get('price', 0)),
-                        date=date_obj,
-                        transaction_type=tx_data.get('transaction_type', 'BUY'),
-                        fees=float(tx_data.get('fees', 0))
-                    )
-                    transactions.append(transaction)
-                except Exception:
-                    continue
+            # Convert to Transaction objects using the helper function
+            transactions = _convert_transactions_data(transactions_data)
             
             if not transactions:
                 return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
@@ -503,7 +485,6 @@ def register_analytics_routes(app, data_client, smart_cache=None):
     def turnover_analysis():
         try:
             from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
-            from core.transactions import Transaction
             
             data = request.get_json()
             transactions_data = data.get('transactions', [])
@@ -511,30 +492,8 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
             
-            # Convert to Transaction objects
-            transactions = []
-            for tx_data in transactions_data:
-                try:
-                    date_str = tx_data.get('date', '')
-                    if isinstance(date_str, str) and date_str.strip():
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    else:
-                        date_obj = datetime.now()
-                    
-                    transaction = Transaction(
-                        symbol=tx_data.get('symbol', ''),
-                        quantity=float(tx_data.get('quantity', 0)),
-                        price=float(tx_data.get('price', 0)),
-                        date=date_obj,
-                        transaction_type=tx_data.get('transaction_type', 'BUY'),
-                        fees=float(tx_data.get('fees', 0))
-                    )
-                    transactions.append(transaction)
-                except Exception:
-                    continue
+            # Convert to Transaction objects using the helper function
+            transactions = _convert_transactions_data(transactions_data)
             
             if not transactions:
                 return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
@@ -556,7 +515,6 @@ def register_analytics_routes(app, data_client, smart_cache=None):
     def trade_timing_analysis():
         try:
             from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
-            from core.transactions import Transaction
             
             data = request.get_json()
             transactions_data = data.get('transactions', [])
@@ -564,30 +522,8 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
             
-            # Convert to Transaction objects
-            transactions = []
-            for tx_data in transactions_data:
-                try:
-                    date_str = tx_data.get('date', '')
-                    if isinstance(date_str, str) and date_str.strip():
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    else:
-                        date_obj = datetime.now()
-                    
-                    transaction = Transaction(
-                        symbol=tx_data.get('symbol', ''),
-                        quantity=float(tx_data.get('quantity', 0)),
-                        price=float(tx_data.get('price', 0)),
-                        date=date_obj,
-                        transaction_type=tx_data.get('transaction_type', 'BUY'),
-                        fees=float(tx_data.get('fees', 0))
-                    )
-                    transactions.append(transaction)
-                except Exception:
-                    continue
+            # Convert to Transaction objects using the helper function
+            transactions = _convert_transactions_data(transactions_data)
             
             if not transactions:
                 return jsonify({'success': False, 'error': 'No valid transactions found'}), 400

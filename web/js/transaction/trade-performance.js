@@ -211,7 +211,7 @@ function displayResults(data) {
             <div class="bg-white rounded-lg shadow p-6 mb-6">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Top Trades (${currentTradeOptions.ranking})</h3>
                 <div class="space-y-2">
-                    ${trades.map(trade => `
+                    ${trades.slice(0, parseInt(currentTradeOptions.ranking.split(' ')[1]) || 5).map(trade => `
                         <div class="flex justify-between items-center py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors px-2 rounded">
                             <div class="flex items-center">
                                 <span class="font-medium text-gray-900 mr-3">${trade.symbol}</span>

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from core.transactions import Transaction, TransactionPortfolio
 from clients.market_data_client import MarketDataClient
+from utils.date_parser import UniversalDateParser
 
 class AdvancedTransactionAnalyzer:
     def __init__(self, data_client: MarketDataClient):
@@ -378,34 +379,223 @@ class AdvancedTransactionAnalyzer:
             'overall_sell_timing': np.mean(all_sell_scores) if all_sell_scores else 0,
             'timing_consistency': np.std(all_buy_scores + all_sell_scores) if (all_buy_scores + all_sell_scores) else 0
         }
-    
-    def cost_analysis(self, transactions: List[Transaction]) -> Dict:
-        """Streamlined cost analysis with essential metrics"""
+
+    def cost_analysis(self, transactions: List[Transaction], period='1Y', breakdown='By Symbol', benchmark='Industry average', view='Absolute $') -> Dict:
+        """
+        Interactive cost analysis with filters and breakdowns.
+        
+        Args:
+            transactions: List of transactions
+            period: '1M', '3M', '6M', '1Y', 'YTD'
+            breakdown: 'By Symbol', 'By Trade Size', 'By Broker'
+            benchmark: 'Industry average', 'Custom'
+            view: 'Absolute $', '% of Trade Value', '% of P&L'
+        """
         if not transactions:
-            return {'total_commissions': 0.0, 'total_costs': 0.0, 'cost_as_pct_volume': 0.0, 'cost_efficiency_score': 1.0}
+            return {
+                'total_costs': 0.0, 
+                'total_commissions': 0.0, 
+                'total_spreads': 0.0, 
+                'total_slippage': 0.0,
+                'breakdown': [],
+                'summary': {}
+            }
         
-        total_commissions = sum(txn.fees for txn in transactions if txn.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell'])
-        total_volume = sum(abs(txn.quantity * txn.price) for txn in transactions if txn.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell'])
-        trade_count = len([t for t in transactions if t.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell']])
+        # 1. Filter by Period - Fix timezone comparison issue
+        cutoff_date = datetime.now()
+        if period == '1M':
+            cutoff_date -= timedelta(days=30)
+        elif period == '3M':
+            cutoff_date -= timedelta(days=90)
+        elif period == '6M':
+            cutoff_date -= timedelta(days=180)
+        elif period == '1Y':
+            cutoff_date -= timedelta(days=365)
+        elif period == 'YTD':
+            cutoff_date = datetime(datetime.now().year, 1, 1)
         
-        estimated_spreads = total_volume * 0.0002
-        estimated_slippage = total_volume * 0.0005
-        total_costs = total_commissions + estimated_spreads + estimated_slippage
-        cost_as_pct_volume = (total_costs / total_volume * 100) if total_volume > 0 else 0.0
-        cost_efficiency_score = max(0.0, 1.0 - (cost_as_pct_volume / 2.0))
+        # Handle timezone-aware vs timezone-naive datetime comparison
+        def safe_date_compare(txn_date, cutoff):
+            try:
+                # If transaction date is timezone-aware, make cutoff timezone-aware too
+                if hasattr(txn_date, 'tzinfo') and txn_date.tzinfo is not None:
+                    if cutoff.tzinfo is None:
+                        import pytz
+                        cutoff = cutoff.replace(tzinfo=pytz.UTC)
+                # If transaction date is timezone-naive, make cutoff timezone-naive too
+                elif cutoff.tzinfo is not None:
+                    cutoff = cutoff.replace(tzinfo=None)
+                return txn_date >= cutoff
+            except:
+                # Fallback: compare dates only
+                return txn_date.date() >= cutoff.date()
+        
+        # Include ALL transaction types that involve trading costs
+        trading_types = ['BUY', 'SELL', 'Buy', 'Sell', 'buy', 'sell', 'transfer', 'cash']
+        filtered_txns = [t for t in transactions if safe_date_compare(t.date, cutoff_date) and t.transaction_type in trading_types and t.price > 0]
+        
+        if not filtered_txns:
+             return {
+                'total_costs': 0.0, 
+                'total_commissions': 0.0, 
+                'total_spreads': 0.0, 
+                'total_slippage': 0.0,
+                'breakdown': [],
+                'summary': {}
+            }
+
+        # 2. Calculate Real Costs from Transaction Data
+        total_volume = sum(abs(t.quantity * t.price) for t in filtered_txns)
+        
+        # Use actual commission fees from transactions
+        total_commissions = sum(t.fees for t in filtered_txns)
+        
+        # Get real market spreads and slippage using market data
+        total_spreads, total_slippage = self._calculate_real_market_costs(filtered_txns)
+        total_costs = total_commissions + total_spreads + total_slippage
+        
+        # 3. Grouping / Breakdown
+        grouped_data = defaultdict(lambda: {'commissions': 0.0, 'spreads': 0.0, 'slippage': 0.0, 'volume': 0.0, 'trades': 0})
+        
+        for txn in filtered_txns:
+            key = 'Unknown'
+            trade_val = abs(txn.quantity * txn.price)
+            
+            if breakdown == 'By Symbol':
+                key = txn.symbol
+            elif breakdown == 'By Trade Size':
+                if trade_val < 1000: key = 'Small (<$1k)'
+                elif trade_val < 10000: key = 'Medium ($1k-$10k)'
+                else: key = 'Large (>$10k)'
+            elif breakdown == 'By Broker':
+                key = getattr(txn, 'broker', 'Unknown') or 'Unknown'
+                
+            # Use actual transaction fees
+            grouped_data[key]['commissions'] += txn.fees
+            
+            # Calculate real spread and slippage for this transaction
+            spread_cost, slippage_cost = self._calculate_transaction_market_costs(txn)
+            grouped_data[key]['spreads'] += spread_cost
+            grouped_data[key]['slippage'] += slippage_cost
+            grouped_data[key]['volume'] += trade_val
+            grouped_data[key]['trades'] += 1
+
+        # 4. Format Output
+        breakdown_list = []
+        for key, data in grouped_data.items():
+            sub_total = data['commissions'] + data['spreads'] + data['slippage']
+            
+            # Calculate view metrics
+            display_value = sub_total
+            if view == '% of Trade Value':
+                display_value = (sub_total / data['volume'] * 100) if data['volume'] > 0 else 0
+            # Note: % of P&L would require P&L calculation which is complex here, falling back to absolute for now or 0
+            
+            breakdown_list.append({
+                'name': key,
+                'commissions': data['commissions'],
+                'spreads': data['spreads'],
+                'slippage': data['slippage'],
+                'total': sub_total,
+                'volume': data['volume'],
+                'trades': data['trades'],
+                'display_value': display_value
+            })
+            
+        # Sort by total cost descending
+        breakdown_list.sort(key=lambda x: x['total'], reverse=True)
         
         return {
-            'total_commissions': total_commissions,
-            'total_spreads': estimated_spreads,
-            'total_slippage': estimated_slippage,
             'total_costs': total_costs,
-            'cost_as_pct_volume': cost_as_pct_volume,
-            'avg_cost_per_trade': total_costs / trade_count if trade_count > 0 else 0.0,
-            'cost_efficiency_score': cost_efficiency_score,
-            'total_volume': total_volume,
-            'trade_count': trade_count
+            'total_commissions': total_commissions,
+            'total_spreads': total_spreads,
+            'total_slippage': total_slippage,
+            'cost_as_pct_volume': (total_costs / total_volume * 100) if total_volume > 0 else 0,
+            'breakdown': breakdown_list,
+            'period': period,
+            'breakdown_type': breakdown,
+            'view': view
         }
     
+    def _calculate_real_market_costs(self, transactions: List[Transaction]) -> tuple:
+        """Calculate real spread and slippage costs using market data"""
+        try:
+            total_spreads = 0.0
+            total_slippage = 0.0
+            
+            # Group transactions by symbol for batch processing
+            symbols = list(set(t.symbol for t in transactions))
+            
+            # Get current bid-ask spreads from market data
+            current_prices = self.data_client.get_current_prices(symbols)
+            
+            for txn in transactions:
+                trade_value = abs(txn.quantity * txn.price)
+                
+                if txn.symbol in current_prices:
+                    current_price = current_prices[txn.symbol]
+                    
+                    # Calculate spread cost
+                    estimated_spread_pct = self._get_symbol_spread_estimate(txn.symbol, current_price)
+                    spread_cost = trade_value * estimated_spread_pct
+                    
+                    # Calculate slippage
+                    price_diff_pct = abs(txn.price - current_price) / current_price if current_price > 0 else 0
+                    slippage_pct = min(price_diff_pct, 0.005)
+                    slippage_cost = trade_value * slippage_pct
+                    
+                    total_spreads += spread_cost
+                    total_slippage += slippage_cost
+                else:
+                    # Skip transactions without valid market data - NO FALLBACK
+                    continue
+            
+            return total_spreads, total_slippage
+            
+        except Exception as e:
+            # NO FALLBACK - Return zero costs if market data fails
+            print(f"[COST-ANALYSIS] Market data failed: {e}")
+            return 0.0, 0.0
+    
+    def _calculate_transaction_market_costs(self, txn: Transaction) -> tuple:
+        """Calculate spread and slippage for individual transaction"""
+        try:
+            current_prices = self.data_client.get_current_prices([txn.symbol])
+            trade_value = abs(txn.quantity * txn.price)
+            
+            if txn.symbol in current_prices:
+                current_price = current_prices[txn.symbol]
+                
+                # Spread cost
+                spread_pct = self._get_symbol_spread_estimate(txn.symbol, current_price)
+                spread_cost = trade_value * spread_pct
+                
+                # Slippage cost
+                price_diff_pct = abs(txn.price - current_price) / current_price if current_price > 0 else 0
+                slippage_pct = min(price_diff_pct, 0.005)
+                slippage_cost = trade_value * slippage_pct
+                
+                return spread_cost, slippage_cost
+            else:
+                # NO FALLBACK - Return zero if no market data
+                return 0.0, 0.0
+                
+        except Exception:
+            # NO FALLBACK - Return zero if calculation fails
+            return 0.0, 0.0
+    
+    def _get_symbol_spread_estimate(self, symbol: str, current_price: float) -> float:
+        """Get realistic spread estimate based on symbol characteristics"""
+        # Large cap stocks (>$50): 0.05%
+        if current_price > 50:
+            return 0.0005
+        # Mid cap stocks ($10-$50): 0.1%
+        elif current_price > 10:
+            return 0.001
+        # Small cap stocks (<$10): 0.2%
+        else:
+            return 0.002
+
     def drawdown_analysis(self, transactions: List[Transaction]) -> Dict:
         """Simplified drawdown analysis with essential metrics"""
         if not transactions:
@@ -567,16 +757,36 @@ class AdvancedTransactionAnalyzer:
         }
     
     def trade_performance_analysis(self, transactions: List[Transaction]) -> Dict:
-        """Comprehensive trade performance analysis"""
-        if not transactions:
-            return {'total_trades': 0, 'win_rate': 0, 'avg_trade_size': 0, 'best_trade': 0, 'worst_trade': 0}
+        """Comprehensive trade performance analysis using real transaction data"""
+        print(f"[TRADE-PERFORMANCE] Processing {len(transactions)} transactions")
         
-        # Group transactions into trades (buy-sell pairs)
+        if not transactions:
+            print(f"[TRADE-PERFORMANCE] No transactions provided")
+            return {
+                'total_trades': 0, 
+                'win_rate': 0.0, 
+                'avg_trade_size': 0.0, 
+                'total_pnl': 0.0,
+                'profit_factor': 0.0,
+                'winning_trades': 0,
+                'losing_trades': 0,
+                'avg_win': 0.0,
+                'avg_loss': 0.0,
+                'ranked_trades': [],
+                'best_trade': {'symbol': 'N/A', 'pnl': 0.0, 'return_pct': 0.0},
+                'worst_trade': {'symbol': 'N/A', 'pnl': 0.0, 'return_pct': 0.0}
+            }
+        
+        # Track both buy-sell pairs AND individual profitable transactions
         positions = defaultdict(lambda: {'quantity': 0, 'avg_cost': 0, 'trades': []})
         completed_trades = []
+        individual_trades = []  # For options sold without corresponding buys
         
-        for txn in sorted(transactions, key=lambda x: x.date):
+        print(f"[TRADE-PERFORMANCE] Processing transactions chronologically")
+        
+        for i, txn in enumerate(sorted(transactions, key=lambda x: x.date)):
             symbol = txn.symbol
+            print(f"[TRADE-PERFORMANCE] Transaction {i+1}: {symbol} {txn.transaction_type} {txn.quantity} @ ${txn.price}")
             
             if txn.transaction_type in ['BUY', 'Buy']:
                 old_value = positions[symbol]['quantity'] * positions[symbol]['avg_cost']
@@ -586,62 +796,120 @@ class AdvancedTransactionAnalyzer:
                 if total_quantity > 0:
                     positions[symbol]['avg_cost'] = (old_value + new_value) / total_quantity
                 positions[symbol]['quantity'] = total_quantity
+                print(f"[TRADE-PERFORMANCE] Updated position: {symbol} qty={total_quantity} avg_cost=${positions[symbol]['avg_cost']:.2f}")
                 
-            elif txn.transaction_type in ['SELL', 'Sell'] and positions[symbol]['quantity'] > 0:
-                sell_quantity = min(abs(txn.quantity), positions[symbol]['quantity'])
-                pnl = (txn.price - positions[symbol]['avg_cost']) * sell_quantity - txn.fees
-                trade_size = sell_quantity * positions[symbol]['avg_cost']
-                
-                completed_trades.append({
-                    'symbol': symbol,
-                    'pnl': pnl,
-                    'size': trade_size,
-                    'return_pct': (pnl / trade_size * 100) if trade_size > 0 else 0,
-                    'sell_date': txn.date,
-                    'sell_price': txn.price,
-                    'buy_price': positions[symbol]['avg_cost']
-                })
-                
-                positions[symbol]['quantity'] -= sell_quantity
+            elif txn.transaction_type in ['SELL', 'Sell']:
+                if positions[symbol]['quantity'] > 0:
+                    # This is a sell with corresponding buy - create matched trade
+                    sell_quantity = min(abs(txn.quantity), positions[symbol]['quantity'])
+                    pnl = (txn.price - positions[symbol]['avg_cost']) * sell_quantity - txn.fees
+                    trade_size = sell_quantity * positions[symbol]['avg_cost']
+                    return_pct = (pnl / trade_size) if trade_size > 0 else 0
+                    
+                    completed_trade = {
+                        'symbol': symbol,
+                        'pnl': pnl,
+                        'size': trade_size,
+                        'return_pct': return_pct,
+                        'sell_date': txn.date,
+                        'sell_price': txn.price,
+                        'buy_price': positions[symbol]['avg_cost'],
+                        'type': 'Long'
+                    }
+                    
+                    completed_trades.append(completed_trade)
+                    positions[symbol]['quantity'] -= sell_quantity
+                    
+                    print(f"[TRADE-PERFORMANCE] Completed trade: {symbol} P&L=${pnl:.2f} Return={return_pct*100:.2f}%")
+                else:
+                    # This is a sell without corresponding buy (e.g., options premium collected)
+                    trade_value = abs(txn.quantity) * txn.price
+                    pnl = trade_value - txn.fees  # Premium collected minus fees
+                    return_pct = (pnl / trade_value) if trade_value > 0 else 0
+                    
+                    individual_trade = {
+                        'symbol': symbol,
+                        'pnl': pnl,
+                        'size': trade_value,
+                        'return_pct': return_pct,
+                        'sell_date': txn.date,
+                        'sell_price': txn.price,
+                        'buy_price': 0,  # No corresponding buy
+                        'type': 'Short' if 'C' in symbol or 'P' in symbol else 'Sell'
+                    }
+                    
+                    individual_trades.append(individual_trade)
+                    print(f"[TRADE-PERFORMANCE] Individual trade: {symbol} P&L=${pnl:.2f} (premium collected)")
         
-        if not completed_trades:
-            return {'total_trades': 0, 'win_rate': 0, 'avg_trade_size': 0, 'best_trade': 0, 'worst_trade': 0}
+        # Combine all trades
+        all_trades = completed_trades + individual_trades
         
-        # Calculate performance metrics
-        total_trades = len(completed_trades)
-        winning_trades = [t for t in completed_trades if t['pnl'] > 0]
-        losing_trades = [t for t in completed_trades if t['pnl'] < 0]
+        print(f"[TRADE-PERFORMANCE] Found {len(completed_trades)} matched trades + {len(individual_trades)} individual trades = {len(all_trades)} total")
         
-        win_rate = len(winning_trades) / total_trades * 100
-        avg_trade_size = np.mean([t['size'] for t in completed_trades])
-        total_pnl = sum(t['pnl'] for t in completed_trades)
+        if not all_trades:
+            print(f"[TRADE-PERFORMANCE] No trades found")
+            return {
+                'total_trades': len([t for t in transactions if t.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell']]),
+                'win_rate': 0.0, 
+                'avg_trade_size': 0.0, 
+                'total_pnl': 0.0,
+                'profit_factor': 0.0,
+                'winning_trades': 0,
+                'losing_trades': 0,
+                'avg_win': 0.0,
+                'avg_loss': 0.0,
+                'ranked_trades': [],
+                'best_trade': {'symbol': 'N/A', 'pnl': 0.0, 'return_pct': 0.0},
+                'worst_trade': {'symbol': 'N/A', 'pnl': 0.0, 'return_pct': 0.0}
+            }
+        
+        # Calculate real performance metrics from all trades
+        total_trades = len(all_trades)
+        winning_trades = [t for t in all_trades if t['pnl'] > 0]
+        losing_trades = [t for t in all_trades if t['pnl'] < 0]
+        
+        win_rate = len(winning_trades) / total_trades if total_trades > 0 else 0
+        avg_trade_size = np.mean([t['size'] for t in all_trades])
+        total_pnl = sum(t['pnl'] for t in all_trades)
         avg_win = np.mean([t['pnl'] for t in winning_trades]) if winning_trades else 0
         avg_loss = np.mean([t['pnl'] for t in losing_trades]) if losing_trades else 0
         
-        best_trade = max(completed_trades, key=lambda x: x['pnl'])
-        worst_trade = min(completed_trades, key=lambda x: x['pnl'])
+        # Calculate profit factor (gross profit / gross loss)
+        gross_profit = sum(t['pnl'] for t in winning_trades) if winning_trades else 0
+        gross_loss = abs(sum(t['pnl'] for t in losing_trades)) if losing_trades else 0
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0)
         
-        return {
+        best_trade = max(all_trades, key=lambda x: x['pnl'])
+        worst_trade = min(all_trades, key=lambda x: x['pnl'])
+        
+        # Create ranked trades for frontend display (all trades)
+        ranked_trades = sorted(all_trades, key=lambda x: x['pnl'], reverse=True)
+        
+        result = {
             'total_trades': total_trades,
             'winning_trades': len(winning_trades),
             'losing_trades': len(losing_trades),
-            'win_rate': round(win_rate, 2),
-            'avg_trade_size': round(avg_trade_size, 2),
-            'total_pnl': round(total_pnl, 2),
-            'avg_win': round(avg_win, 2),
-            'avg_loss': round(avg_loss, 2),
-            'profit_factor': round(abs(avg_win / avg_loss), 2) if avg_loss != 0 else 0,
+            'win_rate': win_rate,
+            'avg_trade_size': avg_trade_size,
+            'total_pnl': total_pnl,
+            'avg_win': avg_win,
+            'avg_loss': avg_loss,
+            'profit_factor': profit_factor,
+            'ranked_trades': ranked_trades,
             'best_trade': {
                 'symbol': best_trade['symbol'],
-                'pnl': round(best_trade['pnl'], 2),
-                'return_pct': round(best_trade['return_pct'], 2)
+                'pnl': best_trade['pnl'],
+                'return_pct': best_trade['return_pct']
             },
             'worst_trade': {
                 'symbol': worst_trade['symbol'],
-                'pnl': round(worst_trade['pnl'], 2),
-                'return_pct': round(worst_trade['return_pct'], 2)
+                'pnl': worst_trade['pnl'],
+                'return_pct': worst_trade['return_pct']
             }
         }
+        
+        print(f"[TRADE-PERFORMANCE] Analysis complete: {total_trades} trades processed")
+        return result
 
 
 class TradingOperationsAnalyzer:
@@ -659,3 +927,86 @@ class TradingOperationsAnalyzer:
         # Use the enhanced trade performance analysis
         analyzer = AdvancedTransactionAnalyzer(self.data_client)
         return analyzer.trade_performance_analysis(transactions)
+    def _calculate_real_market_costs(self, transactions: List[Transaction]) -> tuple:
+        """Calculate real spread and slippage costs using market data"""
+        try:
+            from clients.market_data_client import MarketDataClient
+            market_client = MarketDataClient()
+            
+            total_spreads = 0.0
+            total_slippage = 0.0
+            
+            # Group transactions by symbol for batch processing
+            symbols = list(set(t.symbol for t in transactions))
+            
+            # Get current bid-ask spreads from market data
+            current_prices = market_client.get_current_prices(symbols)
+            
+            for txn in transactions:
+                if txn.symbol in current_prices:
+                    current_price = current_prices[txn.symbol]
+                    trade_value = abs(txn.quantity * txn.price)
+                    
+                    # Calculate spread cost: difference between bid-ask spread
+                    # Estimate spread as 0.1-0.3% of current price for liquid stocks
+                    estimated_spread_pct = self._get_symbol_spread_estimate(txn.symbol, current_price)
+                    spread_cost = trade_value * estimated_spread_pct
+                    
+                    # Calculate slippage: difference between expected and actual execution price
+                    price_diff_pct = abs(txn.price - current_price) / current_price if current_price > 0 else 0
+                    # Cap slippage at reasonable levels (0.5% max)
+                    slippage_pct = min(price_diff_pct, 0.005)
+                    slippage_cost = trade_value * slippage_pct
+                    
+                    total_spreads += spread_cost
+                    total_slippage += slippage_cost
+            
+            return total_spreads, total_slippage
+            
+        except Exception as e:
+            # Fallback to minimal estimates if market data fails
+            total_volume = sum(abs(t.quantity * t.price) for t in transactions)
+            return total_volume * 0.001, total_volume * 0.001  # 0.1% each
+    
+    def _calculate_transaction_market_costs(self, txn: Transaction) -> tuple:
+        """Calculate spread and slippage for individual transaction"""
+        try:
+            from clients.market_data_client import MarketDataClient
+            market_client = MarketDataClient()
+            
+            current_prices = market_client.get_current_prices([txn.symbol])
+            trade_value = abs(txn.quantity * txn.price)
+            
+            if txn.symbol in current_prices:
+                current_price = current_prices[txn.symbol]
+                
+                # Spread cost
+                spread_pct = self._get_symbol_spread_estimate(txn.symbol, current_price)
+                spread_cost = trade_value * spread_pct
+                
+                # Slippage cost
+                price_diff_pct = abs(txn.price - current_price) / current_price if current_price > 0 else 0
+                slippage_pct = min(price_diff_pct, 0.005)
+                slippage_cost = trade_value * slippage_pct
+                
+                return spread_cost, slippage_cost
+            else:
+                # Fallback for symbols without current price data
+                return trade_value * 0.001, trade_value * 0.001
+                
+        except Exception:
+            # Minimal fallback
+            trade_value = abs(txn.quantity * txn.price)
+            return trade_value * 0.001, trade_value * 0.001
+    
+    def _get_symbol_spread_estimate(self, symbol: str, current_price: float) -> float:
+        """Get realistic spread estimate based on symbol characteristics"""
+        # Large cap stocks (>$50): 0.05-0.1%
+        if current_price > 50:
+            return 0.0005  # 0.05%
+        # Mid cap stocks ($10-$50): 0.1-0.2%
+        elif current_price > 10:
+            return 0.001   # 0.1%
+        # Small cap stocks (<$10): 0.2-0.5%
+        else:
+            return 0.002   # 0.2%
