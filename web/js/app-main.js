@@ -278,7 +278,7 @@ async function loadDetailedTransactionAnalytics(transactions) {
         withTimeout(loadCostAnalysis(transactions)).catch(() => console.log('Cost analysis failed')),
         withTimeout(loadReturnAttribution(transactions)).catch(() => console.log('Return attribution failed')),
         withTimeout(loadTradePerformance(transactions)).catch(() => console.log('Trade performance failed')),
-        withTimeout(loadTurnoverAnalysis(transactions)).catch(() => console.log('Turnover analysis failed')),
+        // Turnover analysis handled by dedicated module
         withTimeout(loadTaxAnalysis(transactions)).catch(() => console.log('Tax analysis failed')),
         withTimeout(loadCashFlowAnalysis(transactions)).catch(() => console.log('Cash flow analysis failed')),
         withTimeout(loadFifoLifoAnalysis(transactions)).catch(() => console.log('FIFO/LIFO analysis failed')),
@@ -527,20 +527,7 @@ async function saveTransactionsToSupabase(filename, data) {
     return await response.json();
 }
 
-async function loadTurnoverAnalysis(transactions) {
-    const totalVolume = transactions.reduce((sum, t) => sum + Math.abs((parseFloat(t.quantity) || 0) * (parseFloat(t.price) || 0)), 0);
-    const portfolioValue = totalVolume / 2;
-    const turnoverRatio = portfolioValue > 0 ? totalVolume / portfolioValue : 1.0;
-    const annualizedTurnover = turnoverRatio * 4; // Quarterly to annual
-
-    document.getElementById('turnoverAnalysis').innerHTML = `
-        <div class="space-y-3">
-            <div class="flex justify-between"><span>Turnover Ratio</span><span class="font-semibold">${turnoverRatio.toFixed(1)}x</span></div>
-            <div class="flex justify-between"><span>Annualized Turnover</span><span class="font-semibold">${annualizedTurnover.toFixed(1)}x</span></div>
-            <div class="flex justify-between"><span>Trading Frequency</span><span class="font-semibold">${transactions.length > 20 ? 'High' : 'Moderate'}</span></div>
-        </div>
-    `;
-}
+// loadTurnoverAnalysis removed - using dedicated interactive version from turnover-analysis.js
 
 async function loadCashFlowAnalysis(transactions) {
     console.log('Cash Flow Analysis - transactions:', transactions);

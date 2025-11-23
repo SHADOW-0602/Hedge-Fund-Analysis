@@ -292,6 +292,16 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+# Register turnover analysis routes
+try:
+    from api.turnover_routes import register_turnover_routes
+    register_turnover_routes(app, data_client, None)
+    logger.info("Turnover Analysis routes registered successfully")
+except Exception as e:
+    logger.error(f"Failed to register turnover analysis routes: {e}")
+    import traceback
+    traceback.print_exc()
+
 # Transaction analysis routes are registered via portfolio_routes.py
 
 if __name__ == '__main__':

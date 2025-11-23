@@ -257,6 +257,28 @@ class AnalyticsManager {
             return;
         }
 
+        // Special handling for Turnover Analysis to use its own dedicated handler
+        if (name === 'turnover-analysis' && window.loadTurnoverAnalysis) {
+            console.log('Delegating to loadTurnoverAnalysis');
+            // Ensure container is visible
+            const container = document.getElementById('analysisContent');
+            if (container) container.classList.remove('hidden');
+
+            // Use the Turnover container ID defined in registration
+            const turnoverContainer = document.getElementById(module.containerId);
+            if (turnoverContainer) {
+                // Clear any previous content/spinner from AnalyticsManager
+                if (container && container !== turnoverContainer) {
+                    container.innerHTML = '';
+                    container.appendChild(turnoverContainer);
+                }
+                turnoverContainer.classList.remove('hidden');
+            }
+
+            window.loadTurnoverAnalysis(this.transactionData || window.currentTransactions);
+            return;
+        }
+
         // Special handling for Trade Performance to use its own dedicated handler
         if (name === 'trade-performance' && window.loadTradePerformance) {
             console.log('Delegating to loadTradePerformance');
@@ -1954,6 +1976,31 @@ class AnalyticsManager {
 
     displayTurnoverAnalysis(result, options) {
         console.log('Turnover Analysis result:', result);
+        
+        // Use the dedicated turnover analysis module if available
+        if (window.loadTurnoverAnalysis) {
+            // Get current transactions from the analytics core
+            const transactions = this.transactionData || window.currentTransactions || [];
+            console.log('Calling loadTurnoverAnalysis with transactions:', transactions?.length || 0);
+            window.loadTurnoverAnalysis(transactions);
+            return;
+        }
+        
+        // Fallback: show basic message in the correct container
+        const container = document.getElementById('turnoverAnalysis') || document.getElementById('analysisContent');
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="text-gray-400 mb-4">
+                        <svg class="w-16 h-16 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Turnover Analysis Module Not Available</h3>
+                    <p class="text-gray-600">The turnover analysis module could not be loaded.</p>
+                </div>
+            `;
+        }
     }
 
     displayTaxAnalysis(result, options) {

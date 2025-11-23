@@ -451,6 +451,7 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
+
     @app.route('/api/cash-flow-analysis', methods=['POST'])
     def cash_flow_analysis():
         try:
@@ -481,66 +482,8 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             print(f"Cash flow analysis error: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
-    @app.route('/api/turnover-analysis', methods=['POST'])
-    def turnover_analysis():
-        try:
-            from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
-            
-            data = request.get_json()
-            transactions_data = data.get('transactions', [])
-            
-            if not transactions_data:
-                return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
-            
-            # Convert to Transaction objects using the helper function
-            transactions = _convert_transactions_data(transactions_data)
-            
-            if not transactions:
-                return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
-            
-            # Use the advanced transaction analyzer
-            analyzer = AdvancedTransactionAnalyzer(data_client)
-            turnover_result = analyzer.turnover_analysis(transactions)
-            
-            return jsonify({
-                'success': True,
-                'turnover_analysis': sanitize_for_json(turnover_result)
-            })
-            
-        except Exception as e:
-            print(f"Turnover analysis error: {e}")
-            return jsonify({'success': False, 'error': str(e)}), 500
 
-    @app.route('/api/trade-timing-analysis', methods=['POST'])
-    def trade_timing_analysis():
-        try:
-            from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
-            
-            data = request.get_json()
-            transactions_data = data.get('transactions', [])
-            
-            if not transactions_data:
-                return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
-            
-            # Convert to Transaction objects using the helper function
-            transactions = _convert_transactions_data(transactions_data)
-            
-            if not transactions:
-                return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
-            
-            # Use the advanced transaction analyzer
-            analyzer = AdvancedTransactionAnalyzer(data_client)
-            timing_result = analyzer.trade_timing_analysis(transactions)
-            
-            return jsonify({
-                'success': True,
-                'trade_timing_analysis': sanitize_for_json(timing_result)
-            })
-            
-        except Exception as e:
-            print(f"Trade timing analysis error: {e}")
-            return jsonify({'success': False, 'error': str(e)}), 500
-    
+
     @app.route('/api/statistical-analysis', methods=['GET', 'POST'])
     def statistical_analysis():
         try:

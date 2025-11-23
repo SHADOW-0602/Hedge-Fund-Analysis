@@ -70,3 +70,5 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             import traceback
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
+    
+
