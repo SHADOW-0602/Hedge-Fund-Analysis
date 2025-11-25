@@ -169,6 +169,11 @@ class StrategyBacktester:
         tracking_error = active_returns.std() * np.sqrt(252)
         information_ratio = (portfolio_annual - benchmark_annual) / tracking_error if tracking_error > 0 else 0
         
+        # Sortino Ratio (also add to performance metrics)
+        downside_returns = portfolio_returns[portfolio_returns < 0]
+        downside_deviation = downside_returns.std() * np.sqrt(252) if len(downside_returns) > 0 else portfolio_returns.std() * np.sqrt(252)
+        sortino_ratio = (portfolio_annual - risk_free_rate) / downside_deviation if downside_deviation > 0 else 0
+        
         # Cumulative returns
         cumulative_portfolio = (1 + portfolio_returns).cumprod().iloc[-1] - 1
         cumulative_benchmark = (1 + benchmark_returns).cumprod().iloc[-1] - 1
@@ -178,6 +183,7 @@ class StrategyBacktester:
             'annualized_return': float(portfolio_annual),
             'volatility': float(portfolio_vol),
             'sharpe_ratio': float(sharpe_ratio),
+            'sortino_ratio': float(sortino_ratio),
             'alpha': float(alpha),
             'beta': float(beta),
             'information_ratio': float(information_ratio),

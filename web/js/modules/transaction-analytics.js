@@ -29,7 +29,7 @@ async function loadAllTransactionAnalytics(transactions) {
         loadTradePerformance && loadTradePerformance(transactions),
         loadCostAnalysis && loadCostAnalysis(transactions),
         loadTurnoverAnalysis && loadTurnoverAnalysis(transactions),
-        loadTaxAnalysis && loadTaxAnalysis(transactions),
+        loadTaxAnalysis && (() => { window.isIndividualTaxAnalysis = false; return loadTaxAnalysis(transactions); })(),
         loadCashFlowAnalysis && loadCashFlowAnalysis(transactions),
         loadFifoLifoAnalysis && loadFifoLifoAnalysis(transactions),
         loadTradeTimingAnalysis && loadTradeTimingAnalysis(transactions),
@@ -81,5 +81,17 @@ function updateTransactionOverview(transactions) {
     });
 }
 
+// Refresh function for the main refresh button
+function refreshTransactionAnalysis() {
+    console.log('Refreshing all transaction analytics...');
+    if (window.currentTransactions && window.currentTransactions.length > 0) {
+        loadAllTransactionAnalytics(window.currentTransactions);
+    } else {
+        console.error('No current transactions available for refresh');
+        showError('No transaction data available. Please reload the page.');
+    }
+}
+
 // Export for global access
 window.loadAllTransactionAnalytics = loadAllTransactionAnalytics;
+window.refreshTransactionAnalysis = refreshTransactionAnalysis;

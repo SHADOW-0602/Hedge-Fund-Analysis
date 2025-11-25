@@ -1,9 +1,12 @@
 from flask import request, jsonify
 from datetime import datetime
 from .route_utils import sanitize_for_json
+from utils.date_parser import UniversalDateParser
 
 def register_tax_routes(app, data_client, smart_cache=None):
     """Register tax analysis routes"""
+    
+
     
     @app.route('/api/tax-analysis', methods=['POST'])
     def comprehensive_tax_analysis():
@@ -15,21 +18,18 @@ def register_tax_routes(app, data_client, smart_cache=None):
             transactions_data = data.get('transactions', [])
             options = data.get('options', {})
             
+            print(f"[TAX-ANALYSIS] Received data keys: {list(data.keys()) if data else 'None'}")
+            print(f"[TAX-ANALYSIS] Transactions count: {len(transactions_data) if transactions_data else 0}")
+            print(f"[TAX-ANALYSIS] Options: {options}")
+            
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
             
             # Convert to Transaction objects
             transactions = []
-            for tx_data in transactions_data:
+            for i, tx_data in enumerate(transactions_data):
                 try:
-                    date_str = tx_data.get('date', '')
-                    if isinstance(date_str, str) and date_str.strip():
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    else:
-                        date_obj = datetime.now()
+                    date_obj = UniversalDateParser.parse_date(tx_data.get('date', ''))
                     
                     transaction = Transaction(
                         symbol=tx_data.get('symbol', ''),
@@ -40,15 +40,19 @@ def register_tax_routes(app, data_client, smart_cache=None):
                         fees=float(tx_data.get('fees', 0))
                     )
                     transactions.append(transaction)
-                except Exception:
+                except Exception as e:
+                    print(f"[TAX-ANALYSIS] Failed to convert transaction {i}: {e}")
                     continue
             
             if not transactions:
+                print(f"[TAX-ANALYSIS] No valid transactions after conversion")
                 return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
+            
+            print(f"[TAX-ANALYSIS] Successfully converted {len(transactions)} transactions")
             
             # Use the advanced transaction analyzer
             analyzer = AdvancedTransactionAnalyzer(data_client)
-            tax_result = analyzer.tax_analysis(transactions)
+            tax_result = analyzer.tax_analysis(transactions, options)
             
             # Also get tax loss harvesting data for additional insights
             tax_harvesting = analyzer.tax_loss_harvesting_analysis(transactions)
@@ -86,14 +90,7 @@ def register_tax_routes(app, data_client, smart_cache=None):
             transactions = []
             for tx_data in transactions_data:
                 try:
-                    date_str = tx_data.get('date', '')
-                    if isinstance(date_str, str) and date_str.strip():
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    else:
-                        date_obj = datetime.now()
+                    date_obj = UniversalDateParser.parse_date(tx_data.get('date', ''))
                     
                     transaction = Transaction(
                         symbol=tx_data.get('symbol', ''),
@@ -154,14 +151,7 @@ def register_tax_routes(app, data_client, smart_cache=None):
             transactions = []
             for tx_data in transactions_data:
                 try:
-                    date_str = tx_data.get('date', '')
-                    if isinstance(date_str, str) and date_str.strip():
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    else:
-                        date_obj = datetime.now()
+                    date_obj = UniversalDateParser.parse_date(tx_data.get('date', ''))
                     
                     transaction = Transaction(
                         symbol=tx_data.get('symbol', ''),
@@ -189,3 +179,5 @@ def register_tax_routes(app, data_client, smart_cache=None):
         except Exception as e:
             print(f"Tax loss harvesting error: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
+    
+    print("[SUCCESS] Tax analysis routes registered")

@@ -95,6 +95,12 @@ class BacktestingManager {
                             </span>
                         </div>
                         <div class="flex justify-between">
+                            <span class="text-gray-600">Sortino Ratio</span>
+                            <span class="font-semibold text-indigo-600">
+                                ${(performance.sortino_ratio || risk.sortino_ratio || 0).toFixed(2)}
+                            </span>
+                        </div>
+                        <div class="flex justify-between">
                             <span class="text-gray-600">Max Drawdown</span>
                             <span class="font-semibold text-red-600">
                                 ${((risk.max_drawdown || 0) * 100).toFixed(2)}%

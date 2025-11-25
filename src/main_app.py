@@ -215,6 +215,8 @@ def get_market_news():
 def test_api():
     return jsonify({'success': True, 'message': 'API is working'})
 
+
+
 # Newsletter subscription removed - handled by News app
 
 # Ticker management removed - handled by News app
@@ -250,8 +252,10 @@ register_auth_routes(app)  # Re-enabled for portfolio database
 try:
     register_portfolio_routes(app, data_client, None)
     logger.info("Portfolio routes registered successfully")
+    print("[DEBUG] Portfolio routes registered - checking tax routes...")
 except Exception as e:
     logger.error(f"Failed to register portfolio routes: {e}")
+    print(f"[ERROR] Portfolio routes failed: {e}")
     import traceback
     traceback.print_exc()
 try:
@@ -281,6 +285,10 @@ except Exception as e:
     logger.error(f"Failed to register backtesting routes: {e}")
     import traceback
     traceback.print_exc()
+
+# Note: Tax, analytics, options, technical analysis, transaction analysis, 
+# drawdown, comprehensive analysis, and portfolio management routes are 
+# already registered via portfolio_routes.py to avoid duplicates
 
 # Register P&L attribution routes
 try:

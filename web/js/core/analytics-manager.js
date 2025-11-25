@@ -307,10 +307,41 @@ class AnalyticsManager {
             
             // Ensure container is visible
             const container = document.getElementById('analysisContent');
-            if (container) container.classList.remove('hidden');
+            if (container) {
+                container.classList.remove('hidden');
+                container.innerHTML = '';
+            }
+            
+            // Check for transaction data
+            const transactions = this.transactionData || window.currentTransactions;
+            if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+                console.log('No transaction data available for cost analysis');
+                window.analyticsCore.showDataSourceSelection('transaction');
+                return;
+            }
             
             // Use the dedicated cost analysis handler directly
-            window.loadCostAnalysis(this.transactionData || window.currentTransactions);
+            window.loadCostAnalysis(transactions);
+            return;
+        }
+
+        // Special handling for Tax Analysis to use its own dedicated handler
+        if (name === 'tax-analysis' && window.loadTaxAnalysis) {
+            console.log('Delegating to loadTaxAnalysis');
+            console.log('Transaction data available:', !!(this.transactionData || window.currentTransactions));
+            console.log('Transaction count:', (this.transactionData || window.currentTransactions)?.length || 0);
+            
+            // Check for transaction data first
+            const transactions = this.transactionData || window.currentTransactions;
+            if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+                console.log('No transaction data available for tax analysis');
+                window.analyticsCore.showDataSourceSelection('transaction');
+                return;
+            }
+            
+            // Call tax analysis with proper data - let it handle its own container
+            console.log('Calling loadTaxAnalysis with', transactions.length, 'transactions');
+            window.loadTaxAnalysis(transactions);
             return;
         }
 

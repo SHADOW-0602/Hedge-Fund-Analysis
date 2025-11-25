@@ -60,6 +60,26 @@ function hideAllSections() {
 function createIndividualAnalysisHTML(analysisType) {
     const analysisConfig = getAnalysisConfig(analysisType);
 
+    // For tax analysis, check if we're in transaction analysis context
+    if (analysisType === 'tax-analysis') {
+        const transactionAnalysisSection = document.getElementById('transactionAnalysis');
+        if (transactionAnalysisSection && !transactionAnalysisSection.classList.contains('hidden')) {
+            // We're in transaction analysis context, don't create individual view
+            return '';
+        }
+        // For individual tax analysis view, don't show header with back/refresh buttons
+        return `
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+                <div id="${analysisConfig.containerId}" class="min-h-96">
+                    <div class="text-center py-12 text-blue-600">
+                        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-2"></div>
+                        Loading ${analysisConfig.title.toLowerCase()}...
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     return `
         <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
             <div class="flex justify-between items-center mb-6">
@@ -118,6 +138,15 @@ function getAnalysisConfig(analysisType) {
 }
 
 function loadSpecificAnalysis(analysisType) {
+    // Special handling for tax analysis - use dedicated module
+    if (analysisType === 'tax-analysis' && window.loadTaxAnalysis) {
+        const transactions = window.currentTransactions || window.currentTaxTransactions || [];
+        // Set flag to indicate this is individual analysis mode
+        window.isIndividualTaxAnalysis = true;
+        window.loadTaxAnalysis(transactions);
+        return;
+    }
+
     if (window.analyticsManager && window.analyticsManager.loadAnalysis) {
         window.analyticsManager.loadAnalysis(analysisType);
     }

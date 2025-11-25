@@ -326,6 +326,9 @@ class RiskAnalyzer:
                 logger.warning(f"Risk contribution calculation failed: {e}")
                 risk_contribution = {symbol: 1.0/len(available_symbols) for symbol in available_symbols}
         
+        # Validate portfolio returns for data quality
+        self._validate_portfolio_returns(portfolio_returns, available_symbols)
+        
         # Calculate comprehensive drawdown metrics using market data
         drawdown_metrics = self._calculate_accurate_drawdown(available_symbols, available_weights, period)
         
@@ -492,12 +495,27 @@ class RiskAnalyzer:
         excess_return = annualized_return - risk_free_rate
         
         print(f"Sharpe Debug - Daily Mean: {daily_mean:.6f}, Daily Std: {daily_std:.6f}")
-        print(f"Sharpe Debug - Ann Return: {annualized_return:.4f}, Ann Vol: {annualized_volatility:.4f}")
-        print(f"Sharpe Debug - Excess Return: {excess_return:.4f}, Risk Free: {risk_free_rate:.4f}")
+        print(f"Sharpe Debug - Ann Return: {annualized_return:.4f} ({annualized_return*100:.2f}%), Ann Vol: {annualized_volatility:.4f} ({annualized_volatility*100:.2f}%)")
+        print(f"Sharpe Debug - Excess Return: {excess_return:.4f} ({excess_return*100:.2f}%), Risk Free: {risk_free_rate:.4f} ({risk_free_rate*100:.2f}%)")
+        
+        # Additional validation for extreme values
+        if abs(annualized_return) > 5.0:  # More than 500% annual return/loss
+            print(f"Sharpe Debug - WARNING: Extreme annualized return detected: {annualized_return*100:.2f}%")
+        
+        if annualized_volatility > 2.0:  # More than 200% annual volatility
+            print(f"Sharpe Debug - WARNING: Extreme volatility detected: {annualized_volatility*100:.2f}%")
         
         if annualized_volatility > 0:
             sharpe = excess_return / annualized_volatility
             print(f"Sharpe Debug - Final Sharpe: {sharpe:.4f}")
+            
+            # Flag extreme Sharpe ratios for investigation
+            if abs(sharpe) > 5.0:
+                print(f"Sharpe Debug - WARNING: Extreme Sharpe ratio detected: {sharpe:.4f}")
+                print(f"Sharpe Debug - This may indicate data quality issues or extreme portfolio performance")
+                print(f"Sharpe Debug - Portfolio return range: {portfolio_returns.min():.6f} to {portfolio_returns.max():.6f}")
+                print(f"Sharpe Debug - Number of extreme daily returns (>5%): {len(portfolio_returns[abs(portfolio_returns) > 0.05])}")
+            
             if np.isnan(sharpe) or np.isinf(sharpe):
                 return None
             return self._safe_value(sharpe)
@@ -708,3 +726,35 @@ class RiskAnalyzer:
         except Exception as e:
             logger.error(f"Error calculating accurate beta: {e}")
             return 0.0
+    
+    def _validate_portfolio_returns(self, portfolio_returns: pd.Series, symbols: List[str]) -> None:
+        """Validate portfolio returns for data quality issues"""
+        if len(portfolio_returns) == 0:
+            return
+        
+        # Check for extreme daily returns
+        extreme_returns = portfolio_returns[abs(portfolio_returns) > 0.20]  # >20% daily moves
+        if len(extreme_returns) > 0:
+            print(f"Portfolio Validation - WARNING: {len(extreme_returns)} extreme daily returns (>20%) detected")
+            print(f"Portfolio Validation - Extreme returns: {extreme_returns.head().tolist()}")
+        
+        # Check for data quality
+        nan_count = portfolio_returns.isna().sum()
+        if nan_count > 0:
+            print(f"Portfolio Validation - WARNING: {nan_count} NaN values in portfolio returns")
+        
+        # Check return distribution
+        mean_return = portfolio_returns.mean()
+        std_return = portfolio_returns.std()
+        
+        print(f"Portfolio Validation - Symbols: {symbols}")
+        print(f"Portfolio Validation - Return stats: mean={mean_return:.6f}, std={std_return:.6f}")
+        print(f"Portfolio Validation - Return range: {portfolio_returns.min():.6f} to {portfolio_returns.max():.6f}")
+        print(f"Portfolio Validation - Data points: {len(portfolio_returns)}")
+        
+        # Flag suspicious patterns
+        if abs(mean_return) > 0.01:  # >1% daily average return
+            print(f"Portfolio Validation - WARNING: Unusually high average daily return: {mean_return*100:.2f}%")
+        
+        if std_return > 0.10:  # >10% daily volatility
+            print(f"Portfolio Validation - WARNING: Very high daily volatility: {std_return*100:.2f}%")

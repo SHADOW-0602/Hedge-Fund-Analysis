@@ -339,14 +339,19 @@ class AdvancedTransactionAnalyzer:
                     positions[symbol]['quantity'] -= sell_quantity
         
         # Calculate unrealized losses for harvesting
-        current_prices = self.data_client.get_current_prices(list(positions.keys()))
+        symbols_with_positions = [s for s, pos in positions.items() if pos['quantity'] > 0]
+        current_prices = self.data_client.get_current_prices(symbols_with_positions) if symbols_with_positions else {}
         harvestable_losses = 0
         harvest_opportunities = []
+        
+        print(f"[HARVEST-DEBUG] Checking {len(symbols_with_positions)} current positions (out of {len(positions)} total symbols) for harvest opportunities")
         
         for symbol, position in positions.items():
             if position['quantity'] > 0:
                 current_price = current_prices.get(symbol, position['avg_cost'])
                 unrealized_pnl = (current_price - position['avg_cost']) * position['quantity']
+                
+                print(f"[HARVEST-DEBUG] {symbol}: qty={position['quantity']}, avg_cost=${position['avg_cost']:.2f}, current=${current_price:.2f}, unrealized=${unrealized_pnl:.2f}")
                 
                 if unrealized_pnl < 0:  # Loss position
                     harvestable_losses += abs(unrealized_pnl)
@@ -358,6 +363,9 @@ class AdvancedTransactionAnalyzer:
                         'unrealized_loss': abs(unrealized_pnl),
                         'loss_percentage': (unrealized_pnl / (position['avg_cost'] * position['quantity'])) * 100
                     })
+                    print(f"[HARVEST-DEBUG] Added harvest opportunity: {symbol} loss=${abs(unrealized_pnl):.2f}")
+        
+        print(f"[HARVEST-DEBUG] Total harvestable losses: ${harvestable_losses:.2f}, opportunities: {len(harvest_opportunities)}")
         
         # Calculate tax liability estimates
         short_term_gains = 0
@@ -818,8 +826,8 @@ class AdvancedTransactionAnalyzer:
             'frequency': 'Daily'
         }
     
-    def tax_analysis(self, transactions: List[Transaction]) -> Dict:
-        """Comprehensive tax analysis with short/long-term gains, wash sales, and tax liability"""
+    def tax_analysis(self, transactions: List[Transaction], options: Dict = None) -> Dict:
+        """Comprehensive tax analysis with interactive filters"""
         if not transactions:
             return {
                 'short_term_gain_loss': 0.0,
@@ -830,14 +838,28 @@ class AdvancedTransactionAnalyzer:
                 'tax_year': datetime.now().year
             }
         
-        # Filter transactions for current tax year
-        current_year = datetime.now().year
-        year_transactions = [t for t in transactions if t.date.year == current_year]
+        # Parse options
+        options = options or {}
+        tax_year = options.get('tax_year', 'Current')
+        holding_period = options.get('holding_period', 'All')
+        tax_rate_type = options.get('tax_rate', 'Federal')
+        wash_sale_handling = options.get('wash_sale', 'Include')
         
-        if not year_transactions:
-            # Use all transactions if no current year data
+        # Filter by tax year
+        current_year = datetime.now().year
+        
+        if tax_year == 'Current':
+            year_transactions = [t for t in transactions if t.date.year == current_year]
+        elif tax_year == 'Previous':
+            year_transactions = [t for t in transactions if t.date.year == current_year - 1]
+        else:  # Custom or All
             year_transactions = transactions
-            current_year = max(t.date.year for t in transactions)
+            
+        if not year_transactions:
+            year_transactions = transactions
+            if transactions:
+                actual_year = max(t.date.year for t in transactions)
+                current_year = actual_year
         
         # Track tax lots using FIFO method
         tax_lots = defaultdict(list)
@@ -864,10 +886,18 @@ class AdvancedTransactionAnalyzer:
                 sell_date = txn.date
                 sell_fees = txn.fees
                 
-                # Process FIFO lots
-                while remaining_to_sell > 0 and tax_lots[symbol]:
+                # Process FIFO lots with safety counter
+                max_iterations = 1000
+                iteration_count = 0
+                
+                while remaining_to_sell > 0 and tax_lots[symbol] and iteration_count < max_iterations:
+                    iteration_count += 1
                     lot = tax_lots[symbol][0]
                     lot_quantity = min(lot['quantity'], remaining_to_sell)
+                    
+                    # Safety check to prevent infinite loop
+                    if lot_quantity <= 0:
+                        break
                     
                     # Calculate holding period
                     holding_days = (sell_date - lot['date']).days
@@ -877,7 +907,7 @@ class AdvancedTransactionAnalyzer:
                     proceeds = lot_quantity * sell_price - (sell_fees * lot_quantity / abs(txn.quantity))
                     gain_loss = proceeds - cost_basis
                     
-                    # Check for wash sale (simplified - within 30 days)
+                    # Check for wash sale (30 days before and after)
                     wash_sale = False
                     if gain_loss < 0:  # Only losses can be wash sales
                         # Check for purchases within 30 days before or after
@@ -893,12 +923,31 @@ class AdvancedTransactionAnalyzer:
                                 wash_sale_adjustments += abs(gain_loss)
                                 break
                     
-                    if not wash_sale:
-                        # Classify as short-term or long-term
-                        if holding_days <= 365:
+                    # Apply wash sale handling
+                    if wash_sale and wash_sale_handling == 'Exclude':
+                        continue  # Skip this loss entirely
+                    elif wash_sale and wash_sale_handling == 'Highlight':
+                        # Include the loss but don't add to wash_sale_adjustments again
+                        wash_sale_adjustments -= abs(gain_loss)  # Remove double counting
+                    
+                    if not wash_sale or wash_sale_handling in ['Include', 'Highlight']:
+                        # Apply holding period filter and classify (tax law: exactly 1 year)
+                        is_short_term = holding_days < 365
+                        is_long_term = holding_days >= 365
+                        
+                        print(f"[TAX-DEBUG] {symbol}: gain_loss={gain_loss:.2f}, is_short_term={is_short_term}, is_long_term={is_long_term}")
+                        
+                        if holding_period == 'Short' and not is_short_term:
+                            continue  # Skip long-term if filtering for short-term only
+                        elif holding_period == 'Long' and not is_long_term:
+                            continue  # Skip short-term if filtering for long-term only
+                        
+                        if is_short_term:
                             short_term_gains += gain_loss
+                            print(f"[TAX-DEBUG] SHORT-TERM: {symbol} held {holding_days} days, gain/loss: ${gain_loss:.2f}, running total: ${short_term_gains:.2f}")
                         else:
                             long_term_gains += gain_loss
+                            print(f"[TAX-DEBUG] LONG-TERM: {symbol} held {holding_days} days, gain/loss: ${gain_loss:.2f}, running total: ${long_term_gains:.2f}")
                     
                     # Update lot
                     lot['quantity'] -= lot_quantity
@@ -906,18 +955,93 @@ class AdvancedTransactionAnalyzer:
                     
                     if lot['quantity'] <= 0:
                         tax_lots[symbol].pop(0)
+                
+                # Log if we hit the safety limit and break out of sell processing
+                if iteration_count >= max_iterations:
+                    print(f"[TAX-WARNING] Hit iteration limit for {symbol}, remaining_to_sell: {remaining_to_sell}")
+                    break  # Exit the sell transaction processing entirely
         
-        # Calculate tax liability
-        short_term_tax_rate = 0.37  # Ordinary income rate (top bracket)
-        long_term_tax_rate = 0.20   # Long-term capital gains rate
+        # Calculate tax rates based on selection
+        if tax_rate_type == 'Federal':
+            short_term_tax_rate = 0.37  # Federal ordinary income (top bracket)
+            long_term_tax_rate = 0.20   # Federal capital gains (top bracket)
+        elif tax_rate_type == 'State':
+            short_term_tax_rate = 0.13  # Average state rate
+            long_term_tax_rate = 0.13   # State capital gains (same as ordinary)
+        elif tax_rate_type == 'Combined':
+            short_term_tax_rate = 0.37 + 0.13  # Federal + state
+            long_term_tax_rate = 0.20 + 0.13   # Federal + state
+        else:  # Custom
+            short_term_tax_rate = 0.37
+            long_term_tax_rate = 0.20
         
+        print(f"[TAX-DEBUG] Tax rates: short_term={short_term_tax_rate:.1%}, long_term={long_term_tax_rate:.1%}")
+        
+        # Only tax gains, not losses
         short_term_tax = max(0, short_term_gains) * short_term_tax_rate
         long_term_tax = max(0, long_term_gains) * long_term_tax_rate
         total_tax_liability = short_term_tax + long_term_tax
         
+        print(f"[TAX-DEBUG] Tax calculation: ST_gains={short_term_gains:.2f} * {short_term_tax_rate:.1%} = ${short_term_tax:.2f}")
+        print(f"[TAX-DEBUG] Tax calculation: LT_gains={long_term_gains:.2f} * {long_term_tax_rate:.1%} = ${long_term_tax:.2f}")
+        print(f"[TAX-DEBUG] Total tax liability: ${total_tax_liability:.2f}")
+        
         # Calculate effective tax rate
         total_gains = max(0, short_term_gains) + max(0, long_term_gains)
-        effective_tax_rate = (total_tax_liability / total_gains * 100) if total_gains > 0 else 0.0
+        net_gains = short_term_gains + long_term_gains  # Include losses for effective rate
+        
+        print(f"[TAX-DEBUG] Effective rate calculation:")
+        print(f"[TAX-DEBUG] - Total positive gains: ${total_gains:.2f}")
+        print(f"[TAX-DEBUG] - Net gains (with losses): ${net_gains:.2f}")
+        print(f"[TAX-DEBUG] - Total tax liability: ${total_tax_liability:.2f}")
+        
+        # Use net gains (including losses) for more accurate effective rate
+        if net_gains > 0:
+            effective_tax_rate = (total_tax_liability / net_gains) * 100
+        elif total_gains > 0:
+            effective_tax_rate = (total_tax_liability / total_gains) * 100
+        else:
+            effective_tax_rate = 0.0
+            
+        print(f"[TAX-DEBUG] - Calculated effective rate: {effective_tax_rate:.1f}%")
+        
+        # Get harvest opportunities based on harvesting option
+        harvest_opportunities = []
+        harvestable_losses = 0
+        harvesting_option = options.get('harvesting', 'Opportunities')
+        
+        if harvesting_option == 'Opportunities':
+            print(f"[TAX-DEBUG] Calculating harvest opportunities...")
+            harvest_data = self.tax_loss_harvesting_analysis(year_transactions)
+            harvest_opportunities = harvest_data.get('harvest_opportunities', [])
+            harvestable_losses = harvest_data.get('harvestable_losses', 0)
+            print(f"[TAX-DEBUG] Found {len(harvest_opportunities)} harvest opportunities, total harvestable losses: ${harvestable_losses:.2f}")
+        elif harvesting_option == 'Realized':
+            # Show only realized losses from actual transactions
+            realized_losses = abs(min(0, short_term_gains + long_term_gains))
+            harvestable_losses = realized_losses
+            print(f"[TAX-DEBUG] Realized losses: ${realized_losses:.2f}")
+        elif harvesting_option == 'Potential':
+            # Show potential losses from current unrealized positions
+            harvest_data = self.tax_loss_harvesting_analysis(year_transactions)
+            potential_losses = harvest_data.get('harvestable_losses', 0)
+            harvestable_losses = potential_losses * 0.5  # Conservative estimate
+            print(f"[TAX-DEBUG] Potential harvestable losses: ${harvestable_losses:.2f}")
+        else:
+            print(f"[TAX-DEBUG] Harvesting option: {harvesting_option}, skipping harvest calculation")
+        
+        print(f"[TAX-DEBUG] Final results:")
+        print(f"[TAX-DEBUG] - Short-term gains: ${short_term_gains:.2f}")
+        print(f"[TAX-DEBUG] - Long-term gains: ${long_term_gains:.2f}")
+        print(f"[TAX-DEBUG] - Wash sale adjustments: ${wash_sale_adjustments:.2f}")
+        print(f"[TAX-DEBUG] - Tax liability: ${total_tax_liability:.2f}")
+        print(f"[TAX-DEBUG] - Effective rate: {effective_tax_rate:.1f}%")
+        print(f"[TAX-DEBUG] - Wash sale handling: {wash_sale_handling}")
+        
+        # Calculate potential tax savings from harvesting losses
+        # Use short-term rate since losses offset gains at the highest rate first
+        potential_tax_savings = harvestable_losses * short_term_tax_rate
+        print(f"[TAX-DEBUG] Potential tax savings: ${harvestable_losses:.2f} * {short_term_tax_rate:.1%} = ${potential_tax_savings:.2f}")
         
         return {
             'short_term_gain_loss': round(short_term_gains, 2),
@@ -928,7 +1052,10 @@ class AdvancedTransactionAnalyzer:
             'tax_year': current_year,
             'short_term_tax': round(short_term_tax, 2),
             'long_term_tax': round(long_term_tax, 2),
-            'net_capital_gains': round(short_term_gains + long_term_gains, 2)
+            'net_capital_gains': round(short_term_gains + long_term_gains, 2),
+            'harvest_opportunities': harvest_opportunities,
+            'harvestable_losses': round(harvestable_losses, 2),
+            'potential_tax_savings': round(potential_tax_savings, 2)
         }
     
     def trade_performance_analysis(self, transactions: List[Transaction]) -> Dict:

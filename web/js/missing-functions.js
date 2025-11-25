@@ -829,6 +829,134 @@ async function scanCollarStrategies() {
     await scanOptions();
 }
 
+// Update analysis functions for transaction analysis
+function updatePnLAttribution() {
+    if (window.currentTransactions && window.loadPnlAttribution) {
+        window.loadPnlAttribution(window.currentTransactions);
+    }
+}
+
+function updateTradePerformance() {
+    if (window.currentTransactions && window.loadTradePerformance) {
+        window.loadTradePerformance(window.currentTransactions);
+    }
+}
+
+function updateCostAnalysis() {
+    if (window.currentTransactions && window.loadCostAnalysis) {
+        window.loadCostAnalysis(window.currentTransactions);
+    }
+}
+
+function updateTurnoverAnalysis() {
+    if (window.currentTransactions && window.loadTurnoverAnalysis) {
+        window.loadTurnoverAnalysis(window.currentTransactions);
+    }
+}
+
+function updateTaxAnalysis() {
+    if (window.currentTransactions && window.loadTaxAnalysis) {
+        window.loadTaxAnalysis(window.currentTransactions);
+    }
+}
+
+function updateCashFlowAnalysis() {
+    if (window.currentTransactions && window.loadCashFlowAnalysis) {
+        window.loadCashFlowAnalysis(window.currentTransactions);
+    }
+}
+
+function updateFifoLifoAnalysis() {
+    if (window.currentTransactions && window.loadFifoLifoAnalysis) {
+        window.loadFifoLifoAnalysis(window.currentTransactions);
+    }
+}
+
+function updateTradeTimingAnalysis() {
+    if (window.currentTransactions && window.loadTradeTimingAnalysis) {
+        window.loadTradeTimingAnalysis(window.currentTransactions);
+    }
+}
+
+function updateDrawdownAnalysis() {
+    if (window.currentTransactions && window.loadDrawdownAnalysis) {
+        window.loadDrawdownAnalysis(window.currentTransactions);
+    }
+}
+
+function updateReturnAttribution() {
+    if (window.currentTransactions && window.loadReturnAttribution) {
+        window.loadReturnAttribution(window.currentTransactions);
+    }
+}
+
+// Export update functions
+window.updatePnLAttribution = updatePnLAttribution;
+window.updateTradePerformance = updateTradePerformance;
+window.updateCostAnalysis = updateCostAnalysis;
+window.updateTurnoverAnalysis = updateTurnoverAnalysis;
+window.updateTaxAnalysis = updateTaxAnalysis;
+window.updateCashFlowAnalysis = updateCashFlowAnalysis;
+window.updateFifoLifoAnalysis = updateFifoLifoAnalysis;
+window.updateTradeTimingAnalysis = updateTradeTimingAnalysis;
+window.updateDrawdownAnalysis = updateDrawdownAnalysis;
+window.updateReturnAttribution = updateReturnAttribution;
+
+// Cash Flow Analysis placeholder
+async function loadCashFlowAnalysis(transactions) {
+    const container = document.getElementById('cashFlowAnalysis');
+    if (!container) return;
+    container.innerHTML = `<div class="text-center py-8 text-blue-600">Cash Flow Analysis - Coming Soon</div>`;
+}
+
+// FIFO/LIFO Analysis placeholder
+async function loadFifoLifoAnalysis(transactions) {
+    const container = document.getElementById('fifoLifoAnalysis');
+    if (!container) return;
+    container.innerHTML = `<div class="text-center py-8 text-green-600">FIFO/LIFO Analysis - Coming Soon</div>`;
+}
+
+// Drawdown Analysis placeholder
+async function loadDrawdownAnalysis(transactions) {
+    const container = document.getElementById('drawdownAnalysis');
+    if (!container) return;
+    container.innerHTML = `<div class="text-center py-8 text-red-600">Drawdown Analysis - Coming Soon</div>`;
+}
+
+// Update analysis functions
+function updateTaxAnalysis() {
+    if (window.currentTransactions && window.loadTaxAnalysis) {
+        window.loadTaxAnalysis(window.currentTransactions);
+    }
+}
+
+function updateCashFlowAnalysis() {
+    if (window.currentTransactions && window.loadCashFlowAnalysis) {
+        window.loadCashFlowAnalysis(window.currentTransactions);
+    }
+}
+
+function updateFifoLifoAnalysis() {
+    if (window.currentTransactions && window.loadFifoLifoAnalysis) {
+        window.loadFifoLifoAnalysis(window.currentTransactions);
+    }
+}
+
+function updateDrawdownAnalysis() {
+    if (window.currentTransactions && window.loadDrawdownAnalysis) {
+        window.loadDrawdownAnalysis(window.currentTransactions);
+    }
+}
+
+// Export missing functions
+window.loadCashFlowAnalysis = loadCashFlowAnalysis;
+window.loadFifoLifoAnalysis = loadFifoLifoAnalysis;
+window.loadDrawdownAnalysis = loadDrawdownAnalysis;
+window.updateTaxAnalysis = updateTaxAnalysis;
+window.updateCashFlowAnalysis = updateCashFlowAnalysis;
+window.updateFifoLifoAnalysis = updateFifoLifoAnalysis;
+window.updateDrawdownAnalysis = updateDrawdownAnalysis;
+
 // Export options functions
 window.scanOptions = scanOptions;
 window.displayOptionsResults = displayOptionsResults;
