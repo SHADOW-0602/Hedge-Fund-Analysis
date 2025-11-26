@@ -902,12 +902,8 @@ window.updateTradeTimingAnalysis = updateTradeTimingAnalysis;
 window.updateDrawdownAnalysis = updateDrawdownAnalysis;
 window.updateReturnAttribution = updateReturnAttribution;
 
-// Cash Flow Analysis placeholder
-async function loadCashFlowAnalysis(transactions) {
-    const container = document.getElementById('cashFlowAnalysis');
-    if (!container) return;
-    container.innerHTML = `<div class="text-center py-8 text-blue-600">Cash Flow Analysis - Coming Soon</div>`;
-}
+// Cash Flow Analysis - will be overridden by cash-flow-analysis.js
+// Placeholder removed to allow proper loading
 
 // FIFO/LIFO Analysis placeholder
 async function loadFifoLifoAnalysis(transactions) {
@@ -948,8 +944,7 @@ function updateDrawdownAnalysis() {
     }
 }
 
-// Export missing functions
-window.loadCashFlowAnalysis = loadCashFlowAnalysis;
+// Cash flow analysis will be loaded by dedicated script
 window.loadFifoLifoAnalysis = loadFifoLifoAnalysis;
 window.loadDrawdownAnalysis = loadDrawdownAnalysis;
 window.updateTaxAnalysis = updateTaxAnalysis;

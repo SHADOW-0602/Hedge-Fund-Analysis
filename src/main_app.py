@@ -300,6 +300,8 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+# Cash flow analysis route moved to transaction_analysis_routes.py
+
 # Register turnover analysis routes
 try:
     from api.turnover_routes import register_turnover_routes

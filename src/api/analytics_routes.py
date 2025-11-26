@@ -459,6 +459,7 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             
             data = request.get_json()
             transactions_data = data.get('transactions', [])
+            options = data.get('options', {})
             
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
@@ -469,9 +470,25 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             if not transactions:
                 return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
             
+            # Read parameters from frontend settings
+            period = options.get('period', '1Y')
+            flow_type = options.get('flow_type', 'Net')
+            frequency = options.get('frequency', 'Daily')
+            smoothing = options.get('smoothing', 'None')
+            benchmark = options.get('benchmark', 'Cash yield')
+            
+            print(f"Cash Flow Analysis Parameters: period={period}, flow_type={flow_type}, frequency={frequency}, smoothing={smoothing}, benchmark={benchmark}")
+            
             # Use the advanced transaction analyzer
             analyzer = AdvancedTransactionAnalyzer(data_client)
-            cash_flow_result = analyzer.cash_flow_analysis(transactions)
+            cash_flow_result = analyzer.cash_flow_analysis(
+                transactions,
+                period=period,
+                flow_type=flow_type,
+                frequency=frequency,
+                smoothing=smoothing,
+                benchmark=benchmark
+            )
             
             return jsonify({
                 'success': True,

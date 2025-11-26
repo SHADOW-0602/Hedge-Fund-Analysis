@@ -1,4 +1,18 @@
 // Transaction Analytics Module
+// Load cash flow analysis script with cache busting
+if (!window.loadCashFlowAnalysis) {
+    const script = document.createElement('script');
+    script.src = '/js/transaction/cash-flow-analysis.js?v=' + Date.now();
+    script.onload = () => console.log('✓ Cash flow analysis script loaded');
+    script.onerror = () => console.error('✗ Failed to load cash flow analysis script');
+    document.head.appendChild(script);
+}
+
+// Force reload if function exists but might be old
+if (window.loadCashFlowAnalysis) {
+    console.log('✓ Cash flow analysis function already available');
+}
+
 async function loadAllTransactionAnalytics(transactions) {
     if (!transactions || transactions.length === 0) {
         showError('No transaction data available');

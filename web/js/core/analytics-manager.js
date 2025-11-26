@@ -155,7 +155,7 @@ class AnalyticsManager {
             endpoint: 'cash-flow-analysis',
             containerId: 'cashFlowAnalysis',
             settingsId: 'cashFlowSettings',
-            displayFunction: this.displayCashFlowAnalysis,
+            displayFunction: null, // Handled by dedicated module
             type: 'transaction'
         });
 
@@ -344,6 +344,26 @@ class AnalyticsManager {
             window.loadTaxAnalysis(transactions);
             return;
         }
+
+        // Special handling for Cash Flow Analysis to use its own dedicated handler
+        if (name === 'cash-flow' && window.loadCashFlowAnalysis) {
+            console.log('✓ CASH FLOW: Delegating to loadCashFlowAnalysis');
+            
+            // Check for transaction data first
+            const transactions = this.transactionData || window.currentTransactions;
+            if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+                console.log('No transaction data available for cash flow analysis');
+                window.analyticsCore.showDataSourceSelection('transaction');
+                return;
+            }
+            
+            // Call cash flow analysis with proper data - let it handle its own container
+            console.log('✓ CASH FLOW: Calling loadCashFlowAnalysis with', transactions.length, 'transactions');
+            window.loadCashFlowAnalysis(transactions);
+            return;
+        }
+        
+
 
         // For risk-metrics, ensure default settings are available
         if (name === 'risk-metrics' && !window.analyticsCore.riskSettings) {
@@ -2038,9 +2058,7 @@ class AnalyticsManager {
         console.log('Tax Analysis result:', result);
     }
 
-    displayCashFlowAnalysis(result, options) {
-        console.log('Cash Flow Analysis result:', result);
-    }
+
 
     displayFifoLifoAccounting(result, options) {
         console.log('FIFO/LIFO Accounting result:', result);

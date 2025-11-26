@@ -280,7 +280,7 @@ async function loadDetailedTransactionAnalytics(transactions) {
         withTimeout(loadTradePerformance(transactions)).catch(() => console.log('Trade performance failed')),
         // Turnover analysis handled by dedicated module
         withTimeout(loadTaxAnalysis(transactions)).catch(() => console.log('Tax analysis failed')),
-        withTimeout(loadCashFlowAnalysis(transactions)).catch(() => console.log('Cash flow analysis failed')),
+        // Cash flow analysis handled by dedicated module
         withTimeout(loadFifoLifoAnalysis(transactions)).catch(() => console.log('FIFO/LIFO analysis failed')),
         withTimeout(loadTradeTimingAnalysis(transactions)).catch(() => console.log('Trade timing analysis failed')),
         withTimeout(loadDrawdownAnalysis(transactions)).catch(() => console.log('Drawdown analysis failed')),
@@ -529,50 +529,7 @@ async function saveTransactionsToSupabase(filename, data) {
 
 // loadTurnoverAnalysis removed - using dedicated interactive version from turnover-analysis.js
 
-async function loadCashFlowAnalysis(transactions) {
-    console.log('Cash Flow Analysis - transactions:', transactions);
-
-    if (!transactions || transactions.length === 0) {
-        document.getElementById('cashFlowAnalysis').innerHTML = '<div class="text-center text-gray-500 py-4">No transaction data</div>';
-        return;
-    }
-
-    // Calculate based on transaction types
-    const sellTrades = transactions.filter(t =>
-        (t.transaction_type && t.transaction_type.toLowerCase().includes('sell')) ||
-        parseFloat(t.quantity) < 0
-    );
-    const buyTrades = transactions.filter(t =>
-        (t.transaction_type && t.transaction_type.toLowerCase().includes('buy')) ||
-        parseFloat(t.quantity) > 0
-    );
-
-    console.log('Sell trades:', sellTrades.length, 'Buy trades:', buyTrades.length);
-
-    const sellVolume = sellTrades.reduce((sum, t) => {
-        const qty = Math.abs(parseFloat(t.quantity) || 0);
-        const price = parseFloat(t.price) || 0;
-        return sum + (qty * price);
-    }, 0);
-
-    const buyVolume = buyTrades.reduce((sum, t) => {
-        const qty = Math.abs(parseFloat(t.quantity) || 0);
-        const price = parseFloat(t.price) || 0;
-        return sum + (qty * price);
-    }, 0);
-
-    console.log('Sell volume:', sellVolume, 'Buy volume:', buyVolume);
-
-    const netCashFlow = sellVolume - buyVolume;
-
-    document.getElementById('cashFlowAnalysis').innerHTML = `
-        <div class="space-y-3">
-            <div class="flex justify-between"><span>Net Cash Flow</span><span class="font-semibold ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}">${netCashFlow >= 0 ? '+' : ''}$${Math.abs(netCashFlow) > 1000 ? (netCashFlow / 1000).toFixed(0) + 'K' : netCashFlow.toFixed(0)}</span></div>
-            <div class="flex justify-between"><span>Est. Dividend Income</span><span class="font-semibold">N/A</span></div>
-            <div class="flex justify-between"><span>Cash Efficiency</span><span class="font-semibold">N/A</span></div>
-        </div>
-    `;
-}
+// loadCashFlowAnalysis removed - using dedicated cash-flow-analysis.js module
 
 async function loadFifoLifoAnalysis(transactions) {
     document.getElementById('fifoLifoAnalysis').innerHTML = `

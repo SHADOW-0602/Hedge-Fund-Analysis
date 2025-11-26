@@ -7,6 +7,78 @@ from .route_utils import sanitize_for_json
 def register_transaction_analysis_routes(app, data_client, smart_cache=None):
     """Register transaction analysis routes"""
     
+    @app.route('/api/cash-flow-analysis', methods=['POST'])
+    def cash_flow_analysis_route():
+        try:
+            from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
+            from core.transactions import Transaction
+            from utils.date_parser import UniversalDateParser
+            
+            data = request.get_json()
+            transactions_data = data.get('transactions', [])
+            options = data.get('options', {})
+            
+            print(f"[CASH-FLOW-ROUTE] Received {len(transactions_data)} transactions, options: {options}")
+            
+            if not transactions_data:
+                return jsonify({'success': False, 'error': 'No transactions provided'}), 400
+            
+            # Convert to Transaction objects
+            transactions = []
+            for i, tx_data in enumerate(transactions_data):
+                try:
+                    date_str = tx_data.get('date', '')
+                    if isinstance(date_str, str) and date_str.strip():
+                        if 'T' in date_str:
+                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                        else:
+                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                    else:
+                        date_obj = datetime.now()
+                    
+                    transaction = Transaction(
+                        symbol=tx_data.get('symbol', ''),
+                        quantity=float(tx_data.get('quantity', 0)),
+                        price=float(tx_data.get('price', 0)),
+                        date=date_obj,
+                        transaction_type=tx_data.get('transaction_type', '').upper(),
+                        fees=float(tx_data.get('fees', 0))
+                    )
+                    transactions.append(transaction)
+                    print(f"[CASH-FLOW-ROUTE] Transaction {i+1}: {transaction.symbol} {transaction.transaction_type} {transaction.quantity} @ ${transaction.price} on {transaction.date}")
+                except Exception as e:
+                    print(f"[CASH-FLOW-ROUTE] Failed to parse transaction {i+1}: {e}")
+                    continue
+            
+            print(f"[CASH-FLOW-ROUTE] Successfully parsed {len(transactions)} transactions")
+            
+            if not transactions:
+                return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
+            
+            # Run cash flow analysis with options
+            analyzer = AdvancedTransactionAnalyzer(data_client)
+            cash_flow_data = analyzer.cash_flow_analysis(
+                transactions,
+                period=options.get('period', '1Y'),
+                flow_type=options.get('flow_type', 'Net'),
+                frequency=options.get('frequency', 'Daily'),
+                smoothing=options.get('smoothing', 'None'),
+                benchmark=options.get('benchmark', 'Cash yield')
+            )
+            
+            print(f"[CASH-FLOW-ROUTE] Analysis complete, returning data with {len(cash_flow_data.get('chart_data', []))} chart points")
+            
+            return jsonify({
+                'success': True,
+                'cash_flow_analysis': sanitize_for_json(cash_flow_data)
+            })
+            
+        except Exception as e:
+            print(f'Cash flow analysis failed: {e}')
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
     # /api/return-attribution removed - superseded by /api/pnl-attribution in pnl_attribution_routes.py
     @app.route('/api/trade-performance', methods=['POST'])
     def trade_performance():
