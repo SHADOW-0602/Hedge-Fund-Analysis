@@ -80,23 +80,35 @@ function createIndividualAnalysisHTML(analysisType) {
         `;
     }
 
+    const settingsFunction = analysisType === 'accounting-analysis' ? 'toggleAccountingSettings()' : 
+                            analysisType === 'cash-flow' ? 'toggleCashFlowSettings()' : 'toggleSettings()';
+    
+    const buttonsHtml = analysisConfig.hasSettings ? `
+        <div class="flex items-center space-x-2">
+            <button onclick="${settingsFunction}" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                Settings
+            </button>
+            <button onclick="refreshAnalysis('${analysisType}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
+                </svg>
+                Refresh
+            </button>
+        </div>
+    ` : `
+        <button onclick="refreshAnalysis('${analysisType}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center">
+            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
+            </svg>
+            Refresh
+        </button>
+    `;
+
     return `
         <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
             <div class="flex justify-between items-center mb-6">
-                <div class="flex items-center space-x-4">
-                    <button onclick="showDefaultUpload()" class="text-gray-500 hover:text-gray-700">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"></path>
-                        </svg>
-                    </button>
-                    <h2 class="text-2xl font-bold text-gray-900">${analysisConfig.title}</h2>
-                </div>
-                <button onclick="refreshAnalysis('${analysisType}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center">
-                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
-                    </svg>
-                    Refresh
-                </button>
+                <h2 class="text-2xl font-bold text-gray-900">${analysisConfig.title}</h2>
+                ${buttonsHtml}
             </div>
             
             <div id="${analysisConfig.containerId}" class="min-h-96">
@@ -127,8 +139,8 @@ function getAnalysisConfig(analysisType) {
         'cost-analysis': { title: 'Cost Analysis', containerId: 'costAnalysis' },
         'turnover-analysis': { title: 'Turnover Analysis', containerId: 'turnoverAnalysis' },
         'tax-analysis': { title: 'Tax Analysis', containerId: 'taxAnalysis' },
-        'cash-flow': { title: 'Cash Flow Analysis', containerId: 'cashFlowAnalysis' },
-        'fifo-lifo': { title: 'FIFO/LIFO Accounting', containerId: 'fifoLifoAnalysis' },
+        'cash-flow': { title: 'Cash Flow Analysis', containerId: 'cashFlowAnalysis', hasSettings: true },
+        'accounting-analysis': { title: 'FIFO/LIFO Accounting', containerId: 'accountingAnalysis', hasSettings: true },
         'trade-timing': { title: 'Trade Timing Analysis', containerId: 'tradeTimingAnalysis' },
         'drawdown-analysis': { title: 'Drawdown Analysis', containerId: 'drawdownAnalysis' },
         'return-attribution': { title: 'Return Attribution', containerId: 'returnAttribution' }

@@ -277,6 +277,229 @@ class AdvancedTransactionAnalyzer:
             'benchmark': benchmark
         }
 
+
+    def accounting_method_analysis(self, transactions: List[Transaction], options: Dict = None) -> Dict:
+        """
+        Analyze transactions using different accounting methods (FIFO, LIFO, Average Cost, Specific ID).
+        Supports period filtering and method comparison.
+        """
+        if not transactions:
+            return {
+                'primary_method': {
+                    'method': 'FIFO',
+                    'realized_pnl': 0.0,
+                    'short_term_gains': 0.0,
+                    'long_term_gains': 0.0,
+                    'tax_liability': 0.0,
+                    'transaction_count': 0
+                }
+            }
+            
+        options = options or {}
+        method = options.get('method', 'FIFO')
+        period = options.get('period', '1Y')
+        tax_impact = options.get('tax_impact', 'Current rates')
+        comparison = options.get('comparison', 'None')
+        
+        # Filter transactions by period
+        end_date = max(t.date for t in transactions)
+        start_date = end_date
+        
+        if period == '1M':
+            start_date = end_date - timedelta(days=30)
+        elif period == '3M':
+            start_date = end_date - timedelta(days=90)
+        elif period == '6M':
+            start_date = end_date - timedelta(days=180)
+        elif period == '1Y':
+            start_date = end_date - timedelta(days=365)
+        elif period == 'YTD':
+            start_date = datetime(end_date.year, 1, 1)
+        else: # All Time / ITD
+            start_date = min(t.date for t in transactions)
+            
+        period_transactions = [t for t in transactions if t.date >= start_date]
+        
+        # If comparison is requested, run analysis for multiple methods
+        if comparison == 'All Methods':
+            methods = ['FIFO', 'LIFO', 'Average Cost', 'Specific ID']
+            results = {}
+            for m in methods:
+                results[m] = self._calculate_accounting_method(period_transactions, m, tax_impact)
+            results['comparison_summary'] = self._generate_method_comparison(results)
+            return results
+            
+        elif comparison == 'FIFO vs LIFO':
+            results = {
+                'FIFO': self._calculate_accounting_method(period_transactions, 'FIFO', tax_impact),
+                'LIFO': self._calculate_accounting_method(period_transactions, 'LIFO', tax_impact)
+            }
+            results['comparison_summary'] = self._generate_method_comparison(results)
+            return results
+            
+        else:
+            # Single method analysis
+            result = self._calculate_accounting_method(period_transactions, method, tax_impact)
+            return {'primary_method': result}
+
+    def _calculate_accounting_method(self, transactions: List[Transaction], method: str, tax_impact: str) -> Dict:
+        """Calculate realized gains/losses using a specific accounting method"""
+        
+        # Sort transactions chronologically
+        sorted_txns = sorted(transactions, key=lambda x: x.date)
+        
+        realized_pnl = 0.0
+        short_term_gains = 0.0
+        long_term_gains = 0.0
+        
+        # Track tax lots: {symbol: [{'quantity': q, 'price': p, 'date': d, 'fees': f}]}
+        tax_lots = defaultdict(list)
+        
+        # Track average cost: {symbol: {'quantity': q, 'total_cost': c}}
+        avg_cost_positions = defaultdict(lambda: {'quantity': 0.0, 'total_cost': 0.0})
+        
+        processed_sales = []
+        
+        for txn in sorted_txns:
+            symbol = txn.symbol
+            
+            if txn.transaction_type in ['BUY', 'Buy']:
+                # Add to tax lots
+                tax_lots[symbol].append({
+                    'quantity': abs(txn.quantity),
+                    'price': txn.price,
+                    'date': txn.date,
+                    'fees': txn.fees
+                })
+                
+                # Update average cost
+                prev_qty = avg_cost_positions[symbol]['quantity']
+                prev_cost = avg_cost_positions[symbol]['total_cost']
+                new_qty = prev_qty + abs(txn.quantity)
+                new_cost = prev_cost + (abs(txn.quantity) * txn.price) + txn.fees
+                
+                avg_cost_positions[symbol] = {'quantity': new_qty, 'total_cost': new_cost}
+                
+            elif txn.transaction_type in ['SELL', 'Sell']:
+                remaining_to_sell = abs(txn.quantity)
+                sell_price = txn.price
+                sell_date = txn.date
+                sell_fees = txn.fees
+                
+                sale_pnl = 0.0
+                sale_cost_basis = 0.0
+                
+                if method == 'Average Cost':
+                    pos = avg_cost_positions[symbol]
+                    if pos['quantity'] > 0:
+                        avg_price = pos['total_cost'] / pos['quantity']
+                        cost_basis = remaining_to_sell * avg_price
+                        proceeds = (remaining_to_sell * sell_price) - sell_fees
+                        sale_pnl = proceeds - cost_basis
+                        
+                        # Update position
+                        pos['quantity'] = max(0, pos['quantity'] - remaining_to_sell)
+                        pos['total_cost'] = max(0, pos['total_cost'] - cost_basis)
+                        
+                        # Average cost doesn't distinguish short/long term in the same way for lots, 
+                        # but we can approximate or treat as short term for simplicity if not tracking dates
+                        # For better accuracy, we'd need to track dates even with avg cost, which is complex.
+                        # Here we'll treat as short term for simplicity.
+                        short_term_gains += sale_pnl
+                        
+                else:
+                    # Lot-based methods (FIFO, LIFO, Specific ID)
+                    available_lots = [lot.copy() for lot in tax_lots[symbol]]
+                    
+                    if not available_lots:
+                        continue
+                        
+                    # Sort lots based on method
+                    if method == 'LIFO':
+                        available_lots.sort(key=lambda x: x['date'], reverse=True)
+                    elif method == 'Specific ID':
+                        available_lots.sort(key=lambda x: x['price'], reverse=True)
+                    else: # FIFO
+                        available_lots.sort(key=lambda x: x['date'])
+                    
+                    lots_used = []
+                    
+                    while remaining_to_sell > 0 and available_lots:
+                        lot = available_lots[0]
+                        lot_quantity = min(lot['quantity'], remaining_to_sell)
+                        
+                        proceeds = (lot_quantity * sell_price) - (sell_fees * (lot_quantity / abs(txn.quantity)))
+                        cost_basis = (lot_quantity * lot['price']) + (lot['fees'] * (lot_quantity / lot['quantity']))
+                        
+                        pnl = proceeds - cost_basis
+                        sale_pnl += pnl
+                        sale_cost_basis += cost_basis
+                        
+                        # Determine holding period
+                        days_held = (sell_date - lot['date']).days
+                        is_long_term = days_held > 365
+                        
+                        if is_long_term:
+                            long_term_gains += pnl
+                        else:
+                            short_term_gains += pnl
+                            
+                        # Update lot
+                        lot['quantity'] -= lot_quantity
+                        remaining_to_sell -= lot_quantity
+                        
+                        if lot['quantity'] <= 0.0001: # Float tolerance
+                            available_lots.pop(0)
+                            
+                realized_pnl += sale_pnl
+                
+        # Calculate tax liability based on tax_impact setting
+        if tax_impact == 'Current rates':
+            short_term_rate = 0.37  # 2024 rates
+            long_term_rate = 0.20
+        else:  # Historical rates
+            short_term_rate = 0.28  # Historical rates
+            long_term_rate = 0.15
+        
+        tax_liability = (max(0, short_term_gains) * short_term_rate) + (max(0, long_term_gains) * long_term_rate)
+        
+        return {
+            'method': method,
+            'realized_pnl': realized_pnl,
+            'short_term_gains': short_term_gains,
+            'long_term_gains': long_term_gains,
+            'tax_liability': tax_liability,
+            'transaction_count': len(transactions)
+        }
+
+    def _generate_method_comparison(self, results: Dict) -> Dict:
+        """Generate comparison summary between methods"""
+        summary = []
+        
+        # Find best method for tax minimization
+        min_tax = float('inf')
+        best_method = ''
+        
+        for method, data in results.items():
+            if method == 'comparison_summary': continue
+            
+            tax = data.get('tax_liability', 0)
+            if tax < min_tax:
+                min_tax = tax
+                best_method = method
+                
+            summary.append({
+                'method': method,
+                'realized_pnl': data.get('realized_pnl', 0),
+                'tax_liability': tax
+            })
+            
+        return {
+            'best_method_for_tax': best_method,
+            'tax_savings': max(0, max(d['tax_liability'] for d in summary) - min_tax),
+            'details': summary
+        }
+
     def tax_loss_harvesting_analysis(self, transactions: List[Transaction]) -> Dict:
         """Tax-loss harvesting opportunities and tax efficiency"""
         year_transactions = transactions

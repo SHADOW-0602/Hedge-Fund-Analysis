@@ -354,13 +354,14 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
-    @app.route('/api/fifo-lifo-accounting', methods=['POST'])
-    def fifo_lifo_accounting():
+    @app.route('/api/accounting-analysis', methods=['POST'])
+    def accounting_analysis():
         try:
             from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
             
             data = request.get_json()
             transactions_data = data.get('transactions', [])
+            options = data.get('options', {})
             
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
@@ -370,17 +371,17 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             if not transactions:
                 return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
             
-            # Use the advanced transaction analyzer for tax analysis (includes FIFO)
+            # Use the advanced transaction analyzer for accounting analysis
             analyzer = AdvancedTransactionAnalyzer(data_client)
-            tax_result = analyzer.tax_analysis(transactions)
+            result = analyzer.accounting_method_analysis(transactions, options)
             
             return jsonify({
                 'success': True,
-                'fifo_lifo_analysis': sanitize_for_json(tax_result)
+                'accounting_analysis': sanitize_for_json(result)
             })
             
         except Exception as e:
-            print(f"FIFO/LIFO analysis error: {e}")
+            print(f"Accounting analysis error: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
 

@@ -23,24 +23,33 @@
         <!-- Header -->
         <header class="bg-white shadow-lg border-b-4 border-indigo-600">
             <div class="w-full px-4 sm:px-6 lg:px-8">
-                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 sm:py-6 space-y-2 sm:space-y-0">
+                <div
+                    class="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 sm:py-6 space-y-2 sm:space-y-0">
                     <div class="flex items-center justify-between sm:justify-start">
-                        <div class="flex items-center cursor-pointer" onclick="if(window.showDefaultUpload) window.showDefaultUpload(); else console.log('showDefaultUpload not available');">
-                            <div class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                        <div class="flex items-center cursor-pointer"
+                            onclick="if(window.showDefaultUpload) window.showDefaultUpload(); else console.log('showDefaultUpload not available');">
+                            <div
+                                class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
                                 <span class="text-white font-bold text-sm sm:text-lg">HF</span>
                             </div>
-                            <h1 class="text-base sm:text-2xl lg:text-3xl font-bold text-gray-900 hover:text-indigo-600 transition-colors">Hedge Fund Analyzer</h1>
+                            <h1
+                                class="text-base sm:text-2xl lg:text-3xl font-bold text-gray-900 hover:text-indigo-600 transition-colors">
+                                Hedge Fund Analyzer</h1>
                         </div>
 
                     </div>
                     <div class="flex items-center justify-between sm:justify-end space-x-2 sm:space-x-4">
 
-                        <div id="connectionStatus" class="text-sm px-3 py-1 rounded-full hidden sm:block" style="display: none;">
+                        <div id="connectionStatus" class="text-sm px-3 py-1 rounded-full hidden sm:block"
+                            style="display: none;">
                             <span id="connectionText">Connecting...</span>
                         </div>
                         <div class="user-info" id="userInfo" style="display: none;">
-                            <button onclick="showAdminPanel()" id="adminBtn" class="bg-purple-600 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-purple-700 transition-colors mr-1 sm:mr-2 text-xs sm:text-sm" style="display: none;">Admin</button>
-                            <button onclick="logout()" class="bg-red-600 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm">Logout</button>
+                            <button onclick="showAdminPanel()" id="adminBtn"
+                                class="bg-purple-600 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-purple-700 transition-colors mr-1 sm:mr-2 text-xs sm:text-sm"
+                                style="display: none;">Admin</button>
+                            <button onclick="logout()"
+                                class="bg-red-600 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm">Logout</button>
                         </div>
                     </div>
                 </div>
@@ -49,127 +58,211 @@
 
         <div class="flex w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
             <!-- Left Sidebar -->
-            <div id="sidebar" class="w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mr-6 h-fit max-h-screen sticky top-4 overflow-y-auto">
+            <div id="sidebar"
+                class="w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mr-6 h-fit max-h-screen sticky top-4 overflow-y-auto">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Analysis Menu</h3>
                     <button id="sidebarToggle" class="lg:hidden p-1 rounded-md hover:bg-gray-100">
                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"></path>
+                            <path fill-rule="evenodd"
+                                d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                                clip-rule="evenodd"></path>
                         </svg>
                     </button>
                 </div>
-                
+
                 <!-- Portfolio Analysis Section -->
                 <div class="mb-6">
-                    <button onclick="toggleSection('portfolioSection')" class="w-full flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-900 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-800 transition-colors">
+                    <button onclick="toggleSection('portfolioSection')"
+                        class="w-full flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-900 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-800 transition-colors">
                         <span class="font-semibold text-indigo-700 dark:text-indigo-300">Portfolio Analysis</span>
-                        <svg id="portfolioChevron" class="w-4 h-4 text-indigo-600 dark:text-indigo-400 transform transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        <svg id="portfolioChevron"
+                            class="w-4 h-4 text-indigo-600 dark:text-indigo-400 transform transition-transform"
+                            fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                clip-rule="evenodd"></path>
                         </svg>
                     </button>
                     <div id="portfolioSection" class="mt-2 space-y-1 hidden">
-                        <button data-analysis="risk-metrics" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Risk Metrics</button>
-                        <button data-analysis="options-strategies" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Options Strategies</button>
-                        <button data-analysis="performance-attribution" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Performance Attribution</button>
-                        <button data-analysis="monte-carlo" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Monte Carlo</button>
-                        <button data-analysis="portfolio-optimization" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Portfolio Optimization</button>
-                        <button data-analysis="correlation-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Correlation Analysis</button>
-                        <button data-analysis="sector-allocation" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Sector Allocation</button>
-                        <button data-analysis="statistical-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Statistical Analysis</button>
-                        <button data-analysis="technical-indicators" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Technical Indicators</button>
-                        <button data-analysis="strategy-backtesting" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Strategy Backtesting</button>
+                        <button data-analysis="risk-metrics"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Risk
+                            Metrics</button>
+                        <button data-analysis="options-strategies"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Options
+                            Strategies</button>
+                        <button data-analysis="performance-attribution"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Performance
+                            Attribution</button>
+                        <button data-analysis="monte-carlo"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Monte
+                            Carlo</button>
+                        <button data-analysis="portfolio-optimization"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Portfolio
+                            Optimization</button>
+                        <button data-analysis="correlation-analysis"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Correlation
+                            Analysis</button>
+                        <button data-analysis="sector-allocation"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Sector
+                            Allocation</button>
+                        <button data-analysis="statistical-analysis"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Statistical
+                            Analysis</button>
+                        <button data-analysis="technical-indicators"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Technical
+                            Indicators</button>
+                        <button data-analysis="strategy-backtesting"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Strategy
+                            Backtesting</button>
                     </div>
                 </div>
-                
+
                 <!-- Transaction Analysis Section -->
                 <div class="mb-6">
-                    <button onclick="toggleSection('transactionSection')" class="w-full flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-800 transition-colors">
+                    <button onclick="toggleSection('transactionSection')"
+                        class="w-full flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-800 transition-colors">
                         <span class="font-semibold text-purple-700 dark:text-purple-300">Transaction Analysis</span>
-                        <svg id="transactionChevron" class="w-4 h-4 text-purple-600 dark:text-purple-400 transform transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        <svg id="transactionChevron"
+                            class="w-4 h-4 text-purple-600 dark:text-purple-400 transform transition-transform"
+                            fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                clip-rule="evenodd"></path>
                         </svg>
                     </button>
                     <div id="transactionSection" class="mt-2 space-y-1 hidden">
-                        <button data-analysis="pnl-attribution" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">P&L Attribution</button>
-                        <button data-analysis="trade-performance" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade Performance</button>
-                        <button data-analysis="cost-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cost Analysis</button>
-                        <button data-analysis="turnover-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Turnover Analysis</button>
-                        <button data-analysis="tax-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Tax Analysis</button>
-                        <button data-analysis="cash-flow" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cash Flow Analysis</button>
-                        <button data-analysis="fifo-lifo" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">FIFO/LIFO Accounting</button>
-                        <button data-analysis="trade-timing" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade Timing</button>
-                        <button data-analysis="drawdown-analysis" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Drawdown Analysis</button>
-                        <button data-analysis="return-attribution" class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Return Attribution</button>
+                        <button data-analysis="pnl-attribution"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">P&L
+                            Attribution</button>
+                        <button data-analysis="trade-performance"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade
+                            Performance</button>
+                        <button data-analysis="cost-analysis"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cost
+                            Analysis</button>
+                        <button data-analysis="turnover-analysis"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Turnover
+                            Analysis</button>
+                        <button data-analysis="tax-analysis"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Tax
+                            Analysis</button>
+                        <button data-analysis="cash-flow"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cash
+                            Flow Analysis</button>
+                        <button data-analysis="accounting-analysis"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">FIFO/LIFO
+                            Accounting</button>
+                        <button data-analysis="trade-timing"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade
+                            Timing</button>
+                        <button data-analysis="drawdown-analysis"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Drawdown
+                            Analysis</button>
+                        <button data-analysis="return-attribution"
+                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Return
+                            Attribution</button>
                     </div>
                 </div>
-                
+
 
             </div>
-            
+
             <!-- Main Content Area -->
             <div class="flex-1">
                 <!-- Hidden file inputs for upload functionality -->
-                <input type="file" id="portfolioFile" accept=".csv,.xlsx,.xls" class="hidden" aria-label="Upload portfolio file">
-                <input type="file" id="transactionFile" accept=".csv,.xlsx,.xls" class="hidden" aria-label="Upload transaction file">
+                <input type="file" id="portfolioFile" accept=".csv,.xlsx,.xls" class="hidden"
+                    aria-label="Upload portfolio file">
+                <input type="file" id="transactionFile" accept=".csv,.xlsx,.xls" class="hidden"
+                    aria-label="Upload transaction file">
 
                 <!-- Default Upload Section -->
                 <div id="defaultUploadSection" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Data Upload & Management</h2>
                         <div id="dataActions" class="hidden">
-                            <button onclick="viewLoadedData()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm">View Data</button>
+                            <button onclick="viewLoadedData()"
+                                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm">View
+                                Data</button>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Portfolio Files</label>
-                            <select id="portfolioFileSelect" class="w-full p-3 border rounded-lg text-sm" onchange="togglePortfolioDelete()" aria-label="Select portfolio file">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Portfolio
+                                Files</label>
+                            <select id="portfolioFileSelect" class="w-full p-3 border rounded-lg text-sm"
+                                onchange="togglePortfolioDelete()" aria-label="Select portfolio file">
                                 <option value="" selected>Select portfolio file...</option>
                             </select>
                             <div class="flex flex-col sm:flex-row gap-2 mt-3">
-                                <button onclick="viewSelectedPortfolio()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex-1 text-sm">View Portfolio</button>
-                                <button onclick="deleteSelectedPortfolio()" id="deletePortfolioBtn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm" style="display: none;">Delete</button>
+                                <button onclick="viewSelectedPortfolio()"
+                                    class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex-1 text-sm">View
+                                    Portfolio</button>
+                                <button onclick="deleteSelectedPortfolio()" id="deletePortfolioBtn"
+                                    class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm"
+                                    style="display: none;">Delete</button>
                             </div>
                             <div class="mt-2">
-                                <button onclick="document.getElementById('portfolioFile').click()" class="text-sm text-indigo-600 hover:text-indigo-800">+ Upload New Portfolio</button>
+                                <button onclick="document.getElementById('portfolioFile').click()"
+                                    class="text-sm text-indigo-600 hover:text-indigo-800">+ Upload New
+                                    Portfolio</button>
                                 <div id="portfolioUploadStatus" class="mt-1 text-xs"></div>
                             </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Transaction Files</label>
-                            <select id="transactionFileSelect" class="w-full p-3 border rounded-lg text-sm" onchange="toggleTransactionDelete()" aria-label="Select transaction file">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Transaction
+                                Files</label>
+                            <select id="transactionFileSelect" class="w-full p-3 border rounded-lg text-sm"
+                                onchange="toggleTransactionDelete()" aria-label="Select transaction file">
                                 <option value="" selected>Select transaction file...</option>
                             </select>
                             <div class="flex flex-col sm:flex-row gap-2 mt-3">
-                                <button onclick="viewSelectedTransactions()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex-1 text-sm">View Transactions</button>
-                                <button onclick="deleteSelectedTransactions()" id="deleteTransactionBtn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm" style="display: none;">Delete</button>
+                                <button onclick="viewSelectedTransactions()"
+                                    class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex-1 text-sm">View
+                                    Transactions</button>
+                                <button onclick="deleteSelectedTransactions()" id="deleteTransactionBtn"
+                                    class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm"
+                                    style="display: none;">Delete</button>
                             </div>
                             <div class="mt-2">
-                                <button onclick="document.getElementById('transactionFile').click()" class="text-sm text-purple-600 hover:text-purple-800">+ Upload New Transactions</button>
+                                <button onclick="document.getElementById('transactionFile').click()"
+                                    class="text-sm text-purple-600 hover:text-purple-800">+ Upload New
+                                    Transactions</button>
                                 <div id="transactionUploadStatus" class="mt-1 text-xs"></div>
                             </div>
                         </div>
                         <div class="md:col-span-2">
                             <div class="border-2 border-green-300 rounded-lg p-4 text-center">
-                                <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                <div
+                                    class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                                     <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+                                        <path fill-rule="evenodd"
+                                            d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z"
+                                            clip-rule="evenodd"></path>
                                     </svg>
                                 </div>
-                                <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Connect via Plaid</h3>
-                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-3">Link brokerage accounts for real-time data</p>
-                                <button id="plaidConnectBtn" onclick="togglePlaidConnection()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto">Connect Account</button>
-                                <div id="plaidStatus" class="mt-2 text-xs text-gray-600">Connect your brokerage account for real-time data</div>
+                                <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Connect via Plaid
+                                </h3>
+                                <p class="text-xs text-gray-600 dark:text-gray-400 mb-3">Link brokerage accounts for
+                                    real-time data</p>
+                                <button id="plaidConnectBtn" onclick="togglePlaidConnection()"
+                                    class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto">Connect
+                                    Account</button>
+                                <div id="plaidStatus" class="mt-2 text-xs text-gray-600">Connect your brokerage account
+                                    for real-time data</div>
                             </div>
-                            
+
                             <!-- Plaid Connections Manager (Hidden by default) -->
                             <div id="plaidConnectionsSection" class="mt-4 hidden">
                                 <div class="border-2 border-blue-300 rounded-lg p-4">
                                     <div class="flex items-center justify-between mb-3">
                                         <h4 class="text-sm font-medium text-gray-900">Manage Connections</h4>
-                                        <button onclick="hidePlaidConnections()" class="text-gray-400 hover:text-gray-600">
+                                        <button onclick="hidePlaidConnections()"
+                                            class="text-gray-400 hover:text-gray-600">
                                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                                <path fill-rule="evenodd"
+                                                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                                    clip-rule="evenodd"></path>
                                             </svg>
                                         </button>
                                     </div>
@@ -186,7 +279,9 @@
                         <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Loaded Data Preview</h3>
                         <button onclick="hideDataPreview()" class="text-gray-400 hover:text-gray-600">
                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                <path fill-rule="evenodd"
+                                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                    clip-rule="evenodd"></path>
                             </svg>
                         </button>
                     </div>
@@ -195,21 +290,24 @@
 
                 <!-- Dynamic Analysis Content -->
                 <div id="analysisContent" class="bg-white rounded-xl shadow-lg p-6 mb-8 hidden">
-                    <div id="analysisTitle" class="text-xl font-bold text-gray-900 mb-4">Select an analysis from the sidebar</div>
+                    <div id="analysisTitle" class="text-xl font-bold text-gray-900 mb-4">Select an analysis from the
+                        sidebar</div>
                     <div id="analysisBody">Choose an analysis type from the left sidebar to view detailed results.</div>
                 </div>
 
                 <!-- Loading Section -->
                 <div id="loadingSection" class="bg-white rounded-xl shadow-lg p-12 mb-8 hidden">
-                <div class="text-center">
-                    <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mb-6"></div>
-                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
-                    <p class="text-gray-600 mb-4">Analyzing portfolio holdings and calculating risk metrics...</p>
-                    <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
-                        <div id="progressBar" class="bg-indigo-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    <div class="text-center">
+                        <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mb-6">
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
+                        <p class="text-gray-600 mb-4">Analyzing portfolio holdings and calculating risk metrics...</p>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
+                            <div id="progressBar" class="bg-indigo-600 h-2 rounded-full transition-all duration-500"
+                                style="width: 0%"></div>
+                        </div>
+                        <p id="loadingStatus" class="text-sm text-gray-500">Initializing analysis...</p>
                     </div>
-                    <p id="loadingStatus" class="text-sm text-gray-500">Initializing analysis...</p>
-                </div>
                 </div>
 
 
@@ -223,700 +321,733 @@
 
 
 
-                    </div>
+    </div>
 
-                    <!-- Transaction Analysis Section -->
-                    <div id="transactionAnalysis" class="space-y-8 hidden">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-2xl font-bold text-gray-900">Transaction Analysis</h2>
-                    <div class="flex items-center space-x-4">
-                        <!-- Plaid Analysis Switcher -->
-                        <div id="plaidAnalysisSwitcher2" class="hidden bg-gray-100 rounded-lg p-1">
-                            <button id="portfolioAnalysisBtn2" onclick="switchToPortfolioAnalysis()" class="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900">Portfolio</button>
-                            <button id="transactionAnalysisBtn2" onclick="switchToTransactionAnalysis()" class="px-4 py-2 rounded-md text-sm font-medium bg-white text-gray-900 shadow-sm">Transactions</button>
-                        </div>
-                        <button onclick="refreshTransactionAnalysis()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm flex items-center">
-                            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
-                            </svg>
-                            Refresh Analysis
-                        </button>
-                    </div>
+    <!-- Transaction Analysis Section -->
+    <div id="transactionAnalysis" class="space-y-8 hidden">
+        <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-900">Transaction Analysis</h2>
+            <div class="flex items-center space-x-4">
+                <!-- Plaid Analysis Switcher -->
+                <div id="plaidAnalysisSwitcher2" class="hidden bg-gray-100 rounded-lg p-1">
+                    <button id="portfolioAnalysisBtn2" onclick="switchToPortfolioAnalysis()"
+                        class="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900">Portfolio</button>
+                    <button id="transactionAnalysisBtn2" onclick="switchToTransactionAnalysis()"
+                        class="px-4 py-2 rounded-md text-sm font-medium bg-white text-gray-900 shadow-sm">Transactions</button>
                 </div>
-                <!-- Transaction Overview -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Trades</h3>
-                        <p id="totalTrades" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
-                        <p class="text-sm text-blue-600 mt-1">This quarter</p>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Win Rate</h3>
-                        <p id="winRate" class="text-3xl font-bold text-green-600 metric-value">N/A</p>
-                        <p class="text-sm text-gray-600 mt-1">Profitable trades</p>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Avg Trade Size</h3>
-                        <p id="avgTradeSize" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
-                        <p class="text-sm text-gray-600 mt-1">Per transaction</p>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Turnover Ratio</h3>
-                        <p id="turnoverRatio" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
-                        <p class="text-sm text-gray-600 mt-1">Annual</p>
-                    </div>
-                </div>
-
-                <!-- P&L Attribution - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">P&L Attribution</h3>
-                        <button onclick="togglePnLSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- P&L Settings Panel -->
-                    <div id="pnlSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="pnlPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="YTD">Year to Date</option>
-                                    <option value="ITD">Inception to Date</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">View</label>
-                                <select id="pnlView" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Realized">Realized</option>
-                                    <option value="Unrealized">Unrealized</option>
-                                    <option value="Total" selected>Total</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Grouping</label>
-                                <select id="pnlGrouping" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="By Symbol" selected>By Symbol</option>
-                                    <option value="Sector">Sector</option>
-                                    <option value="Date">Date</option>
-                                    <option value="Size">Size</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-                                <select id="pnlCurrency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="USD" selected>USD</option>
-                                    <option value="EUR">EUR</option>
-                                    <option value="GBP">GBP</option>
-                                    <option value="CAD">CAD</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Tax Impact</label>
-                                <select id="pnlTaxImpact" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Pre-tax" selected>Pre-tax</option>
-                                    <option value="After-tax">After-tax</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updatePnLAttribution()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="pnlAttribution"></div>
-                </div>
-
-                <!-- Trade Performance - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Trade Performance</h3>
-                        <button onclick="toggleTradeSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Trade Settings Panel -->
-                    <div id="tradeSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Analysis Period</label>
-                                <select id="tradePeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="All Time">All Time</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Trade Size</label>
-                                <select id="tradeSize" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="All" selected>All</option>
-                                    <option value="<$1K">&lt;$1K</option>
-                                    <option value="$1K-$10K">$1K-$10K</option>
-                                    <option value="$10K-$100K">$10K-$100K</option>
-                                    <option value=">$100K">&gt;$100K</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Performance Metric</label>
-                                <select id="tradeMetric" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="P&L" selected>P&L</option>
-                                    <option value="%">%</option>
-                                    <option value="Sharpe">Sharpe</option>
-                                    <option value="Win Rate">Win Rate</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Ranking</label>
-                                <select id="tradeRanking" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="5">Best/Worst 5</option>
-                                    <option value="10" selected>Best/Worst 10</option>
-                                    <option value="20">Best/Worst 20</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Filter</label>
-                                <select id="tradeFilter" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="All" selected>All</option>
-                                    <option value="Profitable">Profitable</option>
-                                    <option value="Loss-making">Loss-making</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateTradePerformance()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="tradePerformance"></div>
-                </div>
-
-
-
-                <!-- Turnover Analysis - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Turnover Analysis</h3>
-                        <button onclick="toggleTurnoverSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Turnover Settings Panel -->
-                    <div id="turnoverSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="turnoverPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="Annualized">Annualized</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Calculation</label>
-                                <select id="turnoverCalculation" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Buy+Sell" selected>Buy+Sell</option>
-                                    <option value="Portfolio-weighted">Portfolio-weighted</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                                <select id="turnoverFrequency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Daily">Daily</option>
-                                    <option value="Weekly">Weekly</option>
-                                    <option value="Monthly" selected>Monthly</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
-                                <select id="turnoverBenchmark" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Mutual Fund avg" selected>Mutual Fund avg</option>
-                                    <option value="ETF avg">ETF avg</option>
-                                    <option value="Hedge Fund avg">Hedge Fund avg</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Trend</label>
-                                <select id="turnoverTrend" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="30d">Rolling 30d</option>
-                                    <option value="90d" selected>Rolling 90d</option>
-                                    <option value="252d">Rolling 252d</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateTurnoverAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="turnoverAnalysis"></div>
-                </div>
-
-                <!-- Tax Analysis - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Tax Analysis</h3>
-                        <button onclick="toggleTaxSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Tax Settings Panel -->
-                    <div id="taxSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Tax Year</label>
-                                <select id="taxYear" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Current" selected>Current (2024)</option>
-                                    <option value="Previous">Previous (2023)</option>
-                                    <option value="Custom Range">Custom Range</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Holding Period</label>
-                                <select id="taxHoldingPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="All" selected>All</option>
-                                    <option value="<1Y (Short)">&lt;1Y (Short-term)</option>
-                                    <option value=">1Y (Long)">&gt;1Y (Long-term)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Tax Rate</label>
-                                <select id="taxRate" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Federal" selected>Federal</option>
-                                    <option value="State">State</option>
-                                    <option value="Combined">Combined</option>
-                                    <option value="Custom">Custom</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Wash Sale</label>
-                                <select id="taxWashSale" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Include" selected>Include</option>
-                                    <option value="Exclude">Exclude</option>
-                                    <option value="Highlight">Highlight</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Harvesting</label>
-                                <select id="taxHarvesting" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Opportunities" selected>Opportunities</option>
-                                    <option value="Realized">Realized</option>
-                                    <option value="Potential">Potential</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateTaxAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="taxAnalysis"></div>
-                </div>
-
-                <!-- Cash Flow Analysis - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Cash Flow Analysis</h3>
-                        <button onclick="toggleCashFlowSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Cash Flow Settings Panel -->
-                    <div id="cashFlowSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="cashFlowPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="YTD">Year to Date</option>
-                                    <option value="ITD">Inception to Date</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Flow Type</label>
-                                <select id="cashFlowType" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Net" selected>Net</option>
-                                    <option value="Inflows">Inflows</option>
-                                    <option value="Outflows">Outflows</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                                <select id="cashFlowFrequency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Daily">Daily</option>
-                                    <option value="Weekly">Weekly</option>
-                                    <option value="Monthly" selected>Monthly</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Smoothing</label>
-                                <select id="cashFlowSmoothing" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="None" selected>None</option>
-                                    <option value="7-day MA">7-day MA</option>
-                                    <option value="30-day MA">30-day MA</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
-                                <select id="cashFlowBenchmark" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Cash yield" selected>Cash yield</option>
-                                    <option value="Money market">Money market</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateCashFlowAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="cashFlowAnalysis"></div>
-                </div>
-
-                <!-- FIFO/LIFO Accounting - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">FIFO/LIFO Accounting</h3>
-                        <button onclick="toggleFifoLifoSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- FIFO/LIFO Settings Panel -->
-                    <div id="fifoLifoSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                                <select id="accountingMethod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="FIFO" selected>FIFO</option>
-                                    <option value="LIFO">LIFO</option>
-                                    <option value="Specific ID">Specific ID</option>
-                                    <option value="Average Cost">Average Cost</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="accountingPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="YTD">Year to Date</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Tax Impact</label>
-                                <select id="accountingTaxImpact" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Current rates" selected>Current rates</option>
-                                    <option value="Historical rates">Historical rates</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Comparison</label>
-                                <select id="accountingComparison" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="None" selected>None</option>
-                                    <option value="FIFO vs LIFO">FIFO vs LIFO</option>
-                                    <option value="All Methods">All Methods</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Optimization</label>
-                                <select id="accountingOptimization" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="None" selected>None</option>
-                                    <option value="Tax-loss harvesting">Tax-loss harvesting</option>
-                                    <option value="Gain optimization">Gain optimization</option>
-                                </select>
-                            </div>
-                            <div class="flex items-end">
-                                <button onclick="updateFifoLifoAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                    Update Analysis
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="fifoLifoAnalysis"></div>
-                </div>
-
-                <!-- Trade Timing Analysis - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Trade Timing Analysis</h3>
-                        <button onclick="toggleTradeTimingSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Trade Timing Settings Panel -->
-                    <div id="tradeTimingSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="timingPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Time Buckets</label>
-                                <select id="timingBuckets" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Market Open" selected>Market Open</option>
-                                    <option value="Mid-day">Mid-day</option>
-                                    <option value="Close">Close</option>
-                                    <option value="After-hours">After-hours</option>
-                                    <option value="All">All</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Day of Week</label>
-                                <select id="timingDayOfWeek" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="All" selected>All Days</option>
-                                    <option value="Monday">Monday</option>
-                                    <option value="Tuesday">Tuesday</option>
-                                    <option value="Wednesday">Wednesday</option>
-                                    <option value="Thursday">Thursday</option>
-                                    <option value="Friday">Friday</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Performance</label>
-                                <select id="timingPerformance" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="By time" selected>By time</option>
-                                    <option value="By day">By day</option>
-                                    <option value="Combined">Combined</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Market Conditions</label>
-                                <select id="timingMarketConditions" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="All" selected>All Days</option>
-                                    <option value="Up days">Up days</option>
-                                    <option value="Down days">Down days</option>
-                                    <option value="Volatile days">Volatile days</option>
-                                </select>
-                            </div>
-                            <div class="flex items-end">
-                                <button onclick="updateTradeTimingAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                    Update Analysis
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="tradeTimingAnalysis"></div>
-                </div>
-
-                <!-- Drawdown Analysis - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Drawdown Analysis</h3>
-                        <button onclick="toggleDrawdownSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Drawdown Settings Panel -->
-                    <div id="drawdownSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="drawdownPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="2Y">2 Years</option>
-                                    <option value="All Time">All Time</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                                <select id="drawdownFrequency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Daily" selected>Daily</option>
-                                    <option value="Weekly">Weekly</option>
-                                    <option value="Monthly">Monthly</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Recovery Time</label>
-                                <select id="drawdownRecovery" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Days" selected>Days to recover</option>
-                                    <option value="Weeks">Weeks to recover</option>
-                                    <option value="Months">Months to recover</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Severity</label>
-                                <select id="drawdownSeverity" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="All" selected>All Drawdowns</option>
-                                    <option value="<5%">&lt;5%</option>
-                                    <option value="5-10%">5-10%</option>
-                                    <option value="10-20%">10-20%</option>
-                                    <option value=">20%">&gt;20%</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Comparison</label>
-                                <select id="drawdownComparison" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="None" selected>None</option>
-                                    <option value="vs Benchmark">vs Benchmark</option>
-                                    <option value="vs Market">vs Market</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateDrawdownAnalysis()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="drawdownAnalysis"></div>
-                </div>
-
-                <!-- Return Attribution - Permanent Section -->
-                <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Return Attribution</h3>
-                        <button onclick="toggleReturnAttributionSettings()" class="text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <!-- Return Attribution Settings Panel -->
-                    <div id="returnAttributionSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="returnPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="YTD">Year to Date</option>
-                                    <option value="ITD">Inception to Date</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Attribution</label>
-                                <select id="returnAttributionSelect" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Asset Allocation" selected>Asset Allocation</option>
-                                    <option value="Security Selection">Security Selection</option>
-                                    <option value="Timing">Timing</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
-                                <select id="returnBenchmark" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Index" selected>Index</option>
-                                    <option value="Peer group">Peer group</option>
-                                    <option value="Custom">Custom</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                                <select id="returnFrequency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Daily" selected>Daily</option>
-                                    <option value="Weekly">Weekly</option>
-                                    <option value="Monthly">Monthly</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-                                <select id="returnCurrency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Local" selected>Local</option>
-                                    <option value="Base currency">Base currency</option>
-                                    <option value="Hedged">Hedged</option>
-                                    <option value="Unhedged">Unhedged</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateReturnAttribution()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="returnAttributionAnalysis"></div>
-                </div>
-                </div>
+                <button onclick="refreshTransactionAnalysis()"
+                    class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                    Refresh Analysis
+                </button>
             </div>
         </div>
+        <!-- Transaction Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Trades</h3>
+                <p id="totalTrades" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
+                <p class="text-sm text-blue-600 mt-1">This quarter</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Win Rate</h3>
+                <p id="winRate" class="text-3xl font-bold text-green-600 metric-value">N/A</p>
+                <p class="text-sm text-gray-600 mt-1">Profitable trades</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Avg Trade Size</h3>
+                <p id="avgTradeSize" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
+                <p class="text-sm text-gray-600 mt-1">Per transaction</p>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide">Turnover Ratio</h3>
+                <p id="turnoverRatio" class="text-3xl font-bold text-gray-900 metric-value">N/A</p>
+                <p class="text-sm text-gray-600 mt-1">Annual</p>
+            </div>
+        </div>
+
+        <!-- P&L Attribution - Permanent Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">P&L Attribution</h3>
+                <button onclick="togglePnLSettings()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- P&L Settings Panel -->
+            <div id="pnlSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="pnlPeriod" class="w-full p-2 border rounded-md text-sm">
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="1Y" selected>1 Year</option>
+                            <option value="YTD">Year to Date</option>
+                            <option value="ITD">Inception to Date</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">View</label>
+                        <select id="pnlView" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Realized">Realized</option>
+                            <option value="Unrealized">Unrealized</option>
+                            <option value="Total" selected>Total</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Grouping</label>
+                        <select id="pnlGrouping" class="w-full p-2 border rounded-md text-sm">
+                            <option value="By Symbol" selected>By Symbol</option>
+                            <option value="Sector">Sector</option>
+                            <option value="Date">Date</option>
+                            <option value="Size">Size</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                        <select id="pnlCurrency" class="w-full p-2 border rounded-md text-sm">
+                            <option value="USD" selected>USD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="GBP">GBP</option>
+                            <option value="CAD">CAD</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tax Impact</label>
+                        <select id="pnlTaxImpact" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Pre-tax" selected>Pre-tax</option>
+                            <option value="After-tax">After-tax</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="updatePnLAttribution()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                        Update Analysis
+                    </button>
+                </div>
+            </div>
+
+            <div id="pnlAttribution"></div>
+        </div>
+
+        <!-- Trade Performance - Permanent Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Trade Performance</h3>
+                <button onclick="toggleTradeSettings()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Trade Settings Panel -->
+            <div id="tradeSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Analysis Period</label>
+                        <select id="tradePeriod" class="w-full p-2 border rounded-md text-sm">
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="1Y" selected>1 Year</option>
+                            <option value="All Time">All Time</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Trade Size</label>
+                        <select id="tradeSize" class="w-full p-2 border rounded-md text-sm">
+                            <option value="All" selected>All</option>
+                            <option value="<$1K">&lt;$1K</option>
+                            <option value="$1K-$10K">$1K-$10K</option>
+                            <option value="$10K-$100K">$10K-$100K</option>
+                            <option value=">$100K">&gt;$100K</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Performance Metric</label>
+                        <select id="tradeMetric" class="w-full p-2 border rounded-md text-sm">
+                            <option value="P&L" selected>P&L</option>
+                            <option value="%">%</option>
+                            <option value="Sharpe">Sharpe</option>
+                            <option value="Win Rate">Win Rate</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ranking</label>
+                        <select id="tradeRanking" class="w-full p-2 border rounded-md text-sm">
+                            <option value="5">Best/Worst 5</option>
+                            <option value="10" selected>Best/Worst 10</option>
+                            <option value="20">Best/Worst 20</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Filter</label>
+                        <select id="tradeFilter" class="w-full p-2 border rounded-md text-sm">
+                            <option value="All" selected>All</option>
+                            <option value="Profitable">Profitable</option>
+                            <option value="Loss-making">Loss-making</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="updateTradePerformance()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                        Update Analysis
+                    </button>
+                </div>
+            </div>
+
+            <div id="tradePerformance"></div>
+        </div>
+
+
+
+        <!-- Turnover Analysis - Permanent Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Turnover Analysis</h3>
+                <button onclick="toggleTurnoverSettings()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Turnover Settings Panel -->
+            <div id="turnoverSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="turnoverPeriod" class="w-full p-2 border rounded-md text-sm">
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="1Y" selected>1 Year</option>
+                            <option value="Annualized">Annualized</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Calculation</label>
+                        <select id="turnoverCalculation" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Buy+Sell" selected>Buy+Sell</option>
+                            <option value="Portfolio-weighted">Portfolio-weighted</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select id="turnoverFrequency" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Daily">Daily</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="Monthly" selected>Monthly</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                        <select id="turnoverBenchmark" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Mutual Fund avg" selected>Mutual Fund avg</option>
+                            <option value="ETF avg">ETF avg</option>
+                            <option value="Hedge Fund avg">Hedge Fund avg</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Trend</label>
+                        <select id="turnoverTrend" class="w-full p-2 border rounded-md text-sm">
+                            <option value="30d">Rolling 30d</option>
+                            <option value="90d" selected>Rolling 90d</option>
+                            <option value="252d">Rolling 252d</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="updateTurnoverAnalysis()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                        Update Analysis
+                    </button>
+                </div>
+            </div>
+
+            <div id="turnoverAnalysis"></div>
+        </div>
+
+        <!-- Tax Analysis - Permanent Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Tax Analysis</h3>
+                <button onclick="toggleTaxSettings()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Tax Settings Panel -->
+            <div id="taxSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tax Year</label>
+                        <select id="taxYear" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Current" selected>Current (2024)</option>
+                            <option value="Previous">Previous (2023)</option>
+                            <option value="Custom Range">Custom Range</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Holding Period</label>
+                        <select id="taxHoldingPeriod" class="w-full p-2 border rounded-md text-sm">
+                            <option value="All" selected>All</option>
+                            <option value="<1Y (Short)">&lt;1Y (Short-term)</option>
+                            <option value=">1Y (Long)">&gt;1Y (Long-term)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tax Rate</label>
+                        <select id="taxRate" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Federal" selected>Federal</option>
+                            <option value="State">State</option>
+                            <option value="Combined">Combined</option>
+                            <option value="Custom">Custom</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Wash Sale</label>
+                        <select id="taxWashSale" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Include" selected>Include</option>
+                            <option value="Exclude">Exclude</option>
+                            <option value="Highlight">Highlight</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Harvesting</label>
+                        <select id="taxHarvesting" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Opportunities" selected>Opportunities</option>
+                            <option value="Realized">Realized</option>
+                            <option value="Potential">Potential</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="updateTaxAnalysis()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                        Update Analysis
+                    </button>
+                </div>
+            </div>
+
+            <div id="taxAnalysis"></div>
+        </div>
+
+        <!-- Cash Flow Analysis - Permanent Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Cash Flow Analysis</h3>
+                <button onclick="toggleCashFlowSettings()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Cash Flow Settings Panel -->
+            <div id="cashFlowSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="cashFlowPeriod" class="w-full p-2 border rounded-md text-sm">
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="1Y" selected>1 Year</option>
+                            <option value="YTD">Year to Date</option>
+                            <option value="ITD">Inception to Date</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Flow Type</label>
+                        <select id="cashFlowType" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Net" selected>Net</option>
+                            <option value="Inflows">Inflows</option>
+                            <option value="Outflows">Outflows</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select id="cashFlowFrequency" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Daily">Daily</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="Monthly" selected>Monthly</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Smoothing</label>
+                        <select id="cashFlowSmoothing" class="w-full p-2 border rounded-md text-sm">
+                            <option value="None" selected>None</option>
+                            <option value="7-day MA">7-day MA</option>
+                            <option value="30-day MA">30-day MA</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                        <select id="cashFlowBenchmark" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Cash yield" selected>Cash yield</option>
+                            <option value="Money market">Money market</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="updateCashFlowAnalysis()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                        Update Analysis
+                    </button>
+                </div>
+            </div>
+
+            <div id="cashFlowAnalysis"></div>
+        </div>
+
+        <!-- FIFO/LIFO Accounting - Permanent Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">FIFO/LIFO Accounting</h3>
+                <button onclick="toggleAccountingSettings()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- FIFO/LIFO Settings Panel -->
+            <div id="accountingSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
+                        <select id="accountingMethod" class="w-full p-2 border rounded-md text-sm" onchange="window.updateAccountingAnalysis()">
+                            <option value="FIFO" selected>FIFO</option>
+                            <option value="LIFO">LIFO</option>
+                            <option value="Specific ID">Specific ID</option>
+                            <option value="Average Cost">Average Cost</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="accountingPeriod" class="w-full p-2 border rounded-md text-sm" onchange="window.updateAccountingAnalysis()">
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="1Y" selected>1 Year</option>
+                            <option value="YTD">Year to Date</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tax Impact</label>
+                        <select id="accountingTaxImpact" class="w-full p-2 border rounded-md text-sm" onchange="window.updateAccountingAnalysis()">
+                            <option value="Current rates" selected>Current rates</option>
+                            <option value="Historical rates">Historical rates</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Comparison</label>
+                        <select id="accountingComparison" class="w-full p-2 border rounded-md text-sm" onchange="window.updateAccountingAnalysis()">
+                            <option value="None" selected>None</option>
+                            <option value="FIFO vs LIFO">FIFO vs LIFO</option>
+                            <option value="All Methods">All Methods</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Optimization</label>
+                        <select id="accountingOptimization" class="w-full p-2 border rounded-md text-sm">
+                            <option value="None" selected>None</option>
+                            <option value="Tax-loss harvesting">Tax-loss harvesting</option>
+                            <option value="Gain optimization">Gain optimization</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="window.updateAccountingAnalysis()"
+                            class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                            Update Analysis
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="accountingAnalysis"></div>
+        </div>
+
+        <!-- Trade Timing Analysis - Permanent Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Trade Timing Analysis</h3>
+                <button onclick="toggleTradeTimingSettings()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Trade Timing Settings Panel -->
+            <div id="tradeTimingSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="timingPeriod" class="w-full p-2 border rounded-md text-sm">
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="1Y" selected>1 Year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Time Buckets</label>
+                        <select id="timingBuckets" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Market Open" selected>Market Open</option>
+                            <option value="Mid-day">Mid-day</option>
+                            <option value="Close">Close</option>
+                            <option value="After-hours">After-hours</option>
+                            <option value="All">All</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Day of Week</label>
+                        <select id="timingDayOfWeek" class="w-full p-2 border rounded-md text-sm">
+                            <option value="All" selected>All Days</option>
+                            <option value="Monday">Monday</option>
+                            <option value="Tuesday">Tuesday</option>
+                            <option value="Wednesday">Wednesday</option>
+                            <option value="Thursday">Thursday</option>
+                            <option value="Friday">Friday</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Performance</label>
+                        <select id="timingPerformance" class="w-full p-2 border rounded-md text-sm">
+                            <option value="By time" selected>By time</option>
+                            <option value="By day">By day</option>
+                            <option value="Combined">Combined</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Market Conditions</label>
+                        <select id="timingMarketConditions" class="w-full p-2 border rounded-md text-sm">
+                            <option value="All" selected>All Days</option>
+                            <option value="Up days">Up days</option>
+                            <option value="Down days">Down days</option>
+                            <option value="Volatile days">Volatile days</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="updateTradeTimingAnalysis()"
+                            class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                            Update Analysis
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tradeTimingAnalysis"></div>
+        </div>
+
+        <!-- Drawdown Analysis - Permanent Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Drawdown Analysis</h3>
+                <button onclick="toggleDrawdownSettings()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Drawdown Settings Panel -->
+            <div id="drawdownSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="drawdownPeriod" class="w-full p-2 border rounded-md text-sm">
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="1Y" selected>1 Year</option>
+                            <option value="2Y">2 Years</option>
+                            <option value="All Time">All Time</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select id="drawdownFrequency" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Daily" selected>Daily</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="Monthly">Monthly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Recovery Time</label>
+                        <select id="drawdownRecovery" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Days" selected>Days to recover</option>
+                            <option value="Weeks">Weeks to recover</option>
+                            <option value="Months">Months to recover</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Severity</label>
+                        <select id="drawdownSeverity" class="w-full p-2 border rounded-md text-sm">
+                            <option value="All" selected>All Drawdowns</option>
+                            <option value="<5%">&lt;5%</option>
+                            <option value="5-10%">5-10%</option>
+                            <option value="10-20%">10-20%</option>
+                            <option value=">20%">&gt;20%</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Comparison</label>
+                        <select id="drawdownComparison" class="w-full p-2 border rounded-md text-sm">
+                            <option value="None" selected>None</option>
+                            <option value="vs Benchmark">vs Benchmark</option>
+                            <option value="vs Market">vs Market</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="updateDrawdownAnalysis()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                        Update Analysis
+                    </button>
+                </div>
+            </div>
+
+            <div id="drawdownAnalysis"></div>
+        </div>
+
+        <!-- Return Attribution - Permanent Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Return Attribution</h3>
+                <button onclick="toggleReturnAttributionSettings()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                            clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Return Attribution Settings Panel -->
+            <div id="returnAttributionSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="returnPeriod" class="w-full p-2 border rounded-md text-sm">
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="1Y" selected>1 Year</option>
+                            <option value="YTD">Year to Date</option>
+                            <option value="ITD">Inception to Date</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Attribution</label>
+                        <select id="returnAttributionSelect" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Asset Allocation" selected>Asset Allocation</option>
+                            <option value="Security Selection">Security Selection</option>
+                            <option value="Timing">Timing</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                        <select id="returnBenchmark" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Index" selected>Index</option>
+                            <option value="Peer group">Peer group</option>
+                            <option value="Custom">Custom</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select id="returnFrequency" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Daily" selected>Daily</option>
+                            <option value="Weekly">Weekly</option>
+                            <option value="Monthly">Monthly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                        <select id="returnCurrency" class="w-full p-2 border rounded-md text-sm">
+                            <option value="Local" selected>Local</option>
+                            <option value="Base currency">Base currency</option>
+                            <option value="Hedged">Hedged</option>
+                            <option value="Unhedged">Unhedged</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="updateReturnAttribution()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                        Update Analysis
+                    </button>
+                </div>
+            </div>
+
+            <div id="returnAttributionAnalysis"></div>
+        </div>
+    </div>
+    </div>
+    </div>
     </div>
 
     <script>
         // Chart.js fallback
-        window.Chart = window.Chart || function() { console.log('Chart.js blocked'); };
+        window.Chart = window.Chart || function () { console.log('Chart.js blocked'); };
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js" onerror="console.log('Chart.js CDN blocked')"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"
+        onerror="console.log('Chart.js CDN blocked')"></script>
     <script src="utils.js"></script>
     <script src="index-scripts.js"></script>
     <script src="supabase-connect.js"></script>
     <script src="plaid-integration.js"></script>
     <script src="js/modules/plaid-connections.js"></script>
-    
+
     <!-- Modular JavaScript Files -->
     <script src="js/core/app-core.js"></script>
     <script src="js/modules/auth.js"></script>
@@ -933,13 +1064,14 @@
     <script src="js/transaction/tax-analysis.js"></script>
     <script src="js/transaction/tax-analysis-integration.js"></script>
     <script src="js/transaction/cash-flow-analysis.js"></script>
+    <script src="js/transaction/accounting-analysis.js"></script>
 
     <script src="js/transaction/simplified-trade-timing.js"></script>
     <script src="js/transaction/simplified-return-attribution.js"></script>
     <script src="js/utils/ui-helpers.js"></script>
     <script src="js/utils/navigation-manager.js"></script>
     <script src="js/utils/loading-manager.js"></script>
-    
+
     <!-- Simplified Analytics System -->
     <script src="js/core/analytics-core.js"></script>
     <script src="js/core/analytics-manager.js"></script>

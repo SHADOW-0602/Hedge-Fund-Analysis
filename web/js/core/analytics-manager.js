@@ -128,7 +128,7 @@ class AnalyticsManager {
         });
 
         this.register('cost-analysis', {
-            endpoint: 'cost-analysis',
+            endpoint: 'trade-performance', // Use existing trade-performance endpoint
             containerId: 'analysisContent',
             settingsId: 'costSettings',
             displayFunction: this.displayCostAnalysis,
@@ -159,16 +159,16 @@ class AnalyticsManager {
             type: 'transaction'
         });
 
-        this.register('fifo-lifo', {
+        this.register('accounting-analysis', {
             endpoint: 'fifo-lifo-accounting',
-            containerId: 'fifoLifoAnalysis',
-            settingsId: 'fifoLifoSettings',
-            displayFunction: this.displayFifoLifoAccounting,
+            containerId: 'accountingAnalysis',
+            settingsId: 'accountingSettings',
+            displayFunction: this.displayAccountingAnalysis,
             type: 'transaction'
         });
 
         this.register('trade-timing', {
-            endpoint: 'trade-timing-analysis',
+            endpoint: 'drawdown-analysis', // Use existing drawdown endpoint for now
             containerId: 'tradeTimingAnalysis',
             settingsId: 'tradeTimingSettings',
             displayFunction: this.displayTradeTiming,
@@ -184,7 +184,7 @@ class AnalyticsManager {
         });
 
         this.register('return-attribution', {
-            endpoint: 'return-attribution',
+            endpoint: 'pnl-attribution', // Use existing P&L attribution endpoint
             containerId: 'analysisContent',
             settingsId: 'returnAttributionSettings',
             displayFunction: this.displayReturnAttribution,
@@ -304,14 +304,14 @@ class AnalyticsManager {
         // Special handling for Cost Analysis to use its own dedicated handler
         if (name === 'cost-analysis' && window.loadCostAnalysis) {
             console.log('Delegating to loadCostAnalysis');
-            
+
             // Ensure container is visible
             const container = document.getElementById('analysisContent');
             if (container) {
                 container.classList.remove('hidden');
                 container.innerHTML = '';
             }
-            
+
             // Check for transaction data
             const transactions = this.transactionData || window.currentTransactions;
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -319,7 +319,7 @@ class AnalyticsManager {
                 window.analyticsCore.showDataSourceSelection('transaction');
                 return;
             }
-            
+
             // Use the dedicated cost analysis handler directly
             window.loadCostAnalysis(transactions);
             return;
@@ -330,7 +330,7 @@ class AnalyticsManager {
             console.log('Delegating to loadTaxAnalysis');
             console.log('Transaction data available:', !!(this.transactionData || window.currentTransactions));
             console.log('Transaction count:', (this.transactionData || window.currentTransactions)?.length || 0);
-            
+
             // Check for transaction data first
             const transactions = this.transactionData || window.currentTransactions;
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -338,7 +338,7 @@ class AnalyticsManager {
                 window.analyticsCore.showDataSourceSelection('transaction');
                 return;
             }
-            
+
             // Call tax analysis with proper data - let it handle its own container
             console.log('Calling loadTaxAnalysis with', transactions.length, 'transactions');
             window.loadTaxAnalysis(transactions);
@@ -348,7 +348,7 @@ class AnalyticsManager {
         // Special handling for Cash Flow Analysis to use its own dedicated handler
         if (name === 'cash-flow' && window.loadCashFlowAnalysis) {
             console.log('✓ CASH FLOW: Delegating to loadCashFlowAnalysis');
-            
+
             // Check for transaction data first
             const transactions = this.transactionData || window.currentTransactions;
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -356,14 +356,44 @@ class AnalyticsManager {
                 window.analyticsCore.showDataSourceSelection('transaction');
                 return;
             }
-            
+
             // Call cash flow analysis with proper data - let it handle its own container
             console.log('✓ CASH FLOW: Calling loadCashFlowAnalysis with', transactions.length, 'transactions');
             window.loadCashFlowAnalysis(transactions);
             return;
         }
-        
 
+        // Special handling for Accounting Analysis to use its own dedicated handler
+        if ((name === 'accounting-analysis' || name === 'fifo-lifo') && window.loadAccountingAnalysis) {
+            console.log('Delegating to loadAccountingAnalysis for', name);
+
+            // Prevent multiple simultaneous calls
+            if (window.accountingAnalysisInProgress) {
+                console.log('Accounting analysis already in progress, skipping...');
+                return;
+            }
+            window.accountingAnalysisInProgress = true;
+
+            // Check for transaction data first
+            const transactions = this.transactionData || window.currentTransactions;
+            if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+                console.log('No transaction data available for accounting analysis');
+                window.analyticsCore.showDataSourceSelection('transaction');
+                window.accountingAnalysisInProgress = false;
+                return;
+            }
+
+            // Call accounting analysis with proper data
+            try {
+                window.loadAccountingAnalysis(transactions);
+            } finally {
+                // Reset flag after a delay to allow the analysis to complete
+                setTimeout(() => {
+                    window.accountingAnalysisInProgress = false;
+                }, 1000);
+            }
+            return;
+        }
 
         // For risk-metrics, ensure default settings are available
         if (name === 'risk-metrics' && !window.analyticsCore.riskSettings) {
@@ -382,7 +412,7 @@ class AnalyticsManager {
         }
 
         // Show loading indicator - skip for cost analysis as it handles its own UI
-        if (name !== 'cost-analysis') {
+        if (name !== 'cost-analysis' && name !== 'accounting-analysis') {
             const container = document.getElementById('analysisContent');
             if (container) {
                 container.classList.remove('hidden');
@@ -424,6 +454,7 @@ class AnalyticsManager {
             }
         } catch (error) {
             console.error(`Failed to load ${name}:`, error);
+            const container = document.getElementById('analysisContent');
             if (container) {
                 container.innerHTML = `
                     <div class="flex justify-between items-center mb-6">
@@ -2027,7 +2058,7 @@ class AnalyticsManager {
 
     displayTurnoverAnalysis(result, options) {
         console.log('Turnover Analysis result:', result);
-        
+
         // Use the dedicated turnover analysis module if available
         if (window.loadTurnoverAnalysis) {
             // Get current transactions from the analytics core
@@ -2036,7 +2067,7 @@ class AnalyticsManager {
             window.loadTurnoverAnalysis(transactions);
             return;
         }
-        
+
         // Fallback: show basic message in the correct container
         const container = document.getElementById('turnoverAnalysis') || document.getElementById('analysisContent');
         if (container) {

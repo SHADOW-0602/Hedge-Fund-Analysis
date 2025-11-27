@@ -76,22 +76,8 @@ async function fetchCashFlowAnalysis(transactions) {
     const settingsPanel = document.getElementById('cashFlowSettings');
     const settingsHidden = settingsPanel ? settingsPanel.classList.contains('hidden') : true;
 
-    // Show loading state with full UI
+    // Show loading state with minimal UI
     container.innerHTML = `
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">Cash Flow Analysis</h2>
-            <div class="flex items-center space-x-2">
-                <button onclick="toggleCashFlowSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
-                    Settings
-                </button>
-                <button class="bg-indigo-600 text-white px-3 py-1 rounded-lg transition-colors text-sm flex items-center opacity-50 cursor-not-allowed" disabled>
-                    <svg class="w-4 h-4 mr-1 animate-spin" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
-                    </svg>
-                    Analyzing...
-                </button>
-            </div>
-        </div>
         
         <!-- Cash Flow Settings Panel -->
         <div id="cashFlowSettings" class="settings-panel ${settingsHidden ? 'hidden' : ''} mb-6">

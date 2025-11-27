@@ -336,7 +336,13 @@ function displayTaxAnalysis(data) {
 
         ${data.harvest_opportunities && data.harvest_opportunities.length > 0 ? `
             <div class="bg-white rounded-lg shadow p-6 mb-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Loss Harvesting Opportunities</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Loss Harvesting Opportunities</h3>
+                    <button onclick="showTaxLossHarvestingPopup(${JSON.stringify(data.harvest_opportunities).replace(/"/g, '&quot;')}, ${data.potential_tax_savings || harvestablelosses * 0.37})" 
+                            class="bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition-colors text-sm">
+                        Optimize
+                    </button>
+                </div>
                 <div class="space-y-2">
                     ${data.harvest_opportunities.map(opp => `
                         <div class="flex justify-between items-center py-2 border-b border-gray-200">
@@ -432,5 +438,114 @@ window.refreshTaxAnalysis = () => {
     } else {
         console.error('No current tax transactions available for refresh');
         showTaxError('No transaction data available. Please reload the page.');
+    }
+};
+
+// Tax Loss Harvesting Popup Functions
+window.showTaxLossHarvestingPopup = (opportunities, potentialSavings) => {
+    const popup = document.createElement('div');
+    popup.id = 'taxLossHarvestingPopup';
+    popup.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    popup.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-900">Tax-Loss Harvesting Optimization</h2>
+                <button onclick="closeTaxLossHarvestingPopup()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            
+            <div class="p-6">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <h3 class="text-lg font-semibold text-blue-900 mb-2">Optimization Summary</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-blue-600">$${potentialSavings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            <p class="text-sm text-blue-700">Potential tax savings</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-green-600">${opportunities.length}</p>
+                            <p class="text-sm text-green-700">Opportunities identified</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-purple-600">$0</p>
+                            <p class="text-sm text-purple-700">Estimated wash sale risk</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg border border-gray-200">
+                    <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                        <h4 class="text-lg font-semibold text-gray-900">Tax-Loss Harvesting Recommendations:</h4>
+                    </div>
+                    <div class="p-4">
+                        <div class="space-y-3">
+                            <div class="flex items-center text-green-600">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                Switch to FIFO accounting method for optimal tax efficiency
+                            </div>
+                            <div class="flex items-center text-green-600">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                Consider harvesting tax losses before year-end
+                            </div>
+                            <div class="flex items-center text-green-600">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                Review holding periods to maximize long-term capital gains treatment
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6 flex justify-end space-x-3">
+                            <button onclick="closeTaxLossHarvestingPopup()" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button onclick="applyFifoMethod()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                                Apply FIFO Method
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(popup);
+};
+
+window.closeTaxLossHarvestingPopup = () => {
+    const popup = document.getElementById('taxLossHarvestingPopup');
+    if (popup) {
+        popup.remove();
+    }
+};
+
+window.togglePopupSettings = () => {
+    const settings = document.getElementById('popupTaxSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.applyFifoMethod = () => {
+    // Close the popup
+    closeTaxLossHarvestingPopup();
+    
+    // Switch to FIFO/LIFO accounting analysis
+    if (window.analyticsManager && window.analyticsManager.loadModule) {
+        window.analyticsManager.loadModule('accounting-analysis');
+    } else {
+        // Fallback: trigger sidebar click for accounting analysis
+        const accountingBtn = document.querySelector('[data-analysis="accounting-analysis"]');
+        if (accountingBtn) {
+            accountingBtn.click();
+        }
     }
 };
