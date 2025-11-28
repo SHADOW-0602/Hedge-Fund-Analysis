@@ -168,7 +168,7 @@ class AnalyticsManager {
         });
 
         this.register('trade-timing', {
-            endpoint: 'drawdown-analysis', // Use existing drawdown endpoint for now
+            endpoint: 'trade-timing-analysis',
             containerId: 'tradeTimingAnalysis',
             settingsId: 'tradeTimingSettings',
             displayFunction: this.displayTradeTiming,
@@ -360,6 +360,22 @@ class AnalyticsManager {
             // Call cash flow analysis with proper data - let it handle its own container
             console.log('✓ CASH FLOW: Calling loadCashFlowAnalysis with', transactions.length, 'transactions');
             window.loadCashFlowAnalysis(transactions);
+            return;
+        }
+
+        // Special handling for Trade Timing Analysis to use its own dedicated handler
+        if (name === 'trade-timing' && window.loadTradeTimingAnalysis) {
+            console.log('Delegating to loadTradeTimingAnalysis');
+            
+            // Check for transaction data first
+            const transactions = this.transactionData || window.currentTransactions;
+            if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+                console.log('No transaction data available for trade timing analysis');
+                window.analyticsCore.showDataSourceSelection('transaction');
+                return;
+            }
+
+            window.loadTradeTimingAnalysis(transactions);
             return;
         }
 

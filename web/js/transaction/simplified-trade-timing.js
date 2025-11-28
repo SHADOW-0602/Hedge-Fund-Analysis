@@ -1,10 +1,7 @@
-// Simplified Trade Timing - Replaces complex trade-timing-analysis.js
-window.loadTradeTimingAnalysis = function(transactions) {
-    if (window.analyticsManager) {
-        window.analyticsManager.loadModule('trade-timing');
-    }
-};
-
-// Keep existing functions for backward compatibility
-window.toggleTradeTimingSettings = () => window.analyticsCore?.toggleSettings('tradeTimingSettings');
-window.updateTradeTimingAnalysis = () => window.analyticsManager?.loadModule('trade-timing');
+// Load the full trade timing analysis module
+if (typeof window.loadTradeTimingAnalysis === 'undefined') {
+    // Load the full module if not already loaded
+    const script = document.createElement('script');
+    script.src = '/js/transaction/trade-timing-analysis.js';
+    document.head.appendChild(script);
+}
