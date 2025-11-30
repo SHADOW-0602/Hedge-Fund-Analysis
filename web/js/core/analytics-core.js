@@ -258,7 +258,10 @@ class AnalyticsCore {
         
         const result = await this.callAPI(endpoint, { transactions: transactionData }, options);
         
+        console.log(`[ANALYTICS-CORE] ${endpoint} result:`, result);
+        
         if (result.success) {
+            console.log(`[ANALYTICS-CORE] Calling displayFunction for ${endpoint}`);
             displayFunction(result, options);
         } else {
             if (container) {

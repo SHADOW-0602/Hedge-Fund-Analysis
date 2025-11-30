@@ -379,6 +379,22 @@ class AnalyticsManager {
             return;
         }
 
+        // Special handling for Drawdown Analysis to use its own dedicated handler
+        if (name === 'drawdown-analysis' && window.loadDrawdownAnalysis) {
+            console.log('Delegating to loadDrawdownAnalysis');
+            
+            // Check for transaction data first
+            const transactions = this.transactionData || window.currentTransactions;
+            if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+                console.log('No transaction data available for drawdown analysis');
+                window.analyticsCore.showDataSourceSelection('transaction');
+                return;
+            }
+
+            window.loadDrawdownAnalysis(transactions);
+            return;
+        }
+
         // Special handling for Accounting Analysis to use its own dedicated handler
         if ((name === 'accounting-analysis' || name === 'fifo-lifo') && window.loadAccountingAnalysis) {
             console.log('Delegating to loadAccountingAnalysis for', name);
@@ -2116,7 +2132,15 @@ class AnalyticsManager {
     }
 
     displayDrawdownAnalysis(result, options) {
-        console.log('Drawdown Analysis result:', result);
+        console.log('[DEBUG] Analytics Manager displayDrawdownAnalysis called with:', result);
+        console.log('[DEBUG] Options:', options);
+        
+        // The API response structure is: { success: true, drawdown_analysis: {...} }
+        // But the display function expects just the drawdown_analysis part
+        const drawdownData = result.drawdown_analysis || result;
+        console.log('[DEBUG] Extracted drawdown data:', drawdownData);
+        console.log('[DEBUG] Calling window.displayDrawdownResults...');
+        window.displayDrawdownResults(drawdownData, options);
     }
 
     displayReturnAttribution(result, options) {

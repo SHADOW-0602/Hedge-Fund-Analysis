@@ -64,7 +64,10 @@ class OptionsAnalyzer:
                 for _, option in protective_puts.iterrows():
                     try:
                         exp_datetime = pd.to_datetime(exp_date)
-                        now_datetime = pd.Timestamp.now(tz=timezone.utc).tz_localize(None)
+                        now_datetime = pd.Timestamp.now().tz_localize(None)
+                        # Make both timezone-naive for comparison
+                        if exp_datetime.tz is not None:
+                            exp_datetime = exp_datetime.tz_localize(None)
                         days_to_exp = (exp_datetime - now_datetime).days
                         if days_to_exp <= 0:
                             continue
@@ -162,7 +165,10 @@ class OptionsAnalyzer:
                 # Calculate days to expiration
                 try:
                     exp_datetime = pd.to_datetime(exp_date)
-                    now_datetime = pd.Timestamp.now(tz=timezone.utc).tz_localize(None)
+                    now_datetime = pd.Timestamp.now().tz_localize(None)
+                    # Make both timezone-naive for comparison
+                    if exp_datetime.tz is not None:
+                        exp_datetime = exp_datetime.tz_localize(None)
                     days_to_exp = (exp_datetime - now_datetime).days
                     if days_to_exp <= 0:
                         continue
@@ -244,7 +250,10 @@ class OptionsAnalyzer:
                 for exp in expirations:
                     try:
                         exp_datetime = pd.to_datetime(exp)
-                        now_datetime = pd.Timestamp.now(tz=timezone.utc).tz_localize(None)
+                        now_datetime = pd.Timestamp.now().tz_localize(None)
+                        # Make both timezone-naive for comparison
+                        if exp_datetime.tz is not None:
+                            exp_datetime = exp_datetime.tz_localize(None)
                         days_to_exp = (exp_datetime - now_datetime).days
                         if days_to_exp > 0:  # Future date
                             exp_date = exp

@@ -283,7 +283,7 @@ async function loadDetailedTransactionAnalytics(transactions) {
         // Cash flow analysis handled by dedicated module
         withTimeout(loadFifoLifoAnalysis(transactions)).catch(() => console.log('FIFO/LIFO analysis failed')),
         withTimeout(loadTradeTimingAnalysis(transactions)).catch(() => console.log('Trade timing analysis failed')),
-        withTimeout(loadDrawdownAnalysis(transactions)).catch(() => console.log('Drawdown analysis failed')),
+        // Drawdown analysis handled by dedicated module
         withTimeout(loadXIRRAnalysis(transactions)).catch(() => console.log('XIRR analysis failed'))
     ];
 
@@ -557,52 +557,7 @@ async function loadTradeTimingAnalysis(transactions) {
     `;
 }
 
-async function loadDrawdownAnalysis(transactions) {
-    const container = document.getElementById('drawdownAnalysis');
-    if (!container || !transactions || transactions.length === 0) {
-        if (container) {
-            container.innerHTML = '<div class="text-center text-gray-500 py-4">No transaction data</div>';
-        }
-        return;
-    }
-
-    // Calculate actual drawdown from transaction data
-    let runningValue = 0;
-    let peakValue = 0;
-    let maxDrawdown = 0;
-    let currentDrawdown = 0;
-
-    transactions.forEach(t => {
-        const qty = parseFloat(t.quantity) || 0;
-        const price = parseFloat(t.price) || 0;
-        const value = qty * price;
-
-        if (qty > 0) { // Buy - reduces cash
-            runningValue -= value;
-        } else { // Sell - increases cash
-            runningValue += Math.abs(value);
-        }
-
-        if (runningValue > peakValue) {
-            peakValue = runningValue;
-        }
-
-        const drawdown = peakValue > 0 ? (peakValue - runningValue) / peakValue : 0;
-        if (drawdown > maxDrawdown) {
-            maxDrawdown = drawdown;
-        }
-    });
-
-    currentDrawdown = peakValue > 0 ? (peakValue - runningValue) / peakValue : 0;
-
-    container.innerHTML = `
-        <div class="space-y-3">
-            <div class="flex justify-between"><span>Max Drawdown</span><span class="font-semibold text-red-600">${(maxDrawdown * 100).toFixed(1)}%</span></div>
-            <div class="flex justify-between"><span>Current Drawdown</span><span class="font-semibold">${(currentDrawdown * 100).toFixed(1)}%</span></div>
-            <div class="flex justify-between"><span>Recovery Status</span><span class="font-semibold">${currentDrawdown < 0.05 ? 'Recovered' : 'In Drawdown'}</span></div>
-        </div>
-    `;
-}
+// Old drawdown analysis function removed - using comprehensive version from drawdown-analysis.js
 
 async function loadXIRRAnalysis(transactions) {
     const container = document.getElementById('xirrAnalysis');

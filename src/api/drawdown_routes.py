@@ -8,12 +8,15 @@ def register_drawdown_routes(app, data_client, smart_cache=None):
     @app.route('/api/drawdown-analysis', methods=['POST'])
     def comprehensive_drawdown_analysis():
         try:
+            print("[DEBUG] Drawdown analysis route called")
             from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
             from core.transactions import Transaction
+            from utils.date_parser import UniversalDateParser
             
             data = request.get_json()
             transactions_data = data.get('transactions', [])
             options = data.get('options', {})
+            print(f"[DEBUG] Received {len(transactions_data)} transactions, options: {options}")
             
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
@@ -22,14 +25,7 @@ def register_drawdown_routes(app, data_client, smart_cache=None):
             transactions = []
             for tx_data in transactions_data:
                 try:
-                    date_str = tx_data.get('date', '')
-                    if isinstance(date_str, str) and date_str.strip():
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    else:
-                        date_obj = datetime.now()
+                    date_obj = UniversalDateParser.parse_date(tx_data.get('date', ''))
                     
                     transaction = Transaction(
                         symbol=tx_data.get('symbol', ''),
@@ -46,13 +42,28 @@ def register_drawdown_routes(app, data_client, smart_cache=None):
             if not transactions:
                 return jsonify({'success': False, 'error': 'No valid transactions found'}), 400
             
+            # Extract options
+            period = options.get('period', '1Y')
+            frequency = options.get('frequency', 'Daily')
+            severity_filter = options.get('severity_filter', options.get('severity', 'All'))
+            comparison = options.get('comparison', 'None')
+            
             # Use the advanced transaction analyzer
+            print(f"[DEBUG] Creating analyzer with {len(transactions)} transactions")
             analyzer = AdvancedTransactionAnalyzer(data_client)
-            drawdown_result = analyzer.drawdown_analysis(transactions)
+            print(f"[DEBUG] Running drawdown analysis with period={period}, frequency={frequency}")
+            drawdown_result = analyzer.drawdown_analysis(
+                transactions, period=period, frequency=frequency, 
+                severity_filter=severity_filter, comparison=comparison
+            )
+            print(f"[DEBUG] Drawdown analysis complete, result keys: {list(drawdown_result.keys()) if drawdown_result else 'None'}")
+            
+            sanitized_result = sanitize_for_json(drawdown_result)
+            print(f"[DEBUG] Returning sanitized result with keys: {list(sanitized_result.keys()) if sanitized_result else 'None'}")
             
             return jsonify({
                 'success': True,
-                'drawdown_analysis': sanitize_for_json(drawdown_result)
+                'drawdown_analysis': sanitized_result
             })
             
         except Exception as e:

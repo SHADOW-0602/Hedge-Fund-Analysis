@@ -109,21 +109,12 @@ class AdvancedTransactionAnalyzer:
                 if isinstance(txn_date, str):
                     from utils.date_parser import UniversalDateParser
                     txn_date = UniversalDateParser.parse_date(txn_date)
-                # Convert both to UTC for comparison
-                import pytz
-                if hasattr(txn_date, 'tzinfo'):
-                    if txn_date.tzinfo is None:
-                        txn_date = pytz.UTC.localize(txn_date)
-                    else:
-                        txn_date = txn_date.astimezone(pytz.UTC)
-                if hasattr(cutoff_date, 'tzinfo'):
-                    if cutoff_date.tzinfo is None:
-                        cutoff_date_utc = pytz.UTC.localize(cutoff_date)
-                    else:
-                        cutoff_date_utc = cutoff_date.astimezone(pytz.UTC)
-                else:
-                    cutoff_date_utc = cutoff_date
-                return txn_date >= cutoff_date_utc
+                # Make both dates timezone-naive for comparison
+                if hasattr(txn_date, 'tzinfo') and txn_date.tzinfo is not None:
+                    txn_date = txn_date.replace(tzinfo=None)
+                if hasattr(cutoff_date, 'tzinfo') and cutoff_date.tzinfo is not None:
+                    cutoff_date = cutoff_date.replace(tzinfo=None)
+                return txn_date >= cutoff_date
             except:
                 return txn_date.date() >= cutoff_date.date()
         
@@ -667,12 +658,10 @@ class AdvancedTransactionAnalyzer:
                     if hasattr(txn_date, 'tzinfo') and txn_date.tzinfo is not None:
                         txn_date = txn_date.replace(tzinfo=None)
                     if hasattr(cutoff_date, 'tzinfo') and cutoff_date.tzinfo is not None:
-                        cutoff_date_naive = cutoff_date.replace(tzinfo=None)
-                    else:
-                        cutoff_date_naive = cutoff_date
+                        cutoff_date = cutoff_date.replace(tzinfo=None)
                     
-                    print(f"[CASH-FLOW] Comparing {txn.symbol} {txn_date} >= {cutoff_date_naive}: {txn_date >= cutoff_date_naive}")
-                    return txn_date >= cutoff_date_naive
+                    print(f"[CASH-FLOW] Comparing {txn.symbol} {txn_date} >= {cutoff_date}: {txn_date >= cutoff_date}")
+                    return txn_date >= cutoff_date
                 except Exception as e:
                     print(f"[CASH-FLOW] Date comparison error: {e}")
                     # Fallback: compare dates only
@@ -1022,13 +1011,10 @@ class AdvancedTransactionAnalyzer:
         # Handle timezone-aware vs timezone-naive datetime comparison
         def safe_date_compare(txn_date, cutoff):
             try:
-                # If transaction date is timezone-aware, make cutoff timezone-aware too
+                # Make both dates timezone-naive for comparison
                 if hasattr(txn_date, 'tzinfo') and txn_date.tzinfo is not None:
-                    if cutoff.tzinfo is None:
-                        import pytz
-                        cutoff = cutoff.replace(tzinfo=pytz.UTC)
-                # If transaction date is timezone-naive, make cutoff timezone-naive too
-                elif cutoff.tzinfo is not None:
+                    txn_date = txn_date.replace(tzinfo=None)
+                if hasattr(cutoff, 'tzinfo') and cutoff.tzinfo is not None:
                     cutoff = cutoff.replace(tzinfo=None)
                 return txn_date >= cutoff
             except:
@@ -1201,16 +1187,59 @@ class AdvancedTransactionAnalyzer:
         else:
             return 0.002
 
-    def drawdown_analysis(self, transactions: List[Transaction]) -> Dict:
-        """Simplified drawdown analysis with essential metrics"""
+    def drawdown_analysis(self, transactions: List[Transaction], period='1Y', frequency='Daily', severity_filter='All', comparison='None') -> Dict:
+        """Enhanced drawdown analysis with comprehensive filters"""
         if not transactions:
-            return {'max_drawdown_pct': 12.5, 'avg_drawdown_pct': 4.2, 'current_drawdown_pct': 2.8, 'recovery_days': 35}
+            return {
+                'drawdown_periods': [],
+                'severity_breakdown': {'<5%': 0, '5-10%': 0, '10-20%': 0, '>20%': 0},
+                'recovery_analysis': {'avg_recovery_days': 0, 'max_recovery_days': 0},
+                'summary': {'max_drawdown': 0, 'total_periods': 0, 'avg_duration_days': 0}
+            }
         
-        # Calculate P&L over time
+        # Filter by period - NO FALLBACK DATA
+        cutoff_date = datetime.now()
+        if period == '3M':
+            cutoff_date -= timedelta(days=90)
+        elif period == '6M':
+            cutoff_date -= timedelta(days=180)
+        elif period == '1Y':
+            cutoff_date -= timedelta(days=365)
+        elif period == '2Y':
+            cutoff_date -= timedelta(days=730)
+        elif period == 'All Time':
+            cutoff_date = datetime(1900, 1, 1)  # Very old date to include all
+        
+        # Fix timezone comparison issue
+        def safe_date_compare(txn_date, cutoff):
+            try:
+                # Make both dates timezone-naive for comparison
+                if hasattr(txn_date, 'tzinfo') and txn_date.tzinfo is not None:
+                    txn_date = txn_date.replace(tzinfo=None)
+                if hasattr(cutoff, 'tzinfo') and cutoff.tzinfo is not None:
+                    cutoff = cutoff.replace(tzinfo=None)
+                return txn_date >= cutoff
+            except:
+                return txn_date.date() >= cutoff.date()
+        
+        filtered_txns = [t for t in transactions if safe_date_compare(t.date, cutoff_date)]
+        
+        # NO FALLBACK - Return empty result if no transactions in period
+        if not filtered_txns:
+            return {
+                'drawdown_periods': [],
+                'severity_breakdown': {'<5%': 0, '5-10%': 0, '10-20%': 0, '>20%': 0},
+                'recovery_analysis': {'avg_recovery_days': 0, 'max_recovery_days': 0},
+                'summary': {'max_drawdown': 0, 'total_periods': 0, 'avg_duration_days': 0, 'period': period, 'transactions_found': 0}
+            }
+        
+        # Calculate daily P&L
+        daily_pnl = defaultdict(float)
         positions = defaultdict(lambda: {'quantity': 0, 'avg_cost': 0})
-        pnl_values = []
         
-        for txn in sorted(transactions, key=lambda x: x.date):
+        for txn in sorted(filtered_txns, key=lambda x: x.date):
+            date_key = txn.date.date()
+            
             if txn.transaction_type in ['BUY', 'Buy']:
                 old_value = positions[txn.symbol]['quantity'] * positions[txn.symbol]['avg_cost']
                 new_value = abs(txn.quantity) * txn.price
@@ -1222,29 +1251,133 @@ class AdvancedTransactionAnalyzer:
             elif txn.transaction_type in ['SELL', 'Sell'] and positions[txn.symbol]['quantity'] > 0:
                 sell_quantity = min(abs(txn.quantity), positions[txn.symbol]['quantity'])
                 pnl = (txn.price - positions[txn.symbol]['avg_cost']) * sell_quantity - txn.fees
-                pnl_values.append(pnl)
+                daily_pnl[date_key] += pnl
                 positions[txn.symbol]['quantity'] -= sell_quantity
         
-        if not pnl_values:
-            return {'max_drawdown_pct': 8.3, 'avg_drawdown_pct': 3.1, 'current_drawdown_pct': 1.5, 'recovery_days': 28}
+        if not daily_pnl:
+            return {
+                'drawdown_periods': [],
+                'severity_breakdown': {'<5%': 0, '5-10%': 0, '10-20%': 0, '>20%': 0},
+                'recovery_analysis': {'avg_recovery_days': 0, 'max_recovery_days': 0},
+                'summary': {'max_drawdown': 0, 'total_periods': 0, 'avg_duration_days': 0}
+            }
         
-        # Calculate drawdowns from cumulative P&L
-        cumulative_pnl = np.cumsum(pnl_values)
-        running_max = np.maximum.accumulate(cumulative_pnl)
-        drawdowns = (running_max - cumulative_pnl) / np.maximum(running_max, 1)
+        # Create time series based on frequency
+        dates = sorted(daily_pnl.keys())
+        if frequency == 'Weekly':
+            # Aggregate to weekly
+            weekly_pnl = defaultdict(float)
+            for date, pnl in daily_pnl.items():
+                week_start = date - timedelta(days=date.weekday())
+                weekly_pnl[week_start] += pnl
+            pnl_series = weekly_pnl
+        elif frequency == 'Monthly':
+            # Aggregate to monthly
+            monthly_pnl = defaultdict(float)
+            for date, pnl in daily_pnl.items():
+                month_start = date.replace(day=1)
+                monthly_pnl[month_start] += pnl
+            pnl_series = monthly_pnl
+        else:
+            pnl_series = daily_pnl
         
-        max_drawdown_pct = np.max(drawdowns) * 100
-        avg_drawdown_pct = np.mean(drawdowns[drawdowns > 0.01]) * 100 if np.any(drawdowns > 0.01) else 0
-        current_drawdown_pct = drawdowns[-1] * 100
+        # Calculate cumulative P&L and drawdowns
+        sorted_dates = sorted(pnl_series.keys())
+        cumulative_pnl = []
+        running_total = 0
+        
+        for date in sorted_dates:
+            running_total += pnl_series[date]
+            cumulative_pnl.append(running_total)
+        
+        # Find drawdown periods
+        drawdown_periods = []
+        peak = cumulative_pnl[0]
+        peak_date = sorted_dates[0]
+        in_drawdown = False
+        drawdown_start = None
+        max_dd = 0
+        
+        for i, (date, cum_pnl) in enumerate(zip(sorted_dates, cumulative_pnl)):
+            if cum_pnl > peak:
+                # New peak - end any current drawdown
+                if in_drawdown and drawdown_start:
+                    recovery_days = (date - drawdown_start).days
+                    drawdown_periods.append({
+                        'start_date': drawdown_start.strftime('%Y-%m-%d'),
+                        'end_date': date.strftime('%Y-%m-%d'),
+                        'max_drawdown': round(max_dd * 100, 2),
+                        'duration_days': recovery_days,
+                        'recovery_days': recovery_days
+                    })
+                peak = cum_pnl
+                peak_date = date
+                in_drawdown = False
+                max_dd = 0
+            else:
+                # In drawdown
+                if not in_drawdown:
+                    drawdown_start = peak_date
+                    in_drawdown = True
+                
+                current_dd = (peak - cum_pnl) / max(abs(peak), 1)
+                max_dd = max(max_dd, current_dd)
+        
+        # Handle ongoing drawdown
+        if in_drawdown and drawdown_start:
+            drawdown_periods.append({
+                'start_date': drawdown_start.strftime('%Y-%m-%d'),
+                'end_date': sorted_dates[-1].strftime('%Y-%m-%d'),
+                'max_drawdown': round(max_dd * 100, 2),
+                'duration_days': (sorted_dates[-1] - drawdown_start).days,
+                'recovery_days': None  # Ongoing
+            })
+        
+        # Apply severity filter
+        if severity_filter != 'All':
+            if severity_filter == '<5%':
+                drawdown_periods = [p for p in drawdown_periods if p['max_drawdown'] < 5]
+            elif severity_filter == '5-10%':
+                drawdown_periods = [p for p in drawdown_periods if 5 <= p['max_drawdown'] < 10]
+            elif severity_filter == '10-20%':
+                drawdown_periods = [p for p in drawdown_periods if 10 <= p['max_drawdown'] < 20]
+            elif severity_filter == '>20%':
+                drawdown_periods = [p for p in drawdown_periods if p['max_drawdown'] >= 20]
+        
+        # Severity breakdown
+        severity_breakdown = {'<5%': 0, '5-10%': 0, '10-20%': 0, '>20%': 0}
+        for period in drawdown_periods:
+            dd = period['max_drawdown']
+            if dd < 5:
+                severity_breakdown['<5%'] += 1
+            elif dd < 10:
+                severity_breakdown['5-10%'] += 1
+            elif dd < 20:
+                severity_breakdown['10-20%'] += 1
+            else:
+                severity_breakdown['>20%'] += 1
+        
+        # Recovery analysis
+        recovery_times = [p['recovery_days'] for p in drawdown_periods if p['recovery_days'] is not None]
+        avg_recovery = np.mean(recovery_times) if recovery_times else 0
+        max_recovery = max(recovery_times) if recovery_times else 0
+        
+        # Summary statistics
+        max_drawdown = max([p['max_drawdown'] for p in drawdown_periods]) if drawdown_periods else 0
+        avg_duration = np.mean([p['duration_days'] for p in drawdown_periods]) if drawdown_periods else 0
         
         return {
-            'max_drawdown_pct': round(max_drawdown_pct, 2),
-            'avg_drawdown_pct': round(avg_drawdown_pct, 2),
-            'current_drawdown_pct': round(current_drawdown_pct, 2),
-            'recovery_days': int(max_drawdown_pct * 3) if max_drawdown_pct > 0 else 30,
-            'drawdown_periods': len([d for d in drawdowns if d > 0.05]),
-            'time_in_drawdown_pct': round(np.mean(drawdowns > 0.01) * 100, 1),
-            'frequency': 'Daily'
+            'drawdown_periods': drawdown_periods,
+            'severity_breakdown': severity_breakdown,
+            'recovery_analysis': {
+                'avg_recovery_days': round(avg_recovery, 1),
+                'max_recovery_days': int(max_recovery)
+            },
+            'summary': {
+                'max_drawdown': round(max_drawdown, 2),
+                'total_periods': len(drawdown_periods),
+                'avg_duration_days': round(avg_duration, 1)
+            }
         }
     
     def tax_analysis(self, transactions: List[Transaction], options: Dict = None) -> Dict:

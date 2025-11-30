@@ -104,7 +104,11 @@ class TradeTimingAnalyzer:
         
         # Convert df['date'] to datetime and make timezone-naive
         df_copy = df.copy()
-        df_copy['date'] = pd.to_datetime(df_copy['date']).dt.tz_localize(None)
+        df_copy['date'] = pd.to_datetime(df_copy['date'])
+        
+        # Make both dates timezone-naive for comparison
+        if df_copy['date'].dt.tz is not None:
+            df_copy['date'] = df_copy['date'].dt.tz_localize(None)
         
         # Filter by period - no fallback
         return df_copy[df_copy['date'] >= start_date]

@@ -912,12 +912,7 @@ async function loadFifoLifoAnalysis(transactions) {
     container.innerHTML = `<div class="text-center py-8 text-green-600">FIFO/LIFO Analysis - Coming Soon</div>`;
 }
 
-// Drawdown Analysis placeholder
-async function loadDrawdownAnalysis(transactions) {
-    const container = document.getElementById('drawdownAnalysis');
-    if (!container) return;
-    container.innerHTML = `<div class="text-center py-8 text-red-600">Drawdown Analysis - Coming Soon</div>`;
-}
+// Drawdown Analysis - using comprehensive version from drawdown-analysis.js
 
 // Update analysis functions
 function updateTaxAnalysis() {
@@ -946,7 +941,7 @@ function updateDrawdownAnalysis() {
 
 // Cash flow analysis will be loaded by dedicated script
 window.loadFifoLifoAnalysis = loadFifoLifoAnalysis;
-window.loadDrawdownAnalysis = loadDrawdownAnalysis;
+// window.loadDrawdownAnalysis removed - using comprehensive version
 window.updateTaxAnalysis = updateTaxAnalysis;
 window.updateCashFlowAnalysis = updateCashFlowAnalysis;
 window.updateFifoLifoAnalysis = updateFifoLifoAnalysis;
