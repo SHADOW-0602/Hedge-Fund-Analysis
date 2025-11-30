@@ -94,7 +94,20 @@ class YFinanceProvider(DataProvider):
                 module_logger.warning("No valid symbols after filtering")
                 return None
             
-            module_logger.info(f"YFinance: Valid symbols: {valid_symbols}")
+            # Validate and map period parameter
+            period_mapping = {
+                '1m': '1d', '5m': '1d', '15m': '1d', '30m': '1d', '1h': '1d', '4h': '1d',
+                '1d': '1d', '5d': '5d', '1mo': '1mo', '3mo': '3mo', '6mo': '6mo',
+                '1y': '1y', '2y': '2y', '5y': '5y', '10y': '10y', 'ytd': 'ytd', 'max': 'max'
+            }
+            
+            original_period = period
+            period = period_mapping.get(period, '1y')
+            
+            if original_period != period:
+                module_logger.warning(f"Invalid period '{original_period}' mapped to '{period}'")
+            
+            module_logger.info(f"YFinance: Valid symbols: {valid_symbols}, period: {period}")
             
             import warnings
             with warnings.catch_warnings():
@@ -286,12 +299,16 @@ class FinnhubProvider(DataProvider):
             data = {}
             # Convert period to timestamps
             end_time = int(datetime.now().timestamp())
-            if period == "1y":
-                start_time = end_time - (365 * 24 * 3600)
-            elif period == "6mo":
-                start_time = end_time - (180 * 24 * 3600)
-            else:
-                start_time = end_time - (30 * 24 * 3600)
+            period_days = {
+                '1mo': 30,
+                '3mo': 90, 
+                '6mo': 180,
+                '1y': 365,
+                'ytd': (datetime.now() - datetime(datetime.now().year, 1, 1)).days,
+                '5y': 1825
+            }
+            days = period_days.get(period, 365)
+            start_time = end_time - (days * 24 * 3600)
             
             for symbol in symbols:
                 self.rate_limiter.wait_if_needed()

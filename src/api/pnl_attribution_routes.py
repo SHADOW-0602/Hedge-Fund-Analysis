@@ -380,15 +380,27 @@ def register_pnl_attribution_routes(app, data_client, smart_cache=None):
             return jsonify({'success': False, 'error': str(e)}), 500
 
 def _get_currency_rate(currency):
-    """Get currency conversion rate"""
-    rates = {
-        'EUR': 0.85,
-        'GBP': 0.75,
-        'JPY': 110.0,
-        'CAD': 1.25,
-        'AUD': 1.35
+    """Get currency conversion rate from environment or API"""
+    import os
+    
+    # Try to get rate from environment variables first
+    env_rate = os.getenv(f'{currency}_RATE')
+    if env_rate:
+        try:
+            return float(env_rate)
+        except ValueError:
+            pass
+    
+    # Fallback to hardcoded rates (should be updated regularly)
+    fallback_rates = {
+        'EUR': float(os.getenv('DEFAULT_EUR_RATE', '0.85')),
+        'GBP': float(os.getenv('DEFAULT_GBP_RATE', '0.75')),
+        'JPY': float(os.getenv('DEFAULT_JPY_RATE', '110.0')),
+        'CAD': float(os.getenv('DEFAULT_CAD_RATE', '1.25')),
+        'AUD': float(os.getenv('DEFAULT_AUD_RATE', '1.35'))
     }
-    return rates.get(currency, 1.0)
+    
+    return fallback_rates.get(currency, 1.0)
 
 def _convert_currency(pnl_data, rate, currency):
     """Convert P&L values to target currency"""
@@ -406,7 +418,11 @@ def _convert_currency(pnl_data, rate, currency):
 
 def _apply_tax_impact(pnl_data, tax_data):
     """Apply after-tax calculations"""
-    tax_rate = 0.25  # Simplified 25% tax rate
+    import os
+    
+    # Get tax rate from environment or user settings
+    default_tax_rate = float(os.getenv('DEFAULT_TAX_RATE', '0.25'))
+    tax_rate = tax_data.get('tax_rate', default_tax_rate)
     
     # Apply tax to realized gains only
     if pnl_data['realized_pnl'] > 0:
@@ -422,18 +438,36 @@ def _apply_tax_impact(pnl_data, tax_data):
     return pnl_data
 
 def _group_by_sector(pnl_data, transactions):
-    """Group P&L by sector"""
-    sector_map = {
-        'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology', 'NVDA': 'Technology',
-        'JPM': 'Financial', 'BAC': 'Financial', 'WFC': 'Financial', 'GS': 'Financial',
-        'JNJ': 'Healthcare', 'PFE': 'Healthcare', 'UNH': 'Healthcare', 'ABBV': 'Healthcare',
-        'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy', 'SLB': 'Energy'
-    }
+    """Group P&L by sector using dynamic sector classification"""
+    import os
+    import json
+    
+    # Try to load sector mappings from file or environment
+    sector_map = {}
+    
+    # Check for custom sector mapping file
+    sector_file = os.getenv('SECTOR_MAPPING_FILE', 'sector_mappings.json')
+    if os.path.exists(sector_file):
+        try:
+            with open(sector_file, 'r') as f:
+                sector_map = json.load(f)
+        except Exception:
+            pass
+    
+    # Fallback to basic sector classification
+    if not sector_map:
+        sector_map = {
+            'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology', 'NVDA': 'Technology',
+            'JPM': 'Financial', 'BAC': 'Financial', 'WFC': 'Financial', 'GS': 'Financial',
+            'JNJ': 'Healthcare', 'PFE': 'Healthcare', 'UNH': 'Healthcare', 'ABBV': 'Healthcare',
+            'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy', 'SLB': 'Energy'
+        }
     
     by_sector = defaultdict(lambda: {'realized_pnl': 0, 'unrealized_pnl': 0, 'total_pnl': 0, 'symbols': []})
     
     for symbol, data in pnl_data.get('by_symbol', {}).items():
-        sector = sector_map.get(symbol, 'Other')
+        # Use dynamic sector classification with fallback
+        sector = sector_map.get(symbol, _classify_symbol_sector(symbol))
         by_sector[sector]['realized_pnl'] += data['realized_pnl']
         by_sector[sector]['unrealized_pnl'] += data['unrealized_pnl']
         by_sector[sector]['total_pnl'] += data['total_pnl']
@@ -480,14 +514,20 @@ def _group_by_date(pnl_data, pnl_events, period):
 
 def _group_by_size(pnl_data):
     """Group P&L by position size"""
+    import os
+    
+    # Get configurable size thresholds
+    large_threshold = float(os.getenv('LARGE_POSITION_THRESHOLD', '10000'))
+    medium_threshold = float(os.getenv('MEDIUM_POSITION_THRESHOLD', '1000'))
+    
     by_size = {'Large': {'total_pnl': 0, 'count': 0}, 'Medium': {'total_pnl': 0, 'count': 0}, 'Small': {'total_pnl': 0, 'count': 0}}
     
     for symbol, data in pnl_data.get('by_symbol', {}).items():
         position_value = abs(data.get('quantity', 0) * data.get('avg_cost', 0))
         
-        if position_value > 10000:
+        if position_value > large_threshold:
             size_category = 'Large'
-        elif position_value > 1000:
+        elif position_value > medium_threshold:
             size_category = 'Medium'
         else:
             size_category = 'Small'
@@ -519,3 +559,22 @@ def _filter_unrealized_only(pnl_data):
         data['realized_pnl'] = 0
     
     return pnl_data
+
+def _classify_symbol_sector(symbol):
+    """Classify symbol into sector using basic heuristics"""
+    # Basic sector classification based on symbol patterns
+    tech_patterns = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA']
+    financial_patterns = ['JPM', 'BAC', 'WFC', 'GS', 'MS', 'C']
+    healthcare_patterns = ['JNJ', 'PFE', 'UNH', 'ABBV', 'MRK', 'TMO']
+    energy_patterns = ['XOM', 'CVX', 'COP', 'SLB', 'EOG']
+    
+    if symbol in tech_patterns or any(pattern in symbol for pattern in ['TECH', 'SOFT', 'DATA']):
+        return 'Technology'
+    elif symbol in financial_patterns or any(pattern in symbol for pattern in ['BANK', 'FIN']):
+        return 'Financial'
+    elif symbol in healthcare_patterns or any(pattern in symbol for pattern in ['HEALTH', 'BIO', 'PHARM']):
+        return 'Healthcare'
+    elif symbol in energy_patterns or any(pattern in symbol for pattern in ['OIL', 'GAS', 'ENERGY']):
+        return 'Energy'
+    else:
+        return 'Other'

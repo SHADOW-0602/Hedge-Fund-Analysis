@@ -1,11 +1,13 @@
 import pandas as pd
 import numpy as np
+import os
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
-from clients.market_data_client import MarketDataClient
-from core.transactions import TransactionPortfolio
-from utils.logger import logger
+from src.clients.market_data_client import MarketDataClient
+from src.core.transactions import TransactionPortfolio
+from src.utils.logger import logger
 import logging
+import traceback
 
 # Setup module logger
 module_logger = logging.getLogger(__name__)
@@ -18,7 +20,7 @@ class PerformanceAttributor:
     def factor_based_attribution(self, symbols: List[str], weights: Dict[str, float], 
                                 period: str = "1y", attribution_model: str = "brinson", 
                                 benchmark: str = "SPY", currency: str = "USD", 
-                                frequency: str = "daily") -> Dict:
+                                frequency: str = "daily", attribution_types: List[str] = None) -> Dict:
         """Calculate performance attribution using actual market data"""
         try:
             if not symbols:
@@ -29,115 +31,108 @@ class PerformanceAttributor:
             if not weights:
                 weights = {symbol: 1.0/len(symbols) for symbol in symbols}
             
-            # Handle period mapping
-            period_map = {
-                '1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y',
-                'YTD': 'ytd', 'ITD': '5y'  # ITD mapped to 5y as max available
+            # Map benchmark names to tickers with configurable defaults
+            benchmark_mapping = {
+                'Peer Group': os.getenv('PEER_GROUP_BENCHMARK', 'VT'),
+                'Custom': os.getenv('CUSTOM_BENCHMARK', 'SPY'),
+                'Index': os.getenv('INDEX_BENCHMARK', 'SPY'),
+                'S&P 500': 'SPY',
+                'NASDAQ': 'QQQ',
+                'Russell 2000': 'IWM'
             }
-            yf_period = period_map.get(period.upper(), period.lower())
+            benchmark_ticker = benchmark_mapping.get(benchmark, benchmark)
+
+            # Get market data
+            symbols_to_fetch = list(set(symbols + [benchmark_ticker]))
+            data = self.data_client.get_price_data(symbols_to_fetch, period)
             
-            module_logger.info(f"Starting attribution for {len(symbols)} symbols: {symbols[:3]}{'...' if len(symbols) > 3 else ''}")
-            
-            # Get market data - no fallbacks, fix the real issue
-            try:
-                price_data = self.data_client.get_price_data(symbols + [benchmark], yf_period)
-                if price_data.empty:
-                    module_logger.error(f"Market data client returned empty data for symbols: {symbols + [benchmark]}")
-                    return self._empty_attribution_result()
-                module_logger.info(f"Retrieved price data: {price_data.shape[0]} rows, {price_data.shape[1]} columns")
-            except Exception as e:
-                module_logger.error(f"Market data client failed: {e}")
+            if data.empty:
+                module_logger.warning("No data returned for attribution")
                 return self._empty_attribution_result()
+
+            # Calculate returns
+            returns = data.pct_change().dropna()
             
-            returns = price_data.pct_change().dropna()
             if returns.empty:
-                module_logger.error("No returns data after calculating percentage changes")
-                return self._empty_attribution_result()
+                 return self._empty_attribution_result()
+
+            # Calculate portfolio return
+            portfolio_return = 0.0
+            total_weight = sum(weights.get(s, 0) for s in symbols)
             
-            if benchmark not in returns.columns:
-                module_logger.error(f"Benchmark {benchmark} not found in returns data. Available columns: {list(returns.columns)}")
-                return self._empty_attribution_result()
+            for symbol in symbols:
+                if symbol in returns.columns:
+                    weight = weights.get(symbol, 0) / total_weight if total_weight > 0 else 0
+                    symbol_ret = returns[symbol].mean() * 252 # Annualized
+                    portfolio_return += weight * symbol_ret
+
+            # Calculate benchmark return
+            if benchmark_ticker in returns.columns:
+                benchmark_return = returns[benchmark_ticker].mean() * 252
+                benchmark_returns_series = returns[benchmark_ticker]
+            else:
+                benchmark_return = 0.0
+                benchmark_returns_series = pd.Series()
+
+            active_return = portfolio_return - benchmark_return
+
+            # Apply frequency-based resampling
+            if frequency.lower() == 'weekly':
+                returns = returns.resample('W').last().pct_change().dropna()
+                benchmark_returns_series = benchmark_returns_series.resample('W').last().pct_change().dropna() if not benchmark_returns_series.empty else pd.Series()
+            elif frequency.lower() == 'monthly':
+                returns = returns.resample('ME').last().pct_change().dropna()
+                benchmark_returns_series = benchmark_returns_series.resample('ME').last().pct_change().dropna() if not benchmark_returns_series.empty else pd.Series()
             
-            # Resample based on frequency
-            if frequency == 'weekly':
-                returns = returns.resample('W').apply(lambda x: (1 + x).prod() - 1).dropna()
-            elif frequency == 'monthly':
-                returns = returns.resample('M').apply(lambda x: (1 + x).prod() - 1).dropna()
+            # Calculate effects based on attribution model and requested types
+            asset_allocation = 0.0
+            security_selection = 0.0
             
-            # Filter symbols that have data
-            available_symbols = [s for s in symbols if s in returns.columns]
-            if not available_symbols:
-                module_logger.error(f"No symbols found in returns data. Requested: {symbols}, Available: {list(returns.columns)}")
-                return self._empty_attribution_result()
+            # Only calculate requested attribution types
+            attribution_types_list = attribution_types if attribution_types and isinstance(attribution_types, list) else ['Asset Allocation', 'Security Selection', 'Timing']
             
-            module_logger.info(f"Using {len(available_symbols)} symbols for attribution: {available_symbols}")
+            if 'Asset Allocation' in attribution_types_list:
+                if attribution_model == 'brinson':
+                    asset_allocation = self._calculate_brinson_allocation_effect(returns, symbols, weights, benchmark_returns_series)
+                elif attribution_model == 'holdings':
+                    asset_allocation = self._calculate_holdings_allocation_effect(returns, symbols, weights)
+                else:  # factor-based (default)
+                    asset_allocation = self._calculate_asset_allocation_effect(returns, symbols, weights) * 100
             
-            # Calculate portfolio and benchmark returns
-            portfolio_returns = self._calculate_portfolio_returns(returns[available_symbols], weights, available_symbols)
-            benchmark_returns = returns[benchmark]
+            if 'Security Selection' in attribution_types_list:
+                if attribution_model == 'brinson':
+                    security_selection = self._calculate_brinson_selection_effect(returns, symbols, weights, benchmark_returns_series)
+                elif attribution_model == 'holdings':
+                    security_selection = self._calculate_holdings_selection_effect(returns, symbols, weights, benchmark_returns_series)
+                else:  # factor-based (default)
+                    security_selection = self._calculate_security_selection_effect(returns, symbols, weights, benchmark_returns_series) * 100
             
-            if portfolio_returns.empty:
-                module_logger.error("Portfolio returns calculation failed")
-                return self._empty_attribution_result()
-            
-            if benchmark_returns.empty:
-                module_logger.error(f"Benchmark returns for {benchmark} are empty")
-                return self._empty_attribution_result()
-            
-            module_logger.info(f"Calculated returns: Portfolio {len(portfolio_returns)} points, Benchmark {len(benchmark_returns)} points")
-            
-            # Calculate annualized returns
-            try:
-                portfolio_return = (1 + portfolio_returns).prod() - 1
-                benchmark_return = (1 + benchmark_returns).prod() - 1
-                active_return = portfolio_return - benchmark_return
-                
-                module_logger.info(f"Returns calculated - Portfolio: {portfolio_return:.4f}, Benchmark: {benchmark_return:.4f}, Active: {active_return:.4f}")
-            except Exception as e:
-                module_logger.error(f"Failed to calculate returns: {e}")
-                return self._empty_attribution_result()
-            
-            # Calculate attribution effects based on model
-            if attribution_model == 'brinson':
-                asset_allocation = self._calculate_brinson_allocation_effect(returns, available_symbols, weights, benchmark_returns)
-                security_selection = self._calculate_brinson_selection_effect(returns, available_symbols, weights, benchmark_returns)
-            elif attribution_model == 'holdings':
-                asset_allocation = self._calculate_holdings_allocation_effect(returns, available_symbols, weights)
-                security_selection = self._calculate_holdings_selection_effect(returns, available_symbols, weights, benchmark_returns)
-            else:  # factor-based
-                asset_allocation = self._calculate_asset_allocation_effect(returns, available_symbols, weights)
-                security_selection = self._calculate_security_selection_effect(returns, available_symbols, weights, benchmark_returns)
-            
-            module_logger.info(f"Attribution effects - Asset Allocation: {asset_allocation:.4f}, Security Selection: {security_selection:.4f}")
-            
-            # Calculate currency effect based on currency setting
-            currency_effect = self._calculate_currency_effect_enhanced(returns, available_symbols, weights, currency)
-            
-            # Ensure minimum currency effect for non-USD
-            if currency != 'USD' and abs(currency_effect) < 0.1:
-                currency_effect = 0.5 if currency == 'EUR' else 0.8 if currency == 'GBP' else 1.2
-            
-            # Calculate market timing effect
-            market_timing = self._calculate_market_timing_effect(portfolio_returns, benchmark_returns)
-            
-            # Remove artificial caps - use real market data values
-            # asset_allocation and security_selection use calculated values
-            
-            # Calculate interaction effect - more meaningful calculation
-            if abs(asset_allocation) > 0.01 and abs(security_selection) > 0.01:
-                interaction_effect = (asset_allocation * security_selection) / 10000
-                # Ensure minimum meaningful value
-                if abs(interaction_effect) < 0.01:
-                    interaction_effect = 0.05 if (asset_allocation * security_selection) > 0 else -0.05
+            # Calculate interaction effect (only for Brinson model)
+            if attribution_model == 'brinson' and abs(asset_allocation) > 0.01 and abs(security_selection) > 0.01:
+                interaction_effect = (asset_allocation * security_selection) / 10000  # Both already in percentage
             else:
                 interaction_effect = 0.0
             
-            # Convert to percentage (values are already in decimal form)
+            # Calculate currency effect with hedging
+            hedge_multiplier = 0.1 if currency.lower() in ['hedged', 'hedge'] else 1.0
+            currency_effect = self._calculate_currency_effect_enhanced(returns, symbols, weights, currency, period) * hedge_multiplier
+            
+            # Calculate market timing only if requested
+            market_timing = 0.0
+            if 'Timing' in attribution_types_list and not benchmark_returns_series.empty:
+                portfolio_returns_series = pd.Series(0.0, index=returns.index)
+                for symbol in symbols:
+                    if symbol in returns.columns:
+                        weight = weights.get(symbol, 0) / total_weight if total_weight > 0 else 0
+                        portfolio_returns_series += returns[symbol] * weight
+                
+                market_timing = self._calculate_market_timing_effect(portfolio_returns_series, benchmark_returns_series)
+            
+            # Convert to percentage
             portfolio_return_pct = portfolio_return * 100
             benchmark_return_pct = benchmark_return * 100
             active_return_pct = active_return * 100
             
-            # Return results without artificial modifications
             result = {
                 'portfolio_return': portfolio_return_pct,
                 'benchmark_return': benchmark_return_pct,
@@ -157,10 +152,8 @@ class PerformanceAttributor:
             import traceback
             module_logger.error(f"Attribution traceback: {traceback.format_exc()}")
             return self._empty_attribution_result()
-    
 
-    
-    def _calculate_currency_effect_enhanced(self, returns: pd.DataFrame, symbols: List[str], weights: Dict[str, float], currency: str) -> float:
+    def _calculate_currency_effect_enhanced(self, returns: pd.DataFrame, symbols: List[str], weights: Dict[str, float], currency: str, period: str = '1y') -> float:
         """Calculate currency effect using actual FX data and portfolio exposure"""
         try:
             # Get currency exposure data
@@ -177,19 +170,23 @@ class PerformanceAttributor:
                 intl_exposure = 0.0
                 total_weight = sum(weights.get(s, 0) for s in symbols)
                 
+                # Get configurable thresholds
+                vol_threshold = float(os.getenv('FX_VOLATILITY_THRESHOLD', '0.25'))
+                fx_sensitivity = float(os.getenv('FX_SENSITIVITY_FACTOR', '0.3'))
+                
                 for symbol in symbols:
                     if symbol in returns.columns:
                         weight = weights.get(symbol, 0) / total_weight if total_weight > 0 else 0
                         # Check if stock has international exposure (multinational companies)
                         symbol_vol = returns[symbol].std() * np.sqrt(252)
-                        if symbol_vol > 0.25:  # High volatility suggests international exposure
-                            intl_exposure += weight * 0.3  # 30% FX sensitivity
+                        if symbol_vol > vol_threshold:
+                            intl_exposure += weight * fx_sensitivity
                 
                 return intl_exposure * 100
             
             # Get FX data for the same period
             try:
-                fx_data = self.data_client.get_price_data(fx_symbols, '1y')
+                fx_data = self.data_client.get_price_data(fx_symbols, period)
                 if fx_data.empty:
                     return 0.0
                 
@@ -229,7 +226,15 @@ class PerformanceAttributor:
                         symbol_vol = returns[symbol].std() * np.sqrt(252)
                         portfolio_vol += weight * symbol_vol
                 
-                fx_multiplier = 0.15 if currency == 'EUR' else 0.18 if currency == 'GBP' else 0.12
+                # Get configurable FX multipliers
+                fx_multipliers = {
+                    'EUR': float(os.getenv('EUR_FX_MULTIPLIER', '0.15')),
+                    'GBP': float(os.getenv('GBP_FX_MULTIPLIER', '0.18')),
+                    'JPY': float(os.getenv('JPY_FX_MULTIPLIER', '0.12')),
+                    'CAD': float(os.getenv('CAD_FX_MULTIPLIER', '0.10')),
+                    'AUD': float(os.getenv('AUD_FX_MULTIPLIER', '0.14'))
+                }
+                fx_multiplier = fx_multipliers.get(currency, float(os.getenv('DEFAULT_FX_MULTIPLIER', '0.12')))
                 return portfolio_vol * fx_multiplier * 100
                 
         except Exception:

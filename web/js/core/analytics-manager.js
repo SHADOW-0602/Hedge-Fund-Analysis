@@ -184,11 +184,11 @@ class AnalyticsManager {
         });
 
         this.register('return-attribution', {
-            endpoint: 'pnl-attribution', // Use existing P&L attribution endpoint
+            endpoint: 'performance-attribution',
             containerId: 'analysisContent',
-            settingsId: 'returnAttributionSettings',
-            displayFunction: this.displayReturnAttribution,
-            type: 'transaction'
+            settingsId: null,
+            displayFunction: this.displayPerformanceAttribution,
+            type: 'portfolio'
         });
 
         // Bind events
@@ -366,7 +366,7 @@ class AnalyticsManager {
         // Special handling for Trade Timing Analysis to use its own dedicated handler
         if (name === 'trade-timing' && window.loadTradeTimingAnalysis) {
             console.log('Delegating to loadTradeTimingAnalysis');
-            
+
             // Check for transaction data first
             const transactions = this.transactionData || window.currentTransactions;
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -382,7 +382,7 @@ class AnalyticsManager {
         // Special handling for Drawdown Analysis to use its own dedicated handler
         if (name === 'drawdown-analysis' && window.loadDrawdownAnalysis) {
             console.log('Delegating to loadDrawdownAnalysis');
-            
+
             // Check for transaction data first
             const transactions = this.transactionData || window.currentTransactions;
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -914,7 +914,7 @@ class AnalyticsManager {
 
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Performance Attribution</h2>
+                <h2 class="text-2xl font-bold text-gray-900">Return Attribution</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="togglePerformanceSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
@@ -924,11 +924,6 @@ class AnalyticsManager {
                             <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
                         </svg>
                         Refresh
-                    </button>
-                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
-                        </svg>
                     </button>
                 </div>
             </div>
@@ -991,38 +986,38 @@ class AnalyticsManager {
                     <h4 class="section-header">Attribution Effects</h4>
                     <div class="metric-row">
                         <span class="metric-label">Asset Allocation</span>
-                        <span class="metric-value ${attribution.asset_allocation === null || attribution.asset_allocation === undefined ? 'neutral' : (attribution.asset_allocation > 0 ? 'positive' : 'negative')}">${attribution.asset_allocation === null || attribution.asset_allocation === undefined ? 'N/A' : window.analyticsCore.formatPercent(attribution.asset_allocation / 100)}</span>
+                        <span class="metric-value ${attribution.asset_allocation === null || attribution.asset_allocation === undefined ? 'neutral' : (attribution.asset_allocation > 0 ? 'positive' : 'negative')}">${attribution.asset_allocation === null || attribution.asset_allocation === undefined ? 'N/A' : (attribution.asset_allocation >= 0 ? '+' : '') + attribution.asset_allocation.toFixed(2) + '%'}</span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Security Selection</span>
-                        <span class="metric-value ${attribution.security_selection === null || attribution.security_selection === undefined ? 'neutral' : (attribution.security_selection > 0 ? 'positive' : 'negative')}">${attribution.security_selection === null || attribution.security_selection === undefined ? 'N/A' : window.analyticsCore.formatPercent(attribution.security_selection / 100)}</span>
+                        <span class="metric-value ${attribution.security_selection === null || attribution.security_selection === undefined ? 'neutral' : (attribution.security_selection > 0 ? 'positive' : 'negative')}">${attribution.security_selection === null || attribution.security_selection === undefined ? 'N/A' : (attribution.security_selection >= 0 ? '+' : '') + attribution.security_selection.toFixed(2) + '%'}</span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Interaction Effect</span>
-                        <span class="metric-value ${attribution.interaction_effect === null || attribution.interaction_effect === undefined ? 'neutral' : (attribution.interaction_effect > 0 ? 'positive' : 'negative')}">${attribution.interaction_effect === null || attribution.interaction_effect === undefined ? 'N/A' : window.analyticsCore.formatPercent(attribution.interaction_effect / 100)}</span>
+                        <span class="metric-value ${attribution.interaction_effect === null || attribution.interaction_effect === undefined ? 'neutral' : (attribution.interaction_effect > 0 ? 'positive' : 'negative')}">${attribution.interaction_effect === null || attribution.interaction_effect === undefined ? 'N/A' : (attribution.interaction_effect >= 0 ? '+' : '') + attribution.interaction_effect.toFixed(2) + '%'}</span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Currency Effect</span>
-                        <span class="metric-value ${attribution.currency_effect === null || attribution.currency_effect === undefined ? 'neutral' : (attribution.currency_effect > 0 ? 'positive' : 'negative')}">${attribution.currency_effect === null || attribution.currency_effect === undefined ? 'N/A' : window.analyticsCore.formatPercent(attribution.currency_effect / 100)}</span>
+                        <span class="metric-value ${attribution.currency_effect === null || attribution.currency_effect === undefined ? 'neutral' : (attribution.currency_effect > 0 ? 'positive' : 'negative')}">${attribution.currency_effect === null || attribution.currency_effect === undefined ? 'N/A' : (attribution.currency_effect >= 0 ? '+' : '') + attribution.currency_effect.toFixed(2) + '%'}</span>
                     </div>
                 </div>
                 <div class="space-y-3">
                     <h4 class="section-header">Performance Summary</h4>
                     <div class="metric-row">
                         <span class="metric-label">Portfolio Return</span>
-                        <span class="metric-value ${(attribution.portfolio_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent((attribution.portfolio_return || 0) / 100)}</span>
+                        <span class="metric-value ${(attribution.portfolio_return || 0) > 0 ? 'positive' : 'negative'}">${attribution.portfolio_return === null || attribution.portfolio_return === undefined ? 'N/A' : (attribution.portfolio_return >= 0 ? '+' : '') + attribution.portfolio_return.toFixed(2) + '%'}</span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Benchmark Return</span>
-                        <span class="metric-value neutral">${window.analyticsCore.formatPercent((attribution.benchmark_return || 0) / 100)}</span>
+                        <span class="metric-value neutral">${attribution.benchmark_return === null || attribution.benchmark_return === undefined ? 'N/A' : (attribution.benchmark_return >= 0 ? '+' : '') + attribution.benchmark_return.toFixed(2) + '%'}</span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Active Return</span>
-                        <span class="metric-value ${(attribution.active_return || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent((attribution.active_return || 0) / 100)}</span>
+                        <span class="metric-value ${(attribution.active_return || 0) > 0 ? 'positive' : 'negative'}">${attribution.active_return === null || attribution.active_return === undefined ? 'N/A' : (attribution.active_return >= 0 ? '+' : '') + attribution.active_return.toFixed(2) + '%'}</span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Market Timing</span>
-                        <span class="metric-value ${(attribution.market_timing || 0) > 0 ? 'positive' : 'negative'}">${window.analyticsCore.formatPercent((attribution.market_timing || 0) / 100)}</span>
+                        <span class="metric-value ${(attribution.market_timing || 0) > 0 ? 'positive' : 'negative'}">${attribution.market_timing === null || attribution.market_timing === undefined ? 'N/A' : (attribution.market_timing >= 0 ? '+' : '') + attribution.market_timing.toFixed(2) + '%'}</span>
                     </div>
                 </div>
             </div>
@@ -2134,7 +2129,7 @@ class AnalyticsManager {
     displayDrawdownAnalysis(result, options) {
         console.log('[DEBUG] Analytics Manager displayDrawdownAnalysis called with:', result);
         console.log('[DEBUG] Options:', options);
-        
+
         // The API response structure is: { success: true, drawdown_analysis: {...} }
         // But the display function expects just the drawdown_analysis part
         const drawdownData = result.drawdown_analysis || result;

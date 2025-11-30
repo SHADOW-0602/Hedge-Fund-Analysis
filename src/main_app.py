@@ -300,6 +300,16 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+# Register Return Attribution routes
+try:
+    from api.return_attribution_routes import register_return_attribution_routes
+    register_return_attribution_routes(app, data_client, None)
+    logger.info("Return Attribution routes registered successfully")
+except Exception as e:
+    logger.error(f"Failed to register return attribution routes: {e}")
+    import traceback
+    traceback.print_exc()
+
 # Cash flow analysis route moved to transaction_analysis_routes.py
 
 # Register turnover analysis routes
