@@ -83,6 +83,18 @@ function createIndividualAnalysisHTML(analysisType) {
     const settingsFunction = analysisType === 'accounting-analysis' ? 'toggleAccountingSettings()' : 
                             analysisType === 'cash-flow' ? 'toggleCashFlowSettings()' : 'toggleSettings()';
     
+    // Special handling for analyses that should not have cross button
+    const noCloseButtonAnalyses = [
+        'strategy-backtesting', 'technical-indicators', 'pnl-attribution', 
+        'cost-analysis', 'cash-flow', 'accounting-analysis', 'trade-performance',
+        'turnover-analysis', 'drawdown-analysis', 'return-attribution', 'statistical-analysis',
+        'sector-allocation'
+    ];
+    
+    if (noCloseButtonAnalyses.includes(analysisType)) {
+        return '';
+    }
+
     const buttonsHtml = analysisConfig.hasSettings ? `
         <div class="flex items-center space-x-2">
             <button onclick="${settingsFunction}" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
@@ -156,6 +168,13 @@ function loadSpecificAnalysis(analysisType) {
         // Set flag to indicate this is individual analysis mode
         window.isIndividualTaxAnalysis = true;
         window.loadTaxAnalysis(transactions);
+        return;
+    }
+
+    // Special handling for strategy backtesting - use dedicated module
+    if (analysisType === 'strategy-backtesting' && window.loadStrategyBacktesting) {
+        const portfolioData = window.portfolioData || window.currentPortfolio || [];
+        window.loadStrategyBacktesting(portfolioData);
         return;
     }
 

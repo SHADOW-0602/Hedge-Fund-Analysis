@@ -80,8 +80,13 @@ async function loadNews() {
     if (cachedTime && new Date(cachedTime) > sixHoursAgo) {
         const cachedNews = localStorage.getItem(cacheKey);
         if (cachedNews) {
-            displayNews(JSON.parse(cachedNews));
-            return;
+            try {
+                displayNews(JSON.parse(cachedNews));
+                return;
+            } catch (parseError) {
+                localStorage.removeItem(cacheKey);
+                localStorage.removeItem(cacheTimeKey);
+            }
         }
     }
 
@@ -170,21 +175,32 @@ async function loadImages() {
     ];
 
     const imagePromises = imageElements.map(async ({ id, query }) => {
-        const element = document.getElementById(id);
-        if (element) {
-            const imageUrl = await fetchPexelsImage(query);
-            if (imageUrl) {
-                element.src = imageUrl;
-                element.style.opacity = '0';
-                element.onload = () => {
-                    element.style.transition = 'opacity 0.5s ease';
-                    element.style.opacity = '1';
-                };
+        try {
+            const element = document.getElementById(id);
+            if (element) {
+                const imageUrl = await fetchPexelsImage(query);
+                if (imageUrl) {
+                    element.src = imageUrl;
+                    element.style.opacity = '0';
+                    element.onload = () => {
+                        element.style.transition = 'opacity 0.5s ease';
+                        element.style.opacity = '1';
+                    };
+                    element.onerror = () => {
+                        console.debug(`Image failed to load for ${id}`);
+                    };
+                }
             }
+        } catch (error) {
+            console.debug(`Failed to load image for ${id}:`, error);
         }
     });
 
-    await Promise.all(imagePromises);
+    try {
+        await Promise.all(imagePromises);
+    } catch (error) {
+        console.debug('Some images failed to load:', error);
+    }
 }
 
 // Intersection Observer for animations
@@ -480,8 +496,14 @@ async function subscribeNewsletter() {
                 message.className = 'message';
             }, 3000);
         } else {
-            const error = await response.json();
-            message.textContent = error.error || 'Subscription failed';
+            let errorMsg = 'Subscription failed';
+            try {
+                const errorData = await response.json();
+                errorMsg = errorData.error || errorMsg;
+            } catch (parseError) {
+                errorMsg = `HTTP ${response.status}: ${response.statusText || 'Request failed'}`;
+            }
+            message.textContent = errorMsg;
             message.className = 'message error';
             message.style.color = 'var(--error-color)';
         }
@@ -523,15 +545,25 @@ async function addTicker() {
                 message.className = 'message';
             }, 3000);
         } else {
-            const error = await response.json();
-            message.textContent = error.error || 'Failed to add ticker';
+            let errorMsg = 'Failed to add ticker';
+            try {
+                const errorData = await response.json();
+                errorMsg = errorData.error || errorMsg;
+            } catch (parseError) {
+                errorMsg = `HTTP ${response.status}: ${response.statusText || 'Request failed'}`;
+            }
+            message.textContent = errorMsg;
             message.className = 'message error';
             message.style.color = 'var(--error-color)';
         }
     } catch (error) {
-        message.textContent = 'Error adding ticker';
+        const errorMsg = error.name === 'TypeError' && error.message.includes('fetch') 
+            ? 'Network error. Please check your connection.' 
+            : 'Error adding ticker. Please try again.';
+        message.textContent = errorMsg;
         message.className = 'message error';
         message.style.color = 'var(--error-color)';
+        console.error('Add ticker error:', error);
     }
 }
 

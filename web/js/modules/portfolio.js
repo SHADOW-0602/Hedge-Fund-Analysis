@@ -25,9 +25,9 @@ async function uploadPortfolio() {
 
         if (data.success) {
             portfolioData = data.portfolio;
-            
+
             const hasStoredResults = await loadStoredResultsForPortfolio(portfolioData);
-            
+
             if (currentUser && currentUser.user_id) {
                 try {
                     const saveResult = await savePortfolioToSupabase(file.name, data.portfolio);
@@ -41,9 +41,9 @@ async function uploadPortfolio() {
                     console.log('Supabase save error:', err);
                 }
             }
-            
+
             const portfolioFiles = JSON.parse(localStorage.getItem('portfolioFiles') || '[]');
-            
+
             // Check for duplicate names
             const existingFile = portfolioFiles.find(f => f.filename === file.name);
             if (existingFile) {
@@ -56,20 +56,22 @@ async function uploadPortfolio() {
                 const index = portfolioFiles.findIndex(f => f.filename === file.name);
                 portfolioFiles.splice(index, 1);
             }
-            
+
             portfolioFiles.push({ filename: file.name, data: data.portfolio, timestamp: Date.now() });
             localStorage.setItem('portfolioFiles', JSON.stringify(portfolioFiles));
-            updateFileSelectors();
-            
+            if (window.updateFileSelectors) {
+                await window.updateFileSelectors();
+            }
+
             await displayPortfolio(portfolioData);
-            
+
             statusDiv.innerHTML = '<span class="text-green-600">✓ Portfolio uploaded successfully</span>';
-            
+
             // Show data action buttons
             if (typeof showDataActions === 'function') {
                 showDataActions();
             }
-            
+
             if (hasStoredResults) {
                 showSuccess('Portfolio uploaded - Loaded stored analysis results');
             } else {
@@ -89,12 +91,12 @@ async function uploadPortfolio() {
 
 async function displayPortfolio(data) {
     localStorage.setItem('currentPortfolio', JSON.stringify(data));
-    
+
     // Show portfolio analysis section
     if (window.showPortfolioAnalysis) {
         window.showPortfolioAnalysis();
     }
-    
+
     // Update key metrics
     updatePortfolioMetrics(data);
 
@@ -108,27 +110,27 @@ function updatePortfolioMetrics(data) {
         const price = parseFloat(holding.avg_cost || holding.price) || 0;
         totalValue += quantity * price;
     });
-    
+
     // Store portfolio data globally for analytics
     window.portfolioData = data;
     window.currentPortfolioData = data;
-    
+
     // Set portfolio data for enhanced analytics
     if (window.enhancedAnalytics) {
         window.enhancedAnalytics.setPortfolio(data);
     }
-    
+
     // Dispatch portfolio loaded event
     document.dispatchEvent(new CustomEvent('portfolioLoaded', {
         detail: { portfolio: data }
     }));
-    
+
     // Update individual metric elements
     const totalAUM = document.getElementById('totalAUM');
     const sharpeRatio = document.getElementById('sharpeRatio');
     const maxDrawdown = document.getElementById('maxDrawdown');
     const beta = document.getElementById('beta');
-    
+
     if (totalAUM && totalValue > 0) {
         if (totalValue >= 1000000) {
             totalAUM.textContent = '$' + (totalValue / 1000000).toFixed(1) + 'M';
@@ -139,100 +141,14 @@ function updatePortfolioMetrics(data) {
         }
         console.log('Portfolio value calculated:', totalValue, 'Display:', totalAUM.textContent);
     }
-    
+
     if (sharpeRatio) sharpeRatio.textContent = 'N/A';
     if (maxDrawdown) maxDrawdown.textContent = 'N/A';
     if (beta) beta.textContent = 'N/A';
 
-
     showAllPortfolioCardLoading();
-    
+
     // Analytics are now loaded on-demand via sidebar clicks
-}
-
-function loadPortfolioOptimization(data) {
-    const container = document.getElementById('enhancedOptimization');
-    console.log('Portfolio optimization container:', container);
-    if (container) {
-        console.log('Setting portfolio optimization loading state');
-        container.innerHTML = '<div class="text-center py-4 text-gray-500"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500 mr-2"></div>Optimizing portfolio...</div>';
-        setTimeout(() => {
-            console.log('Portfolio optimization complete');
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between"><span>Current Allocation</span><span class="font-semibold">Moderate Risk</span></div>
-                    <div class="flex justify-between"><span>Optimal Allocation</span><span class="font-semibold text-green-600">Efficient</span></div>
-                    <div class="flex justify-between"><span>Risk-Adjusted Return</span><span class="font-semibold">N/A</span></div>
-                </div>
-            `;
-        }, 2000);
-    } else {
-        console.log('enhancedOptimization element not found');
-    }
-}
-
-function loadStatisticalAnalysis(data) {
-    const container = document.getElementById('statisticalAnalysis');
-    if (container) {
-        container.innerHTML = '<div class="text-center py-4 text-gray-500"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500 mr-2"></div>Analyzing statistics...</div>';
-        setTimeout(() => {
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between"><span>Correlation Score</span><span class="font-semibold">N/A</span></div>
-                    <div class="flex justify-between"><span>Diversification</span><span class="font-semibold text-green-600">Good</span></div>
-                    <div class="flex justify-between"><span>Risk Concentration</span><span class="font-semibold">Low</span></div>
-                </div>
-            `;
-        }, 3000);
-    }
-}
-
-function loadStyleAnalysis(data) {
-    const container = document.getElementById('styleAnalysis');
-    if (container) {
-        container.innerHTML = '<div class="text-center py-4 text-gray-500"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500 mr-2"></div>Analyzing style...</div>';
-        setTimeout(() => {
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between"><span>Growth Tilt</span><span class="font-semibold">N/A</span></div>
-                    <div class="flex justify-between"><span>Value Tilt</span><span class="font-semibold">N/A</span></div>
-                    <div class="flex justify-between"><span>Market Cap</span><span class="font-semibold">Large Cap</span></div>
-                </div>
-            `;
-        }, 2500);
-    }
-}
-
-function loadTechnicalIndicators(data) {
-    const container = document.getElementById('enhancedTechnicalAnalysis');
-    if (container) {
-        container.innerHTML = '<div class="text-center py-4 text-gray-500"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500 mr-2"></div>Analyzing technical indicators...</div>';
-        setTimeout(() => {
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between"><span>RSI (14)</span><span class="font-semibold">N/A</span></div>
-                    <div class="flex justify-between"><span>MACD Signal</span><span class="font-semibold text-green-600">Bullish</span></div>
-                    <div class="flex justify-between"><span>Moving Average</span><span class="font-semibold">Above 50-day</span></div>
-                </div>
-            `;
-        }, 3500);
-    }
-}
-
-function loadStrategyBacktesting(data) {
-    const container = document.getElementById('backtestingResults');
-    if (container) {
-        container.innerHTML = '<div class="text-center py-4 text-gray-500"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500 mr-2"></div>Running backtests...</div>';
-        setTimeout(() => {
-            container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between"><span>Strategy Return</span><span class="font-semibold">N/A</span></div>
-                    <div class="flex justify-between"><span>Benchmark Return</span><span class="font-semibold">N/A</span></div>
-                    <div class="flex justify-between"><span>Alpha Generated</span><span class="font-semibold">N/A</span></div>
-                </div>
-            `;
-        }, 4000);
-    }
 }
 
 async function loadUserPortfolios() {
@@ -286,105 +202,15 @@ function updatePortfolioDropdown() {
     }
 }
 
-async function loadSavedPortfolio() {
-    const select = document.getElementById('savedPortfolios');
-    const portfolioId = select.value;
-    const deleteBtn = document.getElementById('deletePortfolioBtn');
-
-    if (!portfolioId) {
-        deleteBtn.style.display = 'none';
-        document.getElementById('savePortfolioSection').style.display = 'none';
-        return;
-    }
-
-    deleteBtn.style.display = 'inline-block';
-    document.getElementById('savedTransactions').value = '';
-
-    const portfolio = userPortfolios.find(p => p.id === portfolioId);
-    if (portfolio) {
-        portfolioData = portfolio.portfolio_data;
-        displayPortfolio(portfolioData);
-        document.getElementById('savePortfolioSection').style.display = 'none';
-        showSuccess(`Loaded portfolio: ${portfolio.portfolio_name}`);
-    }
-}
-
-async function saveCurrentPortfolio() {
-    if (!portfolioData || !currentUser) {
-        showError('No portfolio data to save');
-        return;
-    }
-
-    const portfolioName = document.getElementById('portfolioName').value;
-    if (!portfolioName) {
-        showError('Please enter a portfolio name');
-        return;
-    }
-
-    if (window.ProgressManager) {
-        ProgressManager.saveProgress('currentPortfolio', {
-            name: portfolioName,
-            data: portfolioData
-        });
-    }
-
-    showLoading(true);
-
-    try {
-        const response = await fetch(`${API_BASE}/api/save-portfolio`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                user_id: currentUser.user_id,
-                portfolio_name: portfolioName,
-                portfolio_data: portfolioData
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            showSuccess('Portfolio saved successfully!');
-            document.getElementById('portfolioName').value = '';
-            document.getElementById('portfolioFile').value = '';
-            document.getElementById('savePortfolioSection').style.display = 'none';
-            loadUserPortfolios();
-        } else {
-            showError(data.error);
-        }
-    } catch (error) {
-        showError('Failed to save portfolio');
-    }
-
-    showLoading(false);
-}
-
-async function downloadSamplePortfolio() {
-    try {
-        const response = await fetch(`${API_BASE}/api/download-sample-portfolio`);
-        const blob = await response.blob();
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'enhanced_portfolio.csv';
-        a.click();
-        window.URL.revokeObjectURL(url);
-        showSuccess('Sample portfolio CSV downloaded');
-    } catch (error) {
-        showError('Failed to download sample portfolio');
-    }
-}
-
-function viewSelectedPortfolio() {
+async function viewSelectedPortfolio() {
     const select = document.getElementById('portfolioFileSelect');
     const selectedIndex = select.value;
-    
+
     if (!selectedIndex) {
         showError('Please select a portfolio file');
         return;
     }
-    
+
     // Hide transaction analysis and clear transaction selection
     const transactionAnalysis = document.getElementById('transactionAnalysis');
     const transactionSelect = document.getElementById('transactionFileSelect');
@@ -400,15 +226,15 @@ function viewSelectedPortfolio() {
     // Get actual portfolio data from selected file
     const portfolioFiles = window.portfolioFiles || [];
     const selectedPortfolio = portfolioFiles[selectedIndex];
-    
+
     if (!selectedPortfolio || !selectedPortfolio.data) {
         showError('No portfolio data found in selected file');
         return;
     }
-    
+
     portfolioData = selectedPortfolio.data;
-    displayPortfolio(portfolioData);
-    
+    await displayPortfolio(portfolioData);
+
     setTimeout(() => {
         const portfolioSection = document.getElementById('portfolioAnalysis');
         if (portfolioSection) {
@@ -416,11 +242,11 @@ function viewSelectedPortfolio() {
             showAllPortfolioCardLoading();
             
             // Analytics are now loaded on-demand via sidebar clicks
-            
+
             portfolioSection.scrollIntoView({ behavior: 'smooth' });
         }
     }, 100);
-    
+
     showSuccess(`Portfolio "${filename}" loaded successfully`);
     
     // Show data action buttons
@@ -432,7 +258,7 @@ function viewSelectedPortfolio() {
 function togglePortfolioDelete() {
     const select = document.getElementById('portfolioFileSelect');
     const deleteBtn = document.getElementById('deletePortfolioBtn');
-    
+
     if (select && deleteBtn) {
         deleteBtn.style.display = select.value ? 'block' : 'none';
     }
@@ -444,14 +270,14 @@ async function deleteSelectedPortfolio() {
         showError('Please select a portfolio file to delete');
         return;
     }
-    
+
     if (!confirm('Are you sure you want to delete this portfolio file?')) {
         return;
     }
     
     const selectedIndex = parseInt(select.value);
     const portfolioFiles = window.portfolioFiles || [];
-    
+
     if (selectedIndex < 0 || selectedIndex >= portfolioFiles.length) {
         showError('Invalid portfolio file selected');
         return;
@@ -459,7 +285,7 @@ async function deleteSelectedPortfolio() {
     
     const fileToDelete = portfolioFiles[selectedIndex];
     showLoading(true);
-    
+
     try {
         // Delete from Supabase first
         if (fileToDelete.source === 'supabase' && fileToDelete.id && currentUser?.user_id) {
@@ -467,7 +293,7 @@ async function deleteSelectedPortfolio() {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-User-ID': currentUser.user_id
+                    'User-ID': currentUser.user_id
                 },
                 body: JSON.stringify({ portfolio_id: fileToDelete.id })
             });
@@ -483,8 +309,9 @@ async function deleteSelectedPortfolio() {
         if (localIndex >= 0) {
             localFiles.splice(localIndex, 1);
             localStorage.setItem('portfolioFiles', JSON.stringify(localFiles));
+
+            localStorage.removeItem('currentPortfolio');
         }
-        localStorage.removeItem('currentPortfolio');
         
         // Clear current data only
         window.portfolioData = null;
@@ -512,13 +339,13 @@ async function deleteSelectedPortfolio() {
         select.value = '';
         const deleteBtn = document.getElementById('deletePortfolioBtn');
         if (deleteBtn) deleteBtn.style.display = 'none';
-        
+
         showSuccess('Portfolio file deleted successfully');
-        
+
     } catch (error) {
         showError('Failed to delete portfolio file: ' + error.message);
     }
-    
+
     showLoading(false);
 }
 
@@ -540,7 +367,7 @@ async function refreshPortfolioAnalysis() {
     if (!portfolioData || portfolioData.length === 0) {
         portfolioData = JSON.parse(localStorage.getItem('currentPortfolio') || '[]');
     }
-    
+
     if (!portfolioData || portfolioData.length === 0) {
         showError('No portfolio data to refresh');
         // Hide the analysis section if no data
@@ -551,10 +378,10 @@ async function refreshPortfolioAnalysis() {
     
     // Update window variable
     window.portfolioData = portfolioData;
-    
+
     showLoading(true);
     showAllPortfolioCardLoading();
-    
+
     try {
         // Re-run portfolio analysis
         await displayPortfolio(portfolioData);
@@ -562,7 +389,7 @@ async function refreshPortfolioAnalysis() {
     } catch (error) {
         showError('Failed to refresh analysis: ' + error.message);
     }
-    
+
     showLoading(false);
 }
 
@@ -570,9 +397,6 @@ async function refreshPortfolioAnalysis() {
 window.uploadPortfolio = uploadPortfolio;
 window.displayPortfolio = displayPortfolio;
 window.loadUserPortfolios = loadUserPortfolios;
-window.loadSavedPortfolio = loadSavedPortfolio;
-window.saveCurrentPortfolio = saveCurrentPortfolio;
-window.downloadSamplePortfolio = downloadSamplePortfolio;
 window.viewSelectedPortfolio = viewSelectedPortfolio;
 window.togglePortfolioDelete = togglePortfolioDelete;
 window.deleteSelectedPortfolio = deleteSelectedPortfolio;

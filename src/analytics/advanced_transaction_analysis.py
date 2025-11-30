@@ -102,7 +102,7 @@ class AdvancedTransactionAnalyzer:
             cutoff_date = datetime(datetime.now().year, 1, 1)
         
         # Handle all date/time formats
-        def safe_date_filter(txn):
+        def safe_date_filter(txn, cutoff):
             try:
                 txn_date = txn.date
                 # Convert string to datetime if needed
@@ -112,13 +112,13 @@ class AdvancedTransactionAnalyzer:
                 # Make both dates timezone-naive for comparison
                 if hasattr(txn_date, 'tzinfo') and txn_date.tzinfo is not None:
                     txn_date = txn_date.replace(tzinfo=None)
-                if hasattr(cutoff_date, 'tzinfo') and cutoff_date.tzinfo is not None:
-                    cutoff_date = cutoff_date.replace(tzinfo=None)
-                return txn_date >= cutoff_date
+                if hasattr(cutoff, 'tzinfo') and cutoff.tzinfo is not None:
+                    cutoff = cutoff.replace(tzinfo=None)
+                return txn_date >= cutoff
             except:
-                return txn_date.date() >= cutoff_date.date()
+                return txn_date.date() >= cutoff.date()
         
-        filtered_txns = [t for t in transactions if safe_date_filter(t) and t.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell']]
+        filtered_txns = [t for t in transactions if safe_date_filter(t, cutoff_date) and t.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell']]
         
         if not filtered_txns:
             return {
@@ -626,27 +626,31 @@ class AdvancedTransactionAnalyzer:
                 'chart_data': [], 'benchmark_data': [], 'summary': {}
             }
         
+        # Calculate cutoff date for all periods
+        cutoff_date = datetime.now()
+        if period == '1M':
+            cutoff_date -= timedelta(days=30)
+        elif period == '3M':
+            cutoff_date -= timedelta(days=90)
+        elif period == '6M':
+            cutoff_date -= timedelta(days=180)
+        elif period == '1Y':
+            cutoff_date -= timedelta(days=365)
+        elif period == 'YTD':
+            cutoff_date = datetime(datetime.now().year, 1, 1)
+        elif period == 'ITD':
+            cutoff_date = datetime(1900, 1, 1)  # Very old date to include all
+        
         # For demo purposes, use all transactions to show data
         if period == 'ITD':
             filtered_txns = transactions
         else:
             # Filter by period but fallback to all transactions if none found
-            cutoff_date = datetime.now()
-            if period == '1M':
-                cutoff_date -= timedelta(days=30)
-            elif period == '3M':
-                cutoff_date -= timedelta(days=90)
-            elif period == '6M':
-                cutoff_date -= timedelta(days=180)
-            elif period == '1Y':
-                cutoff_date -= timedelta(days=365)
-            elif period == 'YTD':
-                cutoff_date = datetime(datetime.now().year, 1, 1)
             
             print(f"[CASH-FLOW] Cutoff date for {period}: {cutoff_date}")
             
             # Handle timezone-aware vs timezone-naive datetime comparison
-            def safe_date_filter(txn):
+            def safe_date_filter(txn, cutoff):
                 try:
                     txn_date = txn.date
                     # Convert string to datetime if needed
@@ -657,17 +661,17 @@ class AdvancedTransactionAnalyzer:
                     # Make both dates timezone-naive for comparison
                     if hasattr(txn_date, 'tzinfo') and txn_date.tzinfo is not None:
                         txn_date = txn_date.replace(tzinfo=None)
-                    if hasattr(cutoff_date, 'tzinfo') and cutoff_date.tzinfo is not None:
-                        cutoff_date = cutoff_date.replace(tzinfo=None)
+                    if hasattr(cutoff, 'tzinfo') and cutoff.tzinfo is not None:
+                        cutoff = cutoff.replace(tzinfo=None)
                     
-                    print(f"[CASH-FLOW] Comparing {txn.symbol} {txn_date} >= {cutoff_date}: {txn_date >= cutoff_date}")
-                    return txn_date >= cutoff_date
+                    print(f"[CASH-FLOW] Comparing {txn.symbol} {txn_date} >= {cutoff}: {txn_date >= cutoff}")
+                    return txn_date >= cutoff
                 except Exception as e:
                     print(f"[CASH-FLOW] Date comparison error: {e}")
                     # Fallback: compare dates only
-                    return txn_date.date() >= cutoff_date.date()
+                    return txn_date.date() >= cutoff.date()
             
-            filtered_txns = [t for t in transactions if safe_date_filter(t)]
+            filtered_txns = [t for t in transactions if safe_date_filter(t, cutoff_date)]
             
             # If no transactions in period, return empty result
             if not filtered_txns:
