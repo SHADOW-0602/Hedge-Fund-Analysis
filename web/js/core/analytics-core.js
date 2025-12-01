@@ -15,7 +15,7 @@ class AnalyticsCore {
             console.log(`Final request body for ${endpoint}:`, requestBody);
             const response = await fetch(`${this.apiBase}/api/${endpoint}?t=${Date.now()}`, {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Cache-Control': 'no-cache'
                 },
@@ -33,7 +33,7 @@ class AnalyticsCore {
     // Show transaction loading screen
     showTransactionLoadingScreen(container, endpoint, transactionCount) {
         const analysisName = this.getAnalysisDisplayName(endpoint);
-        
+
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">${analysisName}</h2>
@@ -56,12 +56,39 @@ class AnalyticsCore {
             </div>
         `;
     }
-    
+
+    // Show portfolio loading screen
+    showPortfolioLoadingScreen(container, endpoint, portfolioCount) {
+        const analysisName = this.getAnalysisDisplayName(endpoint);
+
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">${analysisName}</h2>
+                <button class="bg-indigo-600 text-white px-3 py-1 rounded-lg transition-colors text-sm flex items-center opacity-50 cursor-not-allowed" disabled>
+                    <svg class="w-4 h-4 mr-1 animate-spin" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                    </svg>
+                    Analyzing...
+                </button>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-12 text-center">
+                <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
+                <p class="text-gray-600 mb-4">Analyzing ${portfolioCount} positions for ${analysisName.toLowerCase()}...</p>
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
+                    <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
+                </div>
+                <p class="text-sm text-gray-500">This may take a few moments</p>
+            </div>
+        `;
+    }
+
     // Get display name for analysis type
     getAnalysisDisplayName(endpoint) {
         const displayNames = {
             'return-attribution': 'Return Attribution Analysis',
-            'performance-attribution': 'Performance Attribution Analysis',
+            'performance-attribution': 'Performance Attribution',
             'pnl-attribution': 'P&L Attribution Analysis',
             'trade-performance': 'Trade Performance Analysis',
             'turnover-analysis': 'Turnover Analysis',
@@ -115,18 +142,18 @@ class AnalyticsCore {
                 const frequency = document.getElementById('correlationFrequency');
                 const method = document.getElementById('correlationMethod');
                 const rollingWindow = document.getElementById('correlationRollingWindow');
-                
+
                 if (period) options.period = period.value;
                 if (frequency) options.frequency = frequency.value;
                 if (method) options.method = method.value;
                 if (rollingWindow) options.rolling_window = rollingWindow.value;
-                
+
                 console.log('[ANALYTICS-CORE] Extracted correlation options directly:', options);
                 return options;
             }
             return {};
         }
-        
+
         const options = {};
         const inputs = form.querySelectorAll('select, input');
         inputs.forEach(input => {
@@ -137,7 +164,7 @@ class AnalyticsCore {
                 else if (input.id === 'correlationFrequency') paramName = 'frequency';
                 else if (input.id === 'correlationMethod') paramName = 'method';
                 else if (input.id === 'correlationRollingWindow') paramName = 'rolling_window';
-                
+
                 options[paramName] = input.value;
             }
         });
@@ -152,48 +179,55 @@ class AnalyticsCore {
             this.showLoginRequired();
             return;
         }
-        
+
         // Check for portfolio data - no fallbacks
         let portfolioData = this.portfolioData || window.currentPortfolioData;
-        
+
         if (!portfolioData || !Array.isArray(portfolioData) || portfolioData.length === 0) {
             this.showDataSourceSelection('portfolio');
             return;
         }
-        
+
+        // Show loading screen for portfolio analysis
+        const container = document.getElementById('analysisContent');
+        if (container) {
+            container.classList.remove('hidden');
+            this.showPortfolioLoadingScreen(container, endpoint, portfolioData.length);
+        }
+
         // Get options from settings form or stored settings
         let options = settingsId ? this.getFormOptions(settingsId) : {};
-        
+
         // For risk analysis, use stored settings if available
         if (endpoint === 'analyze-risk' && this.riskSettings) {
             options = { ...options, ...this.riskSettings };
             console.log('Using risk settings:', this.riskSettings);
         }
-        
+
         // For options analysis, use stored settings if available
         if (endpoint === 'scan-options' && this.optionsSettings) {
             options = { ...options, ...this.optionsSettings };
             console.log('Using options settings:', this.optionsSettings);
         }
-        
+
         // For performance attribution, use stored settings if available
-        if (endpoint === 'performance-attribution' && this.performanceSettings) {
-            options = { ...options, ...this.performanceSettings };
-            console.log('Using performance settings:', this.performanceSettings);
+        if (endpoint === 'performance-attribution' && this.performanceAttributionSettings) {
+            options = { ...options, ...this.performanceAttributionSettings };
+            console.log('Using performance attribution settings:', this.performanceAttributionSettings);
         }
-        
+
         // For Monte Carlo, use stored settings if available
         if (endpoint === 'monte-carlo' && this.monteCarloSettings) {
             options = { ...options, ...this.monteCarloSettings };
             console.log('Using Monte Carlo settings:', this.monteCarloSettings);
         }
-        
+
         // For portfolio optimization, use stored settings if available
         if (endpoint === 'portfolio-optimization' && this.optimizationSettings) {
             options = { ...options, ...this.optimizationSettings };
             console.log('Using optimization settings:', this.optimizationSettings);
         }
-        
+
         // For correlation analysis, use stored settings if available
         if (endpoint === 'correlation-analysis') {
             // Use temporarily stored options or get from form
@@ -206,34 +240,34 @@ class AnalyticsCore {
             delete this.correlationOptions;
             delete this.correlationSettings;
         }
-        
+
         // Debug: Log all options being sent
         console.log(`[ANALYTICS-CORE] Endpoint: ${endpoint}, Options being sent:`, options);
-        
+
         // Special handling for correlation analysis to ensure settings are applied
         if (endpoint === 'correlation-analysis' && Object.keys(options).length > 0) {
             console.log('[ANALYTICS-CORE] CORRELATION: Forcing fresh analysis with options:', options);
         }
-        
+
         // Filter out options contracts and currency symbols for options analysis
         let filteredData = portfolioData;
         if (endpoint === 'scan-options') {
             filteredData = portfolioData.filter(item => {
                 const symbol = item.symbol;
                 // Filter out options contracts (contain dates/strikes) and currency symbols
-                return symbol && 
-                       !symbol.startsWith('CUR:') && 
-                       !symbol.includes('C00') && 
-                       !symbol.includes('P00') && 
-                       !/\d{6}[CP]\d{8}/.test(symbol) && 
-                       symbol.length <= 5;
+                return symbol &&
+                    !symbol.startsWith('CUR:') &&
+                    !symbol.includes('C00') &&
+                    !symbol.includes('P00') &&
+                    !/\d{6}[CP]\d{8}/.test(symbol) &&
+                    symbol.length <= 5;
             });
             console.log(`Filtered ${portfolioData.length} items to ${filteredData.length} valid stock symbols for options:`, filteredData.map(p => p.symbol));
         }
-        
+
         console.log(`Sending ${filteredData.length} portfolio items to ${endpoint}:`, filteredData.map(p => p.symbol));
         const result = await this.callAPI(endpoint, { portfolio: filteredData }, options);
-        
+
         if (result.success) {
             console.log(`[ANALYTICS-CORE] Calling display function for ${endpoint} with result:`, result);
             console.log(`[ANALYTICS-CORE] Display function options:`, options);
@@ -263,17 +297,17 @@ class AnalyticsCore {
             this.showLoginRequired();
             return;
         }
-        
+
         // Check for transaction data - no fallbacks
         let transactionData = this.transactionData || window.currentTransactions;
-        
+
         console.log('[ANALYTICS-CORE] Transaction data check:', {
             hasTransactionData: !!transactionData,
             isArray: Array.isArray(transactionData),
             length: transactionData?.length || 0,
             endpoint: endpoint
         });
-        
+
         if (!transactionData || !Array.isArray(transactionData) || transactionData.length === 0) {
             console.log('[ANALYTICS-CORE] No transaction data available for', endpoint);
             this.showDataSourceSelection('transaction');
@@ -286,33 +320,33 @@ class AnalyticsCore {
             container.classList.remove('hidden');
             this.showTransactionLoadingScreen(container, endpoint, transactionData.length);
         }
-        
+
         let options = settingsId ? this.getFormOptions(settingsId) : {};
-        
+
         // For return attribution, use stored settings if available
         if (endpoint === 'return-attribution' && this.returnAttributionSettings) {
             options = { ...options, ...this.returnAttributionSettings };
             console.log('Using return attribution settings:', this.returnAttributionSettings);
         }
-        
+
         // For performance attribution, use stored settings if available
         if (endpoint === 'performance-attribution' && this.performanceAttributionSettings) {
             options = { ...options, ...this.performanceAttributionSettings };
             console.log('Using performance attribution settings:', this.performanceAttributionSettings);
         }
-        
+
         console.log('[ANALYTICS-CORE] Calling API:', {
             endpoint: endpoint,
             transactionCount: transactionData.length,
             sampleTransaction: transactionData[0],
             options: options
         });
-        
+
         try {
             const result = await this.callAPI(endpoint, { transactions: transactionData }, options);
-            
+
             console.log(`[ANALYTICS-CORE] ${endpoint} result:`, result);
-            
+
             if (result.success) {
                 console.log(`[ANALYTICS-CORE] Calling displayFunction for ${endpoint}`);
                 displayFunction(result, options);
@@ -364,11 +398,11 @@ class AnalyticsCore {
     showDataSourceSelection(type) {
         const container = document.getElementById('analysisContent');
         if (!container) return;
-        
+
         container.classList.remove('hidden');
         const title = type === 'portfolio' ? 'Portfolio Analysis' : 'Transaction Analysis';
         const dataType = type === 'portfolio' ? 'Portfolio' : 'Transaction';
-        
+
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">${title}</h2>
@@ -420,7 +454,7 @@ class AnalyticsCore {
     showLoginRequired() {
         const container = document.getElementById('analysisContent');
         if (!container) return;
-        
+
         container.classList.remove('hidden');
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
@@ -456,8 +490,8 @@ window.AnalyticsCore = AnalyticsCore;
 // Global data source selection handler
 window.selectDataSource = (type, source) => {
     console.log(`Selected ${source} for ${type} data`);
-    
-    switch(source) {
+
+    switch (source) {
         case 'upload':
             if (type === 'portfolio') {
                 document.getElementById('portfolioFile').click();

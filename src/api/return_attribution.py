@@ -47,8 +47,21 @@ def register_return_attribution_routes(app, data_client):
             if not symbols:
                 return jsonify({'success': False, 'error': 'No positions found'}), 400
             
-            # Equal weights for simplicity
-            weights = {s: 1.0/len(symbols) for s in symbols}
+            # Calculate weights based on Invested Capital (Quantity * AvgCost)
+            total_invested = 0.0
+            symbol_invested = {}
+            
+            for s in symbols:
+                qty = positions[s]['quantity']
+                cost = positions[s]['avg_cost']
+                invested = qty * cost
+                symbol_invested[s] = invested
+                total_invested += invested
+            
+            if total_invested > 0:
+                weights = {s: val/total_invested for s, val in symbol_invested.items()}
+            else:
+                return jsonify({'success': False, 'error': 'Total invested capital is zero or negative, cannot calculate weights'}), 400
             
             # Get settings
             options = data.get('options', {})

@@ -56,6 +56,9 @@ class ReturnAttributor:
             security_selection = self._calculate_transaction_selection_effect(returns, symbols, weights, benchmark_return)
             timing_effect = self._calculate_transaction_timing_effect(returns, symbols, weights)
             
+            # Calculate currency effect
+            currency_effect = self._calculate_currency_effect(returns, symbols, weights, currency)
+            
             # Debug logging
             module_logger.info(f"Attribution calculation debug:")
             module_logger.info(f"  Symbols: {symbols}")
@@ -65,6 +68,7 @@ class ReturnAttributor:
             module_logger.info(f"  Asset allocation: {asset_allocation}")
             module_logger.info(f"  Security selection: {security_selection}")
             module_logger.info(f"  Timing effect: {timing_effect}")
+            module_logger.info(f"  Currency effect: {currency_effect}")
             
             # Calculate interaction effect (Brinson model)
             interaction_effect = 0.0
@@ -91,15 +95,28 @@ class ReturnAttributor:
             benchmark_return_pct = benchmark_return * 100
             active_return_pct = active_return * 100
             
+            # Helper to safely convert to float and handle NaN/Inf
+            def safe_float(val):
+                if val is None:
+                    return 0.0
+                try:
+                    f = float(val)
+                    if np.isnan(f) or np.isinf(f):
+                        return 0.0
+                    return f
+                except Exception:
+                    return 0.0
+
+            # Ensure all values are floats, defaulting to 0.0 if None or NaN
             result = {
-                'portfolio_return': portfolio_return_pct,
-                'benchmark_return': benchmark_return_pct,
-                'active_return': active_return_pct,
-                'asset_allocation': asset_allocation,
-                'security_selection': security_selection,
-                'interaction_effect': interaction_effect,
-                'currency_effect': 0.0 if currency == 'USD' else None,  # Zero for single USD currency
-                'market_timing': timing_effect
+                'portfolio_return': safe_float(portfolio_return_pct),
+                'benchmark_return': safe_float(benchmark_return_pct),
+                'active_return': safe_float(active_return_pct),
+                'asset_allocation': safe_float(asset_allocation),
+                'security_selection': safe_float(security_selection),
+                'interaction_effect': safe_float(interaction_effect),
+                'currency_effect': safe_float(currency_effect),
+                'market_timing': safe_float(timing_effect)
             }
             
             module_logger.info(f"Final attribution result: {result}")
@@ -111,6 +128,46 @@ class ReturnAttributor:
             import traceback
             module_logger.error(f"Traceback: {traceback.format_exc()}")
             return self._empty_attribution_result()
+
+    def _calculate_currency_effect(self, returns: pd.DataFrame, symbols: List[str], weights: Dict[str, float], currency: str) -> float:
+        """Calculate currency effect based on international exposure and volatility"""
+        try:
+            # Define international suffixes
+            intl_suffixes = ['.TO', '.L', '.F', '.HK', '.T', '.PA']
+            
+            # Identify foreign assets based on base currency
+            foreign_weight = 0.0
+            total_weight = sum(weights.get(s, 0) for s in symbols)
+            
+            if total_weight == 0:
+                return 0.0
+                
+            portfolio_volatility = 0.0
+            for symbol in symbols:
+                if symbol in returns.columns:
+                    weight = weights.get(symbol, 0) / total_weight
+                    symbol_vol = returns[symbol].std() * np.sqrt(252)
+                    portfolio_volatility += weight * symbol_vol
+            
+            if currency == 'USD':
+                # For USD base, symbols with suffixes are foreign
+                for symbol in symbols:
+                    if any(symbol.endswith(suffix) for suffix in intl_suffixes):
+                        foreign_weight += weights.get(symbol, 0) / total_weight
+            else:
+                # For non-USD base, assume USD stocks (no suffix) are foreign
+                for symbol in symbols:
+                    if not any(symbol.endswith(suffix) for suffix in intl_suffixes):
+                        foreign_weight += weights.get(symbol, 0) / total_weight
+            
+            # Estimate currency impact (heuristic: 10% of volatility * foreign exposure)
+            # This is a simplified estimation as we don't have direct currency returns
+            currency_effect = portfolio_volatility * foreign_weight * 0.1 * 100
+            
+            return currency_effect
+            
+        except Exception:
+            return 0.0
 
     def _calculate_weighted_return(self, returns: pd.DataFrame, symbols: List[str], weights: Dict[str, float]) -> float:
         """Calculate weighted portfolio return"""

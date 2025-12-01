@@ -88,6 +88,20 @@ class YFinanceProvider(DataProvider):
             module_logger.info(f"YFinance: Fetching data for {len(symbols)} symbols")
             self.rate_limiter.wait_if_needed()
             
+            # Map invalid periods to valid YFinance periods
+            period_mapping = {
+                '1m': '1mo',
+                '3m': '3mo', 
+                '6m': '6mo',
+                '1y': '1y',
+                'ytd': 'ytd',
+                'max': 'max',
+                '5y': '5y'
+            }
+            yf_period = period_mapping.get(period, period)
+            if yf_period not in ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']:
+                yf_period = '1y'  # Default fallback
+            
             # Filter symbols
             valid_symbols = self._filter_symbols(symbols)
             if not valid_symbols:
@@ -99,7 +113,7 @@ class YFinanceProvider(DataProvider):
                 # Simple download with basic parameters
                 data = yf.download(
                     valid_symbols, 
-                    period=period, 
+                    period=yf_period, 
                     progress=False, 
                     auto_adjust=False,  # Use raw prices first
                     threads=False,

@@ -35,7 +35,7 @@ def register_return_attribution_routes(app, data_client, smart_cache=None):
                 '6M': '6mo',
                 '1Y': '1y',
                 'YTD': 'ytd',
-                'ITD': '5y'  # Use 5y as proxy for inception-to-date
+                'ITD': 'max'  # Use max for inception-to-date
             }
             yf_period = period_mapping.get(period, '1y')
             
@@ -132,6 +132,7 @@ def register_return_attribution_routes(app, data_client, smart_cache=None):
                     'portfolio_return': attribution_result.get('portfolio_return'),
                     'benchmark_return': attribution_result.get('benchmark_return'),
                     'active_return': attribution_result.get('active_return'),
+                    'market_timing': attribution_result.get('market_timing'),
                     'attribution_effects': {
                         'asset_allocation': attribution_result.get('asset_allocation'),
                         'security_selection': attribution_result.get('security_selection'),

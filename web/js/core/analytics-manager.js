@@ -1010,7 +1010,7 @@ class AnalyticsManager {
 
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Performance Attribution Analysis</h2>
+                <h2 class="text-2xl font-bold text-gray-900">Performance Attribution</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="togglePerformanceSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
@@ -1020,11 +1020,6 @@ class AnalyticsManager {
                             <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
                         </svg>
                         Refresh
-                    </button>
-                    <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
-                        </svg>
                     </button>
                 </div>
             </div>
@@ -1529,8 +1524,8 @@ window.toggleReturnAttributionSettings = () => {
 
 
 // Performance Attribution Settings
-window.togglePerformanceAttributionSettings = () => {
-    const settings = document.getElementById('performanceAttributionSettings');
+window.togglePerformanceSettings = () => {
+    const settings = document.getElementById('performanceSettings');
     if (settings) {
         settings.classList.toggle('hidden');
     }
