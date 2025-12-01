@@ -215,38 +215,6 @@ def get_market_news():
 def test_api():
     return jsonify({'success': True, 'message': 'API is working'})
 
-
-
-# Newsletter subscription removed - handled by News app
-
-# Ticker management removed - handled by News app
-
-# Logo endpoint removed - handled by News app
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Duplicate routes removed - handled by News app
-
-
-
-
-
-
-
 # Register all route modules
 register_auth_routes(app)  # Re-enabled for portfolio database
 try:
@@ -300,17 +268,13 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# Register Return Attribution routes
+# Register return attribution routes
 try:
-    from api.return_attribution_routes import register_return_attribution_routes
-    register_return_attribution_routes(app, data_client, None)
+    from api.return_attribution import register_return_attribution_routes
+    register_return_attribution_routes(app, data_client)
     logger.info("Return Attribution routes registered successfully")
 except Exception as e:
     logger.error(f"Failed to register return attribution routes: {e}")
-    import traceback
-    traceback.print_exc()
-
-# Cash flow analysis route moved to transaction_analysis_routes.py
 
 # Register turnover analysis routes
 try:
@@ -321,8 +285,6 @@ except Exception as e:
     logger.error(f"Failed to register turnover analysis routes: {e}")
     import traceback
     traceback.print_exc()
-
-
 
 # Transaction analysis routes are registered via portfolio_routes.py
 

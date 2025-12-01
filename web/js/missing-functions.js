@@ -142,6 +142,13 @@ function toggleReturnAttributionSettings() {
     }
 }
 
+function togglePerformanceAttributionSettings() {
+    const settings = document.getElementById('performanceAttributionSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+}
+
 // Export correlation matrix function
 function exportCorrelationMatrix() {
     const matrix = document.getElementById('correlationMatrix');
@@ -487,6 +494,7 @@ window.toggleFifoLifoSettings = toggleFifoLifoSettings;
 window.toggleTradeTimingSettings = toggleTradeTimingSettings;
 window.toggleDrawdownSettings = toggleDrawdownSettings;
 window.toggleReturnAttributionSettings = toggleReturnAttributionSettings;
+window.togglePerformanceAttributionSettings = togglePerformanceAttributionSettings;
 window.exportCorrelationMatrix = exportCorrelationMatrix;
 window.toggleSection = toggleSection;
 window.refreshPortfolioAnalysis = refreshPortfolioAnalysis;
@@ -885,8 +893,56 @@ function updateDrawdownAnalysis() {
 }
 
 function updateReturnAttribution() {
-    if (window.currentTransactions && window.loadReturnAttribution) {
-        window.loadReturnAttribution(window.currentTransactions);
+    const period = document.getElementById('returnPeriod')?.value;
+    const model = document.getElementById('returnModel')?.value;
+    const benchmark = document.getElementById('returnBenchmark')?.value;
+    const currency = document.getElementById('returnCurrency')?.value;
+    const frequency = document.getElementById('returnFrequency')?.value;
+
+    if (!period || !model || !benchmark || !currency || !frequency) {
+        console.error('Missing required return attribution settings');
+        return;
+    }
+
+    // Store settings globally for persistence
+    if (!window.analyticsCore) window.analyticsCore = {};
+    window.analyticsCore.returnAttributionSettings = {
+        period,
+        attribution_model: model,
+        benchmark,
+        currency,
+        frequency
+    };
+
+    if (window.analyticsManager) {
+        window.analyticsManager.loadModule('return-attribution');
+    }
+}
+
+function updatePerformanceAttribution() {
+    const period = document.getElementById('performancePeriod')?.value;
+    const model = document.getElementById('performanceModel')?.value;
+    const benchmark = document.getElementById('performanceBenchmark')?.value;
+    const currency = document.getElementById('performanceCurrency')?.value;
+    const frequency = document.getElementById('performanceFrequency')?.value;
+
+    if (!period || !model || !benchmark || !currency || !frequency) {
+        console.error('Missing required performance attribution settings');
+        return;
+    }
+
+    // Store settings globally for persistence
+    if (!window.analyticsCore) window.analyticsCore = {};
+    window.analyticsCore.performanceAttributionSettings = {
+        period,
+        attribution_model: model,
+        benchmark,
+        currency,
+        frequency
+    };
+
+    if (window.analyticsManager) {
+        window.analyticsManager.loadModule('performance-attribution');
     }
 }
 
@@ -901,6 +957,7 @@ window.updateFifoLifoAnalysis = updateFifoLifoAnalysis;
 window.updateTradeTimingAnalysis = updateTradeTimingAnalysis;
 window.updateDrawdownAnalysis = updateDrawdownAnalysis;
 window.updateReturnAttribution = updateReturnAttribution;
+window.updatePerformanceAttribution = updatePerformanceAttribution;
 
 // Cash Flow Analysis - will be overridden by cash-flow-analysis.js
 // Placeholder removed to allow proper loading

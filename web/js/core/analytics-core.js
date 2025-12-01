@@ -30,9 +30,48 @@ class AnalyticsCore {
         }
     }
 
-    // Generic loading spinner - removed
-    showLoading(containerId, message = 'Loading...') {
-        // Loading spinner removed
+    // Show transaction loading screen
+    showTransactionLoadingScreen(container, endpoint, transactionCount) {
+        const analysisName = this.getAnalysisDisplayName(endpoint);
+        
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">${analysisName}</h2>
+                <button class="bg-indigo-600 text-white px-3 py-1 rounded-lg transition-colors text-sm flex items-center opacity-50 cursor-not-allowed" disabled>
+                    <svg class="w-4 h-4 mr-1 animate-spin" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                    </svg>
+                    Analyzing...
+                </button>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-12 text-center">
+                <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
+                <p class="text-gray-600 mb-4">Analyzing ${transactionCount} transactions for ${analysisName.toLowerCase()}...</p>
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
+                    <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
+                </div>
+                <p class="text-sm text-gray-500">This may take a few moments</p>
+            </div>
+        `;
+    }
+    
+    // Get display name for analysis type
+    getAnalysisDisplayName(endpoint) {
+        const displayNames = {
+            'return-attribution': 'Return Attribution Analysis',
+            'performance-attribution': 'Performance Attribution Analysis',
+            'pnl-attribution': 'P&L Attribution Analysis',
+            'trade-performance': 'Trade Performance Analysis',
+            'turnover-analysis': 'Turnover Analysis',
+            'tax-analysis': 'Tax Analysis',
+            'cash-flow-analysis': 'Cash Flow Analysis',
+            'drawdown-analysis': 'Drawdown Analysis',
+            'trade-timing-analysis': 'Trade Timing Analysis',
+            'fifo-lifo-accounting': 'Accounting Analysis'
+        };
+        return displayNames[endpoint] || 'Transaction Analysis';
     }
 
     // Generic error display
@@ -241,13 +280,26 @@ class AnalyticsCore {
             return;
         }
 
-        // Show container without loading spinner
+        // Show loading screen for transaction analysis
         const container = document.getElementById('analysisContent');
         if (container) {
             container.classList.remove('hidden');
+            this.showTransactionLoadingScreen(container, endpoint, transactionData.length);
         }
         
-        const options = settingsId ? this.getFormOptions(settingsId) : {};
+        let options = settingsId ? this.getFormOptions(settingsId) : {};
+        
+        // For return attribution, use stored settings if available
+        if (endpoint === 'return-attribution' && this.returnAttributionSettings) {
+            options = { ...options, ...this.returnAttributionSettings };
+            console.log('Using return attribution settings:', this.returnAttributionSettings);
+        }
+        
+        // For performance attribution, use stored settings if available
+        if (endpoint === 'performance-attribution' && this.performanceAttributionSettings) {
+            options = { ...options, ...this.performanceAttributionSettings };
+            console.log('Using performance attribution settings:', this.performanceAttributionSettings);
+        }
         
         console.log('[ANALYTICS-CORE] Calling API:', {
             endpoint: endpoint,
@@ -256,14 +308,31 @@ class AnalyticsCore {
             options: options
         });
         
-        const result = await this.callAPI(endpoint, { transactions: transactionData }, options);
-        
-        console.log(`[ANALYTICS-CORE] ${endpoint} result:`, result);
-        
-        if (result.success) {
-            console.log(`[ANALYTICS-CORE] Calling displayFunction for ${endpoint}`);
-            displayFunction(result, options);
-        } else {
+        try {
+            const result = await this.callAPI(endpoint, { transactions: transactionData }, options);
+            
+            console.log(`[ANALYTICS-CORE] ${endpoint} result:`, result);
+            
+            if (result.success) {
+                console.log(`[ANALYTICS-CORE] Calling displayFunction for ${endpoint}`);
+                displayFunction(result, options);
+            } else {
+                if (container) {
+                    container.innerHTML = `
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-2xl font-bold text-gray-900">Analysis Error</h2>
+                            <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="text-red-600 text-center py-4">${result.error || 'Analysis failed'}</div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error(`[ANALYTICS-CORE] ${endpoint} error:`, error);
             if (container) {
                 container.innerHTML = `
                     <div class="flex justify-between items-center mb-6">
@@ -274,7 +343,7 @@ class AnalyticsCore {
                             </svg>
                         </button>
                     </div>
-                    <div class="text-red-600 text-center py-4">${result.error || 'Analysis failed'}</div>
+                    <div class="text-red-600 text-center py-4">Analysis failed: ${error.message}</div>
                 `;
             }
         }

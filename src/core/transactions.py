@@ -170,26 +170,45 @@ class TransactionPortfolio:
     
     def get_current_positions(self) -> Dict[str, float]:
         positions = {}
-        for txn in self.transactions:
+        logger.info(f"Calculating positions from {len(self.transactions)} transactions")
+        
+        for i, txn in enumerate(self.transactions):
+            logger.info(f"Processing transaction {i+1}: {txn.symbol} {txn.transaction_type} {txn.quantity}")
+            
             # Skip cash transactions
             if txn.symbol == 'CASH':
+                logger.info(f"Skipping cash transaction: {txn.symbol}")
                 continue
                 
             if txn.symbol not in positions:
                 positions[txn.symbol] = 0
             
-            if txn.transaction_type in ['BUY', 'Buy']:
+            if txn.transaction_type in ['BUY', 'Buy', 'PURCHASE', 'Purchase']:
                 positions[txn.symbol] += txn.quantity
-            elif txn.transaction_type in ['SELL', 'Sell']:
+                logger.info(f"BUY: {txn.symbol} position now {positions[txn.symbol]}")
+            elif txn.transaction_type in ['SELL', 'Sell', 'SALE', 'Sale']:
                 positions[txn.symbol] -= txn.quantity
+                logger.info(f"SELL: {txn.symbol} position now {positions[txn.symbol]}")
+            else:
+                logger.info(f"SKIPPED - Unknown transaction type '{txn.transaction_type}' for {txn.symbol}")
         
-        return {k: v for k, v in positions.items() if v > 0}
+        logger.info(f"All positions before filtering: {positions}")
+        zero_or_negative = {k: v for k, v in positions.items() if v <= 0}
+        if zero_or_negative:
+            logger.info(f"Positions filtered out (<=0): {zero_or_negative}")
+        filtered_positions = {k: v for k, v in positions.items() if v > 0}
+        logger.info(f"Final current positions (>0 only): {filtered_positions}")
+        logger.info(f"Return attribution will analyze {len(filtered_positions)} symbols: {list(filtered_positions.keys())}")
+        
+        return filtered_positions
     
     def get_cost_basis(self) -> Dict[str, float]:
         cost_basis = {}
         quantities = {}
         
-        for txn in self.transactions:
+        logger.info(f"Calculating cost basis from {len(self.transactions)} transactions")
+        
+        for i, txn in enumerate(self.transactions):
             # Skip cash transactions
             if txn.symbol == 'CASH':
                 continue
@@ -198,10 +217,14 @@ class TransactionPortfolio:
                 cost_basis[txn.symbol] = 0
                 quantities[txn.symbol] = 0
             
-            if txn.transaction_type in ['BUY', 'Buy']:
+            if txn.transaction_type in ['BUY', 'Buy', 'PURCHASE', 'Purchase']:
                 total_cost = cost_basis[txn.symbol] * quantities[txn.symbol]
                 total_cost += txn.quantity * txn.price + txn.fees
                 quantities[txn.symbol] += txn.quantity
                 cost_basis[txn.symbol] = total_cost / quantities[txn.symbol] if quantities[txn.symbol] > 0 else 0
+                logger.info(f"Updated cost basis for {txn.symbol}: {cost_basis[txn.symbol]} (qty: {quantities[txn.symbol]})")
+            else:
+                logger.info(f"SKIPPED cost basis - transaction type '{txn.transaction_type}' for {txn.symbol}")
         
+        logger.info(f"Final cost basis for {len(cost_basis)} symbols: {cost_basis}")
         return cost_basis

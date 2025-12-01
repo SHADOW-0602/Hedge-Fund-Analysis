@@ -1,5 +1,5 @@
 from flask import request, jsonify
-from analytics.performance_attribution import PerformanceAttributor
+from analytics.return_attribution import ReturnAttributor
 from core.transactions import Transaction, TransactionPortfolio
 from datetime import datetime, timedelta
 from .route_utils import sanitize_for_json
@@ -41,8 +41,12 @@ def register_return_attribution_routes(app, data_client, smart_cache=None):
             
             # Convert transactions
             transactions = []
-            for tx_data in transactions_data:
+            print(f"Processing {len(transactions_data)} transactions for return attribution")
+            
+            for i, tx_data in enumerate(transactions_data):
                 try:
+                    print(f"Processing transaction {i+1}: {tx_data}")
+                    
                     date_str = tx_data.get('date', '')
                     if isinstance(date_str, str) and date_str.strip():
                         if 'GMT' in date_str:
@@ -63,45 +67,52 @@ def register_return_attribution_routes(app, data_client, smart_cache=None):
                         fees=float(tx_data.get('fees', 0))
                     )
                     transactions.append(transaction)
+                    print(f"Successfully created transaction: {transaction.symbol} {transaction.quantity} @ {transaction.price}")
                 except Exception as e:
+                    print(f"Error processing transaction {i+1}: {e}")
                     continue
             
             if not transactions:
+                print(f"No valid transactions created from {len(transactions_data)} input transactions")
                 return jsonify({'success': False, 'error': 'No valid transactions'}), 400
+            
+            print(f"Successfully created {len(transactions)} valid transactions from {len(transactions_data)} input transactions")
             
             # Create portfolio and get positions
             portfolio = TransactionPortfolio(transactions)
             positions = portfolio.get_current_positions()
+            cost_basis = portfolio.get_cost_basis()
+            
+            print(f"Portfolio analysis: {len(transactions)} transactions -> {len(positions)} positions")
+            print(f"Current positions: {positions}")
+            print(f"Cost basis: {cost_basis}")
             
             if not positions:
+                print("No current positions found - this may be why return attribution shows no data")
                 return jsonify({'success': False, 'error': 'No current positions'}), 400
             
             # Extract symbols and weights
             symbols = list(positions.keys())
-            total_value = sum(pos.quantity * pos.avg_cost for pos in positions.values())
-            weights = {symbol: (pos.quantity * pos.avg_cost) / total_value 
-                      for symbol, pos in positions.items() if total_value > 0}
+            total_value = sum(positions[symbol] * cost_basis.get(symbol, 0) for symbol in symbols)
+            weights = {symbol: (positions[symbol] * cost_basis.get(symbol, 0)) / total_value 
+                      for symbol in symbols if total_value > 0}
             
-            # Map benchmark names using configurable mappings
-            import os
-            benchmark_mapping = {
-                'Peer Group': os.getenv('PEER_GROUP_BENCHMARK', 'VT'),
-                'Custom': os.getenv('CUSTOM_BENCHMARK', 'SPY'),
-                'Index': os.getenv('INDEX_BENCHMARK', 'SPY'),
-                'S&P 500': 'SPY',
-                'NASDAQ': 'QQQ',
-                'Russell 2000': 'IWM'
-            }
-            benchmark_symbol = benchmark_mapping.get(benchmark, benchmark)
+            print(f"Symbols for analysis: {symbols}")
+            print(f"Total portfolio value: {total_value}")
+            print(f"Position weights: {weights}")
             
-            # Initialize attributor
-            attributor = PerformanceAttributor(data_client, benchmark_symbol)
+            # Direct benchmark symbol mapping
+            benchmark_symbol = benchmark if benchmark in ['SPY', 'QQQ', 'IWM', 'VTI'] else 'SPY'
+            
+            # Initialize return attributor
+            attributor = ReturnAttributor(data_client, benchmark_symbol)
             
             # Log debug info
-            print(f"Attribution calculation: period={yf_period}, symbols={symbols}, benchmark={benchmark_symbol}")
+            print(f"Return attribution calculation: period={yf_period}, symbols={symbols}, benchmark={benchmark_symbol}")
+            print(f"Attribution parameters: model={attribution_model}, currency={currency}, frequency={frequency}")
             
-            # Calculate attribution
-            attribution_result = attributor.factor_based_attribution(
+            # Calculate return attribution
+            attribution_result = attributor.transaction_based_attribution(
                 symbols=symbols,
                 weights=weights,
                 period=yf_period,
@@ -112,21 +123,21 @@ def register_return_attribution_routes(app, data_client, smart_cache=None):
                 attribution_types=attribution_types
             )
             
-            print(f"Attribution result: {attribution_result}")
+            print(f"Attribution calculation completed. Result: {attribution_result}")
             
             # Format response with all requested features
             response = {
                 'success': True,
                 'return_attribution': {
-                    'portfolio_return': attribution_result.get('portfolio_return', 0.0),
-                    'benchmark_return': attribution_result.get('benchmark_return', 0.0),
-                    'active_return': attribution_result.get('active_return', 0.0),
+                    'portfolio_return': attribution_result.get('portfolio_return'),
+                    'benchmark_return': attribution_result.get('benchmark_return'),
+                    'active_return': attribution_result.get('active_return'),
                     'attribution_effects': {
-                        'asset_allocation': attribution_result.get('asset_allocation', 0.0),
-                        'security_selection': attribution_result.get('security_selection', 0.0),
-                        'timing_effect': attribution_result.get('market_timing', 0.0),
-                        'currency_effect': attribution_result.get('currency_effect', 0.0),
-                        'interaction_effect': attribution_result.get('interaction_effect', 0.0)
+                        'asset_allocation': attribution_result.get('asset_allocation'),
+                        'security_selection': attribution_result.get('security_selection'),
+                        'timing_effect': attribution_result.get('market_timing'),
+                        'currency_effect': attribution_result.get('currency_effect'),
+                        'interaction_effect': attribution_result.get('interaction_effect')
                     },
                     'settings': {
                         'period': period,

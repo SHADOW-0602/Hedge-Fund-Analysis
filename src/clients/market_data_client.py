@@ -88,26 +88,10 @@ class YFinanceProvider(DataProvider):
             module_logger.info(f"YFinance: Fetching data for {len(symbols)} symbols")
             self.rate_limiter.wait_if_needed()
             
-            # Filter symbols but keep the original logic simple
+            # Filter symbols
             valid_symbols = self._filter_symbols(symbols)
             if not valid_symbols:
-                module_logger.warning("No valid symbols after filtering")
                 return None
-            
-            # Validate and map period parameter
-            period_mapping = {
-                '1m': '1d', '5m': '1d', '15m': '1d', '30m': '1d', '1h': '1d', '4h': '1d',
-                '1d': '1d', '5d': '5d', '1mo': '1mo', '3mo': '3mo', '6mo': '6mo',
-                '1y': '1y', '2y': '2y', '5y': '5y', '10y': '10y', 'ytd': 'ytd', 'max': 'max'
-            }
-            
-            original_period = period
-            period = period_mapping.get(period, '1y')
-            
-            if original_period != period:
-                module_logger.warning(f"Invalid period '{original_period}' mapped to '{period}'")
-            
-            module_logger.info(f"YFinance: Valid symbols: {valid_symbols}, period: {period}")
             
             import warnings
             with warnings.catch_warnings():

@@ -80,17 +80,18 @@ function createIndividualAnalysisHTML(analysisType) {
         `;
     }
 
-    const settingsFunction = analysisType === 'accounting-analysis' ? 'toggleAccountingSettings()' : 
-                            analysisType === 'cash-flow' ? 'toggleCashFlowSettings()' : 'toggleSettings()';
-    
+    const settingsFunction = analysisType === 'accounting-analysis' ? 'toggleAccountingSettings()' :
+        analysisType === 'cash-flow' ? 'toggleCashFlowSettings()' :
+            analysisType === 'return-attribution' ? 'toggleReturnAttributionSettings()' : 'toggleSettings()';
+
     // Special handling for analyses that should not have cross button
     const noCloseButtonAnalyses = [
-        'strategy-backtesting', 'technical-indicators', 'pnl-attribution', 
+        'strategy-backtesting', 'technical-indicators', 'pnl-attribution',
         'cost-analysis', 'cash-flow', 'accounting-analysis', 'trade-performance',
         'turnover-analysis', 'drawdown-analysis', 'return-attribution', 'statistical-analysis',
         'sector-allocation'
     ];
-    
+
     if (noCloseButtonAnalyses.includes(analysisType)) {
         return '';
     }

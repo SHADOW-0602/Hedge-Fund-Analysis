@@ -165,7 +165,7 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             frequency = options.get('frequency', 'daily')
             
             print(f"Performance Attribution Parameters: period={period}, model={attribution_model}, benchmark={benchmark}, currency={currency}, frequency={frequency}")
-            print(f"Symbols: {symbols}, Total Value: ${total_value:,.2f}")
+            print(f"Symbols: {symbols}, Total Value: ${total_value if 'total_value' in locals() else 'N/A'}")
             
             # Initialize attributor and calculate results
             attributor = PerformanceAttributor(data_client, benchmark)
