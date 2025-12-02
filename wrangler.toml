@@ -1,17 +1,5 @@
 name = "shmventures"
 compatibility_date = "2024-01-01"
-compatibility_flags = ["python_workers"]
-
-[env.production]
-name = "shmventures"
-
-[env.production.vars]
-FLASK_ENV = "production"
-PORT = "8080"
-
-[[env.production.kv_namespaces]]
-binding = "CACHE"
-id = "your-kv-namespace-id"
 
 [build]
 command = "python -m pip install --upgrade pip && pip install -r requirements.txt"
