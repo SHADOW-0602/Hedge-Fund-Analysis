@@ -1,9 +1,9 @@
-name = "hedge-fund-analysis"
+name = "shmventures"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["python_workers"]
 
 [env.production]
-name = "hedge-fund-analysis"
+name = "shmventures"
 
 [env.production.vars]
 FLASK_ENV = "production"
@@ -14,7 +14,7 @@ binding = "CACHE"
 id = "your-kv-namespace-id"
 
 [build]
-command = "pip install -r requirements.txt"
+command = "python -m pip install --upgrade pip && pip install -r requirements.txt"
 
 # Custom domain configuration
 route = { pattern = "shmventures.org", custom_domain = true }
