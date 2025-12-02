@@ -71,6 +71,11 @@ function toggleBacktestingSettings() {
     }
 }
 
+// Alias for compatibility
+function toggleBacktestSettings() {
+    return toggleBacktestingSettings();
+}
+
 // Transaction analysis settings toggles
 function togglePnLSettings() {
     const settings = document.getElementById('pnlSettings');
@@ -484,6 +489,7 @@ window.toggleStatisticalSettings = toggleStatisticalSettings;
 window.toggleSectorSettings = toggleSectorSettings;
 window.toggleOptimizationSettings = toggleOptimizationSettings;
 window.toggleBacktestingSettings = toggleBacktestingSettings;
+window.toggleBacktestSettings = toggleBacktestSettings;
 window.togglePnLSettings = togglePnLSettings;
 window.toggleTradeSettings = toggleTradeSettings;
 window.toggleCostSettings = toggleCostSettings;

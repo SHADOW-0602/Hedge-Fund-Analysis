@@ -96,7 +96,15 @@ class AnalyticsCore {
             'cash-flow-analysis': 'Cash Flow Analysis',
             'drawdown-analysis': 'Drawdown Analysis',
             'trade-timing-analysis': 'Trade Timing Analysis',
-            'fifo-lifo-accounting': 'Accounting Analysis'
+            'fifo-lifo-accounting': 'Accounting Analysis',
+            'analyze-risk': 'Risk Metrics',
+            'scan-options': 'Options Strategy Scanner',
+            'portfolio-optimization': 'Portfolio Optimization',
+            'correlation-analysis': 'Correlation Analysis',
+            'sector-allocation': 'Sector Allocation',
+            'statistical-analysis': 'Statistical Analysis',
+            'technical-analysis': 'Technical Analysis',
+            'strategy-backtesting': 'Strategy Backtesting'
         };
         return displayNames[endpoint] || 'Transaction Analysis';
     }
@@ -271,6 +279,43 @@ class AnalyticsCore {
         if (result.success) {
             console.log(`[ANALYTICS-CORE] Calling display function for ${endpoint} with result:`, result);
             console.log(`[ANALYTICS-CORE] Display function options:`, options);
+            
+            // Special debugging for Monte Carlo
+            if (endpoint === 'monte-carlo') {
+                console.log('[ANALYTICS-CORE] MONTE CARLO DEBUG - Result structure:');
+                console.log('[ANALYTICS-CORE] Result keys:', Object.keys(result));
+                if (result.results) {
+                    console.log('[ANALYTICS-CORE] Results keys:', Object.keys(result.results));
+                    if (result.results.simulation_data) {
+                        const simData = result.results.simulation_data;
+                        console.log('[ANALYTICS-CORE] Simulation data type:', typeof simData);
+                        console.log('[ANALYTICS-CORE] Simulation data is array:', Array.isArray(simData));
+                        console.log('[ANALYTICS-CORE] Simulation data length:', simData?.length || 'N/A');
+                        if (Array.isArray(simData) && simData.length > 0) {
+                            console.log('[ANALYTICS-CORE] First path type:', typeof simData[0]);
+                            console.log('[ANALYTICS-CORE] First path is array:', Array.isArray(simData[0]));
+                            console.log('[ANALYTICS-CORE] First path length:', simData[0]?.length || 'N/A');
+                            if (Array.isArray(simData[0]) && simData[0].length > 0) {
+                                console.log('[ANALYTICS-CORE] First path sample:', simData[0].slice(0, 5));
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Special debugging for correlation analysis
+            if (endpoint === 'correlation-analysis') {
+                console.log('[ANALYTICS-CORE] CORRELATION DEBUG - Result structure:');
+                console.log('[ANALYTICS-CORE] Result keys:', Object.keys(result));
+                if (result.correlation_analysis) {
+                    console.log('[ANALYTICS-CORE] Correlation analysis keys:', Object.keys(result.correlation_analysis));
+                    console.log('[ANALYTICS-CORE] Correlation matrix keys:', Object.keys(result.correlation_analysis.correlation_matrix || {}));
+                    console.log('[ANALYTICS-CORE] Summary:', result.correlation_analysis.summary);
+                    // Cache the API result for correlation analysis
+                    window.lastCorrelationApiResult = result;
+                }
+            }
+            
             displayFunction(result, options);
         } else {
             const container = document.getElementById('analysisContent');

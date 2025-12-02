@@ -99,6 +99,9 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
             
+            print(f"[MONTE CARLO API] Received request with {len(portfolio_data)} portfolio items")
+            print(f"[MONTE CARLO API] Options: {options}")
+            
             if not portfolio_data or not isinstance(portfolio_data, list):
                 return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
             
@@ -117,6 +120,9 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             symbols = extract_valid_symbols(portfolio_data)
             weights, total_value = calculate_portfolio_weights(portfolio_data)
             
+            print(f"[MONTE CARLO API] Extracted {len(symbols)} symbols: {symbols}")
+            print(f"[MONTE CARLO API] Weights: {weights}")
+            
             if not symbols:
                 return jsonify({'success': False, 'error': 'No valid symbols for simulation'}), 400
             
@@ -131,8 +137,23 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 forecast_period=forecast_period
             )
             
-            print(f"Monte Carlo simulation completed for {len(symbols)} symbols")
-            return jsonify({'success': True, 'results': sanitize_for_json(results)})
+            print(f"[MONTE CARLO API] Simulation completed for {len(symbols)} symbols")
+            print(f"[MONTE CARLO API] Results keys: {list(results.keys()) if results else 'None'}")
+            
+            if 'simulation_data' in results:
+                sim_data = results['simulation_data']
+                print(f"[MONTE CARLO API] Simulation data type: {type(sim_data)}")
+                print(f"[MONTE CARLO API] Simulation data length: {len(sim_data) if hasattr(sim_data, '__len__') else 'N/A'}")
+                if hasattr(sim_data, '__len__') and len(sim_data) > 0:
+                    print(f"[MONTE CARLO API] First path type: {type(sim_data[0])}")
+                    print(f"[MONTE CARLO API] First path length: {len(sim_data[0]) if hasattr(sim_data[0], '__len__') else 'N/A'}")
+                    if hasattr(sim_data[0], '__len__') and len(sim_data[0]) > 0:
+                        print(f"[MONTE CARLO API] First path sample: {sim_data[0][:5]}")
+            
+            sanitized_results = sanitize_for_json(results)
+            print(f"[MONTE CARLO API] Sanitized results keys: {list(sanitized_results.keys()) if sanitized_results else 'None'}")
+            
+            return jsonify({'success': True, 'results': sanitized_results})
             
         except Exception as e:
             print(f"Monte Carlo error: {str(e)}")
@@ -605,6 +626,74 @@ def register_analytics_routes(app, data_client, smart_cache=None):
         except Exception as e:
             print(f"Statistical analysis error: {e}")
             print(f"Symbols attempted: {symbols if 'symbols' in locals() else 'unknown'}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/correlation-analysis', methods=['POST'])
+    def correlation_analysis():
+        try:
+            from analytics.statistical_analysis import StatisticalAnalyzer
+            
+            data = request.get_json()
+            portfolio_data = data.get('portfolio', [])
+            options = data.get('options', {})
+            
+            if not portfolio_data:
+                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
+            
+            symbols = extract_valid_symbols(portfolio_data)
+            
+            if not symbols:
+                return jsonify({'success': False, 'error': 'No valid symbols found'}), 400
+            
+            # Read correlation-specific parameters
+            period = options.get('period', '1Y')
+            frequency = options.get('frequency', 'Daily')
+            method = options.get('method', 'pearson')
+            rolling_window = options.get('rolling_window', '30d')
+            
+            print(f"Correlation Analysis Parameters: period={period}, frequency={frequency}, method={method}, rolling_window={rolling_window}")
+            print(f"Symbols: {symbols}")
+            
+            # Initialize analyzer
+            analyzer = StatisticalAnalyzer(data_client)
+            
+            # Convert period format for correlation analysis
+            period_map = {'1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y', '2Y': '2y'}
+            api_period = period_map.get(period, '1y')
+            
+            # Run correlation analysis
+            correlation_results = analyzer.correlation_analysis(symbols, api_period)
+            
+            if 'error' in correlation_results:
+                print(f"Correlation analysis error: {correlation_results['error']}")
+                return jsonify({'success': False, 'error': correlation_results['error']}), 500
+            
+            # Format results for frontend display
+            formatted_results = {
+                'correlation_matrix': correlation_results.get('correlation_matrix', {}),
+                'summary': {
+                    'average_correlation': correlation_results.get('avg_correlation', 0),
+                    'max_correlation': correlation_results.get('max_correlation', 0),
+                    'min_correlation': correlation_results.get('min_correlation', 0),
+                    'symbols_analyzed': correlation_results.get('symbols_analyzed', len(symbols)),
+                    'data_points': correlation_results.get('data_points', 0),
+                    'period': period,
+                    'frequency': frequency,
+                    'method': method
+                },
+                'high_correlation_pairs': correlation_results.get('high_correlation_pairs', [])
+            }
+            
+            print(f"Correlation analysis completed for {len(symbols)} symbols")
+            return jsonify({
+                'success': True,
+                'correlation_analysis': sanitize_for_json(formatted_results)
+            })
+            
+        except Exception as e:
+            print(f"Correlation analysis error: {e}")
             import traceback
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500

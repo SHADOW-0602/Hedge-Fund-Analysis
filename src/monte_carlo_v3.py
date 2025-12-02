@@ -8,6 +8,32 @@ class MonteCarloEngine:
     def __init__(self, data_client: MarketDataClient):
         self.data_client = data_client
     
+    def _get_empty_results(self, market_regime='normal', volatility_adjustment=0.0, num_simulations=1000, time_horizon=63):
+        """Return consistent empty results structure"""
+        empty_stats = {
+            'mean_return': 0.0, 'median_return': 0.0, 'std_dev': 0.0,
+            'min_return': 0.0, 'max_return': 0.0,
+            'value_at_risk_95': 0.0, 'percentile_95': 0.0,
+            'sharpe_ratio': 0.0, 'max_drawdown': 0.0
+        }
+        return {
+            'simulation_data': [],
+            'summary_statistics': empty_stats,
+            'expected_return': 0.0,
+            'volatility': 0.0,
+            'percentile_95': 0.0,
+            'percentile_5': 0.0,
+            'mean_final_value': 1.0,
+            'probability_loss': 0.0,
+            'sharpe_ratio': 0.0,
+            'max_drawdown': 0.0,
+            'confidence_intervals': {},
+            'market_regime': market_regime,
+            'volatility_adjustment': volatility_adjustment,
+            'num_simulations': num_simulations,
+            'time_horizon_days': time_horizon
+        }
+
     def portfolio_simulation(self, symbols: List[str], weights: Dict[str, float], 
                            time_horizon: int = 63, num_simulations: int = 10000,
                            confidence_intervals: List[float] = [0.8, 0.9, 0.95, 0.99],
@@ -29,60 +55,49 @@ class MonteCarloEngine:
         
         print(f"Monte Carlo: Processing {len(symbols)} symbols")
         
-        # Download data with multiple fallback periods
+        # Download data (use 2y to ensure sufficient data for covariance)
         price_data = None
         valid_symbols = []
+        period = "2y"
         
-        for period in ["1y", "6mo", "3mo", "1mo"]:
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    
-                if len(symbols) > 1:
-                    price_data = yf.download(symbols, period=period, progress=False, threads=False)
-                    if not price_data.empty:
-                        # Handle multi-level columns
-                        if isinstance(price_data.columns, pd.MultiIndex):
-                            if 'Adj Close' in price_data.columns.levels[0]:
-                                price_data = price_data['Adj Close']
-                            elif 'Close' in price_data.columns.levels[0]:
-                                price_data = price_data['Close']
-                        
-                        # Check which symbols have data
-                        for symbol in symbols:
-                            if symbol in price_data.columns:
-                                symbol_data = price_data[symbol].dropna()
-                                if len(symbol_data) >= 10:  # Need at least 10 data points
-                                    valid_symbols.append(symbol)
-                else:
-                    # Single symbol
-                    ticker_data = yf.download(symbols[0], period=period, progress=False)
-                    if not ticker_data.empty:
-                        price_col = 'Adj Close' if 'Adj Close' in ticker_data.columns else 'Close'
-                        price_data = pd.DataFrame({symbols[0]: ticker_data[price_col]})
-                        if len(price_data.dropna()) >= 10:
-                            valid_symbols = symbols[:1]
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
                 
-                if valid_symbols and len(valid_symbols) >= 1:
-                    print(f"Monte Carlo: Found data for {len(valid_symbols)} symbols using {period} period")
-                    break
+            if len(symbols) > 1:
+                price_data = yf.download(symbols, period=period, progress=False, threads=False)
+                if not price_data.empty:
+                    # Handle multi-level columns
+                    if isinstance(price_data.columns, pd.MultiIndex):
+                        if 'Adj Close' in price_data.columns.levels[0]:
+                            price_data = price_data['Adj Close']
+                        elif 'Close' in price_data.columns.levels[0]:
+                            price_data = price_data['Close']
                     
-            except Exception as e:
-                print(f"Monte Carlo: Failed to download data for period {period}: {e}")
-                continue
+                    # Check which symbols have data
+                    for symbol in symbols:
+                        if symbol in price_data.columns:
+                            symbol_data = price_data[symbol].dropna()
+                            if len(symbol_data) >= 10:  # Need at least 10 data points
+                                valid_symbols.append(symbol)
+            else:
+                # Single symbol
+                ticker_data = yf.download(symbols[0], period=period, progress=False)
+                if not ticker_data.empty:
+                    price_col = 'Adj Close' if 'Adj Close' in ticker_data.columns else 'Close'
+                    price_data = pd.DataFrame({symbols[0]: ticker_data[price_col]})
+                    if len(price_data.dropna()) >= 10:
+                        valid_symbols = symbols[:1]
+            
+            if valid_symbols and len(valid_symbols) >= 1:
+                print(f"Monte Carlo: Found data for {len(valid_symbols)} symbols using {period} period")
+                
+        except Exception as e:
+            print(f"Monte Carlo: Failed to download data: {e}")
         
         if not valid_symbols or price_data is None or price_data.empty:
             print("Monte Carlo: No valid data found")
-            return {
-                'expected_return': 0.0,
-                'volatility': 0.0,
-                'percentile_95': 0.0,
-                'percentile_5': 0.0,
-                'mean_final_value': 1.0,
-                'probability_loss': 0.0,
-                'sharpe_ratio': 0.0,
-                'max_drawdown': 0.0
-            }
+            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon)
         
         # Use only valid symbols
         if len(valid_symbols) > 1:
@@ -91,16 +106,7 @@ class MonteCarloEngine:
         print(f"Monte Carlo: Using {len(valid_symbols)} symbols with {len(price_data)} data points")
         
         if price_data.empty:
-            return {
-                'expected_return': 0.0,
-                'volatility': 0.0,
-                'percentile_95': 0.0,
-                'percentile_5': 0.0,
-                'mean_final_value': 1.0,
-                'probability_loss': 0.0,
-                'sharpe_ratio': 0.0,
-                'max_drawdown': 0.0
-            }
+            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon)
         
         # Calculate returns
         returns = price_data.pct_change(fill_method=None).dropna()
@@ -108,16 +114,7 @@ class MonteCarloEngine:
         # Ensure we have returns data
         if returns.empty:
             print("Monte Carlo: No return data available")
-            return {
-                'expected_return': 0.0,
-                'volatility': 0.0,
-                'percentile_95': 0.0,
-                'percentile_5': 0.0,
-                'mean_final_value': 1.0,
-                'probability_loss': 0.0,
-                'sharpe_ratio': 0.0,
-                'max_drawdown': 0.0
-            }
+            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon)
         
         # Use all available symbols, create equal weights if needed
         available_symbols = [s for s in valid_symbols if s in returns.columns]
@@ -138,16 +135,7 @@ class MonteCarloEngine:
         cov_matrix = cov_matrix.fillna(0)
         
         if mean_returns.empty or cov_matrix.empty:
-            return {
-                'expected_return': 0.0,
-                'volatility': 0.0,
-                'percentile_95': 0.0,
-                'percentile_5': 0.0,
-                'mean_final_value': 1.0,
-                'probability_loss': 0.0,
-                'sharpe_ratio': 0.0,
-                'max_drawdown': 0.0
-            }
+            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon)
         
         # Portfolio parameters - create proper weights
         if weights and any(symbol in weights for symbol in available_symbols):
@@ -301,7 +289,44 @@ class MonteCarloEngine:
                     'upper': clean_value(upper_val)
                 }
         
-        return {
+        # Prepare simulation data for frontend (downsample to max 100 paths for performance)
+        paths_to_return = []
+        num_paths_to_return = min(100, num_simulations)
+        # Scale to initial value of 1.0 (or 10000 for better visualization)
+        initial_value = 10000.0
+        
+        print(f"Monte Carlo Debug: Preparing {num_paths_to_return} paths from {num_simulations} simulations")
+        print(f"Monte Carlo Debug: Cumulative returns shape: {cumulative_returns.shape}")
+        
+        # Get indices for paths to return
+        indices = np.random.choice(num_simulations, num_paths_to_return, replace=False)
+        
+        for idx in indices:
+            # Add starting point
+            path = [initial_value] + (cumulative_returns[idx] * initial_value).tolist()
+            paths_to_return.append(path)
+            
+        print(f"Monte Carlo Debug: Generated {len(paths_to_return)} paths")
+        if paths_to_return:
+            print(f"Monte Carlo Debug: First path length: {len(paths_to_return[0])}")
+            print(f"Monte Carlo Debug: First path sample: {paths_to_return[0][:5]}...")
+            
+        # Construct summary statistics
+        summary_stats = {
+            'mean_return': clean_value(annualized_return),
+            'median_return': clean_value(np.median(portfolio_returns.sum(axis=1)) * (252/time_horizon)), # Approximate annualized median
+            'std_dev': clean_value(annualized_volatility),
+            'min_return': clean_value(np.min(final_values) - 1),
+            'max_return': clean_value(np.max(final_values) - 1),
+            'value_at_risk_95': clean_value(percentiles[0] - 1), # 5th percentile
+            'percentile_95': clean_value(percentiles[4] - 1),   # 95th percentile
+            'sharpe_ratio': clean_value(sharpe_ratio),
+            'max_drawdown': clean_value(max_drawdown / 100)
+        }
+
+        result = {
+            'simulation_data': paths_to_return,
+            'summary_statistics': summary_stats,
             'expected_return': clean_value(annualized_return),
             'volatility': clean_value(annualized_volatility),
             'percentile_95': clean_value(percentiles[4] - 1),
@@ -316,6 +341,11 @@ class MonteCarloEngine:
             'num_simulations': num_simulations,
             'time_horizon_days': time_horizon
         }
+        
+        print(f"Monte Carlo Debug: Final result keys: {list(result.keys())}")
+        print(f"Monte Carlo Debug: Simulation data in result: {len(result['simulation_data'])} paths")
+        
+        return result
     
     def scenario_analysis(self, symbols: List[str], weights: Dict[str, float], 
                          scenarios: Dict[str, Dict]) -> Dict:

@@ -273,3 +273,4 @@ function toggleTradeSettings() {
 window.loadTradePerformance = loadTradePerformance;
 window.updateTradePerformance = updateTradePerformance;
 window.toggleTradeSettings = toggleTradeSettings;
+window.displayTradePerformanceResults = displayResults;

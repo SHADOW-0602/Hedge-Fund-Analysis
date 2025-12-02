@@ -26,7 +26,7 @@ class PortfolioOptimizer:
                         clean_symbols.append(clean_s)
             
             if len(clean_symbols) < 1:
-                return self._empty_optimization_result()
+                raise ValueError("No valid symbols provided for optimization")
             
             # Map lookback period to yfinance period
             period_mapping = {
@@ -65,17 +65,17 @@ class PortfolioOptimizer:
                     continue
             
             if price_data is None or price_data.empty:
-                return self._empty_optimization_result()
+                raise ValueError("No price data found for symbols")
             
             # Calculate returns
             returns = price_data.pct_change().dropna()
             if returns.empty:
-                return self._empty_optimization_result()
+                raise ValueError("No returns data available")
             
             # Get valid symbols
             valid_symbols = [s for s in clean_symbols if s in returns.columns and len(returns[s].dropna()) >= 3]
             if not valid_symbols:
-                return self._empty_optimization_result()
+                raise ValueError("No valid symbols found in returns data")
             
             # Handle single asset
             if len(valid_symbols) == 1:
@@ -91,6 +91,9 @@ class PortfolioOptimizer:
                 # Check for valid covariance matrix
                 if np.any(np.isnan(cov_matrix.values)) or np.any(np.isinf(cov_matrix.values)):
                     raise ValueError("Invalid covariance matrix")
+                
+                # Calculate current portfolio (equal weight as baseline)
+                current_weights = np.ones(len(valid_symbols)) / len(valid_symbols)
                 
                 # Apply risk budgeting
                 if risk_budget == "risk_parity":
@@ -118,6 +121,7 @@ class PortfolioOptimizer:
                 
                 results = {
                     'optimal_portfolio': self._calculate_portfolio_metrics(optimal_weights, expected_returns, cov_matrix, valid_symbols),
+                    'current_portfolio': self._calculate_portfolio_metrics(current_weights, expected_returns, cov_matrix, valid_symbols),
                     'risk_parity': self._calculate_portfolio_metrics(risk_weights, expected_returns, cov_matrix, valid_symbols),
                     'equal_weight': self._calculate_portfolio_metrics(np.ones(len(valid_symbols)) / len(valid_symbols), expected_returns, cov_matrix, valid_symbols),
                     'efficient_frontier': self._generate_efficient_frontier(expected_returns, cov_matrix, valid_symbols),
@@ -135,11 +139,11 @@ class PortfolioOptimizer:
                 
             except Exception as e:
                 logger.warning(f"Optimization calculation failed: {e}")
-                return self._create_equal_weight_result(valid_symbols, returns, objective, constraint, rebalancing, risk_budget, lookback_period)
+                raise e
             
         except Exception as e:
             logger.error(f"Optimization failed: {e}")
-            return self._empty_optimization_result()
+            raise e
     
     def _minimize_volatility(self, expected_returns: pd.Series, cov_matrix: pd.DataFrame, constraint: str = "long_only") -> np.ndarray:
         """Find minimum volatility portfolio"""
@@ -197,14 +201,8 @@ class PortfolioOptimizer:
                 'sharpe_ratio': clean_val(sharpe_ratio),
                 'weights': {symbol: clean_val(weight) for symbol, weight in zip(symbols, weights)}
             }
-        except:
-            equal_weight = 1.0 / len(symbols)
-            return {
-                'expected_return': 0.08,
-                'volatility': 0.15,
-                'sharpe_ratio': 0.4,
-                'weights': {symbol: equal_weight for symbol in symbols}
-            }
+        except Exception as e:
+            raise e
     
     def _generate_efficient_frontier(self, expected_returns: pd.Series, cov_matrix: pd.DataFrame, 
                                    symbols: List[str], num_points: int = 5) -> List[Dict]:
@@ -214,13 +212,7 @@ class PortfolioOptimizer:
             max_ret = expected_returns.max()
             
             if np.isnan(min_ret) or np.isnan(max_ret) or min_ret >= max_ret:
-                equal_weight = 1.0 / len(symbols)
-                return [{
-                    'expected_return': 0.08,
-                    'volatility': 0.15,
-                    'sharpe_ratio': 0.4,
-                    'weights': {symbol: equal_weight for symbol in symbols}
-                }]
+                return []
             
             target_returns = np.linspace(min_ret, max_ret, num_points)
             frontier_points = []
@@ -254,16 +246,9 @@ class PortfolioOptimizer:
                 except:
                     continue
             
-            return frontier_points if frontier_points else [self._calculate_portfolio_metrics(
-                np.ones(len(symbols)) / len(symbols), expected_returns, cov_matrix, symbols)]
+            return frontier_points
         except:
-            equal_weight = 1.0 / len(symbols)
-            return [{
-                'expected_return': 0.08,
-                'volatility': 0.15,
-                'sharpe_ratio': 0.4,
-                'weights': {symbol: equal_weight for symbol in symbols}
-            }]
+            return []
     
     def _create_single_asset_result(self, symbol: str, returns: pd.DataFrame, objective: str = "max_sharpe", constraint: str = "long_only", rebalancing: str = "quarterly", risk_budget: str = "equal", lookback_period: str = "1Y") -> Dict:
         """Create optimization result for single asset"""
@@ -287,6 +272,7 @@ class PortfolioOptimizer:
             
             return {
                 'optimal_portfolio': result,
+                'current_portfolio': result,
                 'risk_parity': result,
                 'equal_weight': result,
                 'efficient_frontier': [result],
@@ -298,48 +284,8 @@ class PortfolioOptimizer:
                     'lookback_period': lookback_period
                 }
             }
-        except:
-            return self._empty_optimization_result()
-    
-    def _create_equal_weight_result(self, symbols: List[str], returns: pd.DataFrame, objective: str = "max_sharpe", constraint: str = "long_only", rebalancing: str = "quarterly", risk_budget: str = "equal", lookback_period: str = "1Y") -> Dict:
-        """Create equal weight result as fallback"""
-        try:
-            equal_weight = 1.0 / len(symbols)
-            weights = {symbol: equal_weight for symbol in symbols}
-            
-            # Calculate simple metrics
-            portfolio_returns = returns[symbols].mean(axis=1)
-            annual_return = portfolio_returns.mean() * 252 if len(portfolio_returns) > 0 else 0.08
-            volatility = portfolio_returns.std() * np.sqrt(252) if len(portfolio_returns) > 1 else 0.15
-            sharpe = (annual_return - 0.02) / volatility if volatility > 0 else 0.4
-            
-            def clean_val(val):
-                if np.isnan(val) or np.isinf(val):
-                    return 0.08 if 'return' in str(val) else 0.15 if 'vol' in str(val) else 0.4
-                return float(val)
-            
-            result = {
-                'expected_return': clean_val(annual_return),
-                'volatility': clean_val(volatility),
-                'sharpe_ratio': clean_val(sharpe),
-                'weights': weights
-            }
-            
-            return {
-                'optimal_portfolio': result,
-                'risk_parity': result,
-                'equal_weight': result,
-                'efficient_frontier': [result],
-                'optimization_params': {
-                    'objective': objective,
-                    'constraint': constraint,
-                    'rebalancing': rebalancing,
-                    'risk_budget': risk_budget,
-                    'lookback_period': lookback_period
-                }
-            }
-        except:
-            return self._empty_optimization_result()
+        except Exception as e:
+            raise e
     
     def _maximize_return(self, expected_returns: pd.Series, cov_matrix: pd.DataFrame, constraint: str = "long_only") -> np.ndarray:
         """Maximize return with constraints"""
@@ -423,34 +369,3 @@ class PortfolioOptimizer:
                 return weights
         except:
             return weights
-    
-    def _empty_optimization_result(self) -> Dict:
-        """Return empty optimization result"""
-        return {
-            'optimal_portfolio': {
-                'expected_return': 0.08,
-                'volatility': 0.15,
-                'sharpe_ratio': 0.4,
-                'weights': {}
-            },
-            'risk_parity': {
-                'expected_return': 0.08,
-                'volatility': 0.15,
-                'sharpe_ratio': 0.4,
-                'weights': {}
-            },
-            'equal_weight': {
-                'expected_return': 0.08,
-                'volatility': 0.15,
-                'sharpe_ratio': 0.4,
-                'weights': {}
-            },
-            'efficient_frontier': [],
-            'optimization_params': {
-                'objective': 'max_sharpe',
-                'constraint': 'long_only',
-                'rebalancing': 'quarterly',
-                'risk_budget': 'equal',
-                'lookback_period': '1Y'
-            }
-        }

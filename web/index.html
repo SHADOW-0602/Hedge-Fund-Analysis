@@ -753,7 +753,8 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                        <select id="accountingMethod" class="w-full p-2 border rounded-md text-sm" onchange="window.updateAccountingAnalysis()">
+                        <select id="accountingMethod" class="w-full p-2 border rounded-md text-sm"
+                            onchange="window.updateAccountingAnalysis()">
                             <option value="FIFO" selected>FIFO</option>
                             <option value="LIFO">LIFO</option>
                             <option value="Specific ID">Specific ID</option>
@@ -762,7 +763,8 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                        <select id="accountingPeriod" class="w-full p-2 border rounded-md text-sm" onchange="window.updateAccountingAnalysis()">
+                        <select id="accountingPeriod" class="w-full p-2 border rounded-md text-sm"
+                            onchange="window.updateAccountingAnalysis()">
                             <option value="1M">1 Month</option>
                             <option value="3M">3 Months</option>
                             <option value="6M">6 Months</option>
@@ -772,14 +774,16 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tax Impact</label>
-                        <select id="accountingTaxImpact" class="w-full p-2 border rounded-md text-sm" onchange="window.updateAccountingAnalysis()">
+                        <select id="accountingTaxImpact" class="w-full p-2 border rounded-md text-sm"
+                            onchange="window.updateAccountingAnalysis()">
                             <option value="Current rates" selected>Current rates</option>
                             <option value="Historical rates">Historical rates</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Comparison</label>
-                        <select id="accountingComparison" class="w-full p-2 border rounded-md text-sm" onchange="window.updateAccountingAnalysis()">
+                        <select id="accountingComparison" class="w-full p-2 border rounded-md text-sm"
+                            onchange="window.updateAccountingAnalysis()">
                             <option value="None" selected>None</option>
                             <option value="FIFO vs LIFO">FIFO vs LIFO</option>
                             <option value="All Methods">All Methods</option>
@@ -1084,6 +1088,42 @@
 
     <script src="js/missing-functions.js"></script>
     <script src="js/app-main.js"></script>
+    
+    <!-- Monte Carlo Debugging -->
+    <script>
+        // Monte Carlo Chart Debugging
+        console.log('[MONTE CARLO DEBUG] Debug script loaded inline');
+        
+        // Enhanced debugging for Monte Carlo chart rendering
+        window.debugMonteCarloChart = function() {
+            console.log('[MONTE CARLO DEBUG] Manual debug check triggered');
+            console.log('[MONTE CARLO DEBUG] Chart.js available:', typeof Chart !== 'undefined');
+            if (typeof Chart !== 'undefined') {
+                console.log('[MONTE CARLO DEBUG] Chart.js version:', Chart.version || 'unknown');
+            }
+            
+            const canvas = document.getElementById('monteCarloChart');
+            console.log('[MONTE CARLO DEBUG] Canvas element found:', !!canvas);
+            if (canvas) {
+                console.log('[MONTE CARLO DEBUG] Canvas parent:', canvas.parentElement);
+                console.log('[MONTE CARLO DEBUG] Canvas visible:', canvas.offsetWidth > 0 && canvas.offsetHeight > 0);
+            }
+        };
+        
+        // Check Chart.js loading
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                console.log('[MONTE CARLO DEBUG] DOM loaded, Chart.js check:');
+                console.log('[MONTE CARLO DEBUG] Chart available:', typeof Chart !== 'undefined');
+                if (typeof Chart !== 'undefined') {
+                    console.log('[MONTE CARLO DEBUG] Chart.js loaded successfully, version:', Chart.version || 'unknown');
+                } else {
+                    console.error('[MONTE CARLO DEBUG] Chart.js failed to load!');
+                }
+            }, 1000);
+        });
+    </script>
+
 
 </body>
 

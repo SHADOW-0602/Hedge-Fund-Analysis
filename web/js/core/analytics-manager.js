@@ -17,6 +17,7 @@ class AnalyticsManager {
     }
 
     // Initialize all modules
+    // Initialize all modules
     initialize() {
         if (this.initialized) return;
 
@@ -25,22 +26,30 @@ class AnalyticsManager {
             endpoint: 'analyze-risk',
             containerId: 'riskResults',
             settingsId: null,
-            displayFunction: this.displayRiskMetrics,
+            displayFunction: this.displayRiskMetrics.bind(this),
             type: 'portfolio'
         });
 
         this.register('options-strategies', {
             endpoint: 'scan-options',
+            settingsId: 'optionsSettings',
+            displayFunction: this.displayOptionsStrategies.bind(this),
+            type: 'portfolio'
+        });
+
+        this.register('monte-carlo', {
+            endpoint: 'monte-carlo',
+            containerId: 'analysisContent',
             settingsId: 'monteCarloSettings',
-            displayFunction: this.displayMonteCarloResults,
+            displayFunction: this.displayMonteCarloResults.bind(this),
             type: 'portfolio'
         });
 
         this.register('portfolio-optimization', {
             endpoint: 'portfolio-optimization',
-            containerId: 'optimizationChart',
+            containerId: 'analysisContent',
             settingsId: 'optimizationSettings',
-            displayFunction: this.displayPortfolioOptimization,
+            displayFunction: this.displayPortfolioOptimization.bind(this),
             type: 'portfolio'
         });
 
@@ -48,7 +57,7 @@ class AnalyticsManager {
             endpoint: 'correlation-analysis',
             containerId: 'correlationResults',
             settingsId: 'correlationSettings',
-            displayFunction: this.displayCorrelationAnalysis,
+            displayFunction: this.displayCorrelationAnalysis.bind(this),
             type: 'portfolio'
         });
 
@@ -56,7 +65,7 @@ class AnalyticsManager {
             endpoint: 'sector-allocation',
             containerId: 'sectorAllocation',
             settingsId: 'sectorSettings',
-            displayFunction: this.displaySectorAllocation,
+            displayFunction: this.displaySectorAllocation.bind(this),
             type: 'portfolio'
         });
 
@@ -64,7 +73,7 @@ class AnalyticsManager {
             endpoint: 'statistical-analysis',
             containerId: 'statisticalAnalysis',
             settingsId: 'statisticalSettings',
-            displayFunction: this.displayStatisticalAnalysis,
+            displayFunction: this.displayStatisticalAnalysis.bind(this),
             type: 'portfolio'
         });
 
@@ -72,7 +81,7 @@ class AnalyticsManager {
             endpoint: 'technical-analysis',
             containerId: 'technicalAnalysis',
             settingsId: 'technicalSettings',
-            displayFunction: this.displayTechnicalIndicators,
+            displayFunction: this.displayTechnicalIndicators.bind(this),
             type: 'portfolio'
         });
 
@@ -80,7 +89,7 @@ class AnalyticsManager {
             endpoint: 'strategy-backtesting',
             containerId: 'strategyBacktesting',
             settingsId: 'backtestingSettings',
-            displayFunction: this.displayStrategyBacktesting,
+            displayFunction: this.displayStrategyBacktesting.bind(this),
             type: 'portfolio'
         });
 
@@ -89,7 +98,7 @@ class AnalyticsManager {
             endpoint: 'news',
             containerId: 'analysisContent',
             settingsId: null,
-            displayFunction: this.displayMarketNews,
+            displayFunction: this.displayMarketNews.bind(this),
             type: 'news'
         });
 
@@ -98,7 +107,7 @@ class AnalyticsManager {
             endpoint: 'pnl-attribution',
             containerId: 'pnlAttribution',
             settingsId: 'pnlSettings',
-            displayFunction: this.displayPnLAttribution,
+            displayFunction: this.displayPnLAttribution.bind(this),
             type: 'transaction'
         });
 
@@ -106,15 +115,15 @@ class AnalyticsManager {
             endpoint: 'trade-performance',
             containerId: 'tradePerformance',
             settingsId: 'tradeSettings',
-            displayFunction: this.displayTradePerformance,
+            displayFunction: this.displayTradePerformance.bind(this),
             type: 'transaction'
         });
 
         this.register('cost-analysis', {
-            endpoint: 'trade-performance', // Use existing trade-performance endpoint
+            endpoint: 'cost-analysis',
             containerId: 'analysisContent',
             settingsId: 'costSettings',
-            displayFunction: this.displayCostAnalysis,
+            displayFunction: this.displayCostAnalysis.bind(this),
             type: 'transaction'
         });
 
@@ -122,7 +131,7 @@ class AnalyticsManager {
             endpoint: 'turnover-analysis',
             containerId: 'turnoverAnalysis',
             settingsId: 'turnoverSettings',
-            displayFunction: this.displayTurnoverAnalysis,
+            displayFunction: this.displayTurnoverAnalysis.bind(this),
             type: 'transaction'
         });
 
@@ -130,7 +139,7 @@ class AnalyticsManager {
             endpoint: 'tax-analysis',
             containerId: 'taxAnalysis',
             settingsId: 'taxSettings',
-            displayFunction: this.displayTaxAnalysis,
+            displayFunction: this.displayTaxAnalysis.bind(this),
             type: 'transaction'
         });
 
@@ -143,10 +152,10 @@ class AnalyticsManager {
         });
 
         this.register('accounting-analysis', {
-            endpoint: 'fifo-lifo-accounting',
+            endpoint: 'accounting-analysis',
             containerId: 'accountingAnalysis',
             settingsId: 'accountingSettings',
-            displayFunction: this.displayAccountingAnalysis,
+            displayFunction: this.displayAccountingAnalysis.bind(this),
             type: 'transaction'
         });
 
@@ -154,7 +163,7 @@ class AnalyticsManager {
             endpoint: 'trade-timing-analysis',
             containerId: 'tradeTimingAnalysis',
             settingsId: 'tradeTimingSettings',
-            displayFunction: this.displayTradeTiming,
+            displayFunction: this.displayTradeTiming.bind(this),
             type: 'transaction'
         });
 
@@ -162,24 +171,15 @@ class AnalyticsManager {
             endpoint: 'drawdown-analysis',
             containerId: 'drawdownAnalysis',
             settingsId: 'drawdownSettings',
-            displayFunction: this.displayDrawdownAnalysis,
+            displayFunction: this.displayDrawdownAnalysis.bind(this),
             type: 'transaction'
         });
-
-        // Replaced by portfolio return attribution
-        // this.register('return-attribution', {
-        //     endpoint: 'return-attribution',
-        //     containerId: 'returnAttributionAnalysis',
-        //     settingsId: null,
-        //     displayFunction: this.displayReturnAttribution,
-        //     type: 'transaction'
-        // });
 
         this.register('return-attribution', {
             endpoint: 'return-attribution',
             containerId: 'returnAttribution',
             settingsId: 'returnAttributionSettings',
-            displayFunction: this.displayReturnAttribution,
+            displayFunction: this.displayReturnAttribution.bind(this),
             type: 'transaction'
         });
 
@@ -188,7 +188,7 @@ class AnalyticsManager {
             endpoint: 'performance-attribution',
             containerId: 'performanceAttribution',
             settingsId: 'performanceAttributionSettings',
-            displayFunction: this.displayPerformanceAttribution,
+            displayFunction: this.displayPerformanceAttribution.bind(this),
             type: 'portfolio'
         });
 
@@ -451,6 +451,30 @@ class AnalyticsManager {
             };
         }
 
+        // For options-strategies, pass stored settings as options
+        if (name === 'options-strategies' && window.analyticsCore?.optionsSettings) {
+            await window.analyticsCore.analyzePortfolio(
+                module.endpoint,
+                module.containerId,
+                module.displayFunction,
+                module.settingsId,
+                window.analyticsCore.optionsSettings
+            );
+            return;
+        }
+
+        // For monte-carlo, pass stored settings as options
+        if (name === 'monte-carlo' && window.analyticsCore?.monteCarloSettings) {
+            await window.analyticsCore.analyzePortfolio(
+                module.endpoint,
+                module.containerId,
+                module.displayFunction,
+                module.settingsId,
+                window.analyticsCore.monteCarloSettings
+            );
+            return;
+        }
+
         // Clear any existing loading states first
         if (window.loadingManager) {
             window.loadingManager.clearAll();
@@ -468,6 +492,7 @@ class AnalyticsManager {
 
         try {
             if (module.type === 'portfolio') {
+                console.log(`[LOAD MODULE] Loading portfolio analysis: ${name}`);
                 await window.analyticsCore.analyzePortfolio(
                     module.endpoint,
                     module.containerId,
@@ -477,6 +502,7 @@ class AnalyticsManager {
             } else if (module.type === 'news') {
                 await this.loadMarketNews(module);
             } else {
+                console.log(`[LOAD MODULE] Loading transaction analysis: ${name}`);
                 await window.analyticsCore.analyzeTransactions(
                     module.endpoint,
                     module.containerId,
@@ -497,6 +523,8 @@ class AnalyticsManager {
         }
     }
 
+
+
     // Display functions for each module
     displayRiskMetrics(result, options) {
         if (window.loadingManager) {
@@ -510,28 +538,146 @@ class AnalyticsManager {
         const metrics = result.risk_metrics || {};
 
         // Get current settings or use API response values
-        const currentPeriod = options?.period || metrics.period;
-        const currentConfidence = options?.var_confidence || metrics.var_confidence;
-        const currentModel = options?.risk_model || metrics.risk_model;
-        const currentBenchmark = options?.benchmark || metrics.benchmark;
-        const currentWindow = options?.rolling_window || metrics.rolling_window;
+        const currentPeriod = options?.period || metrics.period || '1Y';
+        const currentConfidence = options?.var_confidence || metrics.var_confidence || 0.95;
+        const currentModel = options?.risk_model || metrics.risk_model || 'historical';
+        const currentBenchmark = options?.benchmark || metrics.benchmark || 'SPY';
+        const currentWindow = options?.rolling_window || metrics.rolling_window || 252;
+
+        // Helper for formatting
+        const fmtPct = (val) => (val === null || val === undefined) ? 'N/A' : (val * 100).toFixed(2) + '%';
+        const fmtNum = (val) => (val === null || val === undefined) ? 'N/A' : val.toFixed(2);
 
         container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900">Risk Metrics</h2>
+                    <p class="text-sm text-gray-500 mt-1">Analysis based on current portfolio holdings (Ex-Ante Risk)</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleRiskSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
+                    </button>
+                    <button onclick="updateRiskAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
                         Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div id="riskSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="riskPeriod" onchange="updateRiskAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="YTD" ${currentPeriod === 'YTD' ? 'selected' : ''}>Year to Date</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">VaR Confidence</label>
+                        <select id="riskConfidence" onchange="updateRiskAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="0.90" ${currentConfidence == 0.90 ? 'selected' : ''}>90%</option>
+                            <option value="0.95" ${currentConfidence == 0.95 ? 'selected' : ''}>95%</option>
+                            <option value="0.99" ${currentConfidence == 0.99 ? 'selected' : ''}>99%</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                        <select id="riskModel" onchange="updateRiskAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="historical" ${currentModel === 'historical' ? 'selected' : ''}>Historical</option>
+                            <option value="parametric" ${currentModel === 'parametric' ? 'selected' : ''}>Parametric</option>
+                            <option value="monte_carlo" ${currentModel === 'monte_carlo' ? 'selected' : ''}>Monte Carlo</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                        <select id="riskBenchmark" onchange="updateRiskAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
+                            <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>NASDAQ (QQQ)</option>
+                            <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rolling Window</label>
+                        <select id="riskWindow" onchange="updateRiskAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="30" ${currentWindow == 30 ? 'selected' : ''}>30 Days</option>
+                            <option value="60" ${currentWindow == 60 ? 'selected' : ''}>60 Days</option>
+                            <option value="90" ${currentWindow == 90 ? 'selected' : ''}>90 Days</option>
+                            <option value="252" ${currentWindow == 252 ? 'selected' : ''}>252 Days</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Annual Volatility</h3>
+                    <p class="text-2xl font-bold text-gray-900 mt-2">${fmtPct(metrics.portfolio_volatility)}</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Value at Risk (${(currentConfidence * 100).toFixed(0)}%)</h3>
+                    <p class="text-2xl font-bold text-red-600 mt-2">${fmtPct(metrics.value_at_risk || metrics.var_95)}</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Sharpe Ratio</h3>
+                    <p class="text-2xl font-bold text-gray-900 mt-2">${fmtNum(metrics.sharpe_ratio)}</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Sortino Ratio</h3>
+                    <p class="text-2xl font-bold text-gray-900 mt-2">${fmtNum(metrics.sortino_ratio)}</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Max Drawdown</h3>
+                    <p class="text-2xl font-bold text-red-600 mt-2">${fmtPct(metrics.max_drawdown)}</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Beta vs ${currentBenchmark}</h3>
+                    <p class="text-2xl font-bold text-gray-900 mt-2">${fmtNum(metrics.beta)}</p>
+                </div>
+            </div>
+
+            ${metrics.risk_contribution && Object.keys(metrics.risk_contribution).length > 0 ? `
+                <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                    <div class="px-4 py-3 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Risk Contribution (Top 10)</h3>
+                    </div>
+                    <div class="p-4 overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Contribution</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${Object.entries(metrics.risk_contribution).slice(0, 10).map(([symbol, contribution]) => `
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${symbol}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${fmtPct(contribution)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ` : ''}
             
-            
-                
-                    
-                
-                ${metrics.avg_correlation !== undefined && metrics.avg_correlation !== null ? `
-                ` : ''}
-                
-                ${metrics.risk_contribution && Object.keys(metrics.risk_contribution).length > 0 ? `
-                            ${Object.entries(metrics.risk_contribution).slice(0, 10).map(([symbol, contribution]) => `
-                            `).join('')}
-                ` : ''}
-                
+            <div class="bg-gray-50 rounded-lg p-6">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentPeriod}</span></div>
+                    <div><span class="text-gray-600">VaR Confidence:</span> <span class="font-medium text-gray-900">${(currentConfidence * 100).toFixed(0)}%</span></div>
+                    <div><span class="text-gray-600">Model:</span> <span class="font-medium text-gray-900">${currentModel}</span></div>
+                    <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium text-gray-900">${currentBenchmark}</span></div>
+                    <div><span class="text-gray-600">Rolling Window:</span> <span class="font-medium text-gray-900">${currentWindow} days</span></div>
+                </div>
+            </div>
         `;
     }
 
@@ -577,25 +723,120 @@ class AnalyticsManager {
         const definedStrategies = ['covered_calls', 'protective_puts', 'iron_condors'];
 
         container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Options Strategies</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleOptionsSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
+                    </button>
+                    <select id="symbolFilter" onchange="filterOptionsStrategies()" class="px-3 py-1 border border-gray-300 rounded-md text-sm">
+                        <option value="all">All Symbols</option>
                         ${symbolOptions}
+                    </select>
+                    <button onclick="updateOptionsAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm">
                         Refresh
+                    </button>
+                </div>
+            </div>
             
+            <div id="optionsSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Expiration</label>
+                        <select id="optionsExpiration" onchange="updateOptionsAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="1M" ${currentExpiration === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="3M" ${currentExpiration === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentExpiration === '6M' ? 'selected' : ''}>6 Months</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Moneyness</label>
+                        <select id="optionsMoneyness" onchange="updateOptionsAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="All" ${currentMoneyness === 'All' ? 'selected' : ''}>All</option>
+                            <option value="ITM" ${currentMoneyness === 'ITM' ? 'selected' : ''}>In The Money</option>
+                            <option value="ATM" ${currentMoneyness === 'ATM' ? 'selected' : ''}>At The Money</option>
+                            <option value="OTM" ${currentMoneyness === 'OTM' ? 'selected' : ''}>Out The Money</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Min Premium</label>
+                        <input type="number" id="optionsMinPremium" value="${currentMinPremium}" step="0.25" onchange="updateOptionsAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Delta Range</label>
+                        <select id="optionsDeltaRange" onchange="updateOptionsAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="All" ${currentDeltaRange === 'All' ? 'selected' : ''}>All</option>
+                            <option value="0.2-0.4" ${currentDeltaRange === '0.2-0.4' ? 'selected' : ''}>0.2 - 0.4</option>
+                            <option value="0.4-0.6" ${currentDeltaRange === '0.4-0.6' ? 'selected' : ''}>0.4 - 0.6</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
             
-                    ${definedStrategies.map(strategy => {
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                ${definedStrategies.map(strategy => {
             const strategyOpportunities = allOpportunities.filter(o => o.strategy === strategy);
             const totalPremium = strategyOpportunities.reduce((sum, o) => sum + (o.premium || 0), 0);
             const displayName = strategy.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
             const colorClass = strategy === 'covered_calls' ? 'blue' : strategy === 'protective_puts' ? 'green' : 'purple';
             return `
-                        `;
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <h3 class="text-sm font-medium text-gray-500">${displayName}</h3>
+                            <p class="text-2xl font-bold text-${colorClass}-600 mt-2">${strategyOpportunities.length}</p>
+                            <p class="text-xs text-gray-500 mt-1">$${totalPremium.toFixed(2)} total premium</p>
+                        </div>
+                    `;
         }).join('')}
+            </div>
+            
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Options Opportunities</h3>
+                </div>
                 ${allOpportunities.length > 0 ? `
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Strategy</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Strike</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Premium</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiration</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
                                 ${currentOpportunities.map(opp => `
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${opp.symbol}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${opp.strategy?.replace('_', ' ')}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">$${opp.strike?.toFixed(2) || 'N/A'}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">$${opp.premium?.toFixed(2) || '0.00'}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${opp.expiration || 'N/A'}</td>
+                                    </tr>
                                 `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
                     ${totalPages > 1 ? `
+                        <div class="px-4 py-3 border-t border-gray-200 flex justify-between items-center">
+                            <button onclick="changeOptionsPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} class="px-3 py-1 border rounded text-sm">Previous</button>
+                            <span class="text-sm text-gray-700">Page ${currentPage} of ${totalPages}</span>
+                            <button onclick="changeOptionsPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 border rounded text-sm">Next</button>
+                        </div>
                     ` : ''}
-                ` : '<p class="text-gray-500 text-center py-4">No options opportunities found</p>'}
+                ` : '<div class="p-4"><p class="text-gray-500 text-center py-4">No options opportunities found</p></div>'}
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-6 mt-6">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div><span class="text-gray-600">Expiration:</span> <span class="font-medium text-gray-900">${currentExpiration}</span></div>
+                    <div><span class="text-gray-600">Moneyness:</span> <span class="font-medium text-gray-900">${currentMoneyness}</span></div>
+                    <div><span class="text-gray-600">Min Premium:</span> <span class="font-medium text-gray-900">$${currentMinPremium}</span></div>
+                    <div><span class="text-gray-600">Delta Range:</span> <span class="font-medium text-gray-900">${currentDeltaRange}</span></div>
+                </div>
+            </div>
         `;
 
         // Store opportunities and summary for pagination
@@ -634,36 +875,834 @@ class AnalyticsManager {
     }
 
     displayPortfolioOptimization(result, options) {
+        console.log('[PORTFOLIO OPTIMIZATION DEBUG] Display function called');
+        console.log('[PORTFOLIO OPTIMIZATION DEBUG] Result:', result);
+        console.log('[PORTFOLIO OPTIMIZATION DEBUG] Options:', options);
+        
         const container = document.getElementById('analysisContent');
-        if (!container) return;
+        if (!container) {
+            console.error('[PORTFOLIO OPTIMIZATION DEBUG] Container not found');
+            return;
+        }
+
         container.classList.remove('hidden');
+        const optimization = result.optimization || result;
+        console.log('[PORTFOLIO OPTIMIZATION DEBUG] Optimization data:', optimization);
+        
+        const efficientFrontier = optimization.efficient_frontier || [];
+        const optimal = optimization.optimal_portfolio || {};
+        const current = optimization.current_portfolio || {};
+        const trades = optimization.recommended_trades || [];
+        
+        console.log('[PORTFOLIO OPTIMIZATION DEBUG] Data extracted:', {
+            efficientFrontier: efficientFrontier.length,
+            optimal: Object.keys(optimal),
+            current: Object.keys(current),
+            trades: trades.length
+        });
+
+        // Get current settings
+        const currentObjective = options?.objective || 'max_sharpe';
+        const currentConstraint = options?.constraint || 'long_only';
+        const currentRebalancing = options?.rebalancing || 'quarterly';
+        const currentRiskBudget = options?.risk_budget || 'equal';
+        const currentLookback = options?.lookback_period || '1Y';
+
+        // Helper for formatting
+        const fmtPct = (val) => (val === null || val === undefined || isNaN(val)) ? 'N/A' : (val * 100).toFixed(2) + '%';
+        const fmtNum = (val) => (val === null || val === undefined || isNaN(val)) ? 'N/A' : val.toFixed(2);
 
         container.innerHTML = `
-            <div class="p-4 bg-gray-50 rounded-lg">
-                <p class="text-gray-600">Portfolio Optimization results display is currently being updated.</p>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Portfolio Optimization</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleOptimizationSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="updatePortfolioOptimization()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div id="optimizationSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Objective</label>
+                        <select id="optimizationObjective" onchange="updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="max_sharpe" ${currentObjective === 'max_sharpe' ? 'selected' : ''}>Max Sharpe Ratio</option>
+                            <option value="min_volatility" ${currentObjective === 'min_volatility' ? 'selected' : ''}>Min Volatility</option>
+                            <option value="max_return" ${currentObjective === 'max_return' ? 'selected' : ''}>Max Return</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Constraint</label>
+                        <select id="optimizationConstraint" onchange="updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="long_only" ${currentConstraint === 'long_only' ? 'selected' : ''}>Long Only</option>
+                            <option value="130_30" ${currentConstraint === '130_30' ? 'selected' : ''}>130/30 Strategy</option>
+                            <option value="market_neutral" ${currentConstraint === 'market_neutral' ? 'selected' : ''}>Market Neutral</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rebalancing</label>
+                        <select id="optimizationRebalancing" onchange="updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="monthly" ${currentRebalancing === 'monthly' ? 'selected' : ''}>Monthly</option>
+                            <option value="quarterly" ${currentRebalancing === 'quarterly' ? 'selected' : ''}>Quarterly</option>
+                            <option value="semi_annual" ${currentRebalancing === 'semi_annual' ? 'selected' : ''}>Semi-Annual</option>
+                            <option value="annual" ${currentRebalancing === 'annual' ? 'selected' : ''}>Annual</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risk Budget</label>
+                        <select id="optimizationRiskBudget" onchange="updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="equal" ${currentRiskBudget === 'equal' ? 'selected' : ''}>Equal Weight</option>
+                            <option value="risk_parity" ${currentRiskBudget === 'risk_parity' ? 'selected' : ''}>Risk Parity</option>
+                            <option value="custom" ${currentRiskBudget === 'custom' ? 'selected' : ''}>Custom</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Lookback Period</label>
+                        <select id="optimizationLookback" onchange="updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="1Y" ${currentLookback === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="2Y" ${currentLookback === '2Y' ? 'selected' : ''}>2 Years</option>
+                            <option value="3Y" ${currentLookback === '3Y' ? 'selected' : ''}>3 Years</option>
+                            <option value="5Y" ${currentLookback === '5Y' ? 'selected' : ''}>5 Years</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <!-- Summary Cards -->
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Sharpe Ratio</h3>
+                    <div class="flex justify-between items-end mt-2">
+                        <div>
+                            <span class="text-2xl font-bold text-gray-900">${fmtNum(optimal.sharpe_ratio || 0)}</span>
+                            <span class="text-xs text-green-600 ml-2">Optimal</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-sm text-gray-500">${fmtNum(current.sharpe_ratio || 0)}</span>
+                            <span class="text-xs text-gray-400 block">Current</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Expected Return</h3>
+                    <div class="flex justify-between items-end mt-2">
+                        <div>
+                            <span class="text-2xl font-bold text-gray-900">${fmtPct(optimal.expected_return || 0)}</span>
+                            <span class="text-xs text-green-600 ml-2">Optimal</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-sm text-gray-500">${fmtPct(current.expected_return || 0)}</span>
+                            <span class="text-xs text-gray-400 block">Current</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Volatility (Risk)</h3>
+                    <div class="flex justify-between items-end mt-2">
+                        <div>
+                            <span class="text-2xl font-bold text-gray-900">${fmtPct(optimal.volatility || 0)}</span>
+                            <span class="text-xs text-blue-600 ml-2">Optimal</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-sm text-gray-500">${fmtPct(current.volatility || 0)}</span>
+                            <span class="text-xs text-gray-400 block">Current</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Efficient Frontier Chart -->
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Efficient Frontier</h3>
+                    <div class="h-64 relative">
+                        <canvas id="efficientFrontierChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Allocation Comparison -->
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Allocation Comparison</h3>
+                    <div class="h-64 relative">
+                        <canvas id="allocationChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            ${trades && trades.length > 0 ? `
+            <!-- Recommended Trades -->
+            <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Recommended Trades</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight Change</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${trades.map(trade => `
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${trade.symbol}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${trade.action === 'BUY' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                            ${trade.action}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${Math.abs(trade.quantity).toFixed(2)}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">$${Math.abs(trade.value).toLocaleString()}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${(trade.weight_change * 100).toFixed(2)}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            ` : ''}
+
+            <div class="bg-gray-50 rounded-lg p-6">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="text-gray-600">Objective:</span> <span class="font-medium text-gray-900">${currentObjective.replace('_', ' ')}</span></div>
+                    <div><span class="text-gray-600">Constraint:</span> <span class="font-medium text-gray-900">${currentConstraint.replace('_', ' ')}</span></div>
+                    <div><span class="text-gray-600">Rebalancing:</span> <span class="font-medium text-gray-900">${currentRebalancing.replace('_', ' ')}</span></div>
+                    <div><span class="text-gray-600">Risk Budget:</span> <span class="font-medium text-gray-900">${currentRiskBudget.replace('_', ' ')}</span></div>
+                    <div><span class="text-gray-600">Lookback:</span> <span class="font-medium text-gray-900">${currentLookback}</span></div>
+                </div>
             </div>
         `;
+
+        // Render Charts after DOM is ready
+        setTimeout(() => {
+            if (typeof Chart !== 'undefined') {
+                this.renderEfficientFrontierChart(efficientFrontier, current, optimal);
+                this.renderAllocationChart(current.weights, optimal.weights);
+            } else {
+                console.warn('Chart.js not available for portfolio optimization charts');
+            }
+        }, 100);
     }
 
+    renderEfficientFrontierChart(frontier, current, optimal) {
+        const ctx = document.getElementById('efficientFrontierChart');
+        if (!ctx) return;
+
+        // Destroy existing chart if it exists
+        if (this.frontierChartInstance) {
+            this.frontierChartInstance.destroy();
+        }
+
+        console.log('[FRONTIER CHART] Data:', { frontier, current, optimal });
+
+        // Prepare datasets
+        const datasets = [];
+
+        // Add efficient frontier if available
+        if (frontier && frontier.length > 0) {
+            const frontierData = frontier.filter(p => 
+                p && typeof p.volatility === 'number' && typeof p.expected_return === 'number' &&
+                !isNaN(p.volatility) && !isNaN(p.expected_return)
+            ).map(p => ({ x: p.volatility, y: p.expected_return }));
+            
+            if (frontierData.length > 0) {
+                datasets.push({
+                    label: 'Efficient Frontier',
+                    data: frontierData,
+                    borderColor: '#4F46E5',
+                    showLine: true,
+                    fill: false,
+                    pointRadius: 2
+                });
+            }
+        }
+
+        // Add current portfolio point if valid
+        if (current && typeof current.volatility === 'number' && typeof current.expected_return === 'number' &&
+            !isNaN(current.volatility) && !isNaN(current.expected_return)) {
+            datasets.push({
+                label: 'Current Portfolio',
+                data: [{ x: current.volatility, y: current.expected_return }],
+                backgroundColor: '#EF4444',
+                borderColor: '#EF4444',
+                pointRadius: 8,
+                pointStyle: 'triangle'
+            });
+        }
+
+        // Add optimal portfolio point if valid
+        if (optimal && typeof optimal.volatility === 'number' && typeof optimal.expected_return === 'number' &&
+            !isNaN(optimal.volatility) && !isNaN(optimal.expected_return)) {
+            datasets.push({
+                label: 'Optimal Portfolio',
+                data: [{ x: optimal.volatility, y: optimal.expected_return }],
+                backgroundColor: '#10B981',
+                borderColor: '#10B981',
+                pointRadius: 8,
+                pointStyle: 'rectRot'
+            });
+        }
+
+        console.log('[FRONTIER CHART] Datasets:', datasets);
+
+        this.frontierChartInstance = new Chart(ctx, {
+            type: 'scatter',
+            data: { datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'top' }
+                },
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'Volatility (Risk)' }, 
+                        ticks: { callback: v => (v * 100).toFixed(1) + '%' }
+                    },
+                    y: { 
+                        title: { display: true, text: 'Expected Return' }, 
+                        ticks: { callback: v => (v * 100).toFixed(1) + '%' }
+                    }
+                }
+            }
+        });
+    }
+
+    renderAllocationChart(currentWeights, optimalWeights) {
+        const ctx = document.getElementById('allocationChart');
+        if (!ctx) return;
+
+        // Destroy existing chart if it exists
+        if (this.allocationChartInstance) {
+            this.allocationChartInstance.destroy();
+        }
+
+        console.log('[ALLOCATION CHART] Weights:', { currentWeights, optimalWeights });
+
+        const safeCurrentWeights = currentWeights || {};
+        const safeOptimalWeights = optimalWeights || {};
+
+        const symbols = [...new Set([...Object.keys(safeCurrentWeights), ...Object.keys(safeOptimalWeights)])]
+            .filter(s => s && s.length > 0);
+
+        if (symbols.length === 0) {
+            console.warn('[ALLOCATION CHART] No symbols found');
+            return;
+        }
+
+        const datasets = [];
+        
+        // Add current weights if available
+        if (Object.keys(safeCurrentWeights).length > 0) {
+            datasets.push({
+                label: 'Current',
+                data: symbols.map(s => (safeCurrentWeights[s] || 0) * 100),
+                backgroundColor: '#9CA3AF',
+                borderColor: '#6B7280',
+                borderWidth: 1
+            });
+        }
+        
+        // Add optimal weights if available
+        if (Object.keys(safeOptimalWeights).length > 0) {
+            datasets.push({
+                label: 'Optimal',
+                data: symbols.map(s => (safeOptimalWeights[s] || 0) * 100),
+                backgroundColor: '#4F46E5',
+                borderColor: '#3730A3',
+                borderWidth: 1
+            });
+        }
+
+        console.log('[ALLOCATION CHART] Final datasets:', datasets);
+
+        this.allocationChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: symbols,
+                datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'top' }
+                },
+                scales: {
+                    y: { 
+                        title: { display: true, text: 'Weight (%)' },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
     displayMonteCarloResults(result, options) {
+        console.log('[MONTE CARLO DEBUG] Display function called');
+        console.log('[MONTE CARLO DEBUG] Result:', result);
+        console.log('[MONTE CARLO DEBUG] Options:', options);
+
         const container = document.getElementById('analysisContent');
-        if (!container) return;
+        if (!container) {
+            console.error('[MONTE CARLO DEBUG] Container not found');
+            return;
+        }
 
         container.classList.remove('hidden');
         const results = result.results || {};
+        const simulationData = results.simulation_data || [];
+        const summary = results.summary_statistics || {};
+
+        console.log('[MONTE CARLO DEBUG] Simulation data length:', simulationData.length);
+        console.log('[MONTE CARLO DEBUG] Summary stats:', summary);
 
         // Get current settings
-        const currentPeriod = options?.forecast_period || '3M';
-        const currentSimulations = options?.simulations || 10000;
+        const currentPeriod = options?.forecast_period || '1Y';
+        const currentSimulations = options?.simulations || 1000;
         const currentConfidence = options?.confidence_intervals || 0.95;
         const currentRegime = options?.market_regime || 'normal';
-        const currentVolatility = options?.volatility_adjustment || 0.0;
+        const currentVolatility = options?.volatility_adjustment || 1.0;
+
+        // Helper for formatting
+        const fmtPct = (val) => (val * 100).toFixed(2) + '%';
 
         container.innerHTML = `
-        <div class="p-4 bg-gray-50 rounded-lg">
-            <p class="text-gray-600">Monte Carlo results display is currently being updated.</p>
-        </div>
-    `;
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Monte Carlo Simulation</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleMonteCarloSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="updateMonteCarloAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div id="monteCarloSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Forecast Period</label>
+                        <select id="mcForecastPeriod" onchange="updateMonteCarloAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="2Y" ${currentPeriod === '2Y' ? 'selected' : ''}>2 Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Simulations</label>
+                        <select id="mcSimulations" onchange="updateMonteCarloAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="1000" ${currentSimulations == 1000 ? 'selected' : ''}>1,000</option>
+                            <option value="5000" ${currentSimulations == 5000 ? 'selected' : ''}>5,000</option>
+                            <option value="10000" ${currentSimulations == 10000 ? 'selected' : ''}>10,000</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Confidence Level</label>
+                        <select id="mcConfidenceIntervals" onchange="updateMonteCarloAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="0.90" ${currentConfidence == 0.90 ? 'selected' : ''}>90%</option>
+                            <option value="0.95" ${currentConfidence == 0.95 ? 'selected' : ''}>95%</option>
+                            <option value="0.99" ${currentConfidence == 0.99 ? 'selected' : ''}>99%</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Market Regime</label>
+                        <select id="mcMarketRegime" onchange="updateMonteCarloAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="normal" ${currentRegime === 'normal' ? 'selected' : ''}>Normal</option>
+                            <option value="bull" ${currentRegime === 'bull' ? 'selected' : ''}>Bull Market</option>
+                            <option value="bear" ${currentRegime === 'bear' ? 'selected' : ''}>Bear Market</option>
+                            <option value="volatile" ${currentRegime === 'volatile' ? 'selected' : ''}>High Volatility</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Volatility Adjustment</label>
+                        <select id="mcVolatilityAdjustment" onchange="updateMonteCarloAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="0.8" ${currentVolatility == 0.8 ? 'selected' : ''}>0.8x (Lower)</option>
+                            <option value="1.0" ${currentVolatility == 1.0 ? 'selected' : ''}>1.0x (Normal)</option>
+                            <option value="1.2" ${currentVolatility == 1.2 ? 'selected' : ''}>1.2x (Higher)</option>
+                            <option value="1.5" ${currentVolatility == 1.5 ? 'selected' : ''}>1.5x (Much Higher)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Expected Return (Mean)</h3>
+                    <p class="text-2xl font-bold text-gray-900 mt-2">${fmtPct(summary.mean_return || 0)}</p>
+                    <p class="text-xs text-gray-500 mt-1">Average outcome</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Value at Risk (${(currentConfidence * 100).toFixed(0)}%)</h3>
+                    <p class="text-2xl font-bold text-red-600 mt-2">${fmtPct(summary.value_at_risk_95 || 0)}</p>
+                    <p class="text-xs text-gray-500 mt-1">Worst ${((1 - currentConfidence) * 100).toFixed(0)}% outcome</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-sm font-medium text-gray-500">Best Case (${(currentConfidence * 100).toFixed(0)}%)</h3>
+                    <p class="text-2xl font-bold text-green-600 mt-2">${fmtPct(summary.percentile_95 || 0)}</p>
+                    <p class="text-xs text-gray-500 mt-1">Top ${((1 - currentConfidence) * 100).toFixed(0)}% outcome</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-lg shadow mb-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Monte Carlo Simulation Paths</h3>
+                <div class="h-80 relative">
+                    <canvas id="monteCarloChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Simulation Statistics</h3>
+                </div>
+                <div class="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <span class="text-sm text-gray-500 block">Median Return</span>
+                        <span class="text-lg font-semibold text-gray-900">${fmtPct(summary.median_return || 0)}</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 block">Standard Deviation</span>
+                        <span class="text-lg font-semibold text-gray-900">${fmtPct(summary.std_dev || 0)}</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 block">Min Return</span>
+                        <span class="text-lg font-semibold text-red-600">${fmtPct(summary.min_return || 0)}</span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 block">Max Return</span>
+                        <span class="text-lg font-semibold text-green-600">${fmtPct(summary.max_return || 0)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 rounded-lg p-6">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="text-gray-600">Forecast Period:</span> <span class="font-medium text-gray-900">${currentPeriod}</span></div>
+                    <div><span class="text-gray-600">Simulations:</span> <span class="font-medium text-gray-900">${currentSimulations.toLocaleString()}</span></div>
+                    <div><span class="text-gray-600">Confidence Level:</span> <span class="font-medium text-gray-900">${(currentConfidence * 100).toFixed(0)}%</span></div>
+                    <div><span class="text-gray-600">Market Regime:</span> <span class="font-medium text-gray-900">${currentRegime}</span></div>
+                    <div><span class="text-gray-600">Volatility Adj:</span> <span class="font-medium text-gray-900">${currentVolatility}x</span></div>
+                </div>
+            </div>
+        `;
+
+        console.log('[MONTE CARLO DEBUG] HTML content set, chart canvas should be available');
+        console.log('[MONTE CARLO DEBUG] Simulation data available:', !!simulationData, 'Length:', simulationData?.length || 0);
+
+        console.log('[MONTE CARLO] Display completed successfully');
+
+        // Try to render chart after DOM is ready
+        setTimeout(() => {
+            const canvas = document.getElementById('monteCarloChart');
+            if (canvas && typeof Chart !== 'undefined' && simulationData?.length > 0) {
+                try {
+                    this.renderMonteCarloChart(simulationData);
+                } catch (e) {
+                    console.log('[MONTE CARLO DEBUG] Chart render failed:', e.message);
+                }
+            }
+        }, 200);
+    }
+
+    // Fallback chart creation when Chart.js fails
+    createFallbackMonteCarloChart(canvas, simulationData) {
+        console.log('[MONTE CARLO DEBUG] Creating fallback SVG chart');
+
+        const container = canvas.parentElement;
+        if (!container) {
+            console.error('[MONTE CARLO DEBUG] No container found for fallback chart');
+            return;
+        }
+
+        // Hide the canvas and create SVG
+        canvas.style.display = 'none';
+
+        // Remove any existing fallback
+        const existingFallback = container.querySelector('.monte-carlo-fallback');
+        if (existingFallback) {
+            existingFallback.remove();
+        }
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.className = 'monte-carlo-fallback';
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '320');
+        svg.setAttribute('viewBox', '0 0 800 320');
+        svg.style.border = '1px solid #e5e7eb';
+        svg.style.borderRadius = '8px';
+        svg.style.backgroundColor = '#f9fafb';
+
+        // Add title
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        title.setAttribute('x', '400');
+        title.setAttribute('y', '30');
+        title.setAttribute('text-anchor', 'middle');
+        title.setAttribute('font-family', 'Arial, sans-serif');
+        title.setAttribute('font-size', '16');
+        title.setAttribute('font-weight', 'bold');
+        title.setAttribute('fill', '#374151');
+        title.textContent = 'Monte Carlo Simulation Paths (Fallback View)';
+        svg.appendChild(title);
+
+        if (!simulationData || !Array.isArray(simulationData) || simulationData.length === 0) {
+            // Show no data message
+            const noDataText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            noDataText.setAttribute('x', '400');
+            noDataText.setAttribute('y', '160');
+            noDataText.setAttribute('text-anchor', 'middle');
+            noDataText.setAttribute('font-family', 'Arial, sans-serif');
+            noDataText.setAttribute('font-size', '14');
+            noDataText.setAttribute('fill', '#6b7280');
+            noDataText.textContent = 'No simulation data available';
+            svg.appendChild(noDataText);
+
+            const debugText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            debugText.setAttribute('x', '400');
+            debugText.setAttribute('y', '180');
+            debugText.setAttribute('text-anchor', 'middle');
+            debugText.setAttribute('font-family', 'Arial, sans-serif');
+            debugText.setAttribute('font-size', '12');
+            debugText.setAttribute('fill', '#9ca3af');
+            debugText.textContent = `Data type: ${typeof simulationData}, Length: ${simulationData?.length || 0}`;
+            svg.appendChild(debugText);
+        } else {
+            // Draw simplified paths
+            const maxPaths = Math.min(20, simulationData.length);
+            const pathLength = simulationData[0] ? simulationData[0].length : 0;
+
+            console.log('[MONTE CARLO DEBUG] Drawing', maxPaths, 'paths with length', pathLength);
+
+            if (pathLength > 0) {
+                // Calculate scales
+                let minValue = Infinity;
+                let maxValue = -Infinity;
+
+                for (let i = 0; i < maxPaths; i++) {
+                    if (simulationData[i] && Array.isArray(simulationData[i])) {
+                        for (let j = 0; j < simulationData[i].length; j++) {
+                            const val = simulationData[i][j];
+                            if (typeof val === 'number' && !isNaN(val)) {
+                                minValue = Math.min(minValue, val);
+                                maxValue = Math.max(maxValue, val);
+                            }
+                        }
+                    }
+                }
+
+                if (minValue !== Infinity && maxValue !== -Infinity) {
+                    const xScale = 750 / (pathLength - 1);
+                    const yScale = 220 / (maxValue - minValue);
+                    const yOffset = 270;
+
+                    // Draw paths
+                    for (let i = 0; i < maxPaths; i++) {
+                        if (simulationData[i] && Array.isArray(simulationData[i])) {
+                            const path = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+                            const points = simulationData[i].map((value, index) => {
+                                if (typeof value === 'number' && !isNaN(value)) {
+                                    const x = 25 + index * xScale;
+                                    const y = yOffset - (value - minValue) * yScale;
+                                    return `${x},${y}`;
+                                }
+                                return null;
+                            }).filter(p => p !== null).join(' ');
+
+                            if (points) {
+                                path.setAttribute('points', points);
+                                path.setAttribute('fill', 'none');
+                                path.setAttribute('stroke', `rgba(79, 70, 229, ${0.2 + (i / maxPaths) * 0.3})`);
+                                path.setAttribute('stroke-width', '1.5');
+                                svg.appendChild(path);
+                            }
+                        }
+                    }
+
+                    // Add axes
+                    const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    xAxis.setAttribute('x1', '25');
+                    xAxis.setAttribute('y1', yOffset);
+                    xAxis.setAttribute('x2', '775');
+                    xAxis.setAttribute('y2', yOffset);
+                    xAxis.setAttribute('stroke', '#d1d5db');
+                    xAxis.setAttribute('stroke-width', '1');
+                    svg.appendChild(xAxis);
+
+                    const yAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    yAxis.setAttribute('x1', '25');
+                    yAxis.setAttribute('y1', '50');
+                    yAxis.setAttribute('x2', '25');
+                    yAxis.setAttribute('y2', yOffset);
+                    yAxis.setAttribute('stroke', '#d1d5db');
+                    yAxis.setAttribute('stroke-width', '1');
+                    svg.appendChild(yAxis);
+
+                    // Add labels
+                    const xLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    xLabel.setAttribute('x', '400');
+                    xLabel.setAttribute('y', '310');
+                    xLabel.setAttribute('text-anchor', 'middle');
+                    xLabel.setAttribute('font-family', 'Arial, sans-serif');
+                    xLabel.setAttribute('font-size', '12');
+                    xLabel.setAttribute('fill', '#6b7280');
+                    xLabel.textContent = 'Time (Days)';
+                    svg.appendChild(xLabel);
+
+                    const yLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    yLabel.setAttribute('x', '15');
+                    yLabel.setAttribute('y', '160');
+                    yLabel.setAttribute('text-anchor', 'middle');
+                    yLabel.setAttribute('font-family', 'Arial, sans-serif');
+                    yLabel.setAttribute('font-size', '12');
+                    yLabel.setAttribute('fill', '#6b7280');
+                    yLabel.setAttribute('transform', 'rotate(-90, 15, 160)');
+                    yLabel.textContent = 'Portfolio Value';
+                    svg.appendChild(yLabel);
+
+                    // Add value labels
+                    const minLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    minLabel.setAttribute('x', '20');
+                    minLabel.setAttribute('y', yOffset + 5);
+                    minLabel.setAttribute('text-anchor', 'end');
+                    minLabel.setAttribute('font-family', 'Arial, sans-serif');
+                    minLabel.setAttribute('font-size', '10');
+                    minLabel.setAttribute('fill', '#9ca3af');
+                    minLabel.textContent = minValue.toFixed(0);
+                    svg.appendChild(minLabel);
+
+                    const maxLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    maxLabel.setAttribute('x', '20');
+                    maxLabel.setAttribute('y', '55');
+                    maxLabel.setAttribute('text-anchor', 'end');
+                    maxLabel.setAttribute('font-family', 'Arial, sans-serif');
+                    maxLabel.setAttribute('font-size', '10');
+                    maxLabel.setAttribute('fill', '#9ca3af');
+                    maxLabel.textContent = maxValue.toFixed(0);
+                    svg.appendChild(maxLabel);
+                }
+            }
+
+            // Add info text
+            const infoText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            infoText.setAttribute('x', '400');
+            infoText.setAttribute('y', '295');
+            infoText.setAttribute('text-anchor', 'middle');
+            infoText.setAttribute('font-family', 'Arial, sans-serif');
+            infoText.setAttribute('font-size', '10');
+            infoText.setAttribute('fill', '#9ca3af');
+            infoText.textContent = `Showing ${Math.min(20, simulationData.length)} of ${simulationData.length} simulation paths`;
+            svg.appendChild(infoText);
+        }
+
+        container.appendChild(svg);
+        console.log('[MONTE CARLO DEBUG] Fallback chart created and added to DOM');
+    }
+
+    renderMonteCarloChart(simulationData) {
+        console.log('[MONTE CARLO DEBUG] renderMonteCarloChart called with data:', simulationData?.length || 0, 'paths');
+
+        const ctx = document.getElementById('monteCarloChart');
+        if (!ctx) {
+            console.error('[MONTE CARLO DEBUG] Canvas element not found');
+            return;
+        }
+
+        console.log('[MONTE CARLO DEBUG] Canvas element found:', ctx);
+
+        // Check if Chart.js is available
+        if (typeof Chart === 'undefined') {
+            console.error('[MONTE CARLO DEBUG] Chart.js is not loaded');
+            return;
+        }
+
+        // Destroy existing chart if it exists
+        if (this.monteCarloChartInstance) {
+            console.log('[MONTE CARLO DEBUG] Destroying existing chart instance');
+            this.monteCarloChartInstance.destroy();
+        }
+
+        // Validate simulation data
+        if (!simulationData || !Array.isArray(simulationData) || simulationData.length === 0) {
+            console.error('[MONTE CARLO DEBUG] Invalid simulation data:', simulationData);
+            // Show placeholder message
+            ctx.getContext('2d').fillText('No simulation data available', 50, 50);
+            return;
+        }
+
+        // Downsample if too many paths for performance
+        const maxPaths = 100;
+        const pathsToShow = simulationData.slice(0, maxPaths);
+        console.log('[MONTE CARLO DEBUG] Showing', pathsToShow.length, 'paths');
+
+        // Validate path data
+        if (pathsToShow.length === 0 || !pathsToShow[0] || !Array.isArray(pathsToShow[0])) {
+            console.error('[MONTE CARLO DEBUG] Invalid path data structure:', pathsToShow[0]);
+            return;
+        }
+
+        const labels = Array.from({ length: pathsToShow[0]?.length || 0 }, (_, i) => i);
+        console.log('[MONTE CARLO DEBUG] Chart labels length:', labels.length);
+
+        const datasets = pathsToShow.map((path, i) => ({
+            label: `Path ${i + 1}`,
+            data: path,
+            borderColor: 'rgba(79, 70, 229, 0.1)', // Very transparent blue
+            borderWidth: 1,
+            pointRadius: 0,
+            fill: false
+        }));
+
+        console.log('[MONTE CARLO DEBUG] Created', datasets.length, 'datasets');
+
+        try {
+            this.monteCarloChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Days' } },
+                        y: { title: { display: true, text: 'Portfolio Value' } }
+                    },
+                    animation: false
+                }
+            });
+            console.log('[MONTE CARLO DEBUG] Chart created successfully:', this.monteCarloChartInstance);
+        } catch (error) {
+            console.error('[MONTE CARLO DEBUG] Chart creation failed:', error);
+            console.error('[MONTE CARLO DEBUG] Error stack:', error.stack);
+
+            // Show error message instead of fallback
+            console.log('[MONTE CARLO DEBUG] Chart creation failed, showing error');
+            const container = ctx.parentElement;
+            if (container) {
+                container.innerHTML = '<div class="text-center py-8 text-gray-500">Chart rendering failed. Please refresh and try again.</div>';
+            }
+        }
     }
 
     displaySectorAllocation(result, options) {
@@ -673,36 +1712,80 @@ class AnalyticsManager {
         container.classList.remove('hidden');
         const allocation = result.allocation || {};
         const sectorData = allocation.sector_allocation || {};
-        const geoData = allocation.geographic_allocation || {};
-        const styleData = allocation.style_analysis || {};
-        const diversification = allocation.diversification_metrics || {};
-        const summary = allocation.summary || {};
 
-        // Get current settings from stored settings or defaults
-        const storedSettings = window.analyticsCore?.sectorSettings || {};
-        const currentClassification = storedSettings.classification || options?.classification || summary.classification || 'GICS';
-        const currentView = storedSettings.view || options?.view || 'pie';
-        const currentCurrency = storedSettings.currency || options?.currency || summary.currency || 'USD';
-        const currentBenchmark = storedSettings.benchmark || options?.benchmark || summary.benchmark || 'SPY';
-        const currentPeriod = storedSettings.period || options?.period || summary.period || '1Y';
+        const sectors = Object.entries(sectorData).sort((a, b) => b[1] - a[1]);
+        const labels = sectors.map(s => s[0]);
+        const data = sectors.map(s => (s[1] * 100).toFixed(2));
+        const colors = [
+            '#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+            '#EC4899', '#6366F1', '#14B8A6', '#F97316', '#06B6D4'
+        ];
 
         container.innerHTML = `
-            <div class="p-4 bg-gray-50 rounded-lg">
-                <p class="text-gray-600">Sector Allocation results display is currently being updated.</p>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Sector Chart -->
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Sector Allocation</h3>
+                    <div class="h-64 relative">
+                        <canvas id="sectorPieChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Sector Table -->
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="px-4 py-3 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Sector Breakdown</h3>
+                    </div>
+                    <div class="overflow-y-auto max-h-64">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sector</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Weight</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${sectors.map((sector, i) => `
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                            <span class="inline-block w-3 h-3 rounded-full mr-2" style="background-color: ${colors[i % colors.length]}"></span>
+                                            ${sector[0]}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${(sector[1] * 100).toFixed(2)}%</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         `;
 
-        // Initialize sector charts if module is available
-        setTimeout(() => {
-            if (window.sectorCharts && Object.keys(sectorData).length > 0) {
-                console.log('Initializing sector charts with data:', sectorData);
-                window.sectorCharts.currentData = { sector_allocation: sectorData };
-                window.sectorCharts.currentView = 'pie'; // Set default view
-                window.sectorCharts.renderChart();
-            } else {
-                console.log('Sector charts not available or no data');
+        this.renderSectorChart(labels, data, colors);
+    }
+
+    renderSectorChart(labels, data, colors) {
+        const ctx = document.getElementById('sectorPieChart');
+        if (!ctx) return;
+
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right' }
+                }
             }
-        }, 200);
+        });
     }
 
     displayStatisticalAnalysis(result, options) {
@@ -711,25 +1794,119 @@ class AnalyticsManager {
 
         container.classList.remove('hidden');
         const analysis = result.statistical_analysis || result.analysis || {};
-        const portfolioStats = analysis.parameters || {};
         const riskMetrics = analysis.risk_metrics || {};
         const performanceMetrics = analysis.performance_metrics || {};
         const correlationAnalysis = analysis.correlation_analysis || {};
 
-        // Get current settings
-        const currentLookback = options?.lookback_period || 252;
-        const currentFrequency = options?.frequency || 'daily';
-        const currentBenchmark = options?.benchmark || 'SPY';
-        const currentConfidence = options?.confidence_level || 0.95;
+        // Helper for formatting
+        const fmtPct = (val) => (val * 100).toFixed(2) + '%';
+        const fmtNum = (val) => val.toFixed(2);
 
         container.innerHTML = `
-        <div class="p-4 bg-gray-50 rounded-lg">
-            <p class="text-gray-600">Statistical Analysis results display is currently being updated.</p>
-        </div>
-    `;
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Risk Metrics -->
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="px-4 py-3 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Risk Metrics</h3>
+                    </div>
+                    <div class="p-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-sm text-gray-500 block">Annual Volatility</span>
+                                <span class="text-lg font-semibold text-gray-900">${fmtPct(riskMetrics.annual_volatility || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Beta</span>
+                                <span class="text-lg font-semibold text-gray-900">${fmtNum(riskMetrics.beta || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Sharpe Ratio</span>
+                                <span class="text-lg font-semibold text-gray-900">${fmtNum(riskMetrics.sharpe_ratio || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Sortino Ratio</span>
+                                <span class="text-lg font-semibold text-gray-900">${fmtNum(riskMetrics.sortino_ratio || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Max Drawdown</span>
+                                <span class="text-lg font-semibold text-red-600">${fmtPct(riskMetrics.max_drawdown || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Value at Risk (95%)</span>
+                                <span class="text-lg font-semibold text-red-600">${fmtPct(riskMetrics.value_at_risk || 0)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Metrics -->
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="px-4 py-3 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-900">Performance Metrics</h3>
+                    </div>
+                    <div class="p-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-sm text-gray-500 block">Total Return</span>
+                                <span class="text-lg font-semibold ${performanceMetrics.total_return >= 0 ? 'text-green-600' : 'text-red-600'}">${fmtPct(performanceMetrics.total_return || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Annual Return</span>
+                                <span class="text-lg font-semibold ${performanceMetrics.annual_return >= 0 ? 'text-green-600' : 'text-red-600'}">${fmtPct(performanceMetrics.annual_return || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Alpha</span>
+                                <span class="text-lg font-semibold ${performanceMetrics.alpha >= 0 ? 'text-green-600' : 'text-red-600'}">${fmtPct(performanceMetrics.alpha || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Information Ratio</span>
+                                <span class="text-lg font-semibold text-gray-900">${fmtNum(performanceMetrics.information_ratio || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Win Rate</span>
+                                <span class="text-lg font-semibold text-gray-900">${fmtPct(performanceMetrics.win_rate || 0)}</span>
+                            </div>
+                            <div>
+                                <span class="text-sm text-gray-500 block">Profit Factor</span>
+                                <span class="text-lg font-semibold text-gray-900">${fmtNum(performanceMetrics.profit_factor || 0)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Correlation Matrix -->
+            <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Correlation Matrix</h3>
+                </div>
+                <div class="p-4 overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
+                                ${Object.keys(correlationAnalysis).map(s => `<th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">${s}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${Object.entries(correlationAnalysis).map(([rowSymbol, correlations]) => `
+                                <tr>
+                                    <td class="px-3 py-2 text-sm font-medium text-gray-900">${rowSymbol}</td>
+                                    ${Object.entries(correlations).map(([colSymbol, val]) => {
+            const bgClass = val === 1 ? 'bg-gray-100' :
+                val > 0.7 ? 'bg-red-100 text-red-800' :
+                    val > 0.3 ? 'bg-yellow-100 text-yellow-800' :
+                        val < -0.3 ? 'bg-green-100 text-green-800' : 'text-gray-500';
+            return `<td class="px-3 py-2 text-sm text-center ${bgClass}">${val.toFixed(2)}</td>`;
+        }).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
     }
-
-
 
     displayTechnicalIndicators(result, options) {
         const container = document.getElementById('analysisContent');
@@ -737,36 +1914,64 @@ class AnalyticsManager {
 
         container.classList.remove('hidden');
         const analysis = result.technical_analysis || {};
-        const parameters = analysis.parameters || {};
         const individualAnalysis = analysis.individual_analysis || {};
-        const portfolioSignals = analysis.portfolio_signals || {};
-        const summary = analysis.summary || {};
 
-        // Get current settings
-        const currentPeriod = options?.period || parameters.period || '6M';
-        const currentTimeframe = options?.timeframe || parameters.timeframe || 'Daily';
-        const currentIndicators = options?.indicators || parameters.indicators || ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'];
-        const currentRsiPeriod = options?.rsi_period || parameters.rsi_parameters?.period || 14;
-        const currentRsiOversold = options?.rsi_oversold || parameters.rsi_parameters?.oversold || 30;
-        const currentRsiOverbought = options?.rsi_overbought || parameters.rsi_parameters?.overbought || 70;
-        const currentMacdFast = options?.macd_fast || parameters.macd_parameters?.fast || 12;
-        const currentMacdSlow = options?.macd_slow || parameters.macd_parameters?.slow || 26;
-        const currentMacdSignal = options?.macd_signal || parameters.macd_parameters?.signal || 9;
-        const currentBbPeriod = options?.bb_period || parameters.bollinger_parameters?.period || 20;
-        const currentBbStd = options?.bb_std || parameters.bollinger_parameters?.std_dev || 2;
-        const currentSignalStrength = options?.signal_strength || parameters.signal_strength || 'Medium';
+        // Helper for signal color
+        const getSignalClass = (signal) => {
+            if (!signal) return 'bg-gray-100 text-gray-800';
+            const s = signal.toLowerCase();
+            if (s.includes('buy')) return 'bg-green-100 text-green-800';
+            if (s.includes('sell')) return 'bg-red-100 text-red-800';
+            return 'bg-yellow-100 text-yellow-800';
+        };
 
         container.innerHTML = `
-            <div class="p-4 bg-gray-50 rounded-lg">
-                <p class="text-gray-600">Technical Indicators results display is currently being updated.</p>
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Technical Signals</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overall Signal</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RSI</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MACD</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bollinger</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SMA Trend</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${Object.entries(individualAnalysis).map(([symbol, data]) => `
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${symbol}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getSignalClass(data.summary?.signal)}">
+                                            ${data.summary?.signal || 'Neutral'}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ${data.indicators?.rsi?.value?.toFixed(2) || 'N/A'}
+                                        <span class="text-xs ml-1 ${getSignalClass(data.indicators?.rsi?.signal)}">${data.indicators?.rsi?.signal || ''}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ${data.indicators?.macd?.histogram?.toFixed(2) || 'N/A'}
+                                        <span class="text-xs ml-1 ${getSignalClass(data.indicators?.macd?.signal)}">${data.indicators?.macd?.signal || ''}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span class="text-xs ${getSignalClass(data.indicators?.bollinger?.signal)}">${data.indicators?.bollinger?.signal || 'Neutral'}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span class="text-xs ${getSignalClass(data.indicators?.sma?.signal)}">${data.indicators?.sma?.signal || 'Neutral'}</span>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         `;
-    }
-
-    // Add missing display functions as class methods
-    // displayPnLAttribution removed to prevent conflict with specialized module
-    displayPnLAttribution(result, options) {
-        // No-op: Handled by pnl-attribution.js
     }
 
     displayTradePerformance(result, options) {
@@ -826,6 +2031,58 @@ class AnalyticsManager {
         console.log('Trade Timing result:', result);
     }
 
+    // Display market news
+    displayMarketNews(result) {
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        container.classList.remove('hidden');
+        const articles = result.articles || [];
+
+        container.innerHTML = `
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Market News</h3>
+            <button onclick="loadMarketNews(this)" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                Refresh News
+            </button>
+        </div>
+        <div class="space-y-4">
+            ${articles.map(article => `
+                <div class="border-b border-gray-200 pb-4 last:border-0">
+                    <h4 class="text-md font-medium text-gray-900 mb-1">${article.title}</h4>
+                    <p class="text-sm text-gray-600 mb-2">${article.summary || ''}</p>
+                    <div class="flex justify-between items-center text-xs text-gray-500">
+                        <span>${article.source || 'Unknown Source'}</span>
+                        <span>${article.published_at ? new Date(article.published_at).toLocaleDateString() : ''}</span>
+                    </div>
+                    ${article.url && article.url !== '#' ? `
+                        <a href="${article.url}" target="_blank" class="text-indigo-600 hover:text-indigo-800 text-sm mt-2 inline-block">Read More</a>
+                    ` : ''}
+                </div>
+            `).join('')}
+        </div>
+        ${articles.length === 0 ? `
+            <p class="text-gray-500 text-center py-4">No news articles available</p>
+        ` : ''}
+    `;
+    }
+
+    displayPnLAttribution(result, options) {
+        console.log('PnL Attribution result:', result);
+        if (window.loadPnlAttribution) {
+            const transactions = this.transactionData || window.currentTransactions || [];
+            window.loadPnlAttribution(transactions);
+        }
+    }
+
+    displayAccountingAnalysis(result, options) {
+        console.log('Accounting Analysis result:', result);
+        if (window.loadAccountingAnalysis) {
+            const transactions = this.transactionData || window.currentTransactions || [];
+            window.loadAccountingAnalysis(transactions);
+        }
+    }
+
     displayDrawdownAnalysis(result, options) {
         console.log('[DEBUG] Analytics Manager displayDrawdownAnalysis called with:', result);
         console.log('[DEBUG] Options:', options);
@@ -849,7 +2106,7 @@ class AnalyticsManager {
         // Extract attribution data from result
         const attribution = result.return_attribution || result.attribution || result;
         const effects = attribution.attribution_effects || attribution.effects || attribution;
-        
+
         console.log('[RETURN ATTRIBUTION] Extracted attribution:', attribution);
         console.log('[RETURN ATTRIBUTION] Extracted effects:', effects);
 
@@ -1131,6 +2388,8 @@ class AnalyticsManager {
     }
 
 
+
+
     displayStrategyBacktesting(result, options) {
         const container = document.getElementById('analysisContent');
         if (!container) return;
@@ -1189,46 +2448,160 @@ class AnalyticsManager {
     displayCorrelationAnalysis(result, options) {
         const container = document.getElementById('analysisContent');
         if (!container) return;
-
-        container.classList.remove('hidden');
-        const correlation = result.correlation_matrix || {};
-        const summary = result.summary || {};
-
-        console.log('[CORRELATION DISPLAY] Received result:', { summary, options });
-
-        // Get current settings from options or summary
+        
+        const correlationData = result.correlation_analysis || result;
+        const correlation = correlationData.correlation_matrix || {};
+        const summary = correlationData.summary || {};
+        const symbols = Object.keys(correlation);
+        
         const currentPeriod = options?.period || summary.period || '1Y';
         const currentFrequency = options?.frequency || summary.frequency || 'Daily';
         const currentMethod = options?.method || summary.method || 'pearson';
-        const currentRollingWindow = options?.rolling_window || summary.rolling_window || '30d';
-
-        console.log('[CORRELATION DISPLAY] Using settings:', { currentPeriod, currentFrequency, currentMethod, currentRollingWindow });
-
-        // Get symbols for matrix display
-        const symbols = Object.keys(correlation);
-
+        const currentRollingWindow = options?.rolling_window || '30d';
+        
         container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Correlation Analysis</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleCorrelationSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
+                    </button>
+                    <button onclick="updateCorrelationAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
                         Refresh
+                    </button>
+                </div>
+            </div>
             
+            <div id="correlationSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="correlationPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                            <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="2Y" ${currentPeriod === '2Y' ? 'selected' : ''}>2 Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select id="correlationFrequency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                            <option value="Daily" ${currentFrequency === 'Daily' ? 'selected' : ''}>Daily</option>
+                            <option value="Weekly" ${currentFrequency === 'Weekly' ? 'selected' : ''}>Weekly</option>
+                            <option value="Monthly" ${currentFrequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
+                        <select id="correlationMethod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                            <option value="pearson" ${currentMethod === 'pearson' ? 'selected' : ''}>Pearson</option>
+                            <option value="spearman" ${currentMethod === 'spearman' ? 'selected' : ''}>Spearman</option>
+                            <option value="kendall" ${currentMethod === 'kendall' ? 'selected' : ''}>Kendall</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rolling Window</label>
+                        <select id="correlationRollingWindow" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                            <option value="30d" ${currentRollingWindow === '30d' ? 'selected' : ''}>30 days</option>
+                            <option value="60d" ${currentRollingWindow === '60d' ? 'selected' : ''}>60 days</option>
+                            <option value="90d" ${currentRollingWindow === '90d' ? 'selected' : ''}>90 days</option>
+                            <option value="252d" ${currentRollingWindow === '252d' ? 'selected' : ''}>252 days</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
             
-                
-                ${symbols.length > 0 ? `
-                                        ${symbols.map(symbol => `<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">${symbol}</th>`).join('')}
-                                    ${symbols.map(symbol1 => `
-                                            ${symbols.map(symbol2 => {
-            const corrValue = correlation[symbol1]?.[symbol2] || 0;
-            const colorClass = symbol1 === symbol2 ? 'bg-gray-100' :
-                corrValue > 0.7 ? 'bg-red-100 text-red-800' :
-                    corrValue > 0.3 ? 'bg-yellow-100 text-yellow-800' :
-                        corrValue < -0.3 ? 'bg-green-100 text-green-800' :
-                            'bg-blue-100 text-blue-800';
-            return `<td class="px-4 py-2 whitespace-nowrap text-sm text-center ${colorClass}">${window.analyticsCore.formatNumber(corrValue)}</td>`;
-        }).join('')}
-                                    `).join('')}
-                ` : '<p class="text-gray-500 text-center py-4">No correlation data available</p>'}
-                
-                    `;
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Average Correlation</h3>
+                    <p class="text-3xl font-bold ${(summary.average_correlation || 0) > 0.7 ? 'text-red-600' : (summary.average_correlation || 0) > 0.3 ? 'text-yellow-600' : 'text-green-600'}">
+                        ${(summary.average_correlation || 0).toFixed(3)}
+                    </p>
+                    <p class="text-sm text-gray-600 mt-1">${(summary.average_correlation || 0) > 0.7 ? 'High correlation' : (summary.average_correlation || 0) > 0.3 ? 'Moderate correlation' : 'Low correlation'}</p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Max Correlation</h3>
+                    <p class="text-3xl font-bold ${(summary.max_correlation || 0) > 0.8 ? 'text-red-600' : 'text-blue-600'}">
+                        ${(summary.max_correlation || 0).toFixed(3)}
+                    </p>
+                    <p class="text-sm text-gray-600 mt-1">Highest pair correlation</p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Min Correlation</h3>
+                    <p class="text-3xl font-bold ${(summary.min_correlation || 0) < -0.3 ? 'text-green-600' : 'text-blue-600'}">
+                        ${(summary.min_correlation || 0).toFixed(3)}
+                    </p>
+                    <p class="text-sm text-gray-600 mt-1">Lowest pair correlation</p>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Data Points</h3>
+                    <p class="text-3xl font-bold text-blue-600">
+                        ${summary.data_points || 'N/A'}
+                    </p>
+                    <p class="text-sm text-gray-600 mt-1">${symbols.length} symbols analyzed</p>
+                </div>
+            </div>
+            
+            ${symbols.length > 0 ? `
+                <div class="bg-white rounded-lg shadow p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Correlation Matrix</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
+                                    ${symbols.map(symbol => `<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">${symbol}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${symbols.map(symbol1 => `
+                                    <tr>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${symbol1}</td>
+                                        ${symbols.map(symbol2 => {
+                                            const corrValue = correlation[symbol1]?.[symbol2] || 0;
+                                            const colorClass = symbol1 === symbol2 ? 'bg-gray-100' : 
+                                                             corrValue > 0.7 ? 'bg-red-100 text-red-800' :
+                                                             corrValue > 0.3 ? 'bg-yellow-100 text-yellow-800' :
+                                                             corrValue < -0.3 ? 'bg-green-100 text-green-800' :
+                                                             'bg-blue-100 text-blue-800';
+                                            return `<td class="px-4 py-2 whitespace-nowrap text-sm text-center ${colorClass}">${corrValue.toFixed(3)}</td>`;
+                                        }).join('')}
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 text-sm text-gray-600">
+                        <div class="flex flex-wrap gap-4">
+                            <div class="flex items-center"><div class="w-4 h-4 bg-red-100 border mr-2"></div>Strong Positive (>0.7)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-yellow-100 border mr-2"></div>Moderate Positive (0.3-0.7)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-blue-100 border mr-2"></div>Weak (-0.3-0.3)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-green-100 border mr-2"></div>Negative (<-0.3)</div>
+                        </div>
+                    </div>
+                </div>
+            ` : '<div class="bg-white rounded-lg shadow p-6 mb-6"><p class="text-gray-500 text-center">No correlation data available</p></div>'}
+            
+            <div class="bg-gray-50 rounded-lg p-6">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentPeriod}</span></div>
+                    <div><span class="text-gray-600">Frequency:</span> <span class="font-medium text-gray-900">${currentFrequency}</span></div>
+                    <div><span class="text-gray-600">Method:</span> <span class="font-medium text-gray-900">${currentMethod}</span></div>
+                    <div><span class="text-gray-600">Rolling Window:</span> <span class="font-medium text-gray-900">${currentRollingWindow}</span></div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
+                    <div><span class="text-gray-600">Data Points:</span> <span class="font-medium text-gray-900">${summary.data_points || 'N/A'}</span></div>
+                    <div><span class="text-gray-600">Symbols:</span> <span class="font-medium text-gray-900">${symbols.length}</span></div>
+                    <div><span class="text-gray-600">Data Source:</span> <span class="font-medium text-gray-900">${correlationData.data_source || 'Market Data'}</span></div>
+                    <div><span class="text-gray-600">High Pairs:</span> <span class="font-medium text-gray-900">${correlationData.high_correlation_pairs?.length || 0}</span></div>
+                </div>
+            </div>
+        `;
     }
 
     // Load market news
@@ -1358,41 +2731,7 @@ class AnalyticsManager {
         }
     }
 
-    // Display market news
-    displayMarketNews(result) {
-        const container = document.getElementById('analysisContent');
-        if (!container) return;
 
-        container.classList.remove('hidden');
-        const articles = result.articles || [];
-
-        container.innerHTML = `
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">Market News</h3>
-            <button onclick="loadMarketNews(this)" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                Refresh News
-            </button>
-        </div>
-        <div class="space-y-4">
-            ${articles.map(article => `
-                <div class="border-b border-gray-200 pb-4 last:border-0">
-                    <h4 class="text-md font-medium text-gray-900 mb-1">${article.title}</h4>
-                    <p class="text-sm text-gray-600 mb-2">${article.summary || ''}</p>
-                    <div class="flex justify-between items-center text-xs text-gray-500">
-                        <span>${article.source || 'Unknown Source'}</span>
-                        <span>${article.published_at ? new Date(article.published_at).toLocaleDateString() : ''}</span>
-                    </div>
-                    ${article.url && article.url !== '#' ? `
-                        <a href="${article.url}" target="_blank" class="text-indigo-600 hover:text-indigo-800 text-sm mt-2 inline-block">Read More</a>
-                    ` : ''}
-                </div>
-            `).join('')}
-        </div>
-        ${articles.length === 0 ? `
-            <p class="text-gray-500 text-center py-4">No news articles available</p>
-        ` : ''}
-    `;
-    }
 }
 
 // Create global instance
@@ -1617,10 +2956,10 @@ window.updateReturnAttribution = () => {
 window.updateRiskAnalysis = () => {
     // Get settings values from form - no fallbacks
     const period = document.getElementById('riskPeriod')?.value;
-    const varConfidence = parseFloat(document.getElementById('riskVarConfidence')?.value);
+    const varConfidence = parseFloat(document.getElementById('riskConfidence')?.value);
     const riskModel = document.getElementById('riskModel')?.value;
     const benchmark = document.getElementById('riskBenchmark')?.value;
-    const rollingWindow = parseInt(document.getElementById('riskRollingWindow')?.value);
+    const rollingWindow = parseInt(document.getElementById('riskWindow')?.value);
 
     // Validate required settings
     if (!period || !varConfidence || !riskModel || !benchmark || !rollingWindow) {
@@ -1660,13 +2999,15 @@ window.updateOptionsAnalysis = () => {
         return;
     }
 
+    if (!window.analyticsCore) window.analyticsCore = {};
     window.analyticsCore.optionsSettings = {
         expiration,
         moneyness,
-        min_premium: minPremium,
+        min_premium: parseFloat(minPremium),
         delta_range: deltaRange
     };
 
+    console.log('[OPTIONS] Updating with settings:', window.analyticsCore.optionsSettings);
     window.analyticsManager.loadModule('options-strategies');
 };
 
@@ -1710,17 +3051,15 @@ window.toggleOptimizationSettings = () => {
 };
 
 window.updatePortfolioOptimization = () => {
-    const objective = document.getElementById('optimizationObjective')?.value;
-    const constraint = document.getElementById('optimizationConstraint')?.value;
-    const rebalancing = document.getElementById('optimizationRebalancing')?.value;
-    const riskBudget = document.getElementById('optimizationRiskBudget')?.value;
-    const lookback = document.getElementById('optimizationLookback')?.value;
+    const objective = document.getElementById('optimizationObjective')?.value || 'max_sharpe';
+    const constraint = document.getElementById('optimizationConstraint')?.value || 'long_only';
+    const rebalancing = document.getElementById('optimizationRebalancing')?.value || 'quarterly';
+    const riskBudget = document.getElementById('optimizationRiskBudget')?.value || 'equal';
+    const lookback = document.getElementById('optimizationLookback')?.value || '1Y';
 
-    if (!objective || !constraint || !rebalancing || !riskBudget || !lookback) {
-        console.error('Missing required optimization settings');
-        return;
-    }
+    console.log('[OPTIMIZATION UPDATE] Settings:', { objective, constraint, rebalancing, riskBudget, lookback });
 
+    if (!window.analyticsCore) window.analyticsCore = {};
     window.analyticsCore.optimizationSettings = {
         objective,
         constraint,
@@ -1729,6 +3068,7 @@ window.updatePortfolioOptimization = () => {
         lookback_period: lookback
     };
 
+    console.log('[OPTIMIZATION UPDATE] Stored settings:', window.analyticsCore.optimizationSettings);
     window.analyticsManager.loadModule('portfolio-optimization');
 };
 
@@ -2002,6 +3342,11 @@ window.toggleBacktestingSettings = () => {
     if (settings) {
         settings.classList.toggle('hidden');
     }
+};
+
+// Alias for compatibility
+window.toggleBacktestSettings = () => {
+    return window.toggleBacktestingSettings();
 };
 
 window.updateStrategyBacktesting = async () => {

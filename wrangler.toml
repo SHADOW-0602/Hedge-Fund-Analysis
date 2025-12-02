@@ -1,0 +1,21 @@
+name = "hedge-fund-analysis"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["python_workers"]
+
+[env.production]
+name = "hedge-fund-analysis"
+
+[env.production.vars]
+FLASK_ENV = "production"
+PORT = "8080"
+
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-namespace-id"
+
+[build]
+command = "pip install -r requirements.txt"
+
+# Custom domain configuration
+route = { pattern = "shmventures.org", custom_domain = true }
+route = { pattern = "www.shmventures.org", custom_domain = true }

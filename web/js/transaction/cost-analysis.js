@@ -14,7 +14,7 @@ async function loadCostAnalysis(transactions) {
         console.error('analysisContent container not found');
         return;
     }
-    
+
     // Show the container
     container.classList.remove('hidden');
 
@@ -185,7 +185,7 @@ function displayCostAnalysis(data) {
     const commissions = data.total_commissions || 0;
     const spreads = data.total_spreads || 0;
     const slippage = data.total_slippage || 0;
-    
+
     if (totalCosts === 0 && commissions === 0 && spreads === 0 && slippage === 0) {
         contentDiv.innerHTML = `
             <div class="bg-white rounded-lg shadow p-8 text-center">
@@ -199,7 +199,7 @@ function displayCostAnalysis(data) {
         `;
         return;
     }
-    
+
     const currencySymbol = '$';
     let breakdownHtml = '';
     const breakdownType = currentCostOptions.breakdown || 'By Symbol';
@@ -306,3 +306,5 @@ function showError(message) {
 
 // Export for global access
 window.loadCostAnalysis = loadCostAnalysis;
+window.toggleCostSettings = toggleCostSettings;
+window.updateCostAnalysis = updateCostOptions;

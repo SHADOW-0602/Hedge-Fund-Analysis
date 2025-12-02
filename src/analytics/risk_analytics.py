@@ -239,16 +239,23 @@ class RiskAnalyzer:
         if len(returns_subset) < 2 or len(available_symbols) < 2:
             corr_matrix = pd.DataFrame()
         else:
-            with np.errstate(divide='ignore', invalid='ignore'):
-                corr_matrix = returns_subset.corr()
-            corr_matrix = corr_matrix.fillna(0)
+            try:
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    # Ensure data is numeric before correlation calculation
+                    numeric_returns = returns_subset.select_dtypes(include=[np.number])
+                    corr_matrix = numeric_returns.corr()
+                # Replace NaN and inf values with 0
+                corr_matrix = corr_matrix.replace([np.inf, -np.inf], 0).fillna(0)
+            except Exception as e:
+                logger.warning(f"Correlation calculation failed: {e}")
+                corr_matrix = pd.DataFrame()
         
         # Calculate VaR and CVaR with configurable confidence levels
         var_percentile = (1 - var_confidence) * 100
         var_val = None
         cvar_val = None
         
-        if len(portfolio_returns) > 30 and not portfolio_returns.empty:
+        if len(portfolio_returns) > 10 and not portfolio_returns.empty:
             if risk_model == "historical":
                 # Historical VaR using actual return distribution
                 var_val = np.percentile(portfolio_returns, var_percentile)
@@ -272,17 +279,22 @@ class RiskAnalyzer:
                 var_val = np.percentile(simulated_returns, var_percentile)
                 cvar_val = simulated_returns[simulated_returns <= var_val].mean()
             
-            # Validate results
-            if var_val is not None and (np.isnan(var_val) or np.isnan(cvar_val)):
-                var_val = None
-                cvar_val = None
+            # Validate results with safe type checking
+            if var_val is not None:
+                try:
+                    if np.isnan(float(var_val)) or np.isnan(float(cvar_val)):
+                        var_val = None
+                        cvar_val = None
+                except (TypeError, ValueError):
+                    var_val = None
+                    cvar_val = None
         else:
             var_val = None
             cvar_val = None
         
         # Calculate accurate Beta using market data
         benchmark_returns = returns[self.benchmark_symbol] if self.benchmark_symbol in returns.columns else pd.Series()
-        if not benchmark_returns.empty and len(portfolio_returns) > 30:
+        if not benchmark_returns.empty and len(portfolio_returns) > 10:
             beta_val = self._calculate_accurate_beta(available_symbols, available_weights, period)
             if beta_val is not None:
                 print(f"Accurate Beta Calculation: {beta_val:.4f}")
@@ -294,15 +306,33 @@ class RiskAnalyzer:
             cov_matrix = pd.DataFrame()
             portfolio_vol = 0.0
         else:
-            # Apply rolling window for volatility calculation if different from default
-            if rolling_window != 252 and len(returns_subset) > rolling_window:
-                returns_subset = returns_subset.tail(rolling_window)
-                portfolio_returns = (returns_subset * weight_array).sum(axis=1)
-            
-            with np.errstate(divide='ignore', invalid='ignore'):
-                cov_matrix = returns_subset.cov() * 252
-            cov_matrix = cov_matrix.fillna(0)
-            portfolio_vol = np.sqrt(max(np.dot(weight_array.T, np.dot(cov_matrix, weight_array)), 1e-8))
+            try:
+                # Apply rolling window for volatility calculation if different from default
+                if rolling_window != 252 and len(returns_subset) > rolling_window:
+                    returns_subset = returns_subset.tail(rolling_window)
+                    portfolio_returns = (returns_subset * weight_array).sum(axis=1)
+                
+                # Ensure numeric data for covariance calculation
+                numeric_returns = returns_subset.select_dtypes(include=[np.number])
+                
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    cov_matrix = numeric_returns.cov() * 252
+                
+                # Replace NaN and inf values with 0
+                cov_matrix = cov_matrix.replace([np.inf, -np.inf], 0).fillna(0)
+                
+                # Calculate portfolio volatility safely
+                try:
+                    portfolio_var = np.dot(weight_array.T, np.dot(cov_matrix.values, weight_array))
+                    portfolio_vol = np.sqrt(max(float(portfolio_var), 1e-8))
+                except Exception as vol_e:
+                    logger.warning(f"Portfolio volatility calculation failed: {vol_e}")
+                    portfolio_vol = 0.0
+                    
+            except Exception as e:
+                logger.warning(f"Covariance matrix calculation failed: {e}")
+                cov_matrix = pd.DataFrame()
+                portfolio_vol = 0.0
         
         # Log high volatility but don't cap it - use real market data
         if portfolio_vol > 0.6:
@@ -335,7 +365,7 @@ class RiskAnalyzer:
         result = {
             'portfolio_volatility': self._safe_value(portfolio_vol),
             'individual_volatilities': {k: self._safe_value(v) for k, v in (returns_subset.std() * np.sqrt(252)).fillna(0).to_dict().items()},
-            'avg_correlation': self._safe_value(corr_matrix.values[np.triu_indices_from(corr_matrix.values, k=1)].mean()) if len(available_symbols) > 1 and not corr_matrix.empty else 0.0,
+            'avg_correlation': self._calculate_avg_correlation(corr_matrix, available_symbols),
             'correlation_matrix': {k: {k2: self._safe_value(v2) for k2, v2 in v.items()} for k, v in corr_matrix.fillna(0).to_dict().items()} if not corr_matrix.empty else {},
             'var_5': self._safe_value(var_val) if var_val is not None else None,
             'cvar_5': self._safe_value(cvar_val) if cvar_val is not None else None,
@@ -345,8 +375,8 @@ class RiskAnalyzer:
             'risk_model': risk_model,
             'benchmark': benchmark,
             'rolling_window': rolling_window,
-            'sharpe_ratio': self._calculate_sharpe_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 30 else None,
-            'sortino_ratio': self._calculate_sortino_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 30 else None,
+            'sharpe_ratio': self._calculate_sharpe_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 10 else None,
+            'sortino_ratio': self._calculate_sortino_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 10 else None,
             'max_drawdown': self._safe_value(drawdown_metrics.get('max_drawdown', 0.0)),
             'current_drawdown': self._safe_value(drawdown_metrics.get('current_drawdown', 0.0)),
             'recovery_days': drawdown_metrics.get('recovery_days'),
@@ -376,7 +406,7 @@ class RiskAnalyzer:
             from utils.fed_rate import get_risk_free_rate
             risk_free_rate = get_risk_free_rate()
         
-        if len(returns) < 30:  # Need sufficient data
+        if len(returns) < 10:  # Need sufficient data
             return None
         annualized_return = returns.mean() * 252
         annualized_volatility = returns.std() * np.sqrt(252)
@@ -447,9 +477,14 @@ class RiskAnalyzer:
     
     def _safe_value(self, value):
         """Ensure value is not NaN or infinite"""
-        if np.isnan(value) or np.isinf(value):
+        try:
+            # Convert to float first to handle various input types
+            float_val = float(value)
+            if np.isnan(float_val) or np.isinf(float_val):
+                return 0.0
+            return float_val
+        except (TypeError, ValueError):
             return 0.0
-        return float(value)
     
     def _safe_ratio(self, numerator, denominator):
         """Safe division that handles NaN and zero denominator"""
@@ -516,7 +551,10 @@ class RiskAnalyzer:
                 print(f"Sharpe Debug - Portfolio return range: {portfolio_returns.min():.6f} to {portfolio_returns.max():.6f}")
                 print(f"Sharpe Debug - Number of extreme daily returns (>5%): {len(portfolio_returns[abs(portfolio_returns) > 0.05])}")
             
-            if np.isnan(sharpe) or np.isinf(sharpe):
+            try:
+                if np.isnan(float(sharpe)) or np.isinf(float(sharpe)):
+                    return None
+            except (TypeError, ValueError):
                 return None
             return self._safe_value(sharpe)
         return None
@@ -613,7 +651,7 @@ class RiskAnalyzer:
             from utils.fed_rate import get_risk_free_rate
             risk_free_rate = get_risk_free_rate()
         
-        if len(portfolio_returns) < 30:
+        if len(portfolio_returns) < 10:
             return 0.0
         
         daily_mean = portfolio_returns.mean()
@@ -758,3 +796,26 @@ class RiskAnalyzer:
         
         if std_return > 0.10:  # >10% daily volatility
             print(f"Portfolio Validation - WARNING: Very high daily volatility: {std_return*100:.2f}%")
+    
+    def _calculate_avg_correlation(self, corr_matrix: pd.DataFrame, available_symbols: List[str]) -> float:
+        """Safely calculate average correlation from correlation matrix"""
+        try:
+            if len(available_symbols) <= 1 or corr_matrix.empty:
+                return 0.0
+            
+            # Get upper triangular indices (excluding diagonal)
+            upper_tri_indices = np.triu_indices_from(corr_matrix.values, k=1)
+            upper_tri_values = corr_matrix.values[upper_tri_indices]
+            
+            # Filter out NaN and inf values
+            valid_values = upper_tri_values[np.isfinite(upper_tri_values)]
+            
+            if len(valid_values) > 0:
+                avg_corr = np.mean(valid_values)
+                return self._safe_value(avg_corr)
+            else:
+                return 0.0
+                
+        except Exception as e:
+            logger.warning(f"Average correlation calculation failed: {e}")
+            return 0.0

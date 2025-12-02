@@ -320,7 +320,17 @@ def register_plaid_routes(app):
     def delete_plaid_connection():
         try:
             user_id = get_real_user_id()
-            plaid_supabase_manager.delete_plaid_connection(user_id)
-            return jsonify({'success': True, 'message': 'Plaid connection deleted permanently'})
+            data = request.get_json() or {}
+            connection_id = data.get('connection_id')
+            
+            if not connection_id:
+                return jsonify({'success': False, 'error': 'Connection ID is required'}), 400
+                
+            success = plaid_supabase_manager.delete_plaid_connection(user_id, connection_id)
+            
+            if success:
+                return jsonify({'success': True, 'message': 'Plaid connection deleted permanently'})
+            else:
+                return jsonify({'success': False, 'error': 'Failed to delete connection'}), 500
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500

@@ -185,7 +185,7 @@ class PlaidSupabaseManager:
                 return False
             
             result = supabase_client.service_client.table('plaid_connections')\
-                .update({'is_active': False})\
+                .delete()\
                 .eq('user_id', user_id)\
                 .eq('connection_id', connection_id)\
                 .execute()

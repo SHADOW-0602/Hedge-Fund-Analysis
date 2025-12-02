@@ -829,98 +829,208 @@
     <script src="js/transaction/tax-analysis.js"></script>
     <script src="js/transaction/cash-flow-analysis.js"></script>
     <script src="js/transaction/accounting-analysis.js"></script>
+    <script src="js/transaction/drawdown-analysis.js"></script>
+    ```
+    </div>
+
+    <!-- Trade Timing Analysis - Permanent Section -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-900">Trade Timing Analysis</h3>
+            <button onclick="toggleTradeTimingSettings()" class="settings-button text-gray-500 hover:text-gray-700">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                        clip-rule="evenodd"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Trade Timing Settings Panel -->
+        <div id="tradeTimingSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                    <select id="timingPeriod" class="w-full p-2 border rounded-md text-sm">
+                        <option value="1M">1 Month</option>
+                        <option value="3M">3 Months</option>
+                        <option value="6M">6 Months</option>
+                        <option value="1Y" selected>1 Year</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Time Buckets</label>
+                    <select id="timingBuckets" class="w-full p-2 border rounded-md text-sm">
+                        <option value="Market Open" selected>Market Open</option>
+                        <option value="Mid-day">Mid-day</option>
+                        <option value="Close">Close</option>
+                        <option value="After-hours">After-hours</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Day of Week</label>
+                    <select id="timingDayOfWeek" class="w-full p-2 border rounded-md text-sm">
+                        <option value="All" selected>All Days</option>
+                        <option value="Monday">Monday</option>
+                        <option value="Tuesday">Tuesday</option>
+                        <option value="Wednesday">Wednesday</option>
+                        <option value="Thursday">Thursday</option>
+                        <option value="Friday">Friday</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Performance</label>
+                    <select id="timingPerformance" class="w-full p-2 border rounded-md text-sm">
+                        <option value="By time" selected>By time</option>
+                        <option value="By day">By day</option>
+                        <option value="Combined">Combined</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button onclick="updateTradeTimingAnalysis()"
+                    class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                    Update Analysis
+                </button>
+            </div>
+        </div>
+
+        <div id="tradeTimingAnalysis"></div>
+    </div>
+
+    <!-- Drawdown Analysis - Permanent Section -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-900">Drawdown Analysis</h3>
+            <button onclick="toggleDrawdownSettings()" class="settings-button text-gray-500 hover:text-gray-700">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                        clip-rule="evenodd"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Drawdown Settings Panel -->
+        <div id="drawdownSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                    <select id="drawdownPeriod" class="w-full p-2 border rounded-md text-sm">
+                        <option value="3M">3 Months</option>
+                        <option value="6M">6 Months</option>
+                        <option value="1Y" selected>1 Year</option>
+                        <option value="2Y">2 Years</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                    <select id="drawdownFrequency" class="w-full p-2 border rounded-md text-sm">
+                        <option value="Daily" selected>Daily</option>
+                        <option value="Weekly">Weekly</option>
+                        <option value="Monthly">Monthly</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Recovery Time</label>
+                    <select id="drawdownRecovery" class="w-full p-2 border rounded-md text-sm">
+                        <option value="Days" selected>Days to recover</option>
+                        <option value="Weeks">Weeks to recover</option>
+                        <option value="Months">Months to recover</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button onclick="updateDrawdownAnalysis()"
+                    class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                    Update Analysis
+                </button>
+            </div>
+        </div>
+
+        <div id="drawdownAnalysis"></div>
+    </div>
+
+    <!-- Cash Flow Analysis - Permanent Section -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div id="cashFlowAnalysis"></div>
+    </div>
+
+    <!-- Return Attribution - Permanent Section -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-900">Return Attribution</h3>
+            <button onclick="toggleReturnAttributionSettings()"
+                class="settings-button text-gray-500 hover:text-gray-700">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
+                        clip-rule="evenodd"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Return Attribution Settings Panel -->
+        <div id="returnAttributionSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                    <select id="returnPeriod" class="w-full p-2 border rounded-md text-sm">
+                        <option value="1M">1 Month</option>
+                        <option value="3M">3 Months</option>
+                        <option value="6M">6 Months</option>
+                        <option value="1Y" selected>1 Year</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Attribution</label>
+                    <select id="returnAttributionSelect" class="w-full p-2 border rounded-md text-sm">
+                        <option value="Asset Allocation" selected>Asset Allocation</option>
+                        <option value="Security Selection">Security Selection</option>
+                        <option value="Timing">Timing</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                    <select id="returnBenchmark" class="w-full p-2 border rounded-md text-sm">
+                        <option value="Index" selected>Index</option>
+                        <option value="Peer group">Peer group</option>
+                        <option value="Custom">Custom</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button onclick="updateReturnAttribution()"
+                    class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
+                    Update Analysis
+                </button>
+            </div>
+        </div>
+
+        <div id="returnAttributionAnalysis"></div>
+    </div>
+    </div>
+    </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="utils.js"></script>
+    <script src="index-scripts.js"></script>
+    <script src="js/core/app-core.js"></script>
+    <script src="js/modules/transaction-analytics.js"></script>
+    <script src="js/transaction/pnl-attribution.js"></script>
+    <script src="js/transaction/trade-performance.js"></script>
+    <script src="js/transaction/cost-analysis.js"></script>
+    <script src="js/transaction/turnover-analysis.js"></script>
+    <script src="js/transaction/tax-analysis.js"></script>
+    <script src="js/transaction/cash-flow-analysis.js"></script>
+    <script src="js/transaction/accounting-analysis.js"></script>
+    <script src="js/transaction/drawdown-analysis.js"></script>
+    <script src="js/transaction/trade-timing-analysis.js"></script>
+    <script src="js/transaction/simplified-return-attribution.js"></script>
     <script src="js/utils/ui-helpers.js"></script>
 
 
-    <script>
-        // Settings panel toggle functions
-        function togglePnLSettings() {
-            const panel = document.getElementById('pnlSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        function toggleTradeSettings() {
-            const panel = document.getElementById('tradeSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        function toggleCostSettings() {
-            const panel = document.getElementById('costSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        function toggleTurnoverSettings() {
-            const panel = document.getElementById('turnoverSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        function toggleTaxSettings() {
-            const panel = document.getElementById('taxSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        function toggleCashFlowSettings() {
-            const panel = document.getElementById('cashFlowSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        function toggleAccountingSettings() {
-            const panel = document.getElementById('accountingSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        function toggleTradeTimingSettings() {
-            const panel = document.getElementById('tradeTimingSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        function toggleDrawdownSettings() {
-            const panel = document.getElementById('drawdownSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        function toggleReturnAttributionSettings() {
-            const panel = document.getElementById('returnAttributionSettings');
-            panel.classList.toggle('hidden');
-        }
-
-        // Update functions for each analysis type
-        function updatePnLAttribution() {
-            console.log('Updating P&L Attribution with new settings');
-        }
-
-        function updateTradePerformance() {
-            console.log('Updating Trade Performance with new settings');
-        }
-
-        function updateCostAnalysis() {
-            console.log('Updating Cost Analysis with new settings');
-        }
-
-        function updateTurnoverAnalysis() {
-            console.log('Updating Turnover Analysis with new settings');
-        }
-
-        function updateTaxAnalysis() {
-            console.log('Updating Tax Analysis with new settings');
-        }
-
-        function updateAccountingAnalysis() {
-            console.log('Updating Accounting Analysis with new settings');
-        }
-
-        function updateTradeTimingAnalysis() {
-            console.log('Updating Trade Timing Analysis with new settings');
-        }
-
-        function updateDrawdownAnalysis() {
-            console.log('Updating Drawdown Analysis with new settings');
-        }
-
-        function updateReturnAttribution() {
-            console.log('Updating Return Attribution with new settings');
-        }
-    </script>
 </body>
 
 </html>
