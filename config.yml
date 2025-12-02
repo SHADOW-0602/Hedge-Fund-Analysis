@@ -1,0 +1,9 @@
+tunnel: 282af2a8-8f76-4a88-871f-74182482b930
+credentials-file: C:\Users\kusha\.cloudflared\282af2a8-8f76-4a88-871f-74182482b930.json
+
+ingress:
+  - hostname: shmventures.org
+    service: http://localhost:8080
+  - hostname: www.shmventures.org
+    service: http://localhost:8080
+  - service: http_status:404
