@@ -15,7 +15,3 @@ id = "your-kv-namespace-id"
 
 [build]
 command = "python -m pip install --upgrade pip && pip install -r requirements.txt"
-
-# Custom domain configuration
-route = { pattern = "shmventures.org", custom_domain = true }
-route = { pattern = "www.shmventures.org", custom_domain = true }
