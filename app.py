@@ -58,10 +58,24 @@ try:
         collect_financial_data, subscribe_email, unsubscribe_email,
         get_subscriptions
     )
+    # Helper to wrap News view functions so they always return a Response-like value
+    def _ensure_response(fn):
+        def _wrapped(*args, **kwargs):
+            try:
+                result = fn(*args, **kwargs)
+                if result is None:
+                    from flask import jsonify
+                    return jsonify({'error': 'No response from handler'}), 500
+                return result
+            except Exception as e:
+                from flask import jsonify
+                return jsonify({'error': str(e)}), 500
+        _wrapped.__name__ = getattr(fn, '__name__', 'wrapped_view')
+        return _wrapped
     
     # Register News app routes (avoiding duplicates with main_app.py)
-    app.add_url_rule('/api/stock-metrics/<ticker>', 'news_stock_metrics', get_stock_metrics, methods=['GET'])
-    app.add_url_rule('/api/price/<ticker>', 'news_price_data', get_price_data, methods=['GET'])
+    app.add_url_rule('/api/stock-metrics/<ticker>', 'news_stock_metrics', _ensure_response(get_stock_metrics), methods=['GET'])
+    app.add_url_rule('/api/price/<ticker>', 'news_price_data', _ensure_response(get_price_data), methods=['GET'])
     app.add_url_rule('/api/chart-data/<ticker>', 'news_chart_data', get_chart_data_detailed, methods=['GET'])
     app.add_url_rule('/api/news/<ticker>', 'news_articles', get_news_articles, methods=['GET'])
     app.add_url_rule('/api/financials/<ticker>', 'news_financials', get_financial_statements, methods=['GET'])
@@ -81,7 +95,7 @@ try:
     app.add_url_rule('/api/debug/chart-apis/<ticker>', 'news_debug_chart', debug_chart_apis, methods=['GET'])
     app.add_url_rule('/api/pexels-image', 'news_pexels_image', get_pexels_image_endpoint, methods=['GET'])
     app.add_url_rule('/api/refresh/<ticker>', 'news_refresh', refresh_ticker, methods=['GET', 'POST'])
-    app.add_url_rule('/api/yahoo-financials/<ticker>', 'news_yahoo_financials', get_yahoo_financials, methods=['GET'])
+    app.add_url_rule('/api/yahoo-financials/<ticker>', 'news_yahoo_financials', _ensure_response(get_yahoo_financials), methods=['GET'])
     app.add_url_rule('/api/financials/<ticker>/collect', 'news_collect_financials', collect_financial_data, methods=['GET'])
     app.add_url_rule('/api/unsubscribe', 'news_unsubscribe', unsubscribe_email, methods=['POST'])
     app.add_url_rule('/api/subscriptions', 'news_subscriptions', get_subscriptions, methods=['GET'])
@@ -100,7 +114,7 @@ try:
         from flask import jsonify
         try:
             from News.database import db as news_db
-            tickers = news_db.get_tickers()
+            tickers = news_db.get_tickers() or []
             return jsonify({
                 'success': True,
                 'message': f'Found {len(tickers)} tickers'
@@ -110,14 +124,20 @@ try:
     
     print("[SUCCESS] News app routes integrated (duplicates avoided)")
 except Exception as e:
-    print(f"[WARNING] News app integration failed: {e}")
+    import traceback
+    print(f"[CRITICAL WARNING] News app integration failed: {e}")
+    traceback.print_exc()
 
 # Ensure News templates are accessible
-if not hasattr(app, 'jinja_loader'):
-    from flask.templating import FileSystemLoader
-    news_templates = os.path.join(os.path.dirname(__file__), 'News', 'templates')
-    web_templates = os.path.join(os.path.dirname(__file__), 'web')
-    app.jinja_loader = FileSystemLoader([news_templates, web_templates])
+from jinja2 import ChoiceLoader, FileSystemLoader
+news_templates = os.path.join(os.path.dirname(__file__), 'News', 'templates')
+web_templates = os.path.join(os.path.dirname(__file__), 'web')
+# Combine the existing loader (if present) with our additional template paths
+existing_loader = getattr(app, 'jinja_loader', None)
+if existing_loader:
+    app.jinja_env.loader = ChoiceLoader([existing_loader, FileSystemLoader([news_templates, web_templates])])
+else:
+    app.jinja_env.loader = FileSystemLoader([news_templates, web_templates])
 
 # Export app for deployment
 app = app

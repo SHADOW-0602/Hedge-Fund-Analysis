@@ -427,7 +427,21 @@ def register_transaction_routes(app):
             
             try:
                 print(f"[DEBUG] Querying transactions table for user_id: {user_id}")
-                result = supabase_client.client.table('transactions').select('*').eq('user_id', user_id).execute()
+                
+                # Retry logic for intermittent HTTP/2 KeyError
+                max_retries = 3
+                result = None
+                for attempt in range(max_retries):
+                    try:
+                        result = supabase_client.client.table('transactions').select('*').eq('user_id', user_id).execute()
+                        break  # Success
+                    except KeyError as ke:
+                        print(f"[RETRY] HTTP/2 KeyError on attempt {attempt + 1}/{max_retries}: {ke}")
+                        if attempt == max_retries - 1:
+                            raise  # Last attempt, re-raise
+                        import time
+                        time.sleep(0.1 * (attempt + 1))  # Exponential backoff
+                
                 transactions = result.data or []
                 print(f"[DEBUG] Found {len(transactions)} transactions")
                 return jsonify({'success': True, 'transactions': transactions})

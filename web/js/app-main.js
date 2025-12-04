@@ -7,7 +7,7 @@ async function connectPlaid() {
         }
 
         // Get link token from backend
-        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080/api'}/create-link-token`, {
+        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/create-link-token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: window.currentUser?.user_id || 'demo_user' })
@@ -25,7 +25,7 @@ async function connectPlaid() {
                     }
 
                     // Exchange public token
-                    const exchangeResponse = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080/api'}/exchange-token`, {
+                    const exchangeResponse = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/exchange-token`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -39,7 +39,7 @@ async function connectPlaid() {
                     if (exchangeData.success) {
                         try {
                             // Load portfolio data
-                            const portfolioResponse = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080/api'}/plaid-portfolio?user_id=${window.currentUser?.user_id || 'demo_user'}`);
+                            const portfolioResponse = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-portfolio?user_id=${window.currentUser?.user_id || 'demo_user'}`);
 
                             if (portfolioResponse.ok) {
                                 const portfolioData = await portfolioResponse.json();

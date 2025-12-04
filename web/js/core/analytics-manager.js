@@ -1426,19 +1426,28 @@ class AnalyticsManager {
 
     displayStrategyBacktesting(result, options) {
         console.log('[AnalyticsManager] displayStrategyBacktesting received result:', result);
+        console.log('[AnalyticsManager] displayStrategyBacktesting received options:', options);
 
         // Try to find the specific container, or fallback to generic analysis container
         let container = document.getElementById('strategyBacktesting') ||
             document.getElementById('backtestingResults') ||
             document.getElementById('analysisContent');
 
+        console.log('[AnalyticsManager] Container found:', container?.id || 'NONE');
+
         if (!container) {
             console.error('[AnalyticsManager] No suitable container found for strategy backtesting');
+            console.error('[AnalyticsManager] Available elements:', {
+                strategyBacktesting: !!document.getElementById('strategyBacktesting'),
+                backtestingResults: !!document.getElementById('backtestingResults'),
+                analysisContent: !!document.getElementById('analysisContent')
+            });
             return;
         }
 
         // If using the generic container, clear it first (removes spinner)
         if (container.id === 'analysisContent') {
+            console.log('[AnalyticsManager] Using analysisContent container, creating wrapper');
             container.innerHTML = '';
             // Create a wrapper to match expected structure if needed, or just render directly
             const wrapper = document.createElement('div');
@@ -1447,13 +1456,31 @@ class AnalyticsManager {
             container = wrapper;
         }
 
+        console.log('[AnalyticsManager] Final container for rendering:', container.id);
+
 
 
         const backtestResults = result.backtesting_results || result.results || result;
         const performanceMetrics = backtestResults.performance_metrics || {};
         const riskMetrics = backtestResults.risk_metrics || {};
         const equityCurve = backtestResults.equity_curve || [];
-        const parameters = result.parameters || options || {};
+
+        // Get parameters from multiple sources with proper fallbacks
+        const apiParams = result.parameters || {};
+        const settingsParams = window.analyticsCore?.backtestSettings || {};
+
+        // Merge parameters with priority: API response > stored settings > defaults
+        const parameters = {
+            period: apiParams.backtest_period || apiParams.period || settingsParams.period || '6M',
+            rebalancing: apiParams.rebalancing || settingsParams.rebalancing || 'Quarterly',
+            transactionCosts: apiParams.transaction_costs !== undefined ? apiParams.transaction_costs :
+                (apiParams.transactionCosts !== undefined ? apiParams.transactionCosts :
+                    (settingsParams.transactionCosts !== undefined ? settingsParams.transactionCosts : 0.001)),
+            benchmark: apiParams.benchmark || settingsParams.benchmark || 'SPY',
+            riskModel: apiParams.risk_model || settingsParams.riskModel || 'historical'
+        };
+
+        console.log('[AnalyticsManager] Final parameters for display:', parameters);
 
         // Helper for formatting with color coding
         const fmtPct = (val) => {
@@ -1509,44 +1536,42 @@ class AnalyticsManager {
             </div>
 
             <div id="backtestSettings" class="settings-panel hidden mb-6">
-                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Backtest Period</label>
-                            <select id="backtestPeriod" class="w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 rounded-md text-sm" onchange="window.updateStrategyBacktesting()">
-                                <option value="6M" ${parameters.backtest_period === '6M' ? 'selected' : ''}>6 Months</option>
-                                <option value="1Y" ${parameters.backtest_period === '1Y' || !parameters.backtest_period ? 'selected' : ''}>1 Year</option>
-                                <option value="3Y" ${parameters.backtest_period === '3Y' ? 'selected' : ''}>3 Years</option>
-                                <option value="5Y" ${parameters.backtest_period === '5Y' ? 'selected' : ''}>5 Years</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Rebalancing</label>
-                            <select id="backtestRebalancing" class="w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 rounded-md text-sm" onchange="window.updateStrategyBacktesting()">
-                                <option value="Monthly" ${parameters.rebalancing === 'Monthly' ? 'selected' : ''}>Monthly</option>
-                                <option value="Quarterly" ${parameters.rebalancing === 'Quarterly' || !parameters.rebalancing ? 'selected' : ''}>Quarterly</option>
-                                <option value="Semi-annual" ${parameters.rebalancing === 'Semi-annual' ? 'selected' : ''}>Semi-annual</option>
-                                <option value="Annually" ${parameters.rebalancing === 'Annually' ? 'selected' : ''}>Annually</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Costs</label>
-                            <select id="backtestCosts" class="w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 rounded-md text-sm" onchange="window.updateStrategyBacktesting()">
-                                <option value="0%" ${parseFloat(parameters.transaction_costs) === 0 ? 'selected' : ''}>0%</option>
-                                <option value="0.1%" ${parseFloat(parameters.transaction_costs) === 0.1 || parameters.transaction_costs === undefined ? 'selected' : ''}>0.1%</option>
-                                <option value="0.25%" ${parseFloat(parameters.transaction_costs) === 0.25 ? 'selected' : ''}>0.25%</option>
-                                <option value="0.5%" ${parseFloat(parameters.transaction_costs) === 0.5 ? 'selected' : ''}>0.5%</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
-                            <select id="backtestBenchmark" class="w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 rounded-md text-sm" onchange="window.updateStrategyBacktesting()">
-                                <option value="SPY" ${parameters.benchmark === 'SPY' || !parameters.benchmark ? 'selected' : ''}>S&P 500 (SPY)</option>
-                                <option value="QQQ" ${parameters.benchmark === 'QQQ' ? 'selected' : ''}>Nasdaq 100 (QQQ)</option>
-                                <option value="IWM" ${parameters.benchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
-                                <option value="AGG" ${parameters.benchmark === 'AGG' ? 'selected' : ''}>US Aggregate Bond (AGG)</option>
-                            </select>
-                        </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Backtest Period</label>
+                        <select id="backtestPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateStrategyBacktesting()">
+                            <option value="6M" ${parameters.period === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${parameters.period === '1Y' || !parameters.period ? 'selected' : ''}>1 Year</option>
+                            <option value="3Y" ${parameters.period === '3Y' ? 'selected' : ''}>3 Years</option>
+                            <option value="5Y" ${parameters.period === '5Y' ? 'selected' : ''}>5 Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rebalancing</label>
+                        <select id="backtestRebalancing" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateStrategyBacktesting()">
+                            <option value="Monthly" ${parameters.rebalancing === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                            <option value="Quarterly" ${parameters.rebalancing === 'Quarterly' || !parameters.rebalancing ? 'selected' : ''}>Quarterly</option>
+                            <option value="Semi-annual" ${parameters.rebalancing === 'Semi-annual' ? 'selected' : ''}>Semi-annual</option>
+                            <option value="Annually" ${parameters.rebalancing === 'Annually' ? 'selected' : ''}>Annually</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Costs</label>
+                        <select id="backtestCosts" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateStrategyBacktesting()">
+                            <option value="0.000" ${parameters.transactionCosts === 0 ? 'selected' : ''}>0%</option>
+                            <option value="0.001" ${parameters.transactionCosts === 0.001 || parameters.transactionCosts === undefined ? 'selected' : ''}>0.1%</option>
+                            <option value="0.0025" ${parameters.transactionCosts === 0.0025 ? 'selected' : ''}>0.25%</option>
+                            <option value="0.005" ${parameters.transactionCosts === 0.005 ? 'selected' : ''}>0.5%</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                        <select id="backtestBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateStrategyBacktesting()">
+                            <option value="SPY" ${parameters.benchmark === 'SPY' || !parameters.benchmark ? 'selected' : ''}>S&P 500 (SPY)</option>
+                            <option value="QQQ" ${parameters.benchmark === 'QQQ' ? 'selected' : ''}>Nasdaq 100 (QQQ)</option>
+                            <option value="IWM" ${parameters.benchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
+                            <option value="AGG" ${parameters.benchmark === 'AGG' ? 'selected' : ''}>US Aggregate Bond (AGG)</option>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -1604,10 +1629,10 @@ class AnalyticsManager {
             <div class="details-box mt-6 mb-6">
                 <h4 class="section-header">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div><span class="detail-label">Period:</span> <span class="detail-value">${parameters.backtest_period || '1Y'}</span></div>
-                    <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${parameters.rebalancing || 'Quarterly'}</span></div>
-                    <div><span class="detail-label">Costs:</span> <span class="detail-value">${parameters.transaction_costs || '0.1%'}</span></div>
-                    <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${parameters.benchmark || 'SPY'}</span></div>
+                    <div><span class="detail-label">Period:</span> <span class="detail-value">${parameters.period}</span></div>
+                    <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${parameters.rebalancing}</span></div>
+                    <div><span class="detail-label">Costs:</span> <span class="detail-value">${(parameters.transactionCosts * 100).toFixed(2)}%</span></div>
+                    <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${parameters.benchmark}</span></div>
                 </div>
             </div>
         `;
@@ -2153,7 +2178,7 @@ window.runStatisticalAnalysisWithSettings = async () => {
     }
 
     try {
-        const response = await fetch('http://127.0.0.1:8080/api/statistical-analysis', {
+        const response = await fetch(`${window.API_BASE || window.location.origin}/api/statistical-analysis`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2277,7 +2302,7 @@ window.updateTechnicalAnalysis = async () => {
     }
 
     try {
-        const response = await fetch('http://127.0.0.1:8080/api/technical-analysis?' + Date.now(), {
+        const response = await fetch(`${window.API_BASE || window.location.origin}/api/technical-analysis?` + Date.now(), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -2334,14 +2359,33 @@ window.toggleBacktestingSettings = window.toggleBacktestSettings;
 
 window.updateStrategyBacktesting = () => {
     console.log('[UI] updateStrategyBacktesting triggered');
-    const period = document.getElementById('backtestPeriod')?.value;
-    const rebalancing = document.getElementById('backtestRebalancing')?.value;
-    const costs = document.getElementById('backtestCosts')?.value;
-    const benchmark = document.getElementById('backtestBenchmark')?.value;
 
+    // Update settings object (like P&L Attribution's updatePnlOptions)
+    const period = document.getElementById('backtestPeriod')?.value || '6M';
+    const rebalancing = document.getElementById('backtestRebalancing')?.value || 'Quarterly';
+    const costs = parseFloat(document.getElementById('backtestCosts')?.value || '0.001');
+    const benchmark = document.getElementById('backtestBenchmark')?.value || 'SPY';
+
+    // Save to analyticsCore.backtestSettings (persistent storage)
     if (window.analyticsCore) {
-        window.analyticsCore.backtestSettings = { backtest_period: period, rebalancing, transaction_costs: costs, benchmark };
-        console.log('[UI] backtestSettings set to', window.analyticsCore.backtestSettings);
+        window.analyticsCore.backtestSettings = {
+            period: period,
+            rebalancing: rebalancing,
+            transactionCosts: costs,
+            benchmark: benchmark,
+            riskModel: 'historical'
+        };
+        console.log('[UI] Updated backtestSettings:', window.analyticsCore.backtestSettings);
+
+        // Reload analysis with new settings
         window.analyticsManager.loadModule('strategy-backtesting');
+    } else {
+        console.error('[UI] window.analyticsCore not available');
     }
 };
+
+// Initialize Analytics Manager instance
+window.analyticsManager = new AnalyticsManager();
+document.addEventListener('DOMContentLoaded', () => {
+    window.analyticsManager.initialize();
+});
