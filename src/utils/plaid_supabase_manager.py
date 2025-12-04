@@ -27,17 +27,31 @@ class PlaidSupabaseManager:
         os.makedirs("user_secrets", exist_ok=True)
         
         try:
-            if os.path.exists(key_file):
+            # Priority 1: Environment variable (for production/Northflank)
+            env_key = os.getenv('ENCRYPTION_KEY')
+            if env_key:
+                # Handle both raw string and bytes
+                self.key = env_key.encode() if isinstance(env_key, str) else env_key
+                logger.info("Using encryption key from environment variable")
+            
+            # Priority 2: File-based key (for local development)
+            elif os.path.exists(key_file):
                 with open(key_file, 'rb') as f:
                     self.key = f.read()
+                logger.info("Using encryption key from file")
+            
+            # Priority 3: Generate new key (first run local)
             else:
                 self.key = Fernet.generate_key()
                 try:
                     with open(key_file, 'wb') as f:
                         f.write(self.key)
+                    logger.info("Generated and saved new encryption key")
                 except (IOError, OSError) as e:
                     logger.error(f"Failed to write encryption key file: {e}")
-                    raise
+                    # In production without env var, this is critical but we proceed with ephemeral key
+                    logger.warning("Using ephemeral encryption key - data will be unreadable after restart!")
+                    
         except Exception as e:
             logger.error(f"Failed to initialize encryption key: {e}")
             raise
