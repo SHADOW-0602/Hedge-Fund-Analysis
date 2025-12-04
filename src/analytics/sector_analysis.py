@@ -11,10 +11,10 @@ from sector_mapper import SectorMapper
 
 # Try to import MarketDataClient with fallback
 try:
-    from ..clients.market_data_client import MarketDataClient
+    from clients.market_data_client import MarketDataClient
 except ImportError:
     try:
-        from clients.market_data_client import MarketDataClient
+        from ..clients.market_data_client import MarketDataClient
     except ImportError:
         # Create a minimal fallback class
         class MarketDataClient:

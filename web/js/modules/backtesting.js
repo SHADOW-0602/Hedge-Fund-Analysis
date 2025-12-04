@@ -3,7 +3,8 @@ let currentBacktestOptions = {
     period: '1Y',
     rebalancing: 'Quarterly',
     transactionCosts: 0.1,
-    benchmark: 'SPY'
+    benchmark: 'SPY',
+    riskModel: 'historical'
 };
 
 class BacktestingManager {
@@ -20,10 +21,11 @@ class BacktestingManager {
         const payload = {
             portfolio: portfolioData,
             options: {
-                backtest_period: options.period || '1Y',
+                period: options.period || '1Y',
                 rebalancing: options.rebalancing || 'Quarterly',
-                transaction_costs: options.transactionCosts || 0.1,
-                benchmark: options.benchmark || 'SPY'
+                transactionCosts: options.transactionCosts || 0.1,
+                benchmark: options.benchmark || 'SPY',
+                riskModel: options.riskModel || 'historical'
             }
         };
 
@@ -58,6 +60,44 @@ class BacktestingManager {
         const risk = results.risk_metrics || {};
         const summary = results.summary || {};
 
+        // Helper function to get color based on value and type
+        const getValueColor = (value, type) => {
+            if (value === null || value === undefined || isNaN(value)) return 'text-gray-500';
+            
+            switch (type) {
+                case 'return':
+                    return value >= 0 ? 'text-green-600' : 'text-red-600';
+                case 'ratio':
+                    if (value >= 1.5) return 'text-green-600';
+                    if (value >= 1.0) return 'text-yellow-600';
+                    if (value >= 0.5) return 'text-orange-600';
+                    return 'text-red-600';
+                case 'drawdown':
+                    if (Math.abs(value) <= 0.05) return 'text-green-600';
+                    if (Math.abs(value) <= 0.10) return 'text-yellow-600';
+                    if (Math.abs(value) <= 0.20) return 'text-orange-600';
+                    return 'text-red-600';
+                case 'volatility':
+                    if (value <= 0.10) return 'text-green-600';
+                    if (value <= 0.20) return 'text-yellow-600';
+                    if (value <= 0.30) return 'text-orange-600';
+                    return 'text-red-600';
+                case 'winrate':
+                    if (value >= 70) return 'text-green-600';
+                    if (value >= 60) return 'text-yellow-600';
+                    if (value >= 50) return 'text-orange-600';
+                    return 'text-red-600';
+                case 'beta':
+                    if (value >= 0.8 && value <= 1.2) return 'text-blue-600';
+                    if (value >= 0.5 && value <= 1.5) return 'text-yellow-600';
+                    return 'text-red-600';
+                default:
+                    return 'text-gray-600';
+            }
+        };
+
+        const winRate = parseFloat(this.calculateWinRate(results));
+
         let html = `
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Performance Metrics -->
@@ -66,26 +106,26 @@ class BacktestingManager {
                     <div class="space-y-3">
                         <div class="flex justify-between">
                             <span class="text-gray-600">Total Return</span>
-                            <span class="font-semibold ${(performance.total_return || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">
+                            <span class="font-semibold ${getValueColor(performance.total_return, 'return')}">
                                 ${((performance.total_return || 0) * 100).toFixed(2)}%
                             </span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">Annual Return</span>
-                            <span class="font-semibold ${(performance.annualized_return || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">
+                            <span class="font-semibold ${getValueColor(performance.annualized_return, 'return')}">
                                 ${((performance.annualized_return || 0) * 100).toFixed(2)}%
                             </span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">Volatility</span>
-                            <span class="font-semibold text-blue-600">
+                            <span class="font-semibold ${getValueColor(performance.volatility, 'volatility')}">
                                 ${((performance.volatility || 0) * 100).toFixed(2)}%
                             </span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">Win Rate</span>
-                            <span class="font-semibold text-purple-600">
-                                ${this.calculateWinRate(results)}%
+                            <span class="font-semibold ${getValueColor(winRate, 'winrate')}">
+                                ${winRate.toFixed(2)}%
                             </span>
                         </div>
                     </div>
@@ -97,25 +137,25 @@ class BacktestingManager {
                     <div class="space-y-3">
                         <div class="flex justify-between">
                             <span class="text-gray-600">Sharpe Ratio</span>
-                            <span class="font-semibold text-blue-600">
+                            <span class="font-semibold ${getValueColor(performance.sharpe_ratio, 'ratio')}">
                                 ${(performance.sharpe_ratio || 0).toFixed(2)}
                             </span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">Sortino Ratio</span>
-                            <span class="font-semibold text-indigo-600">
+                            <span class="font-semibold ${getValueColor(performance.sortino_ratio || risk.sortino_ratio, 'ratio')}">
                                 ${(performance.sortino_ratio || risk.sortino_ratio || 0).toFixed(2)}
                             </span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">Max Drawdown</span>
-                            <span class="font-semibold text-red-600">
+                            <span class="font-semibold ${getValueColor(risk.max_drawdown, 'drawdown')}">
                                 ${((risk.max_drawdown || 0) * 100).toFixed(2)}%
                             </span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">Calmar Ratio</span>
-                            <span class="font-semibold text-green-600">
+                            <span class="font-semibold ${getValueColor(risk.calmar_ratio, 'ratio')}">
                                 ${(risk.calmar_ratio || 0).toFixed(2)}
                             </span>
                         </div>
@@ -128,19 +168,19 @@ class BacktestingManager {
                     <div class="space-y-3">
                         <div class="flex justify-between">
                             <span class="text-gray-600">Benchmark Return</span>
-                            <span class="font-semibold ${(performance.benchmark_return || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">
+                            <span class="font-semibold ${getValueColor(performance.benchmark_return, 'return')}">
                                 ${((performance.benchmark_return || 0) * 100).toFixed(2)}%
                             </span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">Excess Return</span>
-                            <span class="font-semibold ${(performance.excess_return || 0) >= 0 ? 'text-green-600' : 'text-red-600'}">
+                            <span class="font-semibold ${getValueColor(performance.excess_return, 'return')}">
                                 ${((performance.excess_return || 0) * 100).toFixed(2)}%
                             </span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">Beta</span>
-                            <span class="font-semibold text-blue-600">
+                            <span class="font-semibold ${getValueColor(performance.beta, 'beta')}">
                                 ${(performance.beta || 0).toFixed(2)}
                             </span>
                         </div>
@@ -149,25 +189,20 @@ class BacktestingManager {
             </div>
 
             <!-- Backtest Parameters -->
-            <div class="mt-6 bg-gray-50 rounded-lg p-4">
-                <h4 class="text-lg font-semibold text-gray-900 mb-3">Backtest Parameters</h4>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                        <span class="font-medium text-gray-700">Period:</span>
-                        <span class="ml-2">${summary.backtest_period || 'N/A'}</span>
-                    </div>
-                    <div>
-                        <span class="font-medium text-gray-700">Rebalancing:</span>
-                        <span class="ml-2">${summary.rebalancing_frequency || 'N/A'}</span>
-                    </div>
-                    <div>
-                        <span class="font-medium text-gray-700">Transaction Costs:</span>
-                        <span class="ml-2">${summary.transaction_cost_rate || '0%'}</span>
-                    </div>
-                    <div>
-                        <span class="font-medium text-gray-700">Data Points:</span>
-                        <span class="ml-2">${summary.total_periods || 'N/A'}</span>
-                    </div>
+            <div class="mt-6 bg-gray-50 rounded-lg p-6">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${summary.backtest_period}</span></div>
+                    <div><span class="text-gray-600">Rebalancing:</span> <span class="font-medium text-gray-900">${summary.rebalancing_frequency}</span></div>
+                    <div><span class="text-gray-600">Transaction Costs:</span> <span class="font-medium text-gray-900">${summary.transaction_cost_rate}</span></div>
+                    <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium text-gray-900">${summary.benchmark}</span></div>
+                    <div><span class="text-gray-600">Risk Model:</span> <span class="font-medium text-gray-900">${summary.risk_model}</span></div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
+                    <div><span class="text-gray-600">Data Points:</span> <span class="font-medium text-gray-900">${results.portfolio_returns?.length || 0}</span></div>
+                    <div><span class="text-gray-600">Start Date:</span> <span class="font-medium text-gray-900">${summary.start_date || new Date(Date.now() - 365*24*60*60*1000).toISOString().split('T')[0]}</span></div>
+                    <div><span class="text-gray-600">End Date:</span> <span class="font-medium text-gray-900">${summary.end_date || new Date().toISOString().split('T')[0]}</span></div>
+                    <div><span class="text-gray-600">Symbols:</span> <span class="font-medium text-gray-900">${summary.symbols ? summary.symbols.join(', ') : (summary.symbols_count || 0)}</span></div>
                 </div>
             </div>
         `;
@@ -211,7 +246,7 @@ class BacktestingManager {
             
             <!-- Backtest Settings Panel -->
             <div id="backtestSettings" class="settings-panel hidden mb-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
                         <select id="backtestPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateBacktestOptions()">
@@ -248,6 +283,14 @@ class BacktestingManager {
                             <option value="VTI" ${currentBacktestOptions.benchmark === 'VTI' ? 'selected' : ''}>Total Stock Market (VTI)</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risk Model</label>
+                        <select id="riskModel" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateBacktestOptions()">
+                            <option value="historical" ${currentBacktestOptions.riskModel === 'historical' ? 'selected' : ''}>Historical</option>
+                            <option value="parametric" ${currentBacktestOptions.riskModel === 'parametric' ? 'selected' : ''}>Parametric</option>
+                            <option value="monte_carlo" ${currentBacktestOptions.riskModel === 'monte_carlo' ? 'selected' : ''}>Monte Carlo</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             
@@ -271,8 +314,12 @@ function updateBacktestOptions() {
         period: document.getElementById('backtestPeriod')?.value || '1Y',
         rebalancing: document.getElementById('rebalancing')?.value || 'Quarterly',
         transactionCosts: parseFloat(document.getElementById('transactionCosts')?.value || '0.1'),
-        benchmark: document.getElementById('benchmark')?.value || 'SPY'
+        benchmark: document.getElementById('benchmark')?.value || 'SPY',
+        riskModel: document.getElementById('riskModel')?.value || 'historical'
     };
+    
+    // Don't auto-run, just update options
+    console.log('Backtest options updated:', currentBacktestOptions);
 }
 
 // Global functions for HTML onclick handlers
@@ -312,6 +359,14 @@ async function runStrategyBacktest() {
     }
 }
 
+// Settings toggle function
+function toggleBacktestSettings() {
+    const settingsPanel = document.getElementById('backtestSettings');
+    if (settingsPanel) {
+        settingsPanel.classList.toggle('hidden');
+    }
+}
+
 function showBacktestError(message) {
     const contentDiv = document.getElementById('backtestContent');
     if (contentDiv) {
@@ -336,6 +391,6 @@ function loadStrategyBacktesting(portfolioData) {
 
 // Global functions
 window.loadStrategyBacktesting = loadStrategyBacktesting;
-window.toggleBacktestSettings = () => document.getElementById('backtestSettings')?.classList.toggle('hidden');
+window.toggleBacktestSettings = toggleBacktestSettings;
 window.updateBacktestOptions = updateBacktestOptions;
 window.runStrategyBacktest = runStrategyBacktest;

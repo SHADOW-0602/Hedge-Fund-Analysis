@@ -415,23 +415,32 @@ def register_transaction_routes(app):
         print("[DEBUG] load_transactions route called")
         try:
             user_id = request.args.get('user_id')
+            print(f"[DEBUG] load_transactions user_id: {user_id}")
             
             if not supabase_client or not supabase_client.client:
+                print("[DEBUG] Supabase client not available")
                 return jsonify({'success': True, 'transactions': []})
             
             if not user_id:
+                print("[DEBUG] No user_id provided")
                 return jsonify({'success': True, 'transactions': []})
             
             try:
+                print(f"[DEBUG] Querying transactions table for user_id: {user_id}")
                 result = supabase_client.client.table('transactions').select('*').eq('user_id', user_id).execute()
                 transactions = result.data or []
+                print(f"[DEBUG] Found {len(transactions)} transactions")
                 return jsonify({'success': True, 'transactions': transactions})
             except Exception as e:
                 print(f"Transaction load error: {e}")
+                import traceback
+                traceback.print_exc()
                 return jsonify({'success': True, 'transactions': []})
             
         except Exception as e:
             print(f"Transaction load outer error: {e}")
+            import traceback
+            traceback.print_exc()
             return jsonify({'success': True, 'transactions': []})
 
     @app.route('/api/get-transactions', methods=['GET'])

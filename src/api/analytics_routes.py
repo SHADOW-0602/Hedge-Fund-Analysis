@@ -565,8 +565,12 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             benchmark = options.get('benchmark', 'SPY')
             confidence_level = float(options.get('confidence_level', 0.95))
             
-            # Convert lookback days to period format
-            if isinstance(lookback_days, int):
+            # Handle lookback_period parameter - accept both string periods and integer days
+            if isinstance(lookback_days, str):
+                # Frontend sends string periods like '3M', '6M', '1Y', '2Y', '3Y'
+                lookback_period = lookback_days
+            elif isinstance(lookback_days, int):
+                # Convert integer days to period format
                 if lookback_days <= 63:
                     lookback_period = '3M'
                 elif lookback_days <= 126:
@@ -697,3 +701,5 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             import traceback
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
+
+

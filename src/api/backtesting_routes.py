@@ -1,4 +1,5 @@
 from flask import request, jsonify
+from datetime import datetime, timedelta
 from .route_utils import sanitize_for_json, extract_valid_symbols, calculate_portfolio_weights
 
 def register_backtesting_routes(app, data_client, smart_cache=None):
@@ -43,15 +44,16 @@ def register_backtesting_routes(app, data_client, smart_cache=None):
                 return jsonify({'success': False, 'error': 'No valid symbols found'}), 400
             
             # Parse parameters
-            backtest_period = options.get('backtest_period', '1Y')
+            backtest_period = options.get('period', options.get('backtest_period', '1Y'))
             rebalancing = options.get('rebalancing', 'Quarterly')
-            transaction_costs_str = options.get('transaction_costs', '0.1%')
+            transaction_costs_str = options.get('transactionCosts', options.get('transaction_costs', 0.1))
             # Handle both string and numeric transaction costs
             if isinstance(transaction_costs_str, str):
                 transaction_costs = float(transaction_costs_str.replace('%', ''))
             else:
                 transaction_costs = float(transaction_costs_str)
             benchmark = options.get('benchmark', 'SPY')
+            risk_model = options.get('riskModel', options.get('risk_model', 'historical'))
             
             print(f"Backtesting Parameters: period={backtest_period}, rebalancing={rebalancing}, costs={transaction_costs}%, benchmark={benchmark}")
             print(f"Portfolio: {len(symbols)} symbols, total value: ${total_value:,.2f}")
@@ -62,8 +64,27 @@ def register_backtesting_routes(app, data_client, smart_cache=None):
             # Run backtest
             results = backtester.backtest_strategy(
                 symbols, weights, backtest_period, rebalancing, 
-                transaction_costs, benchmark
+                transaction_costs, benchmark, risk_model
             )
+            
+            # Update results summary with route-level data
+            if 'summary' in results:
+                results['summary'].update({
+                    'symbols': symbols,
+                    'symbols_count': len(symbols),
+                    'total_value': total_value
+                })
+            else:
+                results['summary'] = {
+                    'backtest_period': backtest_period,
+                    'rebalancing_frequency': rebalancing,
+                    'transaction_cost_rate': f'{transaction_costs}%',
+                    'benchmark': benchmark,
+                    'risk_model': risk_model,
+                    'symbols': symbols,
+                    'symbols_count': len(symbols),
+                    'total_value': total_value
+                }
             
             if 'error' in results:
                 print(f"Backtesting error: {results['error']}")

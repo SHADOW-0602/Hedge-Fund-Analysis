@@ -13,6 +13,7 @@ from sector_mapper import SectorMapper
 from sector_visualizer import SectorVisualizer
 import json
 import plotly
+from werkzeug.utils import secure_filename
 
 sector_bp = Blueprint('sector', __name__)
 sector_mapper = SectorMapper()
@@ -28,6 +29,86 @@ def get_sector_info(symbol):
             'sector': sector_mapper.get_sector(symbol),
             'industry': sector_mapper.get_industry(symbol),
             'country': sector_mapper.get_country(symbol)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@sector_bp.route('/api/sector/reload', methods=['POST'])
+def reload_sector_data():
+    """Reload sector data from the Excel file"""
+    try:
+        result = sector_mapper.reload_data()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@sector_bp.route('/api/sector/upload', methods=['POST'])
+def upload_sector_data():
+    """Upload a new sector data Excel file"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+        
+        if file and (file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+            save_path = sector_mapper.xlsx_path
+            print(f"Saving uploaded file to: {save_path}")
+            
+            # Backup existing file
+            if os.path.exists(save_path):
+                backup_path = save_path + '.bak'
+                try:
+                    import shutil
+                    shutil.copy2(save_path, backup_path)
+                    print(f"Backed up existing file to {backup_path}")
+                except Exception as e:
+                    print(f"Warning: Failed to backup file: {e}")
+            
+            file.save(save_path)
+            
+            # Reload data
+            result = sector_mapper.reload_data()
+            
+            return jsonify({
+                'success': True,
+                'message': 'File uploaded and data reloaded successfully',
+                'details': result
+            })
+        else:
+            return jsonify({'error': 'Invalid file type. Please upload an Excel file (.xlsx)'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@sector_bp.route('/api/sector/debug/<symbol>')
+def debug_sector_lookup(symbol):
+    """Debug sector lookup for a specific symbol"""
+    try:
+        symbol = symbol.upper()
+        
+        # Check direct lookup
+        direct = symbol in sector_mapper.sector_data
+        
+        # Check variations
+        variations = [
+            symbol.replace('.', ''),
+            symbol.replace('-', ''),
+            symbol.split('.')[0],
+            symbol.split('-')[0]
+        ]
+        variation_matches = {v: v in sector_mapper.sector_data for v in variations}
+        
+        return jsonify({
+            'symbol': symbol,
+            'in_database': direct,
+            'sector': sector_mapper.get_sector(symbol),
+            'industry': sector_mapper.get_industry(symbol),
+            'variations_checked': variation_matches,
+            'database_sample': list(sector_mapper.sector_data.keys())[:5],
+            'total_symbols': len(sector_mapper.sector_data)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

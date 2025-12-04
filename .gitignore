@@ -64,7 +64,6 @@ models/
 # Data files
 data/
 *.csv
-*.xlsx
 *.json
 !sample_*.csv
 

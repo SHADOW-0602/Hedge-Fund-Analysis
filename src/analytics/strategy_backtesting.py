@@ -16,7 +16,8 @@ class StrategyBacktester:
         
     def backtest_strategy(self, symbols: List[str], weights: Dict[str, float], 
                          backtest_period: str, rebalancing: str, 
-                         transaction_costs: float, benchmark: str) -> Dict:
+                         transaction_costs: float, benchmark: str, 
+                         risk_model: str = 'historical') -> Dict:
         """
         Comprehensive strategy backtesting with risk metrics
         """
@@ -54,19 +55,40 @@ class StrategyBacktester:
             
             # Calculate risk metrics
             risk_metrics = self._calculate_risk_metrics(
-                portfolio_returns, benchmark_returns
+                portfolio_returns, benchmark_returns, performance_metrics
             )
             
             # Generate backtest summary
             summary = self._generate_backtest_summary(
                 portfolio_returns, benchmark_returns, symbols, weights,
-                backtest_period, rebalancing, transaction_costs, benchmark
+                backtest_period, rebalancing, transaction_costs, benchmark, risk_model
             )
             
+            # Add symbols list to summary
+            summary['symbols'] = symbols
+            
+            # Calculate monthly returns
+            monthly_returns = self._calculate_monthly_returns(portfolio_returns)
+            
+            # Generate equity curve data
+            equity_curve = []
+            cumulative_portfolio = (1 + portfolio_returns).cumprod()
+            cumulative_benchmark = (1 + benchmark_returns).cumprod()
+            
+            for date, equity in cumulative_portfolio.items():
+                date_str = date.strftime('%Y-%m-%d')
+                equity_curve.append({
+                    'date': date_str,
+                    'equity': float(equity),
+                    'benchmark_equity': float(cumulative_benchmark.get(date, 1.0))
+                })
+
             return {
                 'performance_metrics': performance_metrics,
                 'risk_metrics': risk_metrics,
                 'summary': summary,
+                'equity_curve': equity_curve,
+                'monthly_returns': monthly_returns,
                 'portfolio_returns': portfolio_returns.tolist(),
                 'benchmark_returns': benchmark_returns.tolist(),
                 'dates': [d.strftime('%Y-%m-%d') for d in portfolio_returns.index],
@@ -76,7 +98,8 @@ class StrategyBacktester:
                     'backtest_period': backtest_period,
                     'rebalancing': rebalancing,
                     'transaction_costs': transaction_costs,
-                    'benchmark': benchmark
+                    'benchmark': benchmark,
+                    'risk_model': risk_model
                 }
             }
             
@@ -177,7 +200,11 @@ class StrategyBacktester:
         # Cumulative returns
         cumulative_portfolio = (1 + portfolio_returns).cumprod().iloc[-1] - 1
         cumulative_benchmark = (1 + benchmark_returns).cumprod().iloc[-1] - 1
-        
+        # Win Rate and Profitable Trades (based on daily returns)
+        positive_periods = portfolio_returns[portfolio_returns > 0]
+        win_rate = len(positive_periods) / len(portfolio_returns) if len(portfolio_returns) > 0 else 0
+        profitable_trades = len(positive_periods)
+
         return {
             'total_return': float(cumulative_portfolio),
             'annualized_return': float(portfolio_annual),
@@ -190,11 +217,14 @@ class StrategyBacktester:
             'tracking_error': float(tracking_error),
             'benchmark_return': float(cumulative_benchmark),
             'excess_return': float(cumulative_portfolio - cumulative_benchmark),
-            'transaction_costs_impact': float(transaction_costs)
+            'transaction_costs_impact': float(transaction_costs),
+            'win_rate': float(win_rate),
+            'profitable_trades': int(profitable_trades)
         }
     
     def _calculate_risk_metrics(self, portfolio_returns: pd.Series, 
-                               benchmark_returns: pd.Series) -> Dict:
+                               benchmark_returns: pd.Series,
+                               performance_metrics: Dict = None) -> Dict:
         """Calculate advanced risk metrics"""
         
         # Maximum Drawdown
@@ -222,6 +252,10 @@ class StrategyBacktester:
         # Conditional Value at Risk
         cvar_95 = float(portfolio_returns[portfolio_returns <= var_95].mean()) if len(portfolio_returns[portfolio_returns <= var_95]) > 0 else var_95
         
+        # Get volatility and beta from performance metrics if available
+        volatility = performance_metrics.get('volatility', 0.0) if performance_metrics else 0.0
+        beta = performance_metrics.get('beta', 0.0) if performance_metrics else 0.0
+
         return {
             'max_drawdown': max_drawdown,
             'sortino_ratio': float(sortino_ratio),
@@ -230,7 +264,9 @@ class StrategyBacktester:
             'cvar_95': cvar_95,
             'downside_deviation': float(downside_deviation),
             'upside_capture': self._calculate_upside_capture(portfolio_returns, benchmark_returns),
-            'downside_capture': self._calculate_downside_capture(portfolio_returns, benchmark_returns)
+            'downside_capture': self._calculate_downside_capture(portfolio_returns, benchmark_returns),
+            'volatility': float(volatility),
+            'beta': float(beta)
         }
     
     def _calculate_upside_capture(self, portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
@@ -258,7 +294,8 @@ class StrategyBacktester:
     def _generate_backtest_summary(self, portfolio_returns: pd.Series, benchmark_returns: pd.Series,
                                   symbols: List[str], weights: Dict[str, float],
                                   backtest_period: str, rebalancing: str, 
-                                  transaction_costs: float, benchmark: str) -> Dict:
+                                  transaction_costs: float, benchmark: str, 
+                                  risk_model: str = 'historical') -> Dict:
         """Generate comprehensive backtest summary"""
         
         return {
@@ -269,6 +306,29 @@ class StrategyBacktester:
             'rebalancing_frequency': rebalancing,
             'transaction_cost_rate': f"{transaction_costs}%",
             'benchmark_used': benchmark,
+            'risk_model': risk_model,
             'data_quality': 'Real market data',
             'backtest_period': backtest_period
         }
+
+    def _calculate_monthly_returns(self, returns: pd.Series) -> Dict:
+        """Calculate monthly returns table"""
+        monthly_ret = returns.resample('M').apply(lambda x: (1 + x).prod() - 1)
+        
+        table = {}
+        for date, ret in monthly_ret.items():
+            year = date.year
+            month = date.strftime('%m')
+            
+            if year not in table:
+                table[year] = {}
+            
+            table[year][month] = float(ret)
+            
+        # Calculate YTD for each year
+        for year in table:
+            year_returns = returns[returns.index.year == year]
+            ytd = (1 + year_returns).prod() - 1
+            table[year]['YTD'] = float(ytd)
+            
+        return table

@@ -137,6 +137,9 @@ def register_plaid_routes(app):
             user_id = get_real_user_id()
             print(f"[PLAID] Fetching portfolio for user: {user_id}")
             
+            data = request.get_json() or {}
+            connection_id = data.get('connection_id')
+            
             if not plaid_client or not plaid_client.is_available():
                 return jsonify({
                     'success': False,
@@ -144,8 +147,8 @@ def register_plaid_routes(app):
                     'environment': 'production'
                 }), 200
             
-            access_token = plaid_supabase_manager.get_plaid_token(user_id)
-            print(f"[PLAID] Access token found for {user_id}: {bool(access_token)}")
+            access_token = plaid_supabase_manager.get_plaid_token(user_id, connection_id)
+            print(f"[PLAID] Access token found for {user_id} (conn={connection_id}): {bool(access_token)}")
             
             if not access_token:
                 return jsonify({
@@ -282,12 +285,19 @@ def register_plaid_routes(app):
     def get_plaid_transactions():
         try:
             user_id = get_real_user_id()
-            days = int(request.args.get('days', 90)) if request.method == 'GET' else request.get_json().get('days', 90)
+            
+            if request.method == 'GET':
+                days = int(request.args.get('days', 90))
+                connection_id = request.args.get('connection_id')
+            else:
+                data = request.get_json() or {}
+                days = int(data.get('days', 90))
+                connection_id = data.get('connection_id')
             
             if not plaid_client or not plaid_client.is_available():
                 return jsonify({'success': False, 'error': 'Plaid client not available'}), 500
             
-            access_token = plaid_supabase_manager.get_plaid_token(user_id)
+            access_token = plaid_supabase_manager.get_plaid_token(user_id, connection_id)
             
             if not access_token:
                 return jsonify({'success': False, 'error': 'No Plaid connection found'}), 200

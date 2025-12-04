@@ -159,6 +159,51 @@ class AnalyticsCore {
                 console.log('[ANALYTICS-CORE] Extracted correlation options directly:', options);
                 return options;
             }
+
+            // For statistical analysis, try to get values directly from elements
+            if (formId === 'statisticalSettings') {
+                const options = {};
+                const lookbackPeriod = document.getElementById('statisticalLookbackPeriod');
+                const frequency = document.getElementById('statisticalFrequency');
+                const benchmark = document.getElementById('statisticalBenchmark');
+                const confidenceLevel = document.getElementById('statisticalConfidenceLevel');
+
+                if (lookbackPeriod) options.lookback_period = lookbackPeriod.value;
+                if (frequency) options.frequency = frequency.value;
+                if (benchmark) options.benchmark = benchmark.value;
+                if (confidenceLevel) options.confidence_level = parseFloat(confidenceLevel.value);
+
+                console.log('[ANALYTICS-CORE] Extracted statistical options directly:', options);
+                return options;
+            }
+
+            // For technical analysis, try to get values directly from elements
+            if (formId === 'technicalSettings') {
+                const options = {};
+                const period = document.getElementById('technicalPeriod');
+                const timeframe = document.getElementById('technicalTimeframe');
+                const rsiPeriod = document.getElementById('technicalRsiPeriod');
+                const macdFast = document.getElementById('technicalMacdFast');
+                const signalStrength = document.getElementById('technicalSignalStrength');
+
+                if (period) options.period = period.value;
+                if (timeframe) options.timeframe = timeframe.value;
+                if (rsiPeriod) options.rsi_period = parseInt(rsiPeriod.value);
+                if (macdFast) options.macd_fast = parseInt(macdFast.value);
+                if (signalStrength) options.signal_strength = signalStrength.value;
+
+                // Add default values
+                options.indicators = ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'];
+                options.rsi_oversold = 30;
+                options.rsi_overbought = 70;
+                options.macd_slow = 26;
+                options.macd_signal = 9;
+                options.bb_period = 20;
+                options.bb_std = 2;
+
+                console.log('[ANALYTICS-CORE] Extracted technical options directly:', options);
+                return options;
+            }
             return {};
         }
 
@@ -172,8 +217,21 @@ class AnalyticsCore {
                 else if (input.id === 'correlationFrequency') paramName = 'frequency';
                 else if (input.id === 'correlationMethod') paramName = 'method';
                 else if (input.id === 'correlationRollingWindow') paramName = 'rolling_window';
+                else if (input.id === 'statisticalLookbackPeriod') paramName = 'lookback_period';
+                else if (input.id === 'statisticalFrequency') paramName = 'frequency';
+                else if (input.id === 'statisticalBenchmark') paramName = 'benchmark';
+                else if (input.id === 'statisticalConfidenceLevel') paramName = 'confidence_level';
+                else if (input.id === 'technicalPeriod') paramName = 'period';
+                else if (input.id === 'technicalTimeframe') paramName = 'timeframe';
+                else if (input.id === 'technicalRsiPeriod') paramName = 'rsi_period';
+                else if (input.id === 'technicalMacdFast') paramName = 'macd_fast';
+                else if (input.id === 'technicalSignalStrength') paramName = 'signal_strength';
 
-                options[paramName] = input.value;
+                let value = input.value;
+                if (paramName === 'confidence_level') {
+                    value = parseFloat(value);
+                }
+                options[paramName] = value;
             }
         });
         console.log(`[ANALYTICS-CORE] Extracted options from form ${formId}:`, options);
@@ -210,6 +268,12 @@ class AnalyticsCore {
         if (endpoint === 'analyze-risk' && this.riskSettings) {
             options = { ...options, ...this.riskSettings };
             console.log('Using risk settings:', this.riskSettings);
+        }
+
+        // For strategy backtesting, use stored settings if available
+        if (endpoint === 'strategy-backtesting' && this.backtestSettings) {
+            options = { ...options, ...this.backtestSettings };
+            console.log('Using backtest settings:', this.backtestSettings);
         }
 
         // For options analysis, use stored settings if available
@@ -249,6 +313,28 @@ class AnalyticsCore {
             delete this.correlationSettings;
         }
 
+        // For statistical analysis, use stored settings if available
+        if (endpoint === 'statistical-analysis') {
+            const storedOptions = this.statisticalOptions || this.statisticalSettings || {};
+            const freshOptions = this.getFormOptions('statisticalSettings');
+            options = { ...options, ...storedOptions, ...freshOptions };
+            console.log('[ANALYTICS-CORE] Using statistical settings:', { storedOptions, freshOptions, final: options });
+            // Clear stored options after use
+            delete this.statisticalOptions;
+            delete this.statisticalSettings;
+        }
+
+        // For technical analysis, use stored settings if available
+        if (endpoint === 'technical-analysis') {
+            const storedOptions = this.technicalOptions || this.technicalSettings || {};
+            const freshOptions = this.getFormOptions('technicalSettings');
+            options = { ...options, ...storedOptions, ...freshOptions };
+            console.log('[ANALYTICS-CORE] Using technical settings:', { storedOptions, freshOptions, final: options });
+            // Clear stored options after use
+            delete this.technicalOptions;
+            delete this.technicalSettings;
+        }
+
         // Debug: Log all options being sent
         console.log(`[ANALYTICS-CORE] Endpoint: ${endpoint}, Options being sent:`, options);
 
@@ -279,7 +365,7 @@ class AnalyticsCore {
         if (result.success) {
             console.log(`[ANALYTICS-CORE] Calling display function for ${endpoint} with result:`, result);
             console.log(`[ANALYTICS-CORE] Display function options:`, options);
-            
+
             // Special debugging for Monte Carlo
             if (endpoint === 'monte-carlo') {
                 console.log('[ANALYTICS-CORE] MONTE CARLO DEBUG - Result structure:');
@@ -302,7 +388,7 @@ class AnalyticsCore {
                     }
                 }
             }
-            
+
             // Special debugging for correlation analysis
             if (endpoint === 'correlation-analysis') {
                 console.log('[ANALYTICS-CORE] CORRELATION DEBUG - Result structure:');
@@ -315,7 +401,7 @@ class AnalyticsCore {
                     window.lastCorrelationApiResult = result;
                 }
             }
-            
+
             displayFunction(result, options);
         } else {
             const container = document.getElementById('analysisContent');

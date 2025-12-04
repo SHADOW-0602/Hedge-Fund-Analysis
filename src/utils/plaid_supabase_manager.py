@@ -89,22 +89,24 @@ class PlaidSupabaseManager:
             logger.error(f"Failed to store Plaid token for user {user_id}: {str(e)} (Type: {type(e).__name__})")
             return None
     
-    def get_plaid_token(self, user_id: str) -> Optional[str]:
-        """Get first active Plaid token"""
+    def get_plaid_token(self, user_id: str, connection_id: str = None) -> Optional[str]:
+        """Get Plaid token, optionally for specific connection"""
         try:
             if not supabase_client or not supabase_client.service_client:
                 logger.error("Supabase client not available for token retrieval")
                 return None
             
-            result = supabase_client.service_client.table('plaid_connections')\
+            query = supabase_client.service_client.table('plaid_connections')\
                 .select('encrypted_access_token')\
                 .eq('user_id', user_id)\
-                .eq('is_active', True)\
-                .order('created_at', desc=True)\
-                .limit(1)\
-                .execute()
+                .eq('is_active', True)
             
-            logger.info(f"Token query result for user {user_id}: {len(result.data) if result.data else 0} tokens found")
+            if connection_id:
+                query = query.eq('connection_id', connection_id)
+            
+            result = query.order('created_at', desc=True).limit(1).execute()
+            
+            logger.info(f"Token query result for user {user_id} (conn={connection_id}): {len(result.data) if result.data else 0} tokens found")
             
             if result.data:
                 encrypted_token = result.data[0]['encrypted_access_token']

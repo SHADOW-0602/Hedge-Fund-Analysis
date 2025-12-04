@@ -1,10 +1,10 @@
 import pandas as pd
 import json
+import os
 
 class SectorMapper:
     def __init__(self, xlsx_path=None):
         if xlsx_path is None:
-            import os
             # Get the absolute path to the Excel file
             current_dir = os.path.dirname(os.path.abspath(__file__))
             self.xlsx_path = os.path.join(current_dir, "US Stocks_Basic Data.xlsx")
@@ -19,9 +19,18 @@ class SectorMapper:
         """Load sector data from xlsx file"""
         try:
             print(f"Loading Excel file from: {self.xlsx_path}")
+            if not os.path.exists(self.xlsx_path):
+                print(f"Error: File not found at {self.xlsx_path}")
+                return
+
             df = pd.read_excel(self.xlsx_path)
             print(f"Excel file loaded successfully, shape: {df.shape}")
             print(f"Columns: {list(df.columns)}")
+            
+            # Reset data containers
+            self.sector_data = {}
+            self.industry_data = {}
+            self.country_data = {}
             
             df = df.drop_duplicates(subset=['Ticker'])
             
@@ -48,17 +57,46 @@ class SectorMapper:
             print(f"Error loading sector data: {e}")
             import traceback
             traceback.print_exc()
-            print("Excel file not found - sector analysis will use Unknown for all symbols")
+            print("Excel file not found or invalid - sector analysis will use Unknown for all symbols")
+
+    def reload_data(self):
+        """Reload data from the Excel file"""
+        print("Reloading sector data...")
+        self._load_data()
+        return {
+            'success': True,
+            'count': len(self.sector_data),
+            'sectors': self.get_all_sectors()
+        }
+
+    def update_data_file(self, new_file_path):
+        """Update the data file path and reload"""
+        if os.path.exists(new_file_path):
+            self.xlsx_path = new_file_path
+            return self.reload_data()
+        else:
+            raise FileNotFoundError(f"File not found: {new_file_path}")
     
     def get_sector(self, symbol):
         """Get sector for a given symbol"""
-        symbol = symbol.upper()
-        print(f"Looking up sector for {symbol}")
+        symbol = symbol.upper().strip()
         
+        # Direct lookup first
         if symbol in self.sector_data:
-            sector = self.sector_data[symbol]
-            print(f"  Found in Excel: {sector}")
-            return sector
+            return self.sector_data[symbol]
+        
+        # Try common symbol variations
+        variations = [
+            symbol.replace('.', ''),  # Remove dots
+            symbol.replace('-', ''),  # Remove dashes
+            symbol.split('.')[0],     # Take part before dot
+            symbol.split('-')[0]      # Take part before dash
+        ]
+        
+        for variation in variations:
+            if variation != symbol and variation in self.sector_data:
+                print(f"Found {symbol} as variation {variation}: {self.sector_data[variation]}")
+                return self.sector_data[variation]
         
         # Handle ETFs and special cases
         etf_mapping = {
@@ -69,15 +107,34 @@ class SectorMapper:
             'XLK': 'Technology ETF',
             'XLF': 'Financial ETF',
             'XLE': 'Energy ETF',
-            'XLV': 'Healthcare ETF'
+            'XLV': 'Healthcare ETF',
+            'VTI': 'Broad Market ETF',
+            'VOO': 'Broad Market ETF',
+            'IWM': 'Small Cap ETF'
         }
         
         if symbol in etf_mapping:
-            sector = etf_mapping[symbol]
-            print(f"  Found in ETF mapping: {sector}")
-            return sector
+            print(f"Found {symbol} in ETF mapping: {etf_mapping[symbol]}")
+            return etf_mapping[symbol]
         
-        print(f"  Not found, returning Unknown")
+        # Try yfinance lookup as last resort
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            sector = info.get('sector', 'Unknown')
+            if sector and sector != 'Unknown':
+                print(f"Found {symbol} via yfinance: {sector}")
+                # Cache the result
+                self.sector_data[symbol] = sector
+                return sector
+        except Exception:
+            pass
+        
+        print(f"UNKNOWN SYMBOL: '{symbol}' (len:{len(symbol)}) - not found anywhere")
+        # Show first few Excel symbols for comparison
+        sample_excel = list(self.sector_data.keys())[:5] if self.sector_data else []
+        print(f"  Excel sample: {sample_excel}")
         return 'Unknown'
     
     def get_industry(self, symbol):

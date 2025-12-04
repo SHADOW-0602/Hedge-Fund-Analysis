@@ -241,8 +241,13 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
 
     @app.route('/api/sector-allocation', methods=['POST'])
     def sector_allocation():
+        print("\n=== SECTOR ALLOCATION DEBUG START ===")
         try:
-            from analytics.sector_analysis import SectorAnalyzer
+            import sys
+            import os
+            # Add parent directory to path for sector_mapper import
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            from sector_mapper import SectorMapper
             
             data = request.get_json()
             portfolio = data.get('portfolio', [])
@@ -257,7 +262,7 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             if not symbols:
                 return jsonify({'success': False, 'error': 'No valid symbols found'}), 400
             
-            # Read parameters from frontend settings (matching Performance Attribution structure)
+            # Read parameters from frontend settings
             classification = options.get('classification', 'GICS')
             level = options.get('level', 'Sector')
             currency = options.get('currency', 'USD')
@@ -266,39 +271,85 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             
             print(f"Sector Allocation Parameters: classification={classification}, level={level}, currency={currency}, benchmark={benchmark}, period={period}")
             print(f"Symbols: {symbols}, Total Value: ${total_value:,.2f}")
+            print(f"Raw portfolio data: {portfolio[:2]}...")  # Show first 2 items
             
-            # Initialize sector analyzer
-            analyzer = SectorAnalyzer(data_client)
+            # Use SectorMapper directly for reliable sector analysis
+            mapper = SectorMapper()
             
-            # Get comprehensive sector analysis
-            results = analyzer.analyze_sector_allocation(symbols, weights, portfolio)
+            # Convert portfolio format for SectorMapper with better value handling
+            portfolio_for_mapper = []
+            for item in portfolio:
+                symbol = item.get('symbol', '').upper().strip()
+                quantity = float(item.get('quantity', 0) or 0)
+                price = float(item.get('price', 0) or item.get('avg_cost', 0) or 0)
+                market_value = float(item.get('market_value', 0) or 0)
+                
+                # Calculate market value if not provided
+                if market_value <= 0 and quantity > 0 and price > 0:
+                    market_value = quantity * price
+                
+                # Use a default value of 1000 if no value can be calculated
+                if symbol and market_value <= 0:
+                    market_value = 1000.0  # Default value for equal weighting
+                    print(f"Using default value for {symbol}: ${market_value}")
+                
+                if symbol and market_value > 0:
+                    portfolio_for_mapper.append({
+                        'symbol': symbol,
+                        'quantity': quantity,
+                        'market_value': market_value
+                    })
+                    print(f"Added {symbol}: ${market_value:,.0f}")
             
-            # Add geographic allocation if multi-currency
-            if currency == 'MULTI' or len(set(s[:2] for s in symbols if '.' in s)) > 1:
-                geographic_data = results.get('geographic_allocation', {})
-                results['geographic_summary'] = {
-                    'total_countries': len(geographic_data),
-                    'domestic_weight': geographic_data.get('US', {}).get('weight', 0),
-                    'international_weight': sum(data.get('weight', 0) for country, data in geographic_data.items() if country != 'US')
+            print(f"Portfolio for mapper ({len(portfolio_for_mapper)} items):")
+            for item in portfolio_for_mapper[:3]:  # Show first 3 items
+                print(f"  {item}")
+            
+            # Get sector analysis from SectorMapper
+            results = mapper.analyze_portfolio_sectors(portfolio_for_mapper)
+            print(f"SectorMapper results: total_value={results.get('total_value')}, sectors={len(results.get('sectors', {}))}")
+            
+            # Convert SectorMapper results to expected format with NaN protection
+            sector_allocation = {}
+            for sector, data in results['sectors'].items():
+                percentage = data.get('percentage', 0)
+                # Ensure percentage is a valid number
+                if pd.isna(percentage) or np.isinf(percentage):
+                    percentage = 0
+                
+                sector_allocation[sector] = {
+                    'weight': float(percentage) / 100,  # Convert percentage to decimal
+                    'value': float(data.get('value', 0)),
+                    'symbols': data.get('symbols', [])
                 }
             
-            # Add style analysis
-            style_analysis = analyzer.analyze_style_factors(symbols, weights)
-            results['style_analysis'] = style_analysis
+            geographic_allocation = {}
+            for country, data in results['countries'].items():
+                geographic_allocation[country] = {
+                    'weight': data['percentage'] / 100,
+                    'value': data['value'],
+                    'symbols': data['symbols']
+                }
             
-            # Add sector performance comparison
-            sector_performance = analyzer.get_sector_performance(symbols, period)
-            results['sector_performance'] = sector_performance
+            # Calculate diversification metrics
+            sector_weights = [data['weight'] for data in sector_allocation.values()]
+            herfindahl_index = sum(w**2 for w in sector_weights) if sector_weights else 0
+            effective_sectors = 1 / herfindahl_index if herfindahl_index > 0 else len(sector_allocation)
+            sector_concentration = max(sector_weights) if sector_weights else 0
             
-            # Format response to match Performance Attribution structure
+            diversification_metrics = {
+                'herfindahl_index': herfindahl_index,
+                'effective_number_sectors': effective_sectors,
+                'sector_concentration': sector_concentration
+            }
+            
+            # Format response
             formatted_results = {
-                'sector_allocation': results['sector_allocation'],
-                'geographic_allocation': results.get('geographic_allocation', {}),
-                'style_analysis': results.get('style_analysis', {}),
-                'sector_performance': results.get('sector_performance', {}),
-                'diversification_metrics': results['diversification_metrics'],
+                'sector_allocation': sector_allocation,
+                'geographic_allocation': geographic_allocation,
+                'diversification_metrics': diversification_metrics,
                 'summary': {
-                    'total_sectors': len(results['sector_allocation']),
+                    'total_sectors': len(sector_allocation),
                     'classification': classification,
                     'level': level,
                     'currency': currency,
@@ -309,17 +360,58 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                 }
             }
             
-            print(f"Sector allocation successful: {list(formatted_results.keys())}")
+            print(f"Sector allocation successful: {len(sector_allocation)} sectors found")
+            for sector, data in sector_allocation.items():
+                weight = data.get('weight', 0)
+                symbols = data.get('symbols', [])
+                print(f"  {sector}: {weight:.2%} ({len(symbols)} symbols) - {symbols}")
             
-            # Add chart initialization
-            response = jsonify({'success': True, 'allocation': formatted_results})
-            response.headers['X-Chart-Data'] = 'true'
-            return response
+            # Debug: Show Unknown sector details if it exists
+            if 'Unknown' in sector_allocation:
+                unknown_data = sector_allocation['Unknown']
+                unknown_symbols = unknown_data.get('symbols', [])
+                unknown_weight = unknown_data.get('weight', 0)
+                print(f"\nDEBUG: Unknown sector contains {len(unknown_symbols)} symbols ({unknown_weight:.1%}): {unknown_symbols}")
+                # Test each unknown symbol individually
+                for sym in unknown_symbols[:10]:  # Test first 10
+                    print(f"  Testing symbol: {sym}")
+                    sector = mapper.get_sector(sym)
+                    print(f"    Result: {sector}")
+                    
+                # If Unknown is dominant, try to fix it
+                if unknown_weight > 0.5:  # If more than 50% is Unknown
+                    print("\nWARNING: More than 50% of portfolio is Unknown - investigating...")
+                    print(f"Total portfolio items: {len(portfolio_for_mapper)}")
+                    for item in portfolio_for_mapper[:5]:
+                        sym = item['symbol']
+                        val = item['market_value']
+                        sector = mapper.get_sector(sym)
+                        print(f"  {sym} (${val:,.0f}): {sector}")
+            
+            # Debug: Check for NaN values
+            for sector, data in sector_allocation.items():
+                if pd.isna(data.get('weight')) or np.isinf(data.get('weight')):
+                    print(f"WARNING: NaN/Inf weight detected for {sector}: {data}")
+            
+            # Final validation before returning
+            final_response = sanitize_for_json(formatted_results)
+            print(f"Final response summary: {len(final_response.get('sector_allocation', {}))} sectors, total_value={final_response.get('summary', {}).get('total_value')}")
+            
+            # Debug: Show final sector breakdown
+            print("\nFINAL SECTOR BREAKDOWN:")
+            for sector, data in final_response.get('sector_allocation', {}).items():
+                weight = data.get('weight', 0)
+                print(f"  {sector}: {weight:.1%}")
+            
+            return jsonify({'success': True, 'allocation': final_response})
             
         except Exception as e:
-            print(f"Sector allocation error: {e}")
+            print(f"\n=== SECTOR ALLOCATION ERROR ===")
+            print(f"Error: {e}")
+            print(f"Error type: {type(e).__name__}")
             import traceback
             traceback.print_exc()
+            print("=== END ERROR DEBUG ===")
             return jsonify({
                 'success': False, 
                 'error': f'Sector allocation failed: {str(e)}',

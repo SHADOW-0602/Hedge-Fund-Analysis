@@ -11,11 +11,35 @@ sys.path.insert(0, src_path)
 sys.path.insert(0, os.path.dirname(__file__))
 
 from src.main_app import app
+import logging
+
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
+app.logger.setLevel(logging.DEBUG)
+
+# Add error handler
+@app.errorhandler(Exception)
+def handle_exception(e):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    app.logger.error(f"Unhandled exception: {e}")
+    import traceback
+    traceback.print_exc()
+    return {'error': str(e)}, 500
 
 # Configure template and static folders
 app.template_folder = os.path.join(os.path.dirname(__file__), 'News', 'templates')
 app.static_folder = os.path.join(os.path.dirname(__file__), 'web')
 app.static_url_path = ''
+
+# Define config route globally to ensure availability
+@app.route('/api/config', methods=['GET'])
+def get_config():
+    from flask import jsonify
+    return jsonify({
+        'pexels_api_key': os.getenv('PEXELS_API_KEY', '')
+    })
 
 # Import and integrate News app routes directly
 try:
@@ -71,13 +95,6 @@ try:
     app.add_url_rule('/api/cache-status', 'news_cache_status', cache_status, methods=['GET'])
     
     # Add missing routes
-    @app.route('/api/config', methods=['GET'])
-    def get_config():
-        from flask import jsonify
-        return jsonify({
-            'pexels_api_key': os.getenv('PEXELS_API_KEY', '')
-        })
-    
     @app.route('/api/fetch-logos', methods=['POST'])
     def fetch_missing_logos():
         from flask import jsonify
@@ -128,7 +145,7 @@ if __name__ == '__main__':
     app.run(
         host=host,
         port=port,
-        debug=False,
+        debug=True,
         threaded=True,
         use_reloader=False
     )
