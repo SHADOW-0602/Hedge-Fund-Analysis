@@ -344,3 +344,61 @@ def register_plaid_routes(app):
                 return jsonify({'success': False, 'error': 'Failed to delete connection'}), 500
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/debug-plaid', methods=['GET'])
+    def debug_plaid():
+        try:
+            import os
+            
+            # 1. Check Env Vars
+            enc_key = os.getenv('ENCRYPTION_KEY')
+            service_key = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+            
+            user_id = get_real_user_id()
+            
+            status = {
+                "env_vars": {
+                    "ENCRYPTION_KEY_PRESENT": bool(enc_key),
+                    "ENCRYPTION_KEY_LENGTH": len(enc_key) if enc_key else 0,
+                    "SUPABASE_SERVICE_KEY_PRESENT": bool(service_key),
+                },
+                "user_id": user_id,
+                "manager_initialized": bool(plaid_supabase_manager)
+            }
+
+            # 2. Check DB Query (Raw)
+            if supabase_client and supabase_client.service_client:
+                # Try to fetch all rows for this user (ignoring is_active for debug)
+                result = supabase_client.service_client.table('plaid_connections')\
+                    .select('*')\
+                    .eq('user_id', user_id)\
+                    .execute()
+                
+                status["db_user_rows_raw"] = len(result.data)
+                
+                # 3. Test Decryption
+                decryption_results = []
+                for row in result.data:
+                    try:
+                        # Access private method for debug
+                        token = plaid_supabase_manager._decrypt_token(row['encrypted_access_token'])
+                        decryption_results.append({
+                            "id": row['connection_id'], 
+                            "institution": row.get('institution_name'),
+                            "success": True,
+                            "token_preview": token[:5] + "..." if token else "None"
+                        })
+                    except Exception as e:
+                        decryption_results.append({
+                            "id": row['connection_id'], 
+                            "success": False, 
+                            "error": str(e)
+                        })
+                status["decryption_tests"] = decryption_results
+                
+            else:
+                status["error"] = "Supabase client not available"
+
+            return jsonify(status)
+        except Exception as e:
+            return jsonify({"error": str(e)})

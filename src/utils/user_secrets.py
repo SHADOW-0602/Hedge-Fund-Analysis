@@ -15,15 +15,35 @@ class UserSecretManager:
         
         # Generate or load encryption key
         key_file = os.path.join(self.secrets_dir, "encryption.key")
-        if os.path.exists(key_file):
+        
+        # Priority 1: Environment variable (for production/Northflank)
+        env_key = os.getenv('ENCRYPTION_KEY')
+        if env_key:
+            # Handle both raw string and bytes
+            self.key = env_key.encode() if isinstance(env_key, str) else env_key
+            logger.info("UserSecretManager: Using encryption key from environment variable")
+        
+        # Priority 2: File-based key (for local development)
+        elif os.path.exists(key_file):
             with open(key_file, 'rb') as f:
                 self.key = f.read()
+            logger.info("UserSecretManager: Using encryption key from file")
+            
+        # Priority 3: Generate new key (first run local)
         else:
             self.key = Fernet.generate_key()
-            with open(key_file, 'wb') as f:
-                f.write(self.key)
+            try:
+                with open(key_file, 'wb') as f:
+                    f.write(self.key)
+                logger.info("UserSecretManager: Generated and saved new encryption key")
+            except Exception as e:
+                logger.error(f"UserSecretManager: Failed to save key file: {e}")
         
-        self.cipher = Fernet(self.key)
+        try:
+            self.cipher = Fernet(self.key)
+        except Exception as e:
+            logger.error(f"UserSecretManager: Failed to initialize Fernet cipher: {e}")
+            raise
     
     def _encrypt_data(self, data: str) -> bytes:
         """Encrypt sensitive data"""
