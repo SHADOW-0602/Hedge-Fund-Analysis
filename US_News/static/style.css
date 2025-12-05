@@ -185,6 +185,8 @@ body {
     display: flex;
     flex-direction: column;
     position: relative;
+    min-height: 0;
+    /* Ensure nested flex scrolling works */
 }
 
 .summary-content {
@@ -383,23 +385,49 @@ body {
 /* Responsive Design - Adjustments for smaller screens */
 @media (max-width: 768px) {
     .container {
-        height: 100vh;
+        height: 100dvh;
+        /* Use dynamic viewport height */
         border-radius: 0;
         max-width: 100%;
         border: none;
+        padding: 0;
+        /* Remove padding on mobile to maximize space */
+        margin: 0;
     }
 
+    body {
+        padding: 0;
+        /* Remove body padding on mobile */
+    }
+
+    /* Let flexbox handle the height, don't force calc */
     .content-wrapper {
-        height: calc(100vh - 130px);
-        /* Adjust for header */
+        height: auto;
+        flex: 1;
+        min-height: 0;
     }
 
     .title {
         font-size: 20px;
-        padding: 16px 0;
+        padding: 12px 0;
+    }
+
+    .summary-section {
+        min-height: 0;
+        /* Critical for nested flex scrolling */
+        display: flex;
+        flex-direction: column;
     }
 
     .summary-content {
-        padding: 20px;
+        padding: 16px;
+        flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .ticker-list {
+        -webkit-overflow-scrolling: touch;
+        padding: 8px 12px;
     }
 }
