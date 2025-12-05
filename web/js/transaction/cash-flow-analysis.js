@@ -78,7 +78,21 @@ async function fetchCashFlowAnalysis(transactions) {
 
     // Show loading state with minimal UI
     container.innerHTML = `
-        
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-900">Cash Flow Analysis</h2>
+            <div class="flex items-center space-x-2">
+                <button onclick="toggleCashFlowSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                    Settings
+                </button>
+                <button onclick="refreshCashFlowAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center" disabled>
+                    <svg class="w-4 h-4 mr-1 animate-spin" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                    </svg>
+                    Analyzing...
+                </button>
+            </div>
+        </div>
+
         <!-- Cash Flow Settings Panel -->
         <div id="cashFlowSettings" class="settings-panel ${settingsHidden ? 'hidden' : ''} mb-6">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -184,7 +198,7 @@ async function fetchCashFlowAnalysis(transactions) {
 function updateRefreshButton() {
     const container = document.getElementById('cashFlowAnalysis');
     if (!container) return;
-    
+
     const headerDiv = container.querySelector('.flex.justify-between.items-center');
     if (headerDiv) {
         const buttonContainer = headerDiv.querySelector('.flex.items-center.space-x-2');
@@ -293,8 +307,8 @@ function createCashFlowChart(chartData, benchmarkData) {
     return `
         <div class="bg-white rounded-lg shadow p-6 mb-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Cash Flow Trend</h3>
-            <div class="relative h-64">
-                <canvas id="${chartId}" width="400" height="200"></canvas>
+            <div style="position: relative; height: 400px; width: 100%;">
+                <canvas id="${chartId}" style="width: 100%; height: 100%;"></canvas>
             </div>
         </div>
     `;
@@ -311,6 +325,7 @@ function renderCashFlowChart(chartId, chartData, benchmarkData) {
         return;
     }
     console.log('Canvas found:', canvas);
+    console.log('Rendering chart with data:', chartData);
 
     if (!window.Chart) {
         console.error('Chart.js not available');
@@ -326,62 +341,73 @@ function renderCashFlowChart(chartId, chartData, benchmarkData) {
     });
 
     const values = chartData.map(item => item.value);
+    console.log('Chart values:', values);
+
+    if (values.some(v => v === undefined || v === null || isNaN(v))) {
+        console.error('Invalid chart values detected:', values);
+    }
+
     const colors = values.map(value => value >= 0 ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)');
     const borderColors = values.map(value => value >= 0 ? 'rgba(34, 197, 94, 1)' : 'rgba(239, 68, 68, 1)');
 
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Cash Flow',
-                data: values,
-                backgroundColor: colors,
-                borderColor: borderColors,
-                borderWidth: 1,
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function (context) {
-                            const value = context.parsed.y;
-                            return `Cash Flow: ${value >= 0 ? '+' : ''}$${Math.abs(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                        }
-                    }
-                }
+    try {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Cash Flow',
+                    data: values,
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
             },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.1)'
-                    },
-                    ticks: {
-                        callback: function (value) {
-                            return '$' + (Math.abs(value) >= 1000 ? (value / 1000).toFixed(0) + 'K' : value.toFixed(0));
-                        }
-                    }
-                },
-                x: {
-                    grid: {
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
                         display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const value = context.parsed.y;
+                                return `Cash Flow: ${value >= 0 ? '+' : ''}$${Math.abs(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                            }
+                        }
                     }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            callback: function (value) {
+                                return '$' + (Math.abs(value) >= 1000 ? (value / 1000).toFixed(0) + 'K' : value.toFixed(0));
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
                 }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'index'
             }
-        }
-    });
+        });
+        console.log('Chart created successfully');
+    } catch (error) {
+        console.error('Failed to create Chart.js instance:', error);
+    }
 }
 
 function showError(message) {

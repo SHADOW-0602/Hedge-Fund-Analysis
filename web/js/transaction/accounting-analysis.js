@@ -62,7 +62,21 @@ async function fetchAccountingAnalysis(transactions) {
 
     // Show loading state with minimal UI
     container.innerHTML = `
-        
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-900">FIFO/LIFO Accounting</h2>
+            <div class="flex items-center space-x-2">
+                <button onclick="toggleAccountingSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                    Settings
+                </button>
+                <button onclick="refreshAccountingAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center" disabled>
+                    <svg class="w-4 h-4 mr-1 animate-spin" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                    </svg>
+                    Analyzing...
+                </button>
+            </div>
+        </div>
+
         <!-- Accounting Settings Panel -->
         <div id="accountingSettings" class="settings-panel ${settingsHidden ? 'hidden' : ''} mb-6">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -134,8 +148,8 @@ async function fetchAccountingAnalysis(transactions) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-        const requestBody = { 
-            transactions, 
+        const requestBody = {
+            transactions,
             options: {
                 accountingMethod: currentAccountingOptions.method,
                 accountingPeriod: currentAccountingOptions.period,
@@ -143,9 +157,9 @@ async function fetchAccountingAnalysis(transactions) {
                 comparison: currentAccountingOptions.comparison
             }
         };
-        
+
         console.log('Request body:', JSON.stringify(requestBody, null, 2));
-        
+
         const response = await fetch(`${API_BASE}/api/fifo-lifo-accounting`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -194,7 +208,7 @@ async function fetchAccountingAnalysis(transactions) {
 function enableRefreshButton() {
     const container = document.getElementById('accountingAnalysis');
     if (!container) return;
-    
+
     const refreshButton = container.querySelector('button[disabled]');
     if (refreshButton) {
         refreshButton.disabled = false;
@@ -370,12 +384,12 @@ window.updateAccountingAnalysis = () => {
         console.log('Accounting analysis already loading, skipping...');
         return;
     }
-    
+
     // Debounce multiple rapid calls
     if (accountingAnalysisTimeout) {
         clearTimeout(accountingAnalysisTimeout);
     }
-    
+
     accountingAnalysisTimeout = setTimeout(() => {
         updateAccountingOptions();
         if (window.currentAccountingTransactions) fetchAccountingAnalysis(window.currentAccountingTransactions);
@@ -390,18 +404,18 @@ window.showTaxOptimization = async () => {
         alert('No transaction data available for tax optimization');
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/api/tax-optimization`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transactions: window.currentAccountingTransactions })
         });
-        
+
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         const data = await response.json();
-        
+
         if (data.success && data.tax_optimization) {
             displayTaxOptimizationModal(data.tax_optimization);
         } else {

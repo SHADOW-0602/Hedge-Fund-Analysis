@@ -27,13 +27,11 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             transactions = []
             for i, tx_data in enumerate(transactions_data):
                 try:
-                    date_str = tx_data.get('date', '')
-                    if isinstance(date_str, str) and date_str.strip():
-                        if 'T' in date_str:
-                            date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    else:
+                    try:
+                        date_str = tx_data.get('date', '')
+                        date_obj = UniversalDateParser.parse_date(date_str)
+                    except Exception as e:
+                        print(f"[CASH-FLOW-ROUTE] Date parse warning: {e}, using now()")
                         date_obj = datetime.now()
                     
                     transaction = Transaction(

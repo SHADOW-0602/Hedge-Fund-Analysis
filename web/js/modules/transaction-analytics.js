@@ -1,17 +1,4 @@
-// Transaction Analytics Module
-// Load cash flow analysis script with cache busting
-if (!window.loadCashFlowAnalysis) {
-    const script = document.createElement('script');
-    script.src = '/js/transaction/cash-flow-analysis.js?v=' + Date.now();
-    script.onload = () => console.log('✓ Cash flow analysis script loaded');
-    script.onerror = () => console.error('✗ Failed to load cash flow analysis script');
-    document.head.appendChild(script);
-}
 
-// Force reload if function exists but might be old
-if (window.loadCashFlowAnalysis) {
-    console.log('✓ Cash flow analysis function already available');
-}
 
 async function loadAllTransactionAnalytics(transactions) {
     if (!transactions || transactions.length === 0) {
@@ -39,16 +26,16 @@ async function loadAllTransactionAnalytics(transactions) {
     console.log('[TRANSACTION-ANALYTICS] loadTradePerformance function exists:', typeof loadTradePerformance);
 
     const analysisPromises = [
-        loadPnlAttribution && loadPnlAttribution(transactions),
-        loadTradePerformance && loadTradePerformance(transactions),
-        loadCostAnalysis && loadCostAnalysis(transactions),
-        loadTurnoverAnalysis && loadTurnoverAnalysis(transactions),
-        loadTaxAnalysis && (() => { window.isIndividualTaxAnalysis = false; return loadTaxAnalysis(transactions); })(),
-        loadCashFlowAnalysis && loadCashFlowAnalysis(transactions),
-        loadAccountingAnalysis && loadAccountingAnalysis(transactions),
-        loadTradeTimingAnalysis && loadTradeTimingAnalysis(transactions),
-        loadDrawdownAnalysis && loadDrawdownAnalysis(transactions),
-        loadReturnAttribution && loadReturnAttribution(transactions)
+        window.loadPnlAttribution && window.loadPnlAttribution(transactions),
+        window.loadTradePerformance && window.loadTradePerformance(transactions),
+        window.loadCostAnalysis && window.loadCostAnalysis(transactions),
+        window.loadTurnoverAnalysis && window.loadTurnoverAnalysis(transactions),
+        window.loadTaxAnalysis && (() => { window.isIndividualTaxAnalysis = false; return window.loadTaxAnalysis(transactions); })(),
+        window.loadCashFlowAnalysis && window.loadCashFlowAnalysis(transactions),
+        window.loadAccountingAnalysis && window.loadAccountingAnalysis(transactions),
+        window.loadTradeTimingAnalysis && window.loadTradeTimingAnalysis(transactions),
+        window.loadDrawdownAnalysis && window.loadDrawdownAnalysis(transactions),
+        window.loadReturnAttribution && window.loadReturnAttribution(transactions)
     ].filter(Boolean);
 
     try {

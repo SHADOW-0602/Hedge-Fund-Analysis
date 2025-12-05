@@ -90,7 +90,9 @@ class AdvancedTransactionAnalyzer:
 
         # 1. Filter by Period
         cutoff_date = datetime.now()
-        if period == '1M':
+        if period == '1W':
+            cutoff_date -= timedelta(days=7)
+        elif period == '1M':
             cutoff_date -= timedelta(days=30)
         elif period == '3M':
             cutoff_date -= timedelta(days=90)
@@ -296,7 +298,9 @@ class AdvancedTransactionAnalyzer:
         end_date = max(t.date for t in transactions)
         start_date = end_date
         
-        if period == '1M':
+        if period == '1W':
+            start_date = end_date - timedelta(days=7)
+        elif period == '1M':
             start_date = end_date - timedelta(days=30)
         elif period == '3M':
             start_date = end_date - timedelta(days=90)
@@ -445,11 +449,27 @@ class AdvancedTransactionAnalyzer:
                 realized_pnl += sale_pnl
                 
         # Calculate tax liability based on tax_impact setting
+        # Calculate tax liability based on tax_impact setting
         if tax_impact == 'Current rates':
-            short_term_rate = 0.37  # 2024 rates
-            long_term_rate = 0.20
+            # Dynamic tax rates based on current year (Top marginal federal rates)
+            current_year = datetime.now().year
+            
+            # Tax brackets map (Year -> {short, long})
+            tax_rates = {
+                2025: {'short': 0.37, 'long': 0.20},  # 2025 Top Rates
+                2024: {'short': 0.37, 'long': 0.20},
+                2023: {'short': 0.37, 'long': 0.20}
+            }
+            
+            # Get rates for current year, default to latest known (2025) if future
+            year_rates = tax_rates.get(current_year, tax_rates[2025])
+            
+            short_term_rate = year_rates['short']
+            long_term_rate = year_rates['long']
+            
+            print(f"[ACCOUNTING] Using tax rates for {current_year}: Short={short_term_rate}, Long={long_term_rate}")
         else:  # Historical rates
-            short_term_rate = 0.28  # Historical rates
+            short_term_rate = 0.28  # Historical average assumption
             long_term_rate = 0.15
         
         tax_liability = (max(0, short_term_gains) * short_term_rate) + (max(0, long_term_gains) * long_term_rate)
@@ -628,7 +648,9 @@ class AdvancedTransactionAnalyzer:
         
         # Calculate cutoff date for all periods
         cutoff_date = datetime.now()
-        if period == '1M':
+        if period == '1W':
+            cutoff_date -= timedelta(days=7)
+        elif period == '1M':
             cutoff_date -= timedelta(days=30)
         elif period == '3M':
             cutoff_date -= timedelta(days=90)

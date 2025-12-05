@@ -148,6 +148,56 @@ class UserManager:
         logger.warning(f"Authentication failed for user: {username}")
         return None
     
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get user by email address"""
+        if not self.supabase:
+            return None
+        
+        try:
+            result = self.supabase.table('app_users').select('*').eq('email', email).eq('is_active', True).execute()
+            
+            if result.data:
+                row = result.data[0]
+                return User(
+                    user_id=row['user_id'],
+                    username=row['username'],
+                    email=row['email'],
+                    role=UserRole(row['role']),
+                    created_at=datetime.fromisoformat(row['created_at']),
+                    last_login=datetime.fromisoformat(row['last_login']) if row['last_login'] else None,
+                    is_active=row['is_active'],
+                    phone=row.get('phone')
+                )
+            return None
+        except Exception as e:
+            logger.error(f"Error getting user by email {email}: {e}")
+            return None
+            
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        """Get user by username"""
+        if not self.supabase:
+            return None
+        
+        try:
+            result = self.supabase.table('app_users').select('*').eq('username', username).eq('is_active', True).execute()
+            
+            if result.data:
+                row = result.data[0]
+                return User(
+                    user_id=row['user_id'],
+                    username=row['username'],
+                    email=row['email'],
+                    role=UserRole(row['role']),
+                    created_at=datetime.fromisoformat(row['created_at']),
+                    last_login=datetime.fromisoformat(row['last_login']) if row['last_login'] else None,
+                    is_active=row['is_active'],
+                    phone=row.get('phone')
+                )
+            return None
+        except Exception as e:
+            logger.error(f"Error getting user by username {username}: {e}")
+            return None
+    
     def create_session(self, user_id: str) -> str:
         if not self.supabase:
             return str(uuid.uuid4())

@@ -283,6 +283,58 @@ Best regards,
 The {self.from_name} Team"""
         
         return self.send_email([user_email], subject, body)
+
+    def send_otp_email(self, user_email: str, username: str, otp: str) -> bool:
+        """Send OTP for password reset"""
+        subject = f"{self.from_name} Password Reset Code"
+        
+        body = f"""Hello {username},
+
+We received a request to reset your password. Your verification code is:
+
+{otp}
+
+This code will expire in 10 minutes.
+
+If you did not request this code, please ignore this email.
+
+Best regards,
+The {self.from_name} Team"""
+
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .header {{ background: #2c3e50; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; text-align: center; }}
+        .otp-box {{ background: #f8f9fa; padding: 20px; font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2c3e50; border-radius: 10px; margin: 20px 0; border: 2px dashed #007bff; }}
+        .footer {{ background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Password Reset</h1>
+    </div>
+    <div class="content">
+        <p>Hello {username},</p>
+        <p>We received a request to reset your password. Your verification code is:</p>
+        
+        <div class="otp-box">
+            {otp}
+        </div>
+        
+        <p>This code will expire in 10 minutes.</p>
+        <p>If you did not request this code, please ignore this email.</p>
+    </div>
+    <div class="footer">
+        <p>If you have any questions, please contact our support team.</p>
+        <p>Best regards,<br>The {self.from_name} Team</p>
+    </div>
+</body>
+</html>"""
+
+        return self.send_email([user_email], subject, body, html_body)
     
     def test_connection(self) -> Dict[str, Any]:
         """Test email service connection"""

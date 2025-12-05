@@ -363,6 +363,33 @@ class AnalyticsManager {
         if (name === 'cash-flow' && window.loadCashFlowAnalysis) {
             console.log('✓ CASH FLOW: Delegating to loadCashFlowAnalysis');
 
+            // Ensure container is visible
+            const container = document.getElementById('analysisContent');
+            if (container) container.classList.remove('hidden');
+
+            // Use the Cash Flow container ID defined in registration or default
+            const containerId = module ? module.containerId : 'cashFlowAnalysis';
+            let cfContainer = document.getElementById(containerId);
+
+            // Self-healing: Create container if it was deleted from DOM
+            if (!cfContainer) {
+                console.log('Restoring missing cash-flow container');
+                cfContainer = document.createElement('div');
+                cfContainer.id = containerId;
+                cfContainer.className = 'bg-white rounded-xl shadow-lg p-6 mb-8'; // Add default styling
+                // Don't append yet - we clean parent first
+            }
+
+            if (container) {
+                // Check if we need to clear (only if the content isn't already just our container)
+                // This prevents flickering if clicking the same tab
+                if (container.firstElementChild !== cfContainer || container.children.length > 1) {
+                    container.innerHTML = '';
+                    container.appendChild(cfContainer);
+                }
+                cfContainer.classList.remove('hidden');
+            }
+
             // Check for transaction data first
             const transactions = this.transactionData || window.currentTransactions;
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -412,6 +439,31 @@ class AnalyticsManager {
         // Special handling for Accounting Analysis to use its own dedicated handler
         if ((name === 'accounting-analysis' || name === 'fifo-lifo') && window.loadAccountingAnalysis) {
             console.log('Delegating to loadAccountingAnalysis for', name);
+
+            // Ensure container is visible
+            const container = document.getElementById('analysisContent');
+            if (container) container.classList.remove('hidden');
+
+            // Use the Accounting container ID defined in registration or default
+            const containerId = module ? module.containerId : 'accountingAnalysis';
+            let accContainer = document.getElementById(containerId);
+
+            // Self-healing: Create container if it was deleted from DOM
+            if (!accContainer) {
+                console.log('Restoring missing accounting-analysis container');
+                accContainer = document.createElement('div');
+                accContainer.id = containerId;
+                accContainer.className = 'bg-white rounded-xl shadow-lg p-6 mb-8'; // Add default styling
+            }
+
+            if (container) {
+                // Check if we need to clear (only if the content isn't already just our container)
+                if (container.firstElementChild !== accContainer || container.children.length > 1) {
+                    container.innerHTML = '';
+                    container.appendChild(accContainer);
+                }
+                accContainer.classList.remove('hidden');
+            }
 
             // Prevent multiple simultaneous calls
             if (window.accountingAnalysisInProgress) {

@@ -28,6 +28,11 @@
                         <span class="ball"></span>
                     </label>
                 </div>
+                <!-- US News Button -->
+                <button onclick="window.location.href='/us-news/'"
+                    style="border: none; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0 1rem;">US
+                    News</button>
+
                 <div class="auth-buttons">
                     <button onclick="window.location.href='/app'" class="btn-auth btn-signin">Sign In</button>
                     <button onclick="window.location.href='/app'" class="btn-auth btn-signup">Sign Up</button>
@@ -193,7 +198,7 @@
     <script>
         // Define API base URL
         globalThis.API_BASE = globalThis.location.origin;
-        
+
         // Smooth scrolling function
         function scrollToSection(sectionId) {
             const element = document.getElementById(sectionId);
@@ -201,7 +206,7 @@
                 element.scrollIntoView({ behavior: 'smooth' });
             }
         }
-        
+
         // Remove news loading since news section was removed
     </script>
     <script src="utils.js"></script>

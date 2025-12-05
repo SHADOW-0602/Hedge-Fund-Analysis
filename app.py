@@ -131,13 +131,36 @@ except Exception as e:
 # Ensure News templates are accessible
 from jinja2 import ChoiceLoader, FileSystemLoader
 news_templates = os.path.join(os.path.dirname(__file__), 'News', 'templates')
+us_news_templates = os.path.join(os.path.dirname(__file__), 'US_News', 'templates')
 web_templates = os.path.join(os.path.dirname(__file__), 'web')
+
+# Register US News Blueprint
+try:
+    from US_News.app_US import us_news_bp
+    app.register_blueprint(us_news_bp)
+    print("[SUCCESS] US News Blueprint registered")
+except Exception as e:
+    print(f"[ERROR] Failed to register US News Blueprint: {e}")
+    import traceback
+    traceback.print_exc()
+
+# Explicit route for US News static files to avoid routing conflicts
+@app.route('/us-news/static/<path:filename>')
+def us_news_static_proxy(filename):
+    try:
+        us_news_static_path = os.path.join(os.path.dirname(__file__), 'US_News', 'static')
+        return send_from_directory(us_news_static_path, filename)
+    except Exception as e:
+        print(f"[ERROR] US News static file error: {e}")
+        return '', 404
+
+
 # Combine the existing loader (if present) with our additional template paths
 existing_loader = getattr(app, 'jinja_loader', None)
 if existing_loader:
-    app.jinja_env.loader = ChoiceLoader([existing_loader, FileSystemLoader([news_templates, web_templates])])
+    app.jinja_env.loader = ChoiceLoader([existing_loader, FileSystemLoader([news_templates, us_news_templates, web_templates])])
 else:
-    app.jinja_env.loader = FileSystemLoader([news_templates, web_templates])
+    app.jinja_env.loader = FileSystemLoader([news_templates, us_news_templates, web_templates])
 
 # Export app for deployment
 app = app
@@ -155,17 +178,21 @@ def application(environ, start_response):
     return app(environ, start_response)
 
 if __name__ == '__main__':
+    app.logger.info("Starting Portfolio & Options Analysis Engine")
     port = int(os.environ.get('PORT', 8080))
-    host = '0.0.0.0' if os.environ.get('FLASK_ENV') == 'production' else '127.0.0.1'
+    # Use 0.0.0.0 for container/production compatibility
+    host = '0.0.0.0'
     
-    print("\n=== Portfolio & Options Analysis Engine ===")
-    print(f"Starting server on {host}:{port}")
+    print("\nStarting Portfolio & Options Analysis Engine")
+    print(f"Web Interface: http://{host}:{port}")
+    print(f"API Endpoints: http://{host}:{port}/api")
     print("Press Ctrl+C to stop\n")
     
+    app.logger.info(f"Flask app starting on {host}:{port}")
     app.run(
         host=host,
         port=port,
-        debug=True,
+        debug=False,
         threaded=True,
         use_reloader=False
     )

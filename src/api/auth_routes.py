@@ -166,3 +166,94 @@ def register_auth_routes(app):
             })
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # In-memory OTP cache for MVP: {email: {'otp': code, 'timestamp': datetime}}
+    OTP_CACHE = {}
+    
+    import random
+    import string
+    
+    def generate_otp():
+        return ''.join(random.choices(string.digits, k=6))
+    
+    @app.route('/api/auth/reset-password-request', methods=['POST'])
+    def reset_password_request():
+        try:
+            data = request.get_json()
+            identifier = data.get('email') or data.get('username')
+            
+            if not identifier:
+                return jsonify({'success': False, 'error': 'Email or Username is required'}), 400
+            
+            # Determine if input is email or username
+            user = None
+            email_to_use = None
+            
+            if '@' in identifier:
+                user = user_manager.get_user_by_email(identifier)
+                email_to_use = identifier
+            else:
+                user = user_manager.get_user_by_username(identifier)
+                if user:
+                    email_to_use = user.email
+            
+            # If user not found or no email associated
+            if not user or not email_to_use:
+                # Return success for security (prevent enumeration)
+                return jsonify({'success': True, 'message': 'If an account exists, a code has been sent'})
+            
+            # Generate and store OTP
+            otp = generate_otp()
+            OTP_CACHE[email_to_use] = {
+                'otp': otp,
+                'timestamp': datetime.now()
+            }
+            
+            # Send email
+            if email_service.send_otp_email(email_to_use, user.username, otp):
+                return jsonify({'success': True, 'message': f'Verification code sent to email associated with {user.username}'})
+            else:
+                return jsonify({'success': False, 'error': 'Failed to send email'}), 500
+                
+        except Exception as e:
+            print(f"[AUTH] Reset request error: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/auth/reset-password-confirm', methods=['POST'])
+    def reset_password_confirm():
+        try:
+            data = request.get_json()
+            email = data.get('email')
+            otp = data.get('otp')
+            new_password = data.get('new_password')
+            
+            if not all([email, otp, new_password]):
+                return jsonify({'success': False, 'error': 'All fields are required'}), 400
+            
+            # Verify OTP
+            cached_data = OTP_CACHE.get(email)
+            if not cached_data:
+                return jsonify({'success': False, 'error': 'Invalid or expired code'}), 400
+            
+            # Check expiration (10 minutes)
+            if (datetime.now() - cached_data['timestamp']).total_seconds() > 600:
+                del OTP_CACHE[email]
+                return jsonify({'success': False, 'error': 'Code expired'}), 400
+            
+            if cached_data['otp'] != otp:
+                return jsonify({'success': False, 'error': 'Invalid code'}), 400
+            
+            # Update password
+            user = user_manager.get_user_by_email(email)
+            if user:
+                if user_manager.update_password(user.user_id, new_password):
+                    del OTP_CACHE[email] # Clear used OTP
+                    return jsonify({'success': True, 'message': 'Password updated successfully'})
+                else:
+                    return jsonify({'success': False, 'error': 'Failed to update password'}), 500
+            else:
+                return jsonify({'success': False, 'error': 'User not found'}), 400
+                
+        except Exception as e:
+            print(f"[AUTH] Reset confirm error: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500

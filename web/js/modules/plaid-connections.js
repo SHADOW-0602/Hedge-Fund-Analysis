@@ -13,14 +13,14 @@ class PlaidConnectionsManager {
                 credentials: 'include'
             });
             const result = await response.json();
-            
+
             console.log('[PLAID] Status response:', result);
-            
+
             if (result.success) {
                 this.connections = result.connections || [];
                 console.log('[PLAID] Loaded connections:', this.connections);
                 this.updateConnectionsUI();
-                
+
                 // Auto-select first connection if available
                 if (this.connections.length > 0 && !this.activeConnection) {
                     this.activeConnection = this.connections[0].connection_id;
@@ -29,7 +29,7 @@ class PlaidConnectionsManager {
                         setTimeout(() => window.loadPlaidPortfolio(), 1000);
                     }
                 }
-                
+
                 return this.connections;
             } else {
                 console.log('[PLAID] Status failed:', result.error);
@@ -117,10 +117,10 @@ class PlaidConnectionsManager {
     async selectConnection(connectionId) {
         this.activeConnection = connectionId;
         this.updateConnectionsUI();
-        
+
         // Load data for selected connection
         await this.loadConnectionData(connectionId);
-        
+
         // Update status
         const statusDiv = document.getElementById('plaidStatus');
         if (statusDiv) {
@@ -131,17 +131,19 @@ class PlaidConnectionsManager {
     }
 
     async loadConnectionData(connectionId) {
+        console.log(`[PLAID] Loading connection data for: ${connectionId}`);
         try {
             // Load portfolio data for specific connection
-            const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-portfolio`, {
+            const baseUrl = window.API_BASE || window.location.origin;
+            const response = await fetch(`${baseUrl}/api/plaid-portfolio`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({ connection_id: connectionId })
             });
-            
+
             const result = await response.json();
-            
+
             if (result.success && result.holdings) {
                 const portfolioData = result.holdings.map(holding => ({
                     symbol: holding.symbol,
@@ -152,14 +154,18 @@ class PlaidConnectionsManager {
                     source: 'plaid',
                     connection_id: connectionId
                 }));
-                
+
                 if (typeof displayPortfolio === 'function') {
                     displayPortfolio(portfolioData);
                 }
-                
+
                 if (typeof showDataActions === 'function') {
                     showDataActions();
                 }
+            } else {
+                console.error('[PLAID] Failed to load portfolio data:', result.error || 'Unknown error');
+                // Optional: Show user notification
+                // updatePlaidStatus(`Failed to load data: ${result.error}`, 'error');
             }
         } catch (error) {
             console.error('[PLAID] Failed to load connection data:', error);
@@ -169,7 +175,7 @@ class PlaidConnectionsManager {
     async deleteConnection(connectionId) {
         const conn = this.connections.find(c => c.connection_id === connectionId);
         const institutionName = conn?.institution_name || 'this connection';
-        
+
         if (!confirm(`Are you sure you want to delete ${institutionName}? This action cannot be undone.`)) {
             return;
         }
@@ -187,19 +193,19 @@ class PlaidConnectionsManager {
             if (result.success) {
                 // Remove from local array
                 this.connections = this.connections.filter(c => c.connection_id !== connectionId);
-                
+
                 // Clear active connection if it was deleted
                 if (this.activeConnection === connectionId) {
                     this.activeConnection = this.connections.length > 0 ? this.connections[0].connection_id : null;
                 }
-                
+
                 this.updateConnectionsUI();
-                
+
                 // Clear portfolio if no connections left
                 if (this.connections.length === 0 && typeof clearPortfolioData === 'function') {
                     clearPortfolioData();
                 }
-                
+
                 console.log(`[PLAID] Connection ${connectionId} deleted successfully`);
             } else {
                 throw new Error(result.error || 'Delete failed');

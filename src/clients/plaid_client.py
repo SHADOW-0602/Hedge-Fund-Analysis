@@ -40,26 +40,34 @@ class PlaidClient:
         self.redirect_uri = Config.PLAID_REDIRECT_URI
         
         if PLAID_AVAILABLE and self.client_id and self.secret:
-            # Configure environment using official SDK
-            if self.environment == 'production':
-                host = plaid.Environment.Production
-            elif self.environment == 'development':
-                host = plaid.Environment.Development
-            else:
-                host = plaid.Environment.Sandbox
-            
-            # Official cross-platform SDK configuration
-            configuration = Configuration(
-                host=host,
-                api_key={
-                    'clientId': self.client_id,
-                    'secret': self.secret,
-                    'plaidVersion': '2020-09-14'
-                }
-            )
-            api_client = ApiClient(configuration)
-            self.client = plaid_api.PlaidApi(api_client)
+            try:
+                # Configure environment using official SDK
+                if self.environment == 'production':
+                    host = plaid.Environment.Production
+                elif self.environment == 'development':
+                    host = plaid.Environment.Development
+                else:
+                    host = plaid.Environment.Sandbox
+                
+                logger.info(f"Initializing Plaid Client in {self.environment} mode")
+                
+                # Official cross-platform SDK configuration
+                configuration = Configuration(
+                    host=host,
+                    api_key={
+                        'clientId': self.client_id,
+                        'secret': self.secret,
+                        'plaidVersion': '2020-09-14'
+                    }
+                )
+                api_client = ApiClient(configuration)
+                self.client = plaid_api.PlaidApi(api_client)
+                logger.info("Plaid Client initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Plaid Client: {e}")
+                self.client = None
         else:
+            logger.warning(f"Plaid Client not initialized. Available: {PLAID_AVAILABLE}, ClientID: {bool(self.client_id)}, Secret: {bool(self.secret)}")
             self.client = None
     
     def create_link_token(self, user_id: str, username: str = None) -> str:

@@ -151,6 +151,7 @@ class Config:
             status['services']['plaid'] = f'configured ({cls.PLAID_ENVIRONMENT})'
         else:
             status['services']['plaid'] = 'missing'
+            logger.warning(f"Plaid configuration missing - ClientID: {bool(cls.PLAID_CLIENT_ID)}, Secret: {bool(cls.PLAID_SECRET)}")
             status['warnings'].append('Plaid not configured - brokerage integration disabled')
         
         # Check security

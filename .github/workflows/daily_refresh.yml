@@ -1,0 +1,19 @@
+name: Daily News Refresh
+
+on:
+  schedule:
+    # 6:00 AM IST = 00:30 UTC
+    - cron: '30 0 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  refresh-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger News Refresh
+        run: |
+          echo "Triggering daily news refresh..."
+          curl -X POST "https://shmventures.org/us-news/api/refresh" \
+          -H "Content-Type: application/json" \
+          --fail || exit 1
+          echo "Refresh triggered successfully"
