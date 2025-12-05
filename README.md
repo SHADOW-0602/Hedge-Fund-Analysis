@@ -22,6 +22,12 @@ Enterprise-grade portfolio risk analysis and options scanning platform with adva
 - **Monte Carlo Simulation**: Portfolio risk modeling and scenario analysis
 - **Portfolio Optimization**: Efficient frontier and risk-return optimization
 
+### 📰 **US Stock News with AI**
+- **AI Summaries**: Daily AI-generated executive summaries for top 50 US stocks using Gemini 2.0
+- **Multi-Source News**: Aggregated news from NewsAPI, Finnhub, Polygon, and Yahoo Finance
+- **Automated Refresh**: Automated daily news fetching and processing via GitHub Actions
+- **Smart Caching**: Efficient database caching with Supabase for fast load times
+
 ### 🏢 **Enterprise Features**
 - **Multi-User System**: Role-based access control with JWT authentication
 - **Data Security**: AES-256 encrypted secrets management
@@ -76,6 +82,10 @@ EMAIL_SMTP_SERVER=smtp.gmail.com
 EMAIL_SMTP_PORT=587
 EMAIL_USERNAME=your_email
 EMAIL_PASSWORD=your_app_password
+
+# US News & AI Integration
+GEMINI_API_KEY_5=your_gemini_api_key
+NEWSAPI_KEY=your_newsapi_key
 
 # Brokerage Integration (Production Ready)
 PLAID_CLIENT_ID=your_plaid_client_id
