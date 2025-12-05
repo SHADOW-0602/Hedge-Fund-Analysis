@@ -357,7 +357,7 @@ def run_background_refresh():
 @us_news_bp.route('/')
 def index():
     """Render the main page"""
-    return render_template('us_news_index.html', tickers=ACTIVE_TICKERS)
+    return render_template('us_news_index.html', tickers=ACTIVE_TICKERS, now=int(time.time()))
 
 @us_news_bp.route('/api/refresh', methods=['POST'])
 def refresh_news():
