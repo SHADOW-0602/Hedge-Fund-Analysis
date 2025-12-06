@@ -520,7 +520,7 @@ class RiskAnalyzer:
             from utils.fed_rate import get_risk_free_rate
             risk_free_rate = get_risk_free_rate()
         
-        if len(portfolio_returns) < 30:
+        if len(portfolio_returns) < 15:
             return None
         
         daily_mean = portfolio_returns.mean()

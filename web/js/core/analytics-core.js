@@ -226,6 +226,11 @@ class AnalyticsCore {
                 else if (input.id === 'technicalRsiPeriod') paramName = 'rsi_period';
                 else if (input.id === 'technicalMacdFast') paramName = 'macd_fast';
                 else if (input.id === 'technicalSignalStrength') paramName = 'signal_strength';
+                else if (input.id === 'riskPeriod') paramName = 'period';
+                else if (input.id === 'riskConfidence') paramName = 'var_confidence';
+                else if (input.id === 'riskModel') paramName = 'risk_model';
+                else if (input.id === 'riskBenchmark') paramName = 'benchmark';
+                else if (input.id === 'riskRollingWindow') paramName = 'rolling_window';
 
                 let value = input.value;
                 if (paramName === 'confidence_level') {

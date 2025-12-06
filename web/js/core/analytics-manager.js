@@ -143,6 +143,14 @@ class AnalyticsManager {
             type: 'transaction'
         });
 
+        this.register('risk-metrics', {
+            endpoint: 'analyze-risk',
+            containerId: 'riskResults',
+            settingsId: 'riskSettings', // Updated to enable settings collection
+            displayFunction: this.displayRiskMetrics.bind(this),
+            type: 'portfolio'
+        });
+
         this.register('cash-flow', {
             endpoint: 'cash-flow-analysis',
             containerId: 'cashFlowAnalysis',
@@ -1405,31 +1413,172 @@ class AnalyticsManager {
 
     displayRiskMetrics(result, options) {
         console.log('Risk Metrics result:', result);
-        const container = document.getElementById('riskResults');
-        if (container) {
-            const metrics = result.risk_metrics || result;
-            // Helper for formatting
-            const fmtPct = (val) => (val === null || val === undefined || isNaN(val)) ? 'N/A' : (val * 100).toFixed(2) + '%';
-            const fmtNum = (val) => (val === null || val === undefined || isNaN(val)) ? 'N/A' : val.toFixed(2);
 
-            container.innerHTML = `
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                            <div class="bg-white rounded-lg shadow p-6 text-center">
-                                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Value at Risk (95%)</h3>
-                                <p class="text-3xl font-bold text-gray-900">${fmtPct(metrics.var_95)}</p>
+        // Try to find specific container first, then fall back to generic analysis content
+        let container = document.getElementById('riskResults');
+        const analysisContent = document.getElementById('analysisContent');
+
+        // If specific container is missing but we have analysisContent (which might be showing the spinner),
+        // we should use analysisContent to rebuild the view
+        if (!container && analysisContent) {
+            console.log('Restoring riskResults container in analysisContent');
+            analysisContent.innerHTML = '<div id="riskResults"></div>';
+            container = document.getElementById('riskResults');
+
+            // Also ensure parent is visible
+            analysisContent.classList.remove('hidden');
+        } else if (!container) {
+            console.error('No suitable container found for risk metrics');
+            return;
+        }
+
+        const metrics = result.risk_metrics || result;
+        // Helper for formatting
+        const fmtPct = (val) => (val === null || val === undefined || isNaN(val)) ? 'N/A' : (val * 100).toFixed(2) + '%';
+        const fmtNum = (val) => (val === null || val === undefined || isNaN(val)) ? 'N/A' : val.toFixed(2);
+
+        // Get current settings
+        const currentPeriod = options?.period || metrics.settings?.period || '1Y';
+        const currentConfidence = options?.var_confidence || metrics.settings?.var_confidence || 0.95;
+        const currentModel = options?.risk_model || metrics.settings?.risk_model || 'historical';
+        const currentBenchmark = options?.benchmark || metrics.settings?.benchmark || 'SPY';
+        const currentWindow = options?.rolling_window || metrics.settings?.rolling_window || 252;
+
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Risk Metrics</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="window.toggleRiskSettings && window.toggleRiskSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="window.updateRiskAnalysis && window.updateRiskAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div >
+            
+            <div id="riskSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
+                        <select id="riskPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateRiskAnalysis()">
+                            <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="2Y" ${currentPeriod === '2Y' ? 'selected' : ''}>2 Years</option>
+                            <option value="3Y" ${currentPeriod === '3Y' ? 'selected' : ''}>3 Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Confidence</label>
+                        <select id="riskConfidence" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateRiskAnalysis()">
+                            <option value="0.90" ${Math.abs(currentConfidence - 0.90) < 0.01 ? 'selected' : ''}>90%</option>
+                            <option value="0.95" ${Math.abs(currentConfidence - 0.95) < 0.01 ? 'selected' : ''}>95%</option>
+                            <option value="0.99" ${Math.abs(currentConfidence - 0.99) < 0.01 ? 'selected' : ''}>99%</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risk Model</label>
+                        <select id="riskModel" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateRiskAnalysis()">
+                            <option value="historical" ${currentModel === 'historical' ? 'selected' : ''}>Historical</option>
+                            <option value="parametric" ${currentModel === 'parametric' ? 'selected' : ''}>Parametric</option>
+                            <option value="monte_carlo" ${currentModel === 'monte_carlo' ? 'selected' : ''}>Monte Carlo</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                        <select id="riskBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateRiskAnalysis()">
+                            <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
+                            <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>NASDAQ (QQQ)</option>
+                            <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
+                            <option value="EFA" ${currentBenchmark === 'EFA' ? 'selected' : ''}>EAFE (EFA)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Rolling Window</label>
+                        <select id="riskRollingWindow" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateRiskAnalysis()">
+                            <option value="30" ${currentWindow == 30 ? 'selected' : ''}>30 Days</option>
+                            <option value="60" ${currentWindow == 60 ? 'selected' : ''}>60 Days</option>
+                            <option value="90" ${currentWindow == 90 ? 'selected' : ''}>90 Days</option>
+                            <option value="252" ${currentWindow == 252 ? 'selected' : ''}>252 Days</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="bg-white rounded-lg shadow p-6 text-center">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Value at Risk (${(currentConfidence * 100).toFixed(0)}%)</h3>
+                        <p class="text-3xl font-bold text-gray-900">${fmtPct(metrics.var_95)}</p>
+                        <p class="text-xs text-gray-400 mt-1">Potential loss over defined period</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6 text-center">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Conditional VaR</h3>
+                        <p class="text-3xl font-bold text-gray-900">${fmtPct(metrics.cvar_95)}</p>
+                        <p class="text-xs text-gray-400 mt-1">Expected loss in worst ${(100 - currentConfidence * 100).toFixed(0)}% cases</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6 text-center">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Max Drawdown</h3>
+                        <p class="text-3xl font-bold text-red-600">${fmtPct(metrics.max_drawdown)}</p>
+                        <p class="text-xs text-gray-400 mt-1">Maximum historical loss</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6 text-center">
+                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Sharpe Ratio</h3>
+                        <p class="text-3xl font-bold ${metrics.sharpe_ratio >= 1 ? 'text-green-600' : (metrics.sharpe_ratio > 0 ? 'text-blue-600' : 'text-gray-900')}">${fmtNum(metrics.sharpe_ratio)}</p>
+                        <p class="text-xs text-gray-400 mt-1">Risk-adjusted return</p>
+                    </div>
+                </div>
+
+                <!-- Detailed Metrics -->
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-medium leading-6 text-gray-900">Detailed Risk Statistics</h3>
+                    </div>
+                    <div class="px-6 py-4">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <span class="block text-sm font-medium text-gray-500">Portfolio Volatility</span>
+                                <span class="block text-lg font-semibold text-gray-900">${fmtPct(metrics.portfolio_volatility)}</span>
                             </div>
-                            <div class="bg-white rounded-lg shadow p-6 text-center">
-                                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Conditional VaR</h3>
-                                <p class="text-3xl font-bold text-gray-900">${fmtPct(metrics.cvar_95)}</p>
+                            <div>
+                                <span class="block text-sm font-medium text-gray-500">Beta (vs Benchmark)</span>
+                                <span class="block text-lg font-semibold text-gray-900">${fmtNum(metrics.beta)}</span>
                             </div>
-                            <div class="bg-white rounded-lg shadow p-6 text-center">
-                                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Max Drawdown</h3>
-                                <p class="text-3xl font-bold text-red-600">${fmtPct(metrics.max_drawdown)}</p>
+                            <div>
+                                <span class="block text-sm font-medium text-gray-500">Correlation</span>
+                                <span class="block text-lg font-semibold text-gray-900">${fmtNum(metrics.avg_correlation)}</span>
+                            </div>
+                            <div>
+                                <span class="block text-sm font-medium text-gray-500">Tracking Error</span>
+                                <span class="block text-lg font-semibold text-gray-900">${fmtPct(metrics.tracking_error)}</span>
                             </div>
                         </div>
-                    `;
-        }
+                    </div>
+                </div>
+
+                <!-- Settings Info -->
+                <div class="bg-gray-50 rounded-lg p-6">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentPeriod}</span></div>
+                        <div><span class="text-gray-600">Confidence:</span> <span class="font-medium text-gray-900">${(currentConfidence * 100).toFixed(0)}%</span></div>
+                        <div><span class="text-gray-600">Model:</span> <span class="font-medium text-gray-900">${currentModel.charAt(0).toUpperCase() + currentModel.slice(1).replace('_', ' ')}</span></div>
+                        <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium text-gray-900">${currentBenchmark}</span></div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
+                        <div><span class="text-gray-600">Window:</span> <span class="font-medium text-gray-900">${currentWindow} Days</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
+
 
     displayOptionsStrategies(result, options) {
         console.log('Options Strategies result:', result);
@@ -1464,7 +1613,7 @@ class AnalyticsManager {
         const container = document.getElementById('analysisContent');
         if (!container) return;
         // Simple placeholder rendering
-        container.innerHTML = `<div class="text-center py-4">Technical Indicators data received.</div>`;
+        container.innerHTML = `< div class="text-center py-4" > Technical Indicators data received.</div > `;
     }
 
     // Display Sector Allocation result
@@ -1473,7 +1622,7 @@ class AnalyticsManager {
         const container = document.getElementById('analysisContent');
         if (!container) return;
         // Simple placeholder rendering
-        container.innerHTML = `<div class="text-center py-4">Sector Allocation data received.</div>`;
+        container.innerHTML = `< div class="text-center py-4" > Sector Allocation data received.</div > `;
     }
 
     displayStrategyBacktesting(result, options) {
@@ -1572,7 +1721,7 @@ class AnalyticsManager {
         };
 
         container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
+    < div class="flex justify-between items-center mb-6" >
                 <h2 class="text-2xl font-bold text-gray-900">Strategy Backtesting</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="document.getElementById('backtestSettings').classList.toggle('hidden')" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
@@ -1585,7 +1734,7 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div>
+            </div >
 
             <div id="backtestSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1672,22 +1821,22 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!-- Chart Container Placeholder -->
+            <!--Chart Container Placeholder-- >
             <div id="backtestChartContainer" class="bg-white rounded-lg shadow p-6 mb-6 hidden">
                 <div id="backtestChart" style="width:100%; height:400px;"></div>
             </div>
 
-            <!-- Analysis Parameters -->
-            <div class="details-box mt-6 mb-6">
-                <h4 class="section-header">Analysis Parameters</h4>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div><span class="detail-label">Period:</span> <span class="detail-value">${parameters.period}</span></div>
-                    <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${parameters.rebalancing}</span></div>
-                    <div><span class="detail-label">Costs:</span> <span class="detail-value">${(parameters.transactionCosts * 100).toFixed(2)}%</span></div>
-                    <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${parameters.benchmark}</span></div>
-                </div>
-            </div>
-        `;
+            <!--Analysis Parameters-- >
+    <div class="details-box mt-6 mb-6">
+        <h4 class="section-header">Analysis Parameters</h4>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div><span class="detail-label">Period:</span> <span class="detail-value">${parameters.period}</span></div>
+            <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${parameters.rebalancing}</span></div>
+            <div><span class="detail-label">Costs:</span> <span class="detail-value">${(parameters.transactionCosts * 100).toFixed(2)}%</span></div>
+            <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${parameters.benchmark}</span></div>
+        </div>
+    </div>
+`;
 
         // Render Chart if available
         if (equityCurve && equityCurve.length > 0) {
@@ -1807,7 +1956,7 @@ window.getFilteredOpportunities = (opportunities) => {
 
     const symbolFilter = document.getElementById('symbolFilter')?.value || 'all';
 
-    console.log(`[OPTIONS FILTER] Symbol filter: ${symbolFilter}, Total opportunities: ${opportunities.length}`);
+    console.log(`[OPTIONS FILTER] Symbol filter: ${symbolFilter}, Total opportunities: ${opportunities.length} `);
 
     let filtered = opportunities;
 
@@ -2230,7 +2379,7 @@ window.runStatisticalAnalysisWithSettings = async () => {
     }
 
     try {
-        const response = await fetch(`${window.API_BASE || window.location.origin}/api/statistical-analysis`, {
+        const response = await fetch(`${window.API_BASE || window.location.origin} /api/statistical - analysis`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2354,7 +2503,7 @@ window.updateTechnicalAnalysis = async () => {
     }
 
     try {
-        const response = await fetch(`${window.API_BASE || window.location.origin}/api/technical-analysis?` + Date.now(), {
+        const response = await fetch(`${window.API_BASE || window.location.origin} /api/technical - analysis ? ` + Date.now(), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -2374,20 +2523,20 @@ window.updateTechnicalAnalysis = async () => {
         } else {
             if (container) {
                 container.innerHTML = `
-                    <div class="text-center py-8">
-                        <p class="text-red-600">Technical analysis failed: ${data.error || 'Unknown error'}</p>
-                    </div>
-                `;
+    < div class="text-center py-8" >
+        <p class="text-red-600">Technical analysis failed: ${data.error || 'Unknown error'}</p>
+                    </div >
+    `;
             }
         }
     } catch (error) {
         console.error('[TECHNICAL UPDATE] Error:', error);
         if (container) {
             container.innerHTML = `
-                <div class="text-center py-8">
-                    <p class="text-red-600">Failed to run technical analysis: ${error.message}</p>
-                </div>
-            `;
+    < div class="text-center py-8" >
+        <p class="text-red-600">Failed to run technical analysis: ${error.message}</p>
+                </div >
+    `;
         }
     }
 };
