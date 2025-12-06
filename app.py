@@ -165,8 +165,6 @@ else:
 # Export app for deployment
 app = app
 
-# Root route - remove override, let main_app.py handle it
-
 # Health check endpoint for Northflank
 @app.route('/health')
 def health_check():
