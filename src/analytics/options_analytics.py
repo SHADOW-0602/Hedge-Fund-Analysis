@@ -116,7 +116,8 @@ class OptionsAnalyzer:
                             'downside_protection_pct': downside_protection,
                             'expiration': exp_date,
                             'days_to_exp': days_to_exp,
-                            'delta': delta
+                            'delta': delta,
+                            'iv': float(option.get('impliedVolatility', 0))
                         })
                         
                         print(f"Found protective put for {symbol}: premium=${premium:.2f}, strike=${option['strike']}, cost={protection_cost:.1f}%")
@@ -212,7 +213,8 @@ class OptionsAnalyzer:
                                 'max_loss': max_loss,
                                 'profit_potential': abs(max_profit / current_price) * 100 if current_price > 0 else 0,
                                 'expiration': exp_date,
-                                'delta': self._get_delta(call, current_price, days_to_exp, 'call')
+                                'delta': self._get_delta(call, current_price, days_to_exp, 'call'),
+                                'iv': float(call.get('impliedVolatility', 0))
                             })
                             
                             print(f"Found collar for {symbol}: net_premium=${abs(net_premium):.2f}, call_strike=${call['strike']}, put_strike=${put['strike']}")
@@ -358,8 +360,9 @@ class OptionsAnalyzer:
                                     'premium': mid_price,
                                     'strike': strike_price,
                                     'annualized_return': annualized_return,
-                                    'expiry': exp_date,
-                                    'delta': delta
+                                    'expiration': exp_date,
+                                    'delta': delta,
+                                    'iv': float(call_option.get('impliedVolatility', 0))
                                 })
                             else:
                                 print(f"REJECTED: {symbol} premium ${mid_price:.2f} below minimum ${min_required:.2f}")

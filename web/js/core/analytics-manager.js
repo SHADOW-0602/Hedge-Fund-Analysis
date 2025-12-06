@@ -1581,16 +1581,189 @@ class AnalyticsManager {
 
 
     displayOptionsStrategies(result, options) {
-        console.log('Options Strategies result:', result);
-        // Store for pagination
+        console.log('[OPTIONS] Displaying results:', result);
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        // Store data for pagination and filtering
         window.optionsOpportunities = result.opportunities || [];
         window.optionsSummary = result.summary || {};
+        window.optionsMainResult = result; // Store full result for reference
         window.optionsCurrentPage = 1;
 
-        // Use global display function if available, otherwise implement here
-        if (window.renderOptionsStrategies) {
-            window.renderOptionsStrategies(result.opportunities, result.summary);
-        }
+        // Extract unique symbols for the dynamic filter
+        const uniqueSymbols = [...new Set(window.optionsOpportunities.map(o => o.symbol))].sort();
+
+        // Get current settings/defaults
+        const storedSettings = window.analyticsCore?.optionsSettings || {};
+        const currentExpiration = storedSettings.expiration || '3M';
+        const currentMoneyness = storedSettings.moneyness || 'All';
+        const currentStrategy = storedSettings.strategy || 'All';
+        const currentMinPremium = storedSettings.min_premium || 0.50;
+        const currentDelta = storedSettings.delta_range || 'All';
+
+        // --- 1. Header with Dynamic Filter & Actions ---
+        container.innerHTML = `
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <h2 class="text-2xl font-bold text-gray-900">Options Strategy Scanner</h2>
+                
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- Dynamic Symbol Filter -->
+                    <div class="relative">
+                        <select id="optionsSymbolFilter" onchange="window.filterOptionsStrategies()" 
+                                class="block w-32 pl-3 pr-10 py-1.5 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                            <option value="all">All Symbols</option>
+                            ${uniqueSymbols.map(sym => `<option value="${sym}">${sym}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Settings Toggle -->
+                    <button onclick="toggleOptionsSettings()" class="bg-gray-600 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        Settings
+                    </button>
+
+                    <!-- Refresh Button -->
+                    <button onclick="window.updateOptionsAnalysis()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center shadow-sm">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- --- 2. Settings Panel --- -->
+            <div id="optionsSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Expiration</label>
+                        <select id="optionsExpiration" onchange="window.updateOptionsAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="1M" ${currentExpiration === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="2M" ${currentExpiration === '2M' ? 'selected' : ''}>2 Months</option>
+                            <option value="3M" ${currentExpiration === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentExpiration === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentExpiration === '1Y' ? 'selected' : ''}>1 Year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Moneyness</label>
+                        <select id="optionsMoneyness" onchange="window.updateOptionsAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="All" ${currentMoneyness === 'All' ? 'selected' : ''}>All</option>
+                            <option value="ITM" ${currentMoneyness === 'ITM' ? 'selected' : ''}>In The Money (ITM)</option>
+                            <option value="ATM" ${currentMoneyness === 'ATM' ? 'selected' : ''}>At The Money (ATM)</option>
+                            <option value="OTM" ${currentMoneyness === 'OTM' ? 'selected' : ''}>Out of The Money (OTM)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Strategy Type</label>
+                        <select id="optionsStrategy" onchange="window.updateOptionsAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="All" ${currentStrategy === 'All' ? 'selected' : ''}>All Strategies</option>
+                            <option value="Covered Call" ${currentStrategy === 'Covered Call' ? 'selected' : ''}>Covered Call</option>
+                            <option value="Protective Put" ${currentStrategy === 'Protective Put' ? 'selected' : ''}>Protective Put</option>
+                            <option value="Bull Call Spread" ${currentStrategy === 'Bull Call Spread' ? 'selected' : ''}>Bull Call Spread</option>
+                            <option value="Bear Put Spread" ${currentStrategy === 'Bear Put Spread' ? 'selected' : ''}>Bear Put Spread</option>
+                            <option value="Iron Condor" ${currentStrategy === 'Iron Condor' ? 'selected' : ''}>Iron Condor</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Min Premium ($)</label>
+                        <select id="optionsMinPremium" onchange="window.updateOptionsAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="0.10" ${currentMinPremium === 0.10 ? 'selected' : ''}>$0.10</option>
+                            <option value="0.50" ${currentMinPremium === 0.50 ? 'selected' : ''}>$0.50</option>
+                            <option value="1.00" ${currentMinPremium === 1.00 ? 'selected' : ''}>$1.00</option>
+                            <option value="2.00" ${currentMinPremium === 2.00 ? 'selected' : ''}>$2.00</option>
+                            <option value="5.00" ${currentMinPremium === 5.00 ? 'selected' : ''}>$5.00</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Delta Target</label>
+                        <select id="optionsDeltaRange" onchange="window.updateOptionsAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="All" ${currentDelta === 'All' ? 'selected' : ''}>Any Delta</option>
+                            <option value="0.1-0.3" ${currentDelta === '0.1-0.3' ? 'selected' : ''}>Low (0.1 - 0.3)</option>
+                            <option value="0.3-0.7" ${currentDelta === '0.3-0.7' ? 'selected' : ''}>Medium (0.3 - 0.7)</option>
+                            <option value="0.7-1.0" ${currentDelta === '0.7-1.0' ? 'selected' : ''}>High (0.7 - 1.0)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- --- 3. Summary Cards --- -->
+            <div id="optionsSummaryCards" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <!-- Populated dynamically via JS to allow filtering updates -->
+            </div>
+
+            <!-- --- 4. Results Table with Pagination --- -->
+             <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Strategy</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiration</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Strike(s)</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Premium</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Delta</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">IV</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Exp. Return</th>
+                            </tr>
+                        </thead>
+                        <tbody id="optionsOpportunitiesBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Rows populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination Controls -->
+                <div class="bg-white px-4 py-3 border-t border-gray-200 flex items-center justify-between sm:px-6">
+                    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                        <div>
+                            <p class="text-sm text-gray-700">
+                                Showing <span class="font-medium" id="optStart">1</span> to <span class="font-medium" id="optEnd">10</span> of <span class="font-medium" id="optTotal">20</span> results
+                            </p>
+                        </div>
+                        <div>
+                            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                <button onclick="window.changeOptionsPage(window.optionsCurrentPage - 1)" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Previous</span>
+                                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                                <span id="optPageIndicator" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                    Page 1
+                                </span>
+                                <button onclick="window.changeOptionsPage(window.optionsCurrentPage + 1)" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Next</span>
+                                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- --- 5. Analysis Parameters Footer --- -->
+            <div class="details-box mt-6">
+                <h4 class="section-header">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="detail-label">Expiration:</span> <span class="detail-value">${currentExpiration}</span></div>
+                    <div><span class="detail-label">Moneyness:</span> <span class="detail-value">${currentMoneyness}</span></div>
+                    <div><span class="detail-label">Strategy:</span> <span class="detail-value">${currentStrategy}</span></div>
+                    <div><span class="detail-label">Min Premium:</span> <span class="detail-value">$${currentMinPremium.toFixed(2)}</span></div>
+                    <div><span class="detail-label">Delta:</span> <span class="detail-value">${currentDelta}</span></div>
+                </div>
+            </div>
+        `;
+
+        // Render initial data table and summary
+        window.filterOptionsStrategies();
     }
 
     displayMonteCarloResults(result, options) {
@@ -1918,37 +2091,139 @@ window.analyticsManager = new AnalyticsManager();
 // Export the class for external use
 window.AnalyticsManager = AnalyticsManager;
 
-// Options pagination functions
+// Options pagination and filtering functions
 window.changeOptionsPage = (newPage) => {
-    if (!window.optionsOpportunities) return;
+    if (!window.filteredOptionsOpportunities) return;
 
     const itemsPerPage = 10;
-    const totalPages = Math.ceil(window.optionsOpportunities.length / itemsPerPage);
+    const totalPages = Math.ceil(window.filteredOptionsOpportunities.length / itemsPerPage);
 
-    if (newPage < 1 || newPage > totalPages) return;
+    if (newPage < 1) newPage = 1;
+    if (newPage > totalPages && totalPages > 0) newPage = totalPages;
 
     window.optionsCurrentPage = newPage;
 
-    // Re-display with new page
-    const result = {
-        opportunities: window.optionsOpportunities,
-        summary: window.optionsSummary
-    };
+    // Update pagination UI
+    const startNum = ((newPage - 1) * itemsPerPage) + 1;
+    const endNum = Math.min(newPage * itemsPerPage, window.filteredOptionsOpportunities.length);
 
-    window.analyticsManager.displayOptionsStrategies(result, {});
+    document.getElementById('optStart').textContent = window.filteredOptionsOpportunities.length > 0 ? startNum : 0;
+    document.getElementById('optEnd').textContent = endNum;
+    document.getElementById('optTotal').textContent = window.filteredOptionsOpportunities.length;
+    document.getElementById('optPageIndicator').textContent = `Page ${newPage} of ${totalPages || 1}`;
+
+    // Render Table Rows
+    const startIdx = (newPage - 1) * itemsPerPage;
+    const endIdx = startIdx + itemsPerPage;
+    const pageItems = window.filteredOptionsOpportunities.slice(startIdx, endIdx);
+
+    const tbody = document.getElementById('optionsOpportunitiesBody');
+    if (tbody) {
+        tbody.innerHTML = pageItems.map(opp => {
+            // Normalize Data Fields
+            const expiry = opp.expiration || opp.expiry || 'N/A';
+            // Delta is top-level in python backend
+            const delta = opp.delta !== undefined ? opp.delta : (opp.greeks?.delta);
+            const deltaDisplay = delta !== undefined && delta !== null ? delta.toFixed(2) : 'N/A';
+
+            // IV is not currently returned by backend
+            const ivDisplay = opp.iv !== undefined ? (opp.iv * 100).toFixed(1) + '%' : 'N/A';
+
+            // Normalize Return Logic
+            let returnDisplay = '0.0%';
+            let returnVal = 0;
+
+            if (opp.annualized_return !== undefined) {
+                // Covered Calls send annualized_return as decimal (0.15 for 15%)
+                returnVal = opp.annualized_return;
+                returnDisplay = (returnVal * 100).toFixed(1) + '%';
+            } else if (opp.profit_potential !== undefined) {
+                // Collars send profit_potential as PERCENTAGE (15.0 for 15%)
+                returnVal = opp.profit_potential / 100;
+                returnDisplay = opp.profit_potential.toFixed(1) + '%';
+            } else if (opp.protection_cost_pct !== undefined) {
+                // Protective puts have cost, not return. Show cost in red.
+                returnVal = -1 * (opp.protection_cost_pct / 100);
+                returnDisplay = '-' + opp.protection_cost_pct.toFixed(1) + '% (Cost)';
+            }
+
+            // Strategy Name Formatting
+            const strategyName = opp.strategy ? opp.strategy.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'N/A';
+            const returnColor = returnVal >= 0 ? 'text-green-600' : 'text-red-600';
+
+            return `
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${opp.symbol}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${strategyName}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${expiry}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${opp.strike || opp.call_strike || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">$${opp.premium?.toFixed(2) || opp.net_premium?.toFixed(2) || '0.00'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${deltaDisplay}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${ivDisplay}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${returnColor} text-right font-bold">${returnDisplay}</td>
+            </tr>
+        `}).join('');
+    }
 };
 
 window.filterOptionsStrategies = () => {
     if (!window.optionsOpportunities) return;
 
-    window.optionsCurrentPage = 1; // Reset to first page
+    const symbolFilter = document.getElementById('optionsSymbolFilter')?.value || 'all';
 
-    const result = {
-        opportunities: window.optionsOpportunities,
-        summary: window.optionsSummary
-    };
+    // Filter data
+    let filtered = window.optionsOpportunities;
+    if (symbolFilter !== 'all') {
+        filtered = filtered.filter(opp => opp.symbol === symbolFilter);
+    }
+    window.filteredOptionsOpportunities = filtered;
 
-    window.analyticsManager.displayOptionsStrategies(result, {});
+    // Update Summary Cards
+    const totalCount = filtered.length;
+
+    // Calculate Avg Return properly normalizing percentages
+    let totalReturnSum = 0;
+    let returnCount = 0;
+    let totalPremiumVal = 0;
+
+    filtered.forEach(opp => {
+        // Accumulate Premium
+        totalPremiumVal += (opp.premium || opp.net_premium || 0);
+
+        // Accumulate Return
+        if (opp.annualized_return !== undefined) {
+            totalReturnSum += opp.annualized_return; // decimal
+            returnCount++;
+        } else if (opp.profit_potential !== undefined) {
+            totalReturnSum += (opp.profit_potential / 100); // convert percent to decimal
+            returnCount++;
+        }
+    });
+
+    const avgReturn = returnCount > 0
+        ? (totalReturnSum / returnCount * 100).toFixed(1)
+        : "0.0";
+
+    const summaryContainer = document.getElementById('optionsSummaryCards');
+    if (summaryContainer) {
+        summaryContainer.innerHTML = `
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-500">
+                <div class="text-xs font-semibold text-gray-400 uppercase">Opportunities</div>
+                <div class="text-2xl font-bold text-gray-900">${totalCount}</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+                <div class="text-xs font-semibold text-gray-400 uppercase">Est. Avg Return</div>
+                <div class="text-2xl font-bold text-gray-900">${avgReturn}%</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+                <div class="text-xs font-semibold text-gray-400 uppercase">Total Potential Premium</div>
+                <div class="text-2xl font-bold text-gray-900">$${Math.round(totalPremiumVal).toLocaleString()}</div>
+            </div>
+        `;
+    }
+
+    // Reset to first page and render
+    window.changeOptionsPage(1);
 };
 
 window.getFilteredOpportunities = (opportunities) => {
@@ -2169,10 +2444,11 @@ window.toggleOptionsSettings = () => {
 window.updateOptionsAnalysis = () => {
     const expiration = document.getElementById('optionsExpiration')?.value;
     const moneyness = document.getElementById('optionsMoneyness')?.value;
+    const strategy = document.getElementById('optionsStrategy')?.value;
     const minPremium = document.getElementById('optionsMinPremium')?.value;
     const deltaRange = document.getElementById('optionsDeltaRange')?.value;
 
-    if (!expiration || !moneyness || !minPremium || !deltaRange) {
+    if (!expiration || !moneyness || !strategy || !minPremium || !deltaRange) {
         console.error('Missing required options settings');
         return;
     }
@@ -2181,6 +2457,7 @@ window.updateOptionsAnalysis = () => {
     window.analyticsCore.optionsSettings = {
         expiration,
         moneyness,
+        strategy,
         min_premium: parseFloat(minPremium),
         delta_range: deltaRange
     };
