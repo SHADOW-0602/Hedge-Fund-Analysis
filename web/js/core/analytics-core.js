@@ -232,6 +232,11 @@ class AnalyticsCore {
                 else if (input.id === 'riskModel') paramName = 'risk_model';
                 else if (input.id === 'riskBenchmark') paramName = 'benchmark';
                 else if (input.id === 'riskRollingWindow') paramName = 'rolling_window';
+                else if (input.id === 'sectorClassification') paramName = 'classification';
+                else if (input.id === 'sectorLevel') paramName = 'level';
+                else if (input.id === 'sectorBenchmark') paramName = 'benchmark';
+                else if (input.id === 'sectorView') paramName = 'view';
+                else if (input.id === 'sectorThreshold') paramName = 'threshold';
 
                 let value = input.value;
                 if (paramName === 'confidence_level') {
@@ -245,7 +250,7 @@ class AnalyticsCore {
     }
 
     // Portfolio analysis wrapper
-    async analyzePortfolio(endpoint, containerId, displayFunction, settingsId = null) {
+    async analyzePortfolio(endpoint, containerId, displayFunction, settingsId = null, explicitSettings = null) {
         // Check user authentication first
         if (!this.isUserLoggedIn()) {
             this.showLoginRequired();
@@ -269,6 +274,12 @@ class AnalyticsCore {
 
         // Get options from settings form or stored settings
         let options = settingsId ? this.getFormOptions(settingsId) : {};
+
+        // Apply explicit settings if provided (highest priority)
+        if (explicitSettings) {
+            options = { ...options, ...explicitSettings };
+            console.log('[ANALYTICS-CORE] Applied explicit settings:', explicitSettings);
+        }
 
         // For risk analysis, use stored settings if available
         if (endpoint === 'analyze-risk' && this.riskSettings) {
@@ -306,6 +317,12 @@ class AnalyticsCore {
         if (endpoint === 'portfolio-optimization' && this.optimizationSettings) {
             options = { ...options, ...this.optimizationSettings };
             console.log('Using optimization settings:', this.optimizationSettings);
+        }
+
+        // For sector allocation, use stored settings if available
+        if (endpoint === 'sector-allocation' && this.sectorSettings) {
+            options = { ...options, ...this.sectorSettings };
+            console.log('Using sector allocation settings:', this.sectorSettings);
         }
 
         // For correlation analysis, use stored settings if available
@@ -430,7 +447,7 @@ class AnalyticsCore {
     }
 
     // Transaction analysis wrapper
-    async analyzeTransactions(endpoint, containerId, displayFunction, settingsId = null) {
+    async analyzeTransactions(endpoint, containerId, displayFunction, settingsId = null, explicitSettings = null) {
         // Check user authentication first
         if (!this.isUserLoggedIn()) {
             this.showLoginRequired();
@@ -461,6 +478,12 @@ class AnalyticsCore {
         }
 
         let options = settingsId ? this.getFormOptions(settingsId) : {};
+
+        // Apply explicit settings if provided (highest priority)
+        if (explicitSettings) {
+            options = { ...options, ...explicitSettings };
+            console.log('[ANALYTICS-CORE] Applied explicit settings:', explicitSettings);
+        }
 
         // For return attribution, use stored settings if available
         if (endpoint === 'return-attribution' && this.returnAttributionSettings) {

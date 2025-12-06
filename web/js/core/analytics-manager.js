@@ -536,6 +536,19 @@ class AnalyticsManager {
             return;
         }
 
+        // For sector-allocation, pass stored settings as options
+        if (name === 'sector-allocation' && window.analyticsCore?.sectorSettings) {
+            console.log('[LOAD MODULE] Specialized sector-allocation handling with settings:', window.analyticsCore.sectorSettings);
+            await window.analyticsCore.analyzePortfolio(
+                module.endpoint,
+                module.containerId,
+                module.displayFunction,
+                module.settingsId,
+                window.analyticsCore.sectorSettings
+            );
+            return;
+        }
+
         // For strategy-backtesting, pass stored settings as options
         if (name === 'strategy-backtesting' && window.analyticsCore?.backtestSettings) {
             await window.analyticsCore.analyzePortfolio(
@@ -2204,12 +2217,340 @@ class AnalyticsManager {
     }
 
     // Display Sector Allocation result
+    // Display Sector Allocation result
     displaySectorAllocation(result, options) {
         console.log('Sector Allocation result:', result);
         const container = document.getElementById('analysisContent');
         if (!container) return;
-        // Simple placeholder rendering
-        container.innerHTML = `< div class="text-center py-4" > Sector Allocation data received.</div > `;
+
+        // Current Settings
+        // Current Settings - prioritize options passed from core (which include explicit updates)
+        const settings = window.analyticsCore?.sectorSettings || {};
+
+        // Use options if available (they represent the actual parameters sent to API), fallback to global or defaults
+        const currentLevel = options?.level || settings.level || 'Sector';
+        const currentBenchmark = options?.benchmark || settings.benchmark || 'SPY';
+        const currentView = options?.view || settings.view || 'Pie';
+        const currentThreshold = parseFloat(options?.threshold !== undefined ? options.threshold : (settings.threshold || 0));
+        const currentClassification = options?.classification || settings.classification || 'GICS';
+
+        // Data Preparation
+        let data = result.allocation || [];
+
+        // Apply Threshold
+        let filteredData = [];
+        if (currentThreshold > 0) {
+            let otherPort = 0;
+            let otherBench = 0;
+            data.forEach(d => {
+                if (d.portfolio >= currentThreshold || d.benchmark >= currentThreshold) {
+                    filteredData.push(d);
+                } else {
+                    otherPort += d.portfolio;
+                    otherBench += d.benchmark;
+                }
+            });
+            if (otherPort > 0 || otherBench > 0) {
+                filteredData.push({
+                    name: 'Other (<' + (currentThreshold * 100).toFixed(0) + '%)',
+                    portfolio: otherPort,
+                    benchmark: otherBench,
+                    active: otherPort - otherBench
+                });
+            }
+        } else {
+            filteredData = data;
+        }
+
+        // Helper
+        const fmtPct = (val) => (val * 100).toFixed(1) + '%';
+        // Expanded Color Palette (20 distinct colors to minimize clashes)
+        const colors = [
+            '#4F46E5', // Indigo
+            '#10B981', // Emerald
+            '#F59E0B', // Amber
+            '#EF4444', // Red
+            '#8B5CF6', // Violet
+            '#EC4899', // Pink
+            '#06B6D4', // Cyan
+            '#84CC16', // Lime
+            '#F97316', // Orange
+            '#6366F1', // Indigo Light
+            '#14B8A6', // Teal
+            '#D946EF', // Fuchsia
+            '#EAB308', // Yellow
+            '#64748B', // Slate
+            '#A855F7', // Purple
+            '#FB7185', // Rose
+            '#2DD4BF', // Teal Light
+            '#3B82F6', // Blue
+            '#A3E635', // Lime Light
+            '#9CA3AF'  // Gray
+        ];
+
+        // Consistent Color Hashing
+        const getSectorColor = (name) => {
+            let hash = 0;
+            for (let i = 0; i < name.length; i++) {
+                hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return colors[Math.abs(hash) % colors.length];
+        };
+
+        // UI Shell
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Sector Allocation</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="document.getElementById('sectorSettings').classList.toggle('hidden')" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="window.updateSectorAllocationV2 && window.updateSectorAllocationV2()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div id="sectorSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Classification</label>
+                        <select id="sectorClassification" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateSectorAllocationV2()">
+                            <option value="GICS" ${currentClassification === 'GICS' ? 'selected' : ''}>GICS</option>
+                            <option value="ICB" ${currentClassification === 'ICB' ? 'selected' : ''}>ICB</option>
+                            <option value="Custom" ${currentClassification === 'Custom' ? 'selected' : ''}>Custom</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Level</label>
+                        <select id="sectorLevel" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateSectorAllocationV2()">
+                            <option value="Sector" ${currentLevel === 'Sector' ? 'selected' : ''}>Sector</option>
+                            <option value="Industry" ${currentLevel === 'Industry' ? 'selected' : ''}>Industry</option>
+                            <option value="Sub-industry" ${currentLevel === 'Sub-industry' ? 'selected' : ''}>Sub-industry</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Benchmark</label>
+                        <select id="sectorBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateSectorAllocationV2()">
+                            <option value="None" ${currentBenchmark === 'None' ? 'selected' : ''}>None</option>
+                            <option value="SPY" ${currentBenchmark === 'SPY' || currentBenchmark === 'S&P 500' ? 'selected' : ''}>S&P 500 (SPY)</option>
+                            <option value="IWM" ${currentBenchmark === 'IWM' || currentBenchmark === 'Russell 3000' ? 'selected' : ''}>Russell 3000 (IWM)</option>
+                            <option value="URTH" ${currentBenchmark === 'URTH' || currentBenchmark === 'MSCI World' ? 'selected' : ''}>MSCI World (URTH)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">View</label>
+                        <select id="sectorView" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateSectorAllocationV2()">
+                            <option value="Pie" ${currentView === 'Pie' ? 'selected' : ''}>Pie Chart</option>
+                            <option value="Bar" ${currentView === 'Bar' ? 'selected' : ''}>Bar Chart</option>
+                            <option value="Treemap" ${currentView === 'Treemap' ? 'selected' : ''}>Treemap</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Threshold</label>
+                        <select id="sectorThreshold" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateSectorAllocationV2()">
+                            <option value="0" ${currentThreshold == 0 ? 'selected' : ''}>All</option>
+                            <option value="0.01" ${currentThreshold == 0.01 ? 'selected' : ''}>> 1%</option>
+                            <option value="0.05" ${currentThreshold == 0.05 ? 'selected' : ''}>> 5%</option>
+                            <option value="0.10" ${currentThreshold == 0.10 ? 'selected' : ''}>> 10%</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-8 mb-6">
+                <!-- Top: Chart -->
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">${currentLevel} Analysis</h3>
+                    <div id="sectorChartContainer" class="h-80 w-full relative">
+                        <!-- Chart injected here -->
+                    </div>
+                </div>
+
+                <!-- Bottom: Table -->
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Detailed Breakdown</h3>
+                    <div class="overflow-x-auto max-h-80 overflow-y-auto">
+                        <table class="min-w-full divide-y divide-gray-200 relative">
+                            <thead class="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th class="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Port%</th>
+                                    ${currentBenchmark !== 'None' ? '<th class="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Bench%</th>' : ''}
+                                    ${currentBenchmark !== 'None' ? '<th class="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Active%</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200 text-sm">
+                                ${filteredData.map((row, i) => `
+                                    <tr>
+                                        <td class="px-2 py-2 font-medium text-gray-900 flex items-center text-xs">
+                                            <span class="w-2 h-2 rounded-full mr-1" style="background-color: ${getSectorColor(row.name)}"></span>
+                                            ${row.name}
+                                        </td>
+                                        <td class="px-2 py-2 text-right font-medium text-xs">${fmtPct(row.portfolio)}</td>
+                                        ${currentBenchmark !== 'None' ? `<td class="px-2 py-2 text-right text-gray-500 text-xs">${row.benchmark > 0 ? fmtPct(row.benchmark) : '-'}</td>` : ''}
+                                        ${currentBenchmark !== 'None' ? `<td class="px-2 py-2 text-right text-xs ${row.active > 0 ? 'text-green-600' : (row.active < 0 ? 'text-red-600' : 'text-gray-400')}">
+                                            ${row.active > 0 ? '+' : ''}${fmtPct(row.active)}
+                                        </td>` : ''}
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+             <!-- Analysis Parameters -->
+            <div class="bg-gray-50 rounded-lg p-6 mt-6">
+                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div><span class="text-gray-600">Classification:</span> <span class="font-medium text-gray-900">${currentClassification}</span></div>
+                    <div><span class="text-gray-600">Level:</span> <span class="font-medium text-gray-900">${currentLevel}</span></div>
+                    <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium text-gray-900">${currentBenchmark}</span></div>
+                    <div><span class="text-gray-600">View:</span> <span class="font-medium text-gray-900">${currentView} Chart</span></div>
+                    <div><span class="text-gray-600">Threshold:</span> <span class="font-medium text-gray-900">${currentThreshold > 0 ? '> ' + (currentThreshold * 100).toFixed(0) + '%' : 'All'}</span></div>
+                </div>
+            </div>
+        `;
+
+        // Render Chart Logic - ApexCharts Upgrade
+        setTimeout(() => {
+            const chartContainer = document.getElementById('sectorChartContainer');
+            if (!chartContainer) return;
+
+            // Cleanup existing charts
+            chartContainer.innerHTML = '';
+            if (window.sectorApexChart) {
+                window.sectorApexChart.destroy();
+                window.sectorApexChart = null;
+            }
+
+            // Common Options
+            const commonOptions = {
+                chart: {
+                    background: 'transparent',
+                    toolbar: { show: false },
+                    animations: { enabled: true, easing: 'easeinout', speed: 800 }
+                },
+                theme: { mode: 'light', palette: 'palette1' }, // Overridden by colors below
+                colors: colors,
+                dataLabels: { enabled: true, dropShadow: { enabled: false } },
+                legend: { position: 'right', fontFamily: 'Inter, sans-serif' },
+                tooltip: { theme: 'light', x: { show: true }, y: { formatter: (val) => fmtPct(val) } }
+            };
+
+            let apexOptions = {};
+
+            if (currentView === 'Treemap') {
+                // ApexCharts Treemap
+                const seriesData = filteredData.map(d => ({
+                    x: d.name,
+                    y: d.portfolio
+                }));
+
+                apexOptions = {
+                    ...commonOptions,
+                    series: [{ data: seriesData }],
+                    chart: { ...commonOptions.chart, type: 'treemap', height: 320 },
+                    dataLabels: {
+                        enabled: true,
+                        style: { fontSize: '12px', fontWeight: 'bold' },
+                        formatter: function (text, op) {
+                            return [text, fmtPct(op.value)];
+                        }
+                    },
+                    plotOptions: {
+                        treemap: {
+                            distributed: true,
+                            enableShades: false
+                        }
+                    }
+                };
+
+            } else if (currentView === 'Bar') {
+                // ApexCharts Bar (Horizontal)
+                const categories = filteredData.map(d => d.name);
+                const pfSeries = filteredData.map(d => d.portfolio);
+
+                const series = [{ name: 'Portfolio', data: pfSeries }];
+
+                // Add Benchmark if present
+                if (currentBenchmark !== 'None') {
+                    const bmSeries = filteredData.map(d => d.benchmark);
+                    series.push({ name: currentBenchmark, data: bmSeries });
+                }
+
+                apexOptions = {
+                    ...commonOptions,
+                    series: series,
+                    chart: { ...commonOptions.chart, type: 'bar', height: 320 },
+                    plotOptions: {
+                        bar: {
+                            horizontal: true,
+                            borderRadius: 4,
+                            barHeight: '70%',
+                            dataLabels: { position: 'center' } // inside bar
+                        }
+                    },
+                    xaxis: {
+                        categories: categories,
+                        labels: { formatter: (val) => (val * 100).toFixed(0) + '%' }
+                    },
+                    dataLabels: {
+                        enabled: true,
+                        formatter: (val) => (val * 100).toFixed(1) + '%',
+                        style: { colors: ['#fff'] }
+                    },
+                    grid: { borderColor: '#f1f5f9' }
+                };
+
+            } else {
+                // ApexCharts Pie (Donut) - Default
+                const labels = filteredData.map(d => d.name);
+                const values = filteredData.map(d => d.portfolio);
+
+                apexOptions = {
+                    ...commonOptions,
+                    series: values,
+                    labels: labels,
+                    chart: { ...commonOptions.chart, type: 'donut', height: 320 },
+                    plotOptions: {
+                        pie: {
+                            donut: {
+                                size: '65%',
+                                labels: {
+                                    show: true,
+                                    name: { show: true, fontSize: '14px', fontFamily: 'Inter, sans-serif' },
+                                    value: {
+                                        show: true,
+                                        fontSize: '16px',
+                                        fontFamily: 'Inter, sans-serif',
+                                        formatter: (val) => fmtPct(val)
+                                    },
+                                    total: {
+                                        show: true,
+                                        showAlways: true,
+                                        label: 'Total',
+                                        formatter: () => '100%'
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    dataLabels: { enabled: false }, // Use legend and center for info
+                    stroke: { show: false }
+                };
+            }
+
+            // Render
+            window.sectorApexChart = new ApexCharts(document.querySelector("#sectorChartContainer"), apexOptions);
+            window.sectorApexChart.render();
+
+        }, 100);
     }
 
     displayStrategyBacktesting(result, options) {
@@ -2308,7 +2649,7 @@ class AnalyticsManager {
         };
 
         container.innerHTML = `
-    < div class="flex justify-between items-center mb-6" >
+            < div class="flex justify-between items-center mb-6" >
                 <h2 class="text-2xl font-bold text-gray-900">Strategy Backtesting</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="document.getElementById('backtestSettings').classList.toggle('hidden')" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
@@ -2414,16 +2755,16 @@ class AnalyticsManager {
             </div>
 
             <!--Analysis Parameters-- >
-    <div class="details-box mt-6 mb-6">
-        <h4 class="section-header">Analysis Parameters</h4>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div><span class="detail-label">Period:</span> <span class="detail-value">${parameters.period}</span></div>
-            <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${parameters.rebalancing}</span></div>
-            <div><span class="detail-label">Costs:</span> <span class="detail-value">${(parameters.transactionCosts * 100).toFixed(2)}%</span></div>
-            <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${parameters.benchmark}</span></div>
-        </div>
-    </div>
-`;
+            <div class="details-box mt-6 mb-6">
+                <h4 class="section-header">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div><span class="detail-label">Period:</span> <span class="detail-value">${parameters.period}</span></div>
+                    <div><span class="detail-label">Rebalancing:</span> <span class="detail-value">${parameters.rebalancing}</span></div>
+                    <div><span class="detail-label">Costs:</span> <span class="detail-value">${(parameters.transactionCosts * 100).toFixed(2)}%</span></div>
+                    <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${parameters.benchmark}</span></div>
+                </div>
+            </div>
+        `;
 
         // Render Chart if available
         if (equityCurve && equityCurve.length > 0) {
@@ -2533,7 +2874,7 @@ window.changeOptionsPage = (newPage) => {
     document.getElementById('optStart').textContent = window.filteredOptionsOpportunities.length > 0 ? startNum : 0;
     document.getElementById('optEnd').textContent = endNum;
     document.getElementById('optTotal').textContent = window.filteredOptionsOpportunities.length;
-    document.getElementById('optPageIndicator').textContent = `Page ${newPage} of ${totalPages || 1}`;
+    document.getElementById('optPageIndicator').textContent = `Page ${newPage} of ${totalPages || 1} `;
 
     // Render Table Rows
     const startIdx = (newPage - 1) * itemsPerPage;
@@ -2575,7 +2916,7 @@ window.changeOptionsPage = (newPage) => {
             const returnColor = returnVal >= 0 ? 'text-green-600' : 'text-red-600';
 
             return `
-            <tr>
+            < tr >
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${opp.symbol}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${strategyName}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${expiry}</td>
@@ -2584,8 +2925,8 @@ window.changeOptionsPage = (newPage) => {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${deltaDisplay}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${ivDisplay}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${returnColor} text-right font-bold">${returnDisplay}</td>
-            </tr>
-        `}).join('');
+            </tr >
+            `}).join('');
     }
 };
 
@@ -2630,10 +2971,10 @@ window.filterOptionsStrategies = () => {
     const summaryContainer = document.getElementById('optionsSummaryCards');
     if (summaryContainer) {
         summaryContainer.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-500">
+            < div class="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-500" >
                 <div class="text-xs font-semibold text-gray-400 uppercase">Opportunities</div>
                 <div class="text-2xl font-bold text-gray-900">${totalCount}</div>
-            </div>
+            </div >
             <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
                 <div class="text-xs font-semibold text-gray-400 uppercase">Est. Avg Return</div>
                 <div class="text-2xl font-bold text-gray-900">${avgReturn}%</div>
@@ -2958,22 +3299,22 @@ window.toggleSectorSettings = () => {
     }
 };
 
-window.updateSectorAllocation = () => {
+window.updateSectorAllocationV2 = () => {
     const classification = document.getElementById('sectorClassification')?.value || 'GICS';
     const level = document.getElementById('sectorLevel')?.value || 'Sector';
-    const currency = document.getElementById('sectorCurrency')?.value || 'USD';
     const benchmark = document.getElementById('sectorBenchmark')?.value || 'SPY';
-    const period = document.getElementById('sectorPeriod')?.value || '1Y';
+    const view = document.getElementById('sectorView')?.value || 'Pie';
+    const threshold = document.getElementById('sectorThreshold')?.value || '0';
 
-    console.log('[SECTOR SETTINGS] Updating with:', { classification, level, currency, benchmark, period });
+    console.log('[SECTOR SETTINGS] Updating with:', { classification, level, benchmark, view, threshold });
 
     if (!window.analyticsCore) window.analyticsCore = {};
     window.analyticsCore.sectorSettings = {
         classification,
         level,
-        currency,
         benchmark,
-        period
+        view,
+        threshold
     };
 
     console.log('[SECTOR SETTINGS] Stored settings:', window.analyticsCore.sectorSettings);
@@ -3037,7 +3378,7 @@ window.showStatisticalSettings = () => {
     }
 
     settingsModal.innerHTML = `
-Cancel
+        Cancel
                         Run Analysis
     `;
 
@@ -3192,7 +3533,7 @@ window.updateTechnicalAnalysis = async () => {
     const container = document.getElementById('analysisContent');
     if (container) {
         container.innerHTML = `
-    `;
+            `;
     }
 
     // Get portfolio data
@@ -3223,20 +3564,20 @@ window.updateTechnicalAnalysis = async () => {
         } else {
             if (container) {
                 container.innerHTML = `
-    < div class="text-center py-8" >
-        <p class="text-red-600">Technical analysis failed: ${data.error || 'Unknown error'}</p>
+            < div class="text-center py-8" >
+                <p class="text-red-600">Technical analysis failed: ${data.error || 'Unknown error'}</p>
                     </div >
-    `;
+            `;
             }
         }
     } catch (error) {
         console.error('[TECHNICAL UPDATE] Error:', error);
         if (container) {
             container.innerHTML = `
-    < div class="text-center py-8" >
-        <p class="text-red-600">Failed to run technical analysis: ${error.message}</p>
+            < div class="text-center py-8" >
+                <p class="text-red-600">Failed to run technical analysis: ${error.message}</p>
                 </div >
-    `;
+            `;
         }
     }
 };
@@ -3344,8 +3685,14 @@ window.updatePortfolioOptimization = () => {
     window.analyticsManager.loadModule('portfolio-optimization');
 };
 
+// Helper for Sector Allocation updates
+
+
 // Initialize Analytics Manager instance
-window.analyticsManager = new AnalyticsManager();
+// Note: Instance already created at line 2812. Duplicate removed.
 document.addEventListener('DOMContentLoaded', () => {
-    window.analyticsManager.initialize();
+    // Only initialize if not already done (handled by class method check)
+    if (window.analyticsManager) {
+        window.analyticsManager.initialize();
+    }
 });

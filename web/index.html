@@ -1079,8 +1079,8 @@
     <script src="js/utils/loading-manager.js"></script>
 
     <!-- Simplified Analytics System -->
-    <script src="js/core/analytics-core.js"></script>
-    <script src="js/core/analytics-manager.js"></script>
+    <script src="js/core/analytics-core.js?v=2"></script>
+    <script src="js/core/analytics-manager.js?v=2"></script>
     <script src="js/core/sidebar-handler.js"></script>
     <script src="js/modules/sector-charts.js"></script>
     <link rel="stylesheet" href="css/analytics-simple.css">
@@ -1090,20 +1090,20 @@
     <script src="js/missing-functions.js"></script>
     <script src="js/modules/strategy-backtesting-globals.js"></script>
     <script src="js/app-main.js"></script>
-    
+
     <!-- Monte Carlo Debugging -->
     <script>
         // Monte Carlo Chart Debugging
         console.log('[MONTE CARLO DEBUG] Debug script loaded inline');
-        
+
         // Enhanced debugging for Monte Carlo chart rendering
-        window.debugMonteCarloChart = function() {
+        window.debugMonteCarloChart = function () {
             console.log('[MONTE CARLO DEBUG] Manual debug check triggered');
             console.log('[MONTE CARLO DEBUG] Chart.js available:', typeof Chart !== 'undefined');
             if (typeof Chart !== 'undefined') {
                 console.log('[MONTE CARLO DEBUG] Chart.js version:', Chart.version || 'unknown');
             }
-            
+
             const canvas = document.getElementById('monteCarloChart');
             console.log('[MONTE CARLO DEBUG] Canvas element found:', !!canvas);
             if (canvas) {
@@ -1111,9 +1111,9 @@
                 console.log('[MONTE CARLO DEBUG] Canvas visible:', canvas.offsetWidth > 0 && canvas.offsetHeight > 0);
             }
         };
-        
+
         // Check Chart.js loading
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             setTimeout(() => {
                 console.log('[MONTE CARLO DEBUG] DOM loaded, Chart.js check:');
                 console.log('[MONTE CARLO DEBUG] Chart available:', typeof Chart !== 'undefined');

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,13 +10,15 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body class="gradient-bg min-h-full">
     <div class="min-h-full">
         <header class="bg-white shadow-lg border-b-4 border-indigo-600">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between items-center py-6">
                     <div class="flex items-center">
-                        <div class="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
+                        <div
+                            class="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
                             <span class="text-white font-bold text-lg">HF</span>
                         </div>
                         <h1 class="text-3xl font-bold text-gray-900">Options Analysis</h1>
@@ -34,9 +37,15 @@
             <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
                 <h2 class="text-2xl font-bold text-gray-900 mb-6">Options Analysis</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                    <button onclick="scanOptions()" class="bg-indigo-600 text-white px-6 py-4 rounded-lg hover:bg-indigo-700 transition-colors font-semibold">Covered Calls</button>
-                    <button onclick="scanProtectivePuts()" class="bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 transition-colors font-semibold">Protective Puts</button>
-                    <button onclick="scanCollarStrategies()" class="bg-purple-600 text-white px-6 py-4 rounded-lg hover:bg-purple-700 transition-colors font-semibold">Collar Strategies</button>
+                    <button onclick="scanOptions()"
+                        class="bg-indigo-600 text-white px-6 py-4 rounded-lg hover:bg-indigo-700 transition-colors font-semibold">Covered
+                        Calls</button>
+                    <button onclick="scanProtectivePuts()"
+                        class="bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 transition-colors font-semibold">Protective
+                        Puts</button>
+                    <button onclick="scanCollarStrategies()"
+                        class="bg-purple-600 text-white px-6 py-4 rounded-lg hover:bg-purple-700 transition-colors font-semibold">Collar
+                        Strategies</button>
                 </div>
                 <div id="optionsResults"></div>
             </div>
@@ -45,14 +54,14 @@
 
     <script src="utils.js"></script>
     <script src="js/missing-functions.js"></script>
-    <script src="js/core/analytics-manager.js"></script>
+    <script src="js/core/analytics-manager.js?v=2"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             console.log('Options page loaded');
-            
+
             // Set up global API base
             window.API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
-            
+
             // Initialize the refactored app if available, otherwise fall back to legacy
             if (window.HedgeFundApp) {
                 console.log('Using refactored app');
@@ -65,4 +74,5 @@
         });
     </script>
 </body>
+
 </html>
