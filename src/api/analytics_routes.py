@@ -257,6 +257,52 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             if len(symbols) < 1:
                 return jsonify({'success': False, 'error': 'Need at least 1 symbol for optimization'}), 400
             
+            # Calculate current weights based on market value
+            current_weights = {}
+            total_value = 0.0
+            
+            if portfolio and len(portfolio) > 0:
+                print(f"DEBUG: First portfolio item keys: {portfolio[0].keys()}")
+                print(f"DEBUG: First portfolio item sample: {portfolio[0]}")
+            
+            for item in portfolio:
+                if not isinstance(item, dict):
+                    continue
+                
+                try:
+                    # Debug keys if needed, commonly 'quantity' or 'qty', 'currentPrice' or 'price'
+                    # Frontend uses avg_cost, so add that. Also check case variants.
+                    qty = float(item.get('quantity', item.get('qty', item.get('Quantity', item.get('shares', 0)))))
+                    
+                    price_keys = ['currentPrice', 'current_price', 'price', 'Price', 'lastPrice', 'Last', 'avgCost', 'avg_cost', 'average_cost', 'cost_basis']
+                    price = 0.0
+                    for k in price_keys:
+                        val = item.get(k)
+                        if val is not None:
+                            try:
+                                price = float(val)
+                                if price > 0:
+                                    break
+                            except:
+                                continue
+                                
+                    market_val = qty * price
+                    if market_val > 0:
+                        total_value += market_val
+                        symbol = item.get('symbol', '').strip().upper()
+                        if symbol:
+                            current_weights[symbol] = market_val
+                except Exception as e:
+                    print(f"DEBUG: Failed to process item {item.get('symbol')}: {e}")
+                    continue
+            
+            # Normalize weights
+            if total_value > 0:
+                for sym in current_weights:
+                    current_weights[sym] = current_weights[sym] / total_value
+            
+            print(f"Calculated Current Weights: {current_weights}")
+
             # Initialize optimizer
             optimizer = PortfolioOptimizer(data_client)
             
@@ -268,7 +314,8 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 constraint=constraint,
                 rebalancing=rebalancing,
                 risk_budget=risk_budget,
-                lookback_period=lookback_period
+                lookback_period=lookback_period,
+                current_portfolio_weights=current_weights
             )
             
             print(f"Optimization completed successfully with results keys: {list(optimization_results.keys()) if optimization_results else 'None'}")

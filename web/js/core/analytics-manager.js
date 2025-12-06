@@ -1898,9 +1898,300 @@ class AnalyticsManager {
 
     displayPortfolioOptimization(result, options) {
         console.log('Portfolio Optimization result:', result);
-        if (window.renderOptimizationResults) {
-            window.renderOptimizationResults(result);
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        // --- Extract Current Settings ---
+        if (!window.analyticsCore.optimizationSettings) window.analyticsCore.optimizationSettings = {};
+        const settings = window.analyticsCore.optimizationSettings;
+
+        const currentObjective = settings.objective || 'max_sharpe';
+        const currentConstraint = settings.constraint || 'long_only';
+        const currentRebalancing = settings.rebalancing || 'quarterly';
+        const currentRiskBudget = settings.risk_budget || 'equal';
+        const currentLookback = settings.lookback_period || '1Y';
+
+        // --- UI Structure ---
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900">Portfolio Optimization</h2>
+                    <p class="text-sm text-gray-500">Efficient Frontier & Optimal Allocation</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button onclick="window.toggleOptimizationSettings()" class="flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                        </svg>
+                        Settings
+                    </button>
+                    <button onclick="window.analyticsManager.loadModule('portfolio-optimization')" class="flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div id="optimizationSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Objective</label>
+                        <select id="optObjective" onchange="window.updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="max_sharpe" ${currentObjective === 'max_sharpe' ? 'selected' : ''}>Max Sharpe Ratio</option>
+                            <option value="min_volatility" ${currentObjective === 'min_volatility' ? 'selected' : ''}>Min Volatility</option>
+                            <option value="max_return" ${currentObjective === 'max_return' ? 'selected' : ''}>Max Return</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Constraints</label>
+                        <select id="optConstraint" onchange="window.updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="long_only" ${currentConstraint === 'long_only' ? 'selected' : ''}>Long Only</option>
+                            <option value="130_30" ${currentConstraint === '130_30' ? 'selected' : ''}>130/30</option>
+                            <option value="market_neutral" ${currentConstraint === 'market_neutral' ? 'selected' : ''}>Market Neutral</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Rebalancing</label>
+                        <select id="optRebalancing" onchange="window.updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="monthly" ${currentRebalancing === 'monthly' ? 'selected' : ''}>Monthly</option>
+                            <option value="quarterly" ${currentRebalancing === 'quarterly' ? 'selected' : ''}>Quarterly</option>
+                            <option value="semi_annual" ${currentRebalancing === 'semi_annual' ? 'selected' : ''}>Semi-Annual</option>
+                            <option value="annual" ${currentRebalancing === 'annual' ? 'selected' : ''}>Annual</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Risk Budget</label>
+                        <select id="optRiskBudget" onchange="window.updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="equal" ${currentRiskBudget === 'equal' ? 'selected' : ''}>Equal Risk</option>
+                            <option value="risk_parity" ${currentRiskBudget === 'risk_parity' ? 'selected' : ''}>Risk Parity</option>
+                            <option value="custom" ${currentRiskBudget === 'custom' ? 'selected' : ''}>Custom</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Lookback Period</label>
+                        <select id="optLookback" onchange="window.updatePortfolioOptimization()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="1Y" ${currentLookback === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="2Y" ${currentLookback === '2Y' ? 'selected' : ''}>2 Years</option>
+                            <option value="3Y" ${currentLookback === '3Y' ? 'selected' : ''}>3 Years</option>
+                            <option value="5Y" ${currentLookback === '5Y' ? 'selected' : ''}>5 Years</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div id="optimizationResults"></div>
+
+            <!-- Analysis Parameters Footer -->
+            <div class="details-box mt-6 mb-8">
+                <h4 class="section-header">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="detail-label">Objective:</span> <span class="detail-value capitalize">${currentObjective.replace('_', ' ')}</span></div>
+                    <div><span class="detail-label">Constraint:</span> <span class="detail-value capitalize">${currentConstraint.replace('_', ' ')}</span></div>
+                    <div><span class="detail-label">Rebalancing:</span> <span class="detail-value capitalize">${currentRebalancing.replace('_', ' ')}</span></div>
+                    <div><span class="detail-label">Risk Budget:</span> <span class="detail-value capitalize">${currentRiskBudget.replace('_', ' ')}</span></div>
+                    <div><span class="detail-label">Lookback:</span> <span class="detail-value">${currentLookback}</span></div>
+                </div>
+            </div>
+        `;
+
+        // 1. Data Validation
+        const optimization = result.optimization || result;
+        if (!optimization || !optimization.optimal_portfolio) {
+            console.error('Invalid optimization data format', result);
+            document.getElementById('optimizationResults').innerHTML = '<div class="text-red-500 p-4">Error: Invalid optimization data received from server.</div>';
+            return;
         }
+
+        const { optimal_portfolio, current_portfolio, efficient_frontier } = optimization;
+        const resultsContainer = document.getElementById('optimizationResults');
+        if (!resultsContainer) return;
+
+        // Helper formatting
+        const fmtPct = (val) => (val * 100).toFixed(2) + '%';
+        const fmtNum = (val) => val.toFixed(2);
+
+        // 2. Prepare Chart Data (Efficient Frontier)
+        const frontierData = (efficient_frontier || [])
+            .sort((a, b) => a.volatility - b.volatility) // Sort by risk
+            .map(pt => ({ x: pt.volatility, y: pt.expected_return }));
+
+        // Points of Interest
+        const currentPoint = { x: current_portfolio.volatility, y: current_portfolio.expected_return };
+        const optimalPoint = { x: optimal_portfolio.volatility, y: optimal_portfolio.expected_return };
+
+        // 3. Render Dashboard using Grid
+        resultsContainer.innerHTML = `
+            <!-- Metrics Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <div class="text-xs font-medium text-gray-500 uppercase">Sharpe Ratio</div>
+                    <div class="mt-1 flex items-baseline">
+                        <div class="text-2xl font-bold text-gray-900">${fmtNum(optimal_portfolio.sharpe_ratio)}</div>
+                        <span class="ml-2 text-sm ${optimal_portfolio.sharpe_ratio >= current_portfolio.sharpe_ratio ? 'text-green-600' : 'text-red-600'}">
+                            vs ${fmtNum(current_portfolio.sharpe_ratio)}
+                        </span>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <div class="text-xs font-medium text-gray-500 uppercase">Expected Return</div>
+                    <div class="mt-1 flex items-baseline">
+                        <div class="text-2xl font-bold text-gray-900">${fmtPct(optimal_portfolio.expected_return)}</div>
+                        <span class="ml-2 text-sm ${optimal_portfolio.expected_return >= current_portfolio.expected_return ? 'text-green-600' : 'text-red-600'}">
+                            vs ${fmtPct(current_portfolio.expected_return)}
+                        </span>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                    <div class="text-xs font-medium text-gray-500 uppercase">Annual Volatility</div>
+                    <div class="mt-1 flex items-baseline">
+                        <div class="text-2xl font-bold text-gray-900">${fmtPct(optimal_portfolio.volatility)}</div>
+                        <span class="ml-2 text-sm ${optimal_portfolio.volatility <= current_portfolio.volatility ? 'text-green-600' : 'text-red-600'}">
+                            vs ${fmtPct(current_portfolio.volatility)}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Left: Efficient Frontier Chart -->
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Efficient Frontier</h3>
+                    <div class="h-80 w-full relative">
+                        <canvas id="frontierChart"></canvas>
+                    </div>
+                    <div class="mt-4 text-xs text-gray-500 text-center">
+                        X: Annualized Volatility (Risk) | Y: Expected Annual Return
+                    </div>
+                </div>
+
+                <!-- Right: Allocation Table -->
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Optimal Allocation</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset</th>
+                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current</th>
+                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Optimal</th>
+                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200 text-sm" id="weightsTableBody">
+                                <!-- Rows injected below -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 4. Render Chart
+        setTimeout(() => {
+            const ctx = document.getElementById('frontierChart')?.getContext('2d');
+            if (ctx) {
+                // Destroy existing chart if it exists
+                if (window.frontierChartInstance) {
+                    window.frontierChartInstance.destroy();
+                }
+
+                window.frontierChartInstance = new Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [
+                            {
+                                label: 'Efficient Frontier',
+                                data: frontierData,
+                                showLine: true,
+                                borderColor: '#4F46E5', // Indigo 600
+                                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                                borderWidth: 2,
+                                pointRadius: 0, // Hide points on line
+                                fill: false,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Optimal Portfolio',
+                                data: [optimalPoint],
+                                backgroundColor: '#10B981', // Emerald 500
+                                borderColor: '#059669',
+                                pointRadius: 8,
+                                pointHoverRadius: 10,
+                                pointStyle: 'star'
+                            },
+                            {
+                                label: 'Current Portfolio',
+                                data: [currentPoint],
+                                backgroundColor: '#EF4444', // Red 500
+                                borderColor: '#B91C1C',
+                                pointRadius: 6,
+                                pointHoverRadius: 8,
+                                pointStyle: 'circle'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Volatility (Risk)' },
+                                ticks: { callback: (val) => (val * 100).toFixed(1) + '%' }
+                            },
+                            y: {
+                                title: { display: true, text: 'Expected Return' },
+                                ticks: { callback: (val) => (val * 100).toFixed(1) + '%' }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => {
+                                        const pt = ctx.raw;
+                                        return `${ctx.dataset.label}: Risk ${(pt.x * 100).toFixed(2)}%, Ret ${(pt.y * 100).toFixed(2)}%`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }, 100);
+
+        // 5. Render Weights Table
+        const tableBody = document.getElementById('weightsTableBody');
+        const weights = optimal_portfolio.weights;
+        const currentWeights = current_portfolio.weights || {};
+
+        // Union of all keys
+        const allSymbols = Array.from(new Set([...Object.keys(weights), ...Object.keys(currentWeights)]));
+
+        // Sort by optimal weight descending
+        allSymbols.sort((a, b) => (weights[b] || 0) - (weights[a] || 0));
+
+        tableBody.innerHTML = allSymbols.map(sym => {
+            const curr = currentWeights[sym] || 0;
+            const opt = weights[sym] || 0;
+            const diff = opt - curr;
+
+            // Skip if both are negligible
+            if (Math.abs(curr) < 0.001 && Math.abs(opt) < 0.001) return '';
+
+            return `
+                <tr>
+                    <td class="px-3 py-2 font-medium text-gray-900">${sym}</td>
+                    <td class="px-3 py-2 text-right text-gray-500">${fmtPct(curr)}</td>
+                    <td class="px-3 py-2 text-right font-semibold text-indigo-600">${fmtPct(opt)}</td>
+                    <td class="px-3 py-2 text-right ${diff > 0 ? 'text-green-600' : (diff < 0 ? 'text-red-600' : 'text-gray-500')}">
+                        ${diff > 0 ? '+' : ''}${fmtPct(diff)}
+                    </td>
+                </tr>
+            `;
+        }).join('');
     }
 
     // Display Technical Indicators result
@@ -3018,6 +3309,39 @@ window.updateMonteCarloParams = () => {
 
     console.log('[Monte Carlo] Updating with settings:', window.analyticsCore.monteCarloSettings);
     window.analyticsManager.loadModule('monte-carlo');
+};
+
+// Helper for Portfolio Optimization settings
+window.toggleOptimizationSettings = () => {
+    const settings = document.getElementById('optimizationSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updatePortfolioOptimization = () => {
+    const objective = document.getElementById('optObjective')?.value;
+    const constraint = document.getElementById('optConstraint')?.value;
+    const rebalancing = document.getElementById('optRebalancing')?.value;
+    const riskBudget = document.getElementById('optRiskBudget')?.value;
+    const lookback = document.getElementById('optLookback')?.value;
+
+    if (!objective || !constraint || !rebalancing || !riskBudget || !lookback) {
+        console.error('Missing required Optimization settings');
+        return;
+    }
+
+    if (!window.analyticsCore) window.analyticsCore = {};
+    window.analyticsCore.optimizationSettings = {
+        objective: objective,
+        constraint: constraint,
+        rebalancing: rebalancing,
+        risk_budget: riskBudget,
+        lookback_period: lookback
+    };
+
+    console.log('[Portfolio Optimization] Updating with settings:', window.analyticsCore.optimizationSettings);
+    window.analyticsManager.loadModule('portfolio-optimization');
 };
 
 // Initialize Analytics Manager instance

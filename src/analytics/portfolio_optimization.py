@@ -11,7 +11,7 @@ class PortfolioOptimizer:
     def optimize_portfolio(self, symbols: List[str], period: str = "1y", 
                           objective: str = "max_sharpe", constraint: str = "long_only",
                           rebalancing: str = "quarterly", risk_budget: str = "equal",
-                          lookback_period: str = "1Y") -> Dict:
+                          lookback_period: str = "1Y", current_portfolio_weights: Dict[str, float] = None) -> Dict:
         """Optimize portfolio using historical market data"""
         try:
             logger.info(f"Starting optimization for {len(symbols)} symbols")
@@ -92,8 +92,16 @@ class PortfolioOptimizer:
                 if np.any(np.isnan(cov_matrix.values)) or np.any(np.isinf(cov_matrix.values)):
                     raise ValueError("Invalid covariance matrix")
                 
-                # Calculate current portfolio (equal weight as baseline)
-                current_weights = np.ones(len(valid_symbols)) / len(valid_symbols)
+                # Calculate current portfolio
+                if current_portfolio_weights:
+                    # Map weights to valid symbols
+                    weights_arr = np.array([current_portfolio_weights.get(s, 0.0) for s in valid_symbols])
+                    if np.sum(weights_arr) > 0:
+                        current_weights = weights_arr / np.sum(weights_arr)
+                    else:
+                        current_weights = np.ones(len(valid_symbols)) / len(valid_symbols)
+                else:
+                    current_weights = np.ones(len(valid_symbols)) / len(valid_symbols)
                 
                 # Apply risk budgeting
                 if risk_budget == "risk_parity":
@@ -113,8 +121,9 @@ class PortfolioOptimizer:
                 else:
                     optimal_weights = self._maximize_sharpe(expected_returns, cov_matrix, constraint)
                 
-                # Apply constraint modifications
-                optimal_weights = self._apply_constraints(optimal_weights, constraint)
+                # Apply constraint modifications only for heuristic methods
+                if objective == "max_return":
+                    optimal_weights = self._apply_constraints(optimal_weights, constraint)
                 
                 # Apply rebalancing frequency adjustments
                 optimal_weights = self._apply_rebalancing_adjustments(optimal_weights, rebalancing, expected_returns)
@@ -146,37 +155,90 @@ class PortfolioOptimizer:
             raise e
     
     def _minimize_volatility(self, expected_returns: pd.Series, cov_matrix: pd.DataFrame, constraint: str = "long_only") -> np.ndarray:
-        """Find minimum volatility portfolio"""
+        """Find minimum volatility portfolio using numerical optimization"""
         try:
-            # Use inverse volatility weighting as approximation for min vol
-            vol_diag = np.sqrt(np.diag(cov_matrix.values))
-            inv_vol_weights = (1 / vol_diag) / np.sum(1 / vol_diag)
-            return inv_vol_weights
-        except:
+            from scipy.optimize import minimize
+            n = len(expected_returns)
+            initial_guess = np.ones(n) / n
+            
+            # Objective: Minimize Portfolio Volatility
+            def portfolio_volatility(weights):
+                try:
+                    return np.sqrt(np.dot(weights.T, np.dot(cov_matrix.values, weights)))
+                except:
+                    return 1.0
+            
+            # Constraints
+            constraints = [
+                {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}
+            ]
+            
+            # Bounds
+            if constraint == "long_only":
+                bounds = tuple((0, 1) for _ in range(n))
+            elif constraint == "130_30":
+                bounds = tuple((-0.3, 1.3) for _ in range(n))
+            else:
+                bounds = tuple((0, 1) for _ in range(n))
+            
+            result = minimize(portfolio_volatility, initial_guess, method='SLSQP', bounds=bounds, constraints=constraints)
+            
+            if result.success:
+                return result.x
+            else:
+                # Fallback to inverse volatility weights if optimization fails
+                vol_diag = np.sqrt(np.diag(cov_matrix.values))
+                inv_vol_weights = (1 / vol_diag) / np.sum(1 / vol_diag)
+                return inv_vol_weights
+                
+        except Exception as e:
+            logger.error(f"Min volatility calculation error: {e}")
             return np.ones(len(expected_returns)) / len(expected_returns)
     
     def _maximize_sharpe(self, expected_returns: pd.Series, cov_matrix: pd.DataFrame, constraint: str = "long_only", risk_free_rate: float = None) -> np.ndarray:
-        """Find maximum Sharpe ratio portfolio"""
+        """Find maximum Sharpe ratio portfolio using numerical optimization"""
         try:
+            from scipy.optimize import minimize
             n = len(expected_returns)
             initial_guess = np.ones(n) / n
             
             if risk_free_rate is None:
-                risk_free_rate = 0.02  # Use 2% default instead of fed rate to avoid import issues
+                risk_free_rate = 0.02
             
-            # Simple analytical solution for max Sharpe when possible
-            try:
-                inv_cov = np.linalg.inv(cov_matrix.values)
-                excess_returns = expected_returns.values - risk_free_rate
-                weights = np.dot(inv_cov, excess_returns)
-                weights = weights / np.sum(weights)
-                weights = np.maximum(weights, 0)  # Ensure non-negative
-                weights = weights / np.sum(weights)  # Renormalize
-                return weights
-            except:
-                # Fallback to equal weighting if matrix inversion fails
+            # Negative Sharpe Ratio (to minimize)
+            def negative_sharpe(weights):
+                try:
+                    p_ret = np.sum(expected_returns.values * weights)
+                    p_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix.values, weights)))
+                    if p_vol == 0:
+                        return 0.0
+                    return -((p_ret - risk_free_rate) / p_vol)
+                except:
+                    return 0.0
+            
+            # Constraints
+            constraints = [
+                {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}  # Sum of weights = 1
+            ]
+            
+            # Bounds
+            if constraint == "long_only":
+                bounds = tuple((0, 1) for _ in range(n))
+            elif constraint == "130_30":
+                bounds = tuple((-0.3, 1.3) for _ in range(n))
+            else:
+                bounds = tuple((0, 1) for _ in range(n))
+            
+            result = minimize(negative_sharpe, initial_guess, method='SLSQP', bounds=bounds, constraints=constraints)
+            
+            if result.success:
+                return result.x
+            else:
+                logger.warning(f"Max Sharpe optimization failed: {result.message}, falling back to equal weights")
                 return initial_guess
-        except:
+                
+        except Exception as e:
+            logger.error(f"Max Sharpe calculation error: {e}")
             return np.ones(len(expected_returns)) / len(expected_returns)
     
     def _calculate_portfolio_metrics(self, weights: np.ndarray, expected_returns: pd.Series, 
@@ -218,36 +280,46 @@ class PortfolioOptimizer:
             frontier_points = []
             
             from scipy.optimize import minimize
+            n = len(expected_returns)
+            
+            # Warm start with equal weights
+            current_guess = np.ones(n) / n
             
             for target_return in target_returns:
                 try:
-                    n = len(expected_returns)
-                    
                     def objective(weights):
                         try:
-                            vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-                            return vol if not np.isnan(vol) else 1.0
+                            # Volatility
+                            return np.sqrt(np.dot(weights.T, np.dot(cov_matrix.values, weights)))
                         except:
                             return 1.0
                     
                     constraints = [
                         {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
-                        {'type': 'eq', 'fun': lambda x: np.sum(expected_returns * x) - target_return}
+                        {'type': 'eq', 'fun': lambda x: np.sum(expected_returns.values * x) - target_return}
                     ]
-                    bounds = tuple((0, 1) for _ in range(n))
-                    initial_guess = np.ones(n) / n
                     
-                    result = minimize(objective, initial_guess, method='SLSQP', bounds=bounds, constraints=constraints)
+                    bounds = tuple((0, 1) for _ in range(n))
+                    
+                    result = minimize(objective, current_guess, method='SLSQP', bounds=bounds, constraints=constraints)
                     
                     if result.success:
                         weights = result.x
                         metrics = self._calculate_portfolio_metrics(weights, expected_returns, cov_matrix, symbols)
                         frontier_points.append(metrics)
-                except:
+                        # Update guess for next point (tracing the curve)
+                        current_guess = weights
+                    else:
+                        # Try loose constraint (>= instead of =) if equality failed? 
+                        # Or just skip.
+                        pass
+                except Exception as loop_e:
+                    logger.debug(f"Frontier point failed: {loop_e}")
                     continue
             
             return frontier_points
-        except:
+        except Exception as e:
+            logger.error(f"Efficient frontier generation failed: {e}")
             return []
     
     def _create_single_asset_result(self, symbol: str, returns: pd.DataFrame, objective: str = "max_sharpe", constraint: str = "long_only", rebalancing: str = "quarterly", risk_budget: str = "equal", lookback_period: str = "1Y") -> Dict:

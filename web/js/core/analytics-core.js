@@ -300,6 +300,8 @@ class AnalyticsCore {
             console.log('Using Monte Carlo settings:', this.monteCarloSettings);
         }
 
+
+
         // For portfolio optimization, use stored settings if available
         if (endpoint === 'portfolio-optimization' && this.optimizationSettings) {
             options = { ...options, ...this.optimizationSettings };
