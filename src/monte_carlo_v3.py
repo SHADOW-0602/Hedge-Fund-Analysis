@@ -38,7 +38,7 @@ class MonteCarloEngine:
                            time_horizon: int = 63, num_simulations: int = 10000,
                            confidence_intervals: List[float] = [0.8, 0.9, 0.95, 0.99],
                            market_regime: str = 'normal', volatility_adjustment: float = 0.0,
-                           forecast_period: str = '3M') -> Dict:
+                           forecast_period: str = '3M', initial_portfolio_value: float = 10000.0) -> Dict:
         """Multi-asset portfolio Monte Carlo simulation"""
         
         # Convert forecast period to days
@@ -292,8 +292,8 @@ class MonteCarloEngine:
         # Prepare simulation data for frontend (downsample to max 100 paths for performance)
         paths_to_return = []
         num_paths_to_return = min(100, num_simulations)
-        # Scale to initial value of 1.0 (or 10000 for better visualization)
-        initial_value = 10000.0
+        # Scale to initial value
+        initial_value = initial_portfolio_value
         
         print(f"Monte Carlo Debug: Preparing {num_paths_to_return} paths from {num_simulations} simulations")
         print(f"Monte Carlo Debug: Cumulative returns shape: {cumulative_returns.shape}")

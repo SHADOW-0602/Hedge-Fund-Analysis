@@ -134,7 +134,8 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 confidence_intervals=confidence_intervals,
                 market_regime=market_regime,
                 volatility_adjustment=volatility_adjustment,
-                forecast_period=forecast_period
+                forecast_period=forecast_period,
+                initial_portfolio_value=total_value if total_value > 0 else 10000.0
             )
             
             print(f"[MONTE CARLO API] Simulation completed for {len(symbols)} symbols")

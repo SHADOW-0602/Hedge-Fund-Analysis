@@ -1721,7 +1721,16 @@ class AnalyticsManager {
                 <!-- Pagination Controls -->
                 <div class="bg-white px-4 py-3 border-t border-gray-200 flex items-center justify-between sm:px-6">
                     <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                        <div>
+                        <div class="flex items-center">
+                            <div class="flex items-center space-x-2 mr-6">
+                                <span class="text-sm text-gray-700">Rows:</span>
+                                <select id="optItemsPerPage" onchange="window.changeOptionsPage(1)" class="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 py-1 pl-2 pr-6">
+                                    <option value="10">10</option>
+                                    <option value="25">25</option>
+                                    <option value="50">50</option>
+                                    <option value="all">All</option>
+                                </select>
+                            </div>
                             <p class="text-sm text-gray-700">
                                 Showing <span class="font-medium" id="optStart">1</span> to <span class="font-medium" id="optEnd">10</span> of <span class="font-medium" id="optTotal">20</span> results
                             </p>
@@ -1768,10 +1777,124 @@ class AnalyticsManager {
 
     displayMonteCarloResults(result, options) {
         console.log('Monte Carlo result:', result);
+        const container = document.getElementById('analysisContent');
+        if (!container) return;
+
+        // --- Extract Current Settings ---
+        if (!window.analyticsCore.monteCarloSettings) window.analyticsCore.monteCarloSettings = {};
+        const settings = window.analyticsCore.monteCarloSettings;
+
+        const currentPeriod = settings.forecast_period || '3M';
+        const currentSims = settings.simulations || '10000';
+        const currentConfidence = settings.confidence_intervals || '0.95';
+        const currentRegime = settings.market_regime || 'normal';
+        const currentVolAdj = settings.volatility_adjustment || '0.0';
+
+        // --- 1. Header with Settings Toggle ---
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900">Monte Carlo Simulation</h2>
+                    <p class="text-sm text-gray-500">Probabilistic portfolio forecasting</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button onclick="window.toggleMonteCarloSettings()" class="flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                        </svg>
+                        Settings
+                    </button>
+                    <button onclick="window.analyticsManager.loadModule('monte-carlo')" class="flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- --- 2. Settings Panel --- -->
+            <div id="monteCarloSettings" class="settings-panel hidden mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Forecast Period</label>
+                        <select id="mcPeriod" onchange="window.updateMonteCarloParams()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                            <option value="2Y" ${currentPeriod === '2Y' ? 'selected' : ''}>2 Years</option>
+                            <option value="5Y" ${currentPeriod === '5Y' ? 'selected' : ''}>5 Years</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Simulations</label>
+                        <select id="mcSimulations" onchange="window.updateMonteCarloParams()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="1000" ${currentSims == 1000 ? 'selected' : ''}>1K (Fast)</option>
+                            <option value="5000" ${currentSims == 5000 ? 'selected' : ''}>5K</option>
+                            <option value="10000" ${currentSims == 10000 ? 'selected' : ''}>10K (Standard)</option>
+                            <option value="50000" ${currentSims == 50000 ? 'selected' : ''}>50K (Detailed)</option>
+                            <option value="100000" ${currentSims == 100000 ? 'selected' : ''}>100K (Precise)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Confidence Interval</label>
+                        <select id="mcConfidence" onchange="window.updateMonteCarloParams()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="0.80" ${currentConfidence == 0.80 ? 'selected' : ''}>80%</option>
+                            <option value="0.90" ${currentConfidence == 0.90 ? 'selected' : ''}>90%</option>
+                            <option value="0.95" ${currentConfidence == 0.95 ? 'selected' : ''}>95% (Standard)</option>
+                            <option value="0.99" ${currentConfidence == 0.99 ? 'selected' : ''}>99%</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Market Regime</label>
+                        <select id="mcRegime" onchange="window.updateMonteCarloParams()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="bull" ${currentRegime === 'bull' ? 'selected' : ''}>Bull (+20%)</option>
+                            <option value="normal" ${currentRegime === 'normal' ? 'selected' : ''}>Normal (0%)</option>
+                            <option value="bear" ${currentRegime === 'bear' ? 'selected' : ''}>Bear (-20%)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Volatility Adj.</label>
+                        <select id="mcVolAdj" onchange="window.updateMonteCarloParams()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="-0.5" ${currentVolAdj == -0.5 ? 'selected' : ''}>Low (-50%)</option>
+                            <option value="0.0" ${currentVolAdj == 0.0 ? 'selected' : ''}>Normal</option>
+                            <option value="0.5" ${currentVolAdj == 0.5 ? 'selected' : ''}>High (+50%)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- --- 3. Results Container --- -->
+            <div id="monteCarloResults">
+                <!-- Content injected by renderMonteCarloChart -->
+            </div>
+
+            <!-- --- 4. Analysis Parameters Footer --- -->
+            <div class="details-box mt-6 mb-8">
+                <h4 class="section-header">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="detail-label">Period:</span> <span class="detail-value">${currentPeriod}</span></div>
+                    <div><span class="detail-label">Simulations:</span> <span class="detail-value">${parseInt(currentSims).toLocaleString()}</span></div>
+                    <div><span class="detail-label">Confidence:</span> <span class="detail-value">${(currentConfidence * 100).toFixed(0)}%</span></div>
+                    <div><span class="detail-label">Regime:</span> <span class="detail-value capitalize">${currentRegime}</span></div>
+                    <div><span class="detail-label">Vol Adj:</span> <span class="detail-value">${currentVolAdj > 0 ? '+' : ''}${currentVolAdj * 100}%</span></div>
+                </div>
+            </div>
+        `;
+
+        // Pass control to renderer
         if (window.renderMonteCarloChart) {
             window.renderMonteCarloChart(result);
+        } else {
+            console.error('[AnalyticsManager] renderMonteCarloChart not found');
+            document.getElementById('monteCarloResults').innerHTML = '<div class="text-red-500 p-4">Error: Monte Carlo renderer not loaded.</div>';
         }
     }
+
+    // Helper function to update parameters (attached to window for global access)
+    // Note: This needs to be defined outside the class or attached to window
+    // We'll define it at the bottom or in the helper script.
 
     displayPortfolioOptimization(result, options) {
         console.log('Portfolio Optimization result:', result);
@@ -2095,7 +2218,16 @@ window.AnalyticsManager = AnalyticsManager;
 window.changeOptionsPage = (newPage) => {
     if (!window.filteredOptionsOpportunities) return;
 
-    const itemsPerPage = 10;
+    const itemsSelect = document.getElementById('optItemsPerPage');
+    const itemsPerPageVal = itemsSelect ? itemsSelect.value : '10';
+
+    let itemsPerPage = 10;
+    if (itemsPerPageVal === 'all') {
+        itemsPerPage = Math.max(window.filteredOptionsOpportunities.length, 1);
+    } else {
+        itemsPerPage = parseInt(itemsPerPageVal);
+    }
+
     const totalPages = Math.ceil(window.filteredOptionsOpportunities.length / itemsPerPage);
 
     if (newPage < 1) newPage = 1;
@@ -2860,6 +2992,32 @@ window.updateStrategyBacktesting = () => {
     } else {
         console.error('[UI] window.analyticsCore not available');
     }
+};
+
+// Helper for Monte Carlo instant updates
+window.updateMonteCarloParams = () => {
+    const period = document.getElementById('mcPeriod')?.value;
+    const simulations = document.getElementById('mcSimulations')?.value;
+    const confidence = document.getElementById('mcConfidence')?.value;
+    const regime = document.getElementById('mcRegime')?.value;
+    const volAdj = document.getElementById('mcVolAdj')?.value;
+
+    if (!period || !simulations || !confidence || !regime || !volAdj) {
+        console.error('Missing required Monte Carlo settings');
+        return;
+    }
+
+    if (!window.analyticsCore) window.analyticsCore = {};
+    window.analyticsCore.monteCarloSettings = {
+        forecast_period: period,
+        simulations: parseInt(simulations),
+        confidence_intervals: parseFloat(confidence),
+        market_regime: regime,
+        volatility_adjustment: parseFloat(volAdj)
+    };
+
+    console.log('[Monte Carlo] Updating with settings:', window.analyticsCore.monteCarloSettings);
+    window.analyticsManager.loadModule('monte-carlo');
 };
 
 // Initialize Analytics Manager instance

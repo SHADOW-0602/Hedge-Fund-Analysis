@@ -104,7 +104,8 @@ class AnalyticsCore {
             'sector-allocation': 'Sector Allocation',
             'statistical-analysis': 'Statistical Analysis',
             'technical-analysis': 'Technical Analysis',
-            'strategy-backtesting': 'Strategy Backtesting'
+            'strategy-backtesting': 'Strategy Backtesting',
+            'monte-carlo': 'Monte Carlo Simulation'
         };
         return displayNames[endpoint] || 'Transaction Analysis';
     }
