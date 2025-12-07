@@ -15,10 +15,10 @@ async function loadTechnicalIndicators(portfolioData, options = {}) {
     console.log('loadTechnicalIndicators called with:', portfolioData?.length || 0, 'positions');
 
     // Try multiple possible container IDs
-    let container = document.getElementById('technicalIndicators') || 
-                   document.getElementById('technicalAnalysis') ||
-                   document.getElementById('analysisContent');
-    
+    let container = document.getElementById('technicalIndicators') ||
+        document.getElementById('technicalAnalysis') ||
+        document.getElementById('analysisContent');
+
     if (!container) {
         console.error('Technical indicators container not found');
         return;
@@ -44,9 +44,12 @@ async function loadTechnicalIndicators(portfolioData, options = {}) {
 }
 
 function updateTechnicalOptions() {
+    // Default active indicators
+    const indicators = ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'];
+
     currentTechnicalOptions = {
         period: document.getElementById('technicalPeriod')?.value || '1Y',
-        indicators: ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'],
+        indicators: indicators,
         timeframe: document.getElementById('technicalTimeframe')?.value || 'Daily',
         rsi_period: parseInt(document.getElementById('technicalRsiPeriod')?.value) || 14,
         rsi_oversold: 30,
@@ -62,9 +65,9 @@ function updateTechnicalOptions() {
 
 async function fetchTechnicalIndicators(portfolioData) {
     // Try multiple possible container IDs
-    const container = document.getElementById('technicalIndicators') || 
-                     document.getElementById('technicalAnalysis') ||
-                     document.getElementById('analysisContent');
+    const container = document.getElementById('technicalIndicators') ||
+        document.getElementById('technicalAnalysis') ||
+        document.getElementById('analysisContent');
     if (!container) return;
 
     // Preserve settings state if they exist
@@ -90,7 +93,7 @@ async function fetchTechnicalIndicators(portfolioData) {
         
         <!-- Technical Settings Panel -->
         <div id="technicalSettings" class="settings-panel ${settingsHidden ? 'hidden' : ''} mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
                     <select id="technicalPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTechnicalIndicators()">
@@ -134,6 +137,8 @@ async function fetchTechnicalIndicators(portfolioData) {
                     </select>
                 </div>
             </div>
+            
+
         </div>
         
         <div id="technicalContent" class="bg-white rounded-lg shadow p-12 text-center">
@@ -194,20 +199,20 @@ async function fetchTechnicalIndicators(portfolioData) {
 function displayTechnicalIndicators(technicalData) {
     // Try multiple possible content container IDs
     let contentDiv = document.getElementById('technicalContent');
-    
+
     // If technicalContent doesn't exist, we're probably in the main container
     if (!contentDiv) {
-        contentDiv = document.getElementById('technicalIndicators') || 
-                    document.getElementById('technicalAnalysis') ||
-                    document.getElementById('analysisContent');
+        contentDiv = document.getElementById('technicalIndicators') ||
+            document.getElementById('technicalAnalysis') ||
+            document.getElementById('analysisContent');
     }
-    
+
     if (!contentDiv) return;
-    
+
     console.log('[TECHNICAL] Raw result received:', technicalData);
-    
+
     console.log('[TECHNICAL] Processed data:', technicalData);
-    
+
     // Update current options from result parameters
     if (technicalData.parameters) {
         currentTechnicalOptions = {
@@ -222,21 +227,21 @@ function displayTechnicalIndicators(technicalData) {
             signal_strength: technicalData.parameters.signal_strength || currentTechnicalOptions.signal_strength
         };
     }
-    
+
     // Get symbols from individual_analysis
     const individualAnalysis = technicalData.individual_analysis || {};
     const symbols = Object.keys(individualAnalysis);
-    
+
     console.log('[TECHNICAL] Symbols found:', symbols);
     console.log('[TECHNICAL] Individual analysis:', individualAnalysis);
     console.log('[TECHNICAL] Full technical data structure:', technicalData);
-    
+
     // If no technical data, show error with debug info
     if (symbols.length === 0) {
         showTechnicalError('No technical data found - API returned success but no individual_analysis data');
         return;
     }
-    
+
     // Calculate signal counts
     let bullishCount = 0, bearishCount = 0, neutralCount = 0;
     symbols.forEach(symbol => {
@@ -246,9 +251,9 @@ function displayTechnicalIndicators(technicalData) {
         else if (overallSignal === 'Bearish') bearishCount++;
         else neutralCount++;
     });
-    
+
     const totalSignals = bullishCount + bearishCount + neutralCount;
-    
+
     contentDiv.innerHTML = `
         <div class="space-y-6">
             <!-- Summary Statistics -->
@@ -319,24 +324,23 @@ function displayTechnicalIndicators(technicalData) {
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 ${symbols.map(symbol => {
-                                    const analysis = individualAnalysis[symbol] || {};
-                                    const signals = analysis.signals || {};
-                                    const values = analysis.values || {};
-                                    const overallSignal = analysis.overall_signal || 'Neutral';
-                                    
-                                    console.log(`[TECHNICAL] Symbol ${symbol} analysis:`, analysis);
-                                    console.log(`[TECHNICAL] Symbol ${symbol} signals:`, signals);
-                                    console.log(`[TECHNICAL] Symbol ${symbol} values:`, values);
-                                    
-                                    return `
+        const analysis = individualAnalysis[symbol] || {};
+        const signals = analysis.signals || {};
+        const values = analysis.values || {};
+        const overallSignal = analysis.overall_signal || 'Neutral';
+
+        console.log(`[TECHNICAL] Symbol ${symbol} analysis:`, analysis);
+        console.log(`[TECHNICAL] Symbol ${symbol} signals:`, signals);
+        console.log(`[TECHNICAL] Symbol ${symbol} values:`, values);
+
+        return `
                                         <tr>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${symbol}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                                    overallSignal === 'Bullish' ? 'bg-green-100 text-green-800' :
-                                                    overallSignal === 'Bearish' ? 'bg-red-100 text-red-800' :
-                                                    'bg-gray-100 text-gray-800'
-                                                }">${overallSignal}</span>
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${overallSignal === 'Bullish' ? 'bg-green-100 text-green-800' :
+                overallSignal === 'Bearish' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+            }">${overallSignal}</span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                 ${values.rsi ? values.rsi.toFixed(2) : 'N/A'}
@@ -354,7 +358,7 @@ function displayTechnicalIndicators(technicalData) {
                                             </td>
                                         </tr>
                                     `;
-                                }).join('')}
+    }).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -384,14 +388,14 @@ function displayTechnicalIndicators(technicalData) {
 function showTechnicalError(message) {
     // Try multiple possible content container IDs
     let contentDiv = document.getElementById('technicalContent');
-    
+
     // If technicalContent doesn't exist, use main container
     if (!contentDiv) {
-        contentDiv = document.getElementById('technicalIndicators') || 
-                    document.getElementById('technicalAnalysis') ||
-                    document.getElementById('analysisContent');
+        contentDiv = document.getElementById('technicalIndicators') ||
+            document.getElementById('technicalAnalysis') ||
+            document.getElementById('analysisContent');
     }
-    
+
     if (contentDiv) {
         contentDiv.innerHTML = `
             <div class="bg-white rounded-lg shadow p-8 text-center text-red-600">

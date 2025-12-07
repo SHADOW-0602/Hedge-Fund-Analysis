@@ -181,26 +181,48 @@ class AnalyticsCore {
             // For technical analysis, try to get values directly from elements
             if (formId === 'technicalSettings') {
                 const options = {};
+
+                // Main Settings
                 const period = document.getElementById('technicalPeriod');
                 const timeframe = document.getElementById('technicalTimeframe');
-                const rsiPeriod = document.getElementById('technicalRsiPeriod');
-                const macdFast = document.getElementById('technicalMacdFast');
                 const signalStrength = document.getElementById('technicalSignalStrength');
 
                 if (period) options.period = period.value;
                 if (timeframe) options.timeframe = timeframe.value;
-                if (rsiPeriod) options.rsi_period = parseInt(rsiPeriod.value);
-                if (macdFast) options.macd_fast = parseInt(macdFast.value);
                 if (signalStrength) options.signal_strength = signalStrength.value;
 
-                // Add default values
-                options.indicators = ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'];
-                options.rsi_oversold = 30;
-                options.rsi_overbought = 70;
-                options.macd_slow = 26;
-                options.macd_signal = 9;
-                options.bb_period = 20;
-                options.bb_std = 2;
+                // Indicators (Multi-select)
+                // Assuming we use checkboxes or a multi-select implementation
+                const indicators = [];
+                ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'].forEach(ind => {
+                    const el = document.getElementById(`technicalInd${ind}`);
+                    if (el && el.checked) indicators.push(ind);
+                });
+                if (indicators.length > 0) options.indicators = indicators;
+                else options.indicators = ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA']; // Default all if none found/selected
+
+                // Detailed Parameters
+                const rsiPeriod = document.getElementById('technicalRsiPeriod');
+                const rsiOversold = document.getElementById('technicalRsiOversold');
+                const rsiOverbought = document.getElementById('technicalRsiOverbought');
+
+                const macdFast = document.getElementById('technicalMacdFast');
+                const macdSlow = document.getElementById('technicalMacdSlow');
+                const macdSignal = document.getElementById('technicalMacdSignal');
+
+                const bbPeriod = document.getElementById('technicalBbPeriod');
+                const bbStd = document.getElementById('technicalBbStd');
+
+                if (rsiPeriod) options.rsi_period = parseInt(rsiPeriod.value);
+                if (rsiOversold) options.rsi_oversold = parseInt(rsiOversold.value);
+                if (rsiOverbought) options.rsi_overbought = parseInt(rsiOverbought.value);
+
+                if (macdFast) options.macd_fast = parseInt(macdFast.value);
+                if (macdSlow) options.macd_slow = parseInt(macdSlow.value);
+                if (macdSignal) options.macd_signal = parseInt(macdSignal.value);
+
+                if (bbPeriod) options.bb_period = parseInt(bbPeriod.value);
+                if (bbStd) options.bb_std = parseInt(bbStd.value);
 
                 console.log('[ANALYTICS-CORE] Extracted technical options directly:', options);
                 return options;
@@ -266,7 +288,7 @@ class AnalyticsCore {
         }
 
         // Show loading screen for portfolio analysis
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById(containerId) || document.getElementById('analysisContent');
         if (container) {
             container.classList.remove('hidden');
             this.showPortfolioLoadingScreen(container, endpoint, portfolioData.length);

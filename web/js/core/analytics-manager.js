@@ -1,4 +1,7 @@
 // Simplified Analytics Manager - Replaces complex integration files
+const API_BASE_URL = window.API_BASE || 'http://127.0.0.1:8080';
+const DEFAULT_CONTAINER_ID = 'analysisContent';
+
 class AnalyticsManager {
     constructor() {
         this.modules = new Map();
@@ -32,6 +35,7 @@ class AnalyticsManager {
 
         this.register('options-strategies', {
             endpoint: 'scan-options',
+            containerId: 'optionsResults',
             settingsId: 'optionsSettings',
             displayFunction: this.displayOptionsStrategies.bind(this),
             type: 'portfolio'
@@ -39,7 +43,7 @@ class AnalyticsManager {
 
         this.register('monte-carlo', {
             endpoint: 'monte-carlo',
-            containerId: 'analysisContent',
+            containerId: 'monteCarloResults',
             settingsId: 'monteCarloSettings',
             displayFunction: this.displayMonteCarloResults.bind(this),
             type: 'portfolio'
@@ -47,7 +51,7 @@ class AnalyticsManager {
 
         this.register('portfolio-optimization', {
             endpoint: 'portfolio-optimization',
-            containerId: 'analysisContent',
+            containerId: 'portfolioOptimization',
             settingsId: 'optimizationSettings',
             displayFunction: this.displayPortfolioOptimization.bind(this),
             type: 'portfolio'
@@ -55,7 +59,7 @@ class AnalyticsManager {
 
         this.register('correlation-analysis', {
             endpoint: 'correlation-analysis',
-            containerId: 'correlationResults',
+            containerId: 'correlationMatrix',
             settingsId: 'correlationSettings',
             displayFunction: this.displayCorrelationAnalysis.bind(this),
             type: 'portfolio'
@@ -63,7 +67,7 @@ class AnalyticsManager {
 
         this.register('sector-allocation', {
             endpoint: 'sector-allocation',
-            containerId: 'analysisContent',
+            containerId: 'sectorAllocation',
             settingsId: 'sectorSettings',
             displayFunction: this.displaySectorAllocation.bind(this),
             type: 'portfolio'
@@ -71,7 +75,7 @@ class AnalyticsManager {
 
         this.register('statistical-analysis', {
             endpoint: 'statistical-analysis',
-            containerId: 'analysisContent',
+            containerId: 'statisticalAnalysis',
             settingsId: 'statisticalSettings',
             displayFunction: window.displayStatisticalAnalysisResults,
             type: 'portfolio'
@@ -79,7 +83,7 @@ class AnalyticsManager {
 
         this.register('technical-indicators', {
             endpoint: 'technical-analysis',
-            containerId: 'analysisContent',
+            containerId: 'enhancedTechnicalAnalysis',
             settingsId: 'technicalSettings',
             displayFunction: this.displayTechnicalIndicators.bind(this),
             type: 'portfolio'
@@ -88,7 +92,7 @@ class AnalyticsManager {
         this.register('strategy-backtesting', {
             endpoint: 'strategy-backtesting',
             containerId: 'strategyBacktesting',
-            settingsId: 'backtestingSettings',
+            settingsId: 'backtestSettings',
             displayFunction: this.displayStrategyBacktesting.bind(this),
             type: 'portfolio'
         });
@@ -261,7 +265,7 @@ class AnalyticsManager {
         if (name === 'pnl-attribution' && window.loadPnlAttribution) {
             console.log('Delegating to loadPnlAttribution');
             // Ensure container is visible
-            const container = document.getElementById('analysisContent');
+            const container = document.getElementById(DEFAULT_CONTAINER_ID);
             if (container) container.classList.remove('hidden');
 
             // Use the P&L container ID defined in registration
@@ -283,7 +287,7 @@ class AnalyticsManager {
         if (name === 'turnover-analysis' && window.loadTurnoverAnalysis) {
             console.log('Delegating to loadTurnoverAnalysis');
             // Ensure container is visible
-            const container = document.getElementById('analysisContent');
+            const container = document.getElementById(DEFAULT_CONTAINER_ID);
             if (container) container.classList.remove('hidden');
 
             // Use the Turnover container ID defined in registration
@@ -305,7 +309,7 @@ class AnalyticsManager {
         if (name === 'trade-performance' && window.loadTradePerformance) {
             console.log('Delegating to loadTradePerformance');
             // Ensure container is visible
-            const container = document.getElementById('analysisContent');
+            const container = document.getElementById(DEFAULT_CONTAINER_ID);
             if (container) container.classList.remove('hidden');
 
             // Use the Trade Performance container ID defined in registration
@@ -328,7 +332,7 @@ class AnalyticsManager {
             console.log('Delegating to loadCostAnalysis');
 
             // Ensure container is visible
-            const container = document.getElementById('analysisContent');
+            const container = document.getElementById(DEFAULT_CONTAINER_ID);
             if (container) {
                 container.classList.remove('hidden');
                 container.innerHTML = '';
@@ -372,7 +376,7 @@ class AnalyticsManager {
             console.log('✓ CASH FLOW: Delegating to loadCashFlowAnalysis');
 
             // Ensure container is visible
-            const container = document.getElementById('analysisContent');
+            const container = document.getElementById(DEFAULT_CONTAINER_ID);
             if (container) container.classList.remove('hidden');
 
             // Use the Cash Flow container ID defined in registration or default
@@ -449,7 +453,7 @@ class AnalyticsManager {
             console.log('Delegating to loadAccountingAnalysis for', name);
 
             // Ensure container is visible
-            const container = document.getElementById('analysisContent');
+            const container = document.getElementById(DEFAULT_CONTAINER_ID);
             if (container) container.classList.remove('hidden');
 
             // Use the Accounting container ID defined in registration or default
@@ -567,7 +571,7 @@ class AnalyticsManager {
         }
 
         // Show loading indicator for all analysis types
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById(DEFAULT_CONTAINER_ID);
         if (container && !['cost-analysis', 'accounting-analysis', 'pnl-attribution', 'turnover-analysis', 'trade-performance', 'cash-flow', 'trade-timing', 'drawdown-analysis'].includes(name)) {
             container.classList.remove('hidden');
             container.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div><p class="mt-2 text-gray-600">Loading analysis...</p></div>';
@@ -595,7 +599,7 @@ class AnalyticsManager {
             }
         } catch (error) {
             console.error(`Failed to load ${name}:`, error);
-            const container = document.getElementById('analysisContent');
+            const container = document.getElementById(DEFAULT_CONTAINER_ID);
             if (container) {
                 container.innerHTML = `<div class="text-center py-8 text-red-600">
                     <p class="font-bold">Failed to load module</p>
@@ -604,92 +608,7 @@ class AnalyticsManager {
             }
         }
     }
-    renderBacktestChart(equityCurve) {
-        const ctx = document.getElementById('backtestEquityChart');
-        if (!ctx) return;
 
-        // Destroy existing chart if any
-        if (window.backtestChartInstance) {
-            window.backtestChartInstance.destroy();
-        }
-
-        const labels = equityCurve.map(d => new Date(d.date).toLocaleDateString());
-        const data = equityCurve.map(d => d.equity);
-        const benchmarkData = equityCurve.map(d => d.benchmark_equity);
-
-        window.backtestChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Portfolio Equity',
-                        data: data,
-                        borderColor: '#4F46E5',
-                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.1
-                    },
-                    {
-                        label: 'Benchmark',
-                        data: benchmarkData,
-                        borderColor: '#9CA3AF',
-                        borderWidth: 2,
-                        borderDash: [5, 5],
-                        fill: false,
-                        tension: 0.1,
-                        pointRadius: 0
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
-                },
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: {
-                        callbacks: {
-                            label: function (context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed && context.parsed.y !== null && context.parsed.y !== undefined) {
-                                    try {
-                                        label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y);
-                                    } catch (e) {
-                                        label += context.parsed.y;
-                                    }
-                                }
-                                return label;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: false,
-                        grid: { color: '#F3F4F6' },
-                        ticks: {
-                            callback: function (value) {
-                                return '$' + value.toLocaleString();
-                            }
-                        }
-                    },
-                    x: {
-                        grid: { display: false },
-                        ticks: { maxTicksLimit: 10 }
-                    }
-                }
-            }
-        });
-    }
 
     displayTradePerformance(result, options) {
         console.log('Trade Performance result:', result);
@@ -701,7 +620,7 @@ class AnalyticsManager {
         }
 
         // Simple fallback display
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById(DEFAULT_CONTAINER_ID);
         if (container) {
             container.innerHTML = `<div class="text-center py-4">Trade performance data received but display function not available</div>`;
         }
@@ -724,7 +643,7 @@ class AnalyticsManager {
         }
 
         // Fallback: show basic message in the correct container
-        const container = document.getElementById('turnoverAnalysis') || document.getElementById('analysisContent');
+        const container = document.getElementById('turnoverAnalysis') || document.getElementById(DEFAULT_CONTAINER_ID);
         if (container) {
             container.innerHTML = `
                 <div class="p-4 bg-gray-50 rounded-lg">
@@ -750,7 +669,7 @@ class AnalyticsManager {
 
     // Display market news
     displayMarketNews(result) {
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
         container.classList.remove('hidden');
@@ -813,7 +732,7 @@ class AnalyticsManager {
     }
 
     displayReturnAttribution(result, options) {
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
         // Debug logging
@@ -858,7 +777,7 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div >
+            </div>
             
             <div id="returnAttributionSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -965,7 +884,7 @@ class AnalyticsManager {
     }
 
     displayPerformanceAttribution(result, options) {
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
         container.classList.remove('hidden');
@@ -996,7 +915,7 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div >
+            </div>
             
             <!-- Performance Attribution Settings Panel -->
             <div id="performanceSettings" class="settings-panel hidden mb-6">
@@ -1120,7 +1039,7 @@ class AnalyticsManager {
     }
 
     displayCorrelationAnalysis(result, options) {
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById('correlationMatrix') || document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
         const correlationData = result.correlation_analysis || result;
@@ -1147,7 +1066,7 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div >
+            </div>
             
             <div id="correlationSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1279,7 +1198,7 @@ class AnalyticsManager {
 `;
     }
 
-    // Load market news
+    // Load market news (Refactored to use API_BASE_URL)
     async loadMarketNews(module) {
         const container = document.getElementById(module.containerId);
         if (!container) return;
@@ -1293,7 +1212,7 @@ class AnalyticsManager {
         `;
 
         try {
-            const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/news`);
+            const response = await fetch(`${API_BASE_URL}/api/news`);
             const data = await response.json();
 
             if (data.success && data.articles) {
@@ -1325,8 +1244,7 @@ class AnalyticsManager {
         try {
             console.log(`[ANALYTICS MANAGER] scanOptions called with ${symbols.length} symbols:`, symbols);
 
-            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
-            const response = await fetch(`${API_BASE}/api/scan-options`, {
+            const response = await fetch(`${API_BASE_URL}/api/scan-options`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1342,7 +1260,7 @@ class AnalyticsManager {
             });
 
             const data = await response.json();
-            console.log(`[ANALYTICS MANAGER] scanOptions response:`, data);
+            console.log(`[ANALYTICS MANAGER] scanOptions response: `, data);
 
             return data;
         } catch (error) {
@@ -1354,8 +1272,7 @@ class AnalyticsManager {
     // Risk analysis method for compatibility
     async analyzeRisk(portfolioData, role = 'user') {
         try {
-            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
-            const response = await fetch(`${API_BASE}/api/analyze-risk`, {
+            const response = await fetch(`${API_BASE_URL}/api/analyze-risk`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ portfolio: portfolioData })
@@ -1371,8 +1288,7 @@ class AnalyticsManager {
     async runMonteCarlo(portfolioData, role = 'user') {
         try {
             const symbols = portfolioData.map(p => p.symbol);
-            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
-            const response = await fetch(`${API_BASE}/api/monte-carlo`, {
+            const response = await fetch(`${API_BASE_URL}/api/monte-carlo`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ symbols: symbols })
@@ -1388,8 +1304,7 @@ class AnalyticsManager {
     async runBacktest(strategy, symbols, startDate, endDate) {
         console.log('[AnalyticsManager] runBacktest called with', { strategy, symbols, startDate, endDate });
         try {
-            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
-            const response = await fetch(`${API_BASE}/api/strategy-backtesting`, {
+            const response = await fetch(`${API_BASE_URL}/api/strategy-backtesting`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1409,8 +1324,7 @@ class AnalyticsManager {
     // Stock screening method for compatibility
     async screenStocks(criteria, universe) {
         try {
-            const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
-            const response = await fetch(`${API_BASE}/api/screen-stocks`, {
+            const response = await fetch(`${API_BASE_URL}/api/screen-stocks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ criteria, universe })
@@ -1428,27 +1342,48 @@ class AnalyticsManager {
         console.log('Risk Metrics result:', result);
 
         // Try to find specific container first, then fall back to generic analysis content
-        let container = document.getElementById('riskResults');
-        const analysisContent = document.getElementById('analysisContent');
+        let container = document.getElementById('riskResults') || document.getElementById(DEFAULT_CONTAINER_ID);
+        if (!container) return;
 
-        // If specific container is missing but we have analysisContent (which might be showing the spinner),
-        // we should use analysisContent to rebuild the view
-        if (!container && analysisContent) {
-            console.log('Restoring riskResults container in analysisContent');
-            analysisContent.innerHTML = '<div id="riskResults"></div>';
-            container = document.getElementById('riskResults');
-
-            // Also ensure parent is visible
-            analysisContent.classList.remove('hidden');
-        } else if (!container) {
-            console.error('No suitable container found for risk metrics');
-            return;
-        }
+        // Ensure container is visible
+        container.classList.remove('hidden');
 
         const metrics = result.risk_metrics || result;
+
         // Helper for formatting
         const fmtPct = (val) => (val === null || val === undefined || isNaN(val)) ? 'N/A' : (val * 100).toFixed(2) + '%';
         const fmtNum = (val) => (val === null || val === undefined || isNaN(val)) ? 'N/A' : val.toFixed(2);
+
+        // Helper for color coding (Tiered)
+        const getColorClass = (value, type) => {
+            if (value === null || value === undefined || isNaN(value)) return 'text-gray-400';
+
+            switch (type) {
+                case 'sharpe':
+                case 'sortino':
+                case 'calmar':
+                    if (value >= 1.5) return 'text-green-600 font-bold'; // Excellent
+                    if (value >= 1.0) return 'text-green-500';           // Good
+                    if (value >= 0) return 'text-gray-900';              // Neutral/Positive
+                    return 'text-red-500';                               // Negative
+
+                case 'drawdown':
+                case 'volatility':
+                case 'var':
+                case 'cvar':
+                    // Lower is better (inverted logic for color)
+                    if (type === 'drawdown') {
+                        if (value > -0.10) return 'text-green-600'; // < 10% DD
+                        if (value > -0.20) return 'text-yellow-600'; // 10-20% DD
+                        return 'text-red-600 font-bold';            // > 20% DD
+                    }
+                    return 'text-gray-900';
+
+                case 'generic':
+                default:
+                    return value >= 0 ? 'text-green-600' : 'text-red-600';
+            }
+        };
 
         // Get current settings
         const currentPeriod = options?.period || metrics.settings?.period || '1Y';
@@ -1461,20 +1396,20 @@ class AnalyticsManager {
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">Risk Metrics</h2>
                 <div class="flex items-center space-x-2">
-                    <button onclick="window.toggleRiskSettings && window.toggleRiskSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                    <button onclick="window.toggleRiskSettingsPanel()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
                     </button>
-                    <button onclick="window.updateRiskAnalysis && window.updateRiskAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                    <button onclick="window.updateRiskAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
                         <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
                         </svg>
                         Refresh
                     </button>
                 </div>
-            </div >
+            </div>
             
             <div id="riskSettings" class="settings-panel hidden mb-6">
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
                         <select id="riskPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateRiskAnalysis()">
@@ -1498,8 +1433,8 @@ class AnalyticsManager {
                         <label class="block text-sm font-medium text-gray-700 mb-1">Risk Model</label>
                         <select id="riskModel" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="window.updateRiskAnalysis()">
                             <option value="historical" ${currentModel === 'historical' ? 'selected' : ''}>Historical</option>
-                            <option value="parametric" ${currentModel === 'parametric' ? 'selected' : ''}>Parametric</option>
                             <option value="monte_carlo" ${currentModel === 'monte_carlo' ? 'selected' : ''}>Monte Carlo</option>
+                            <option value="parametric" ${currentModel === 'parametric' ? 'selected' : ''}>Parametric</option>
                         </select>
                     </div>
                     <div>
@@ -1508,7 +1443,6 @@ class AnalyticsManager {
                             <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
                             <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>NASDAQ (QQQ)</option>
                             <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
-                            <option value="EFA" ${currentBenchmark === 'EFA' ? 'selected' : ''}>EAFE (EFA)</option>
                         </select>
                     </div>
                     <div>
@@ -1522,71 +1456,71 @@ class AnalyticsManager {
                     </div>
                 </div>
             </div>
-
-            <div class="space-y-6">
-                <!-- Summary Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="bg-white rounded-lg shadow p-6 text-center">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Value at Risk (${(currentConfidence * 100).toFixed(0)}%)</h3>
-                        <p class="text-3xl font-bold text-gray-900">${fmtPct(metrics.var_95)}</p>
-                        <p class="text-xs text-gray-400 mt-1">Potential loss over defined period</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Column 1: Drawdown Metrics -->
+                <div class="space-y-3">
+                    <h4 class="section-header">Drawdown Analysis</h4>
+                    <div class="metric-row">
+                        <span class="metric-label">Max Drawdown</span>
+                        <span class="metric-value ${getColorClass(metrics.max_drawdown, 'drawdown')}">${fmtPct(metrics.max_drawdown)}</span>
                     </div>
-                    <div class="bg-white rounded-lg shadow p-6 text-center">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Conditional VaR</h3>
-                        <p class="text-3xl font-bold text-gray-900">${fmtPct(metrics.cvar_95)}</p>
-                        <p class="text-xs text-gray-400 mt-1">Expected loss in worst ${(100 - currentConfidence * 100).toFixed(0)}% cases</p>
+                    <div class="metric-row">
+                        <span class="metric-label">Value at Risk (95%)</span>
+                        <span class="metric-value ${getColorClass(metrics.var_95, 'var')}">${fmtPct(metrics.var_95)}</span>
                     </div>
-                    <div class="bg-white rounded-lg shadow p-6 text-center">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Max Drawdown</h3>
-                        <p class="text-3xl font-bold text-red-600">${fmtPct(metrics.max_drawdown)}</p>
-                        <p class="text-xs text-gray-400 mt-1">Maximum historical loss</p>
+                    <div class="metric-row">
+                        <span class="metric-label">Conditional VaR (95%)</span>
+                        <span class="metric-value ${getColorClass(metrics.cvar_95, 'cvar')}">${fmtPct(metrics.cvar_95)}</span>
                     </div>
-                    <div class="bg-white rounded-lg shadow p-6 text-center">
-                        <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Sharpe Ratio</h3>
-                        <p class="text-3xl font-bold ${metrics.sharpe_ratio >= 1 ? 'text-green-600' : (metrics.sharpe_ratio > 0 ? 'text-blue-600' : 'text-gray-900')}">${fmtNum(metrics.sharpe_ratio)}</p>
-                        <p class="text-xs text-gray-400 mt-1">Risk-adjusted return</p>
+                     <div class="metric-row">
+                        <span class="metric-label">Downside Deviation</span>
+                        <span class="metric-value">${fmtPct(metrics.downside_deviation)}</span>
                     </div>
                 </div>
 
-                <!-- Detailed Metrics -->
-                <div class="bg-white rounded-lg shadow overflow-hidden">
-                    <div class="px-6 py-4 border-b border-gray-200">
-                        <h3 class="text-lg font-medium leading-6 text-gray-900">Detailed Risk Statistics</h3>
+                <!-- Column 2: Ratios & Volatility -->
+                <div class="space-y-3">
+                    <h4 class="section-header">Risk-Return Metrics</h4>
+                    <div class="metric-row">
+                        <span class="metric-label">Sharpe Ratio</span>
+                        <span class="metric-value ${getColorClass(metrics.sharpe_ratio, 'sharpe')}">${fmtNum(metrics.sharpe_ratio)}</span>
                     </div>
-                    <div class="px-6 py-4">
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                                <span class="block text-sm font-medium text-gray-500">Portfolio Volatility</span>
-                                <span class="block text-lg font-semibold text-gray-900">${fmtPct(metrics.portfolio_volatility)}</span>
-                            </div>
-                            <div>
-                                <span class="block text-sm font-medium text-gray-500">Beta (vs Benchmark)</span>
-                                <span class="block text-lg font-semibold text-gray-900">${fmtNum(metrics.beta)}</span>
-                            </div>
-                            <div>
-                                <span class="block text-sm font-medium text-gray-500">Correlation</span>
-                                <span class="block text-lg font-semibold text-gray-900">${fmtNum(metrics.avg_correlation)}</span>
-                            </div>
-                            <div>
-                                <span class="block text-sm font-medium text-gray-500">Tracking Error</span>
-                                <span class="block text-lg font-semibold text-gray-900">${fmtPct(metrics.tracking_error)}</span>
-                            </div>
-                        </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Sortino Ratio</span>
+                        <span class="metric-value ${getColorClass(metrics.sortino_ratio, 'sortino')}">${fmtNum(metrics.sortino_ratio)}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Calmar Ratio</span>
+                        <span class="metric-value ${getColorClass(metrics.calmar_ratio, 'calmar')}">${fmtNum(metrics.calmar_ratio)}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Volatility (Ann.)</span>
+                        <span class="metric-value">${fmtPct(metrics.volatility)}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Beta</span>
+                        <span class="metric-value">${fmtNum(metrics.beta)}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Upside Capture</span>
+                        <span class="metric-value">${fmtNum(metrics.upside_capture)}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Downside Capture</span>
+                        <span class="metric-value">${fmtNum(metrics.downside_capture)}</span>
                     </div>
                 </div>
-
-                <!-- Settings Info -->
-                <div class="bg-gray-50 rounded-lg p-6">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentPeriod}</span></div>
-                        <div><span class="text-gray-600">Confidence:</span> <span class="font-medium text-gray-900">${(currentConfidence * 100).toFixed(0)}%</span></div>
-                        <div><span class="text-gray-600">Model:</span> <span class="font-medium text-gray-900">${currentModel.charAt(0).toUpperCase() + currentModel.slice(1).replace('_', ' ')}</span></div>
-                        <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium text-gray-900">${currentBenchmark}</span></div>
-                    </div>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
-                        <div><span class="text-gray-600">Window:</span> <span class="font-medium text-gray-900">${currentWindow} Days</span></div>
-                    </div>
+            </div>
+            
+            <div class="details-box mt-6">
+                <h4 class="section-header">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="detail-label">Period:</span> <span class="detail-value">${currentPeriod}</span></div>
+                    <div><span class="detail-label">Confidence:</span> <span class="detail-value">${(currentConfidence * 100).toFixed(0)}%</span></div>
+                    <div><span class="detail-label">Model:</span> <span class="detail-value">${currentModel.charAt(0).toUpperCase() + currentModel.slice(1).replace('_', ' ')}</span></div>
+                    <div><span class="detail-label">Benchmark:</span> <span class="detail-value">${currentBenchmark}</span></div>
+                    <div><span class="detail-label">Window:</span> <span class="detail-value">${currentWindow} Days</span></div>
                 </div>
             </div>
         `;
@@ -1595,7 +1529,7 @@ class AnalyticsManager {
 
     displayOptionsStrategies(result, options) {
         console.log('[OPTIONS] Displaying results:', result);
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById('optionsResults') || document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
         // Store data for pagination and filtering
@@ -1750,18 +1684,18 @@ class AnalyticsManager {
                         </div>
                         <div>
                             <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                                <button onclick="window.changeOptionsPage(window.optionsCurrentPage - 1)" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                                    <span class="sr-only">Previous</span>
-                                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <button onclick="window.changeOptionsPage(window.optionsCurrentPage - 1)" class="relative inline-flex items-center px-4 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                    <svg class="h-5 w-5 mr-2 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                         <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
                                     </svg>
+                                    Previous
                                 </button>
-                                <span id="optPageIndicator" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                <span id="optPageIndicator" class="relative inline-flex items-center px-4 py-2 border-t border-b border-gray-300 bg-white text-sm font-medium text-gray-700">
                                     Page 1
                                 </span>
-                                <button onclick="window.changeOptionsPage(window.optionsCurrentPage + 1)" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                                    <span class="sr-only">Next</span>
-                                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <button onclick="window.changeOptionsPage(window.optionsCurrentPage + 1)" class="relative inline-flex items-center px-4 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                    Next
+                                    <svg class="h-5 w-5 ml-2 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                         <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
                                     </svg>
                                 </button>
@@ -1769,9 +1703,13 @@ class AnalyticsManager {
                         </div>
                     </div>
                 </div>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <!-- --- 5. Analysis Parameters Footer --- -->
+            <!-- --- 5. Analysis Parameters Footer-- - -->
             <div class="details-box mt-6">
                 <h4 class="section-header">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
@@ -1790,7 +1728,7 @@ class AnalyticsManager {
 
     displayMonteCarloResults(result, options) {
         console.log('Monte Carlo result:', result);
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById('monteCarloResults') || document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
         // --- Extract Current Settings ---
@@ -1826,7 +1764,7 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!-- --- 2. Settings Panel --- -->
+            <!-- 2. Settings Panel -->
             <div id="monteCarloSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
@@ -1878,12 +1816,12 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!-- --- 3. Results Container --- -->
+            <!-- 3. Results Container -->
             <div id="monteCarloResults">
                 <!-- Content injected by renderMonteCarloChart -->
             </div>
 
-            <!-- --- 4. Analysis Parameters Footer --- -->
+            <!-- 4. Analysis Parameters Footer -->
             <div class="details-box mt-6 mb-8">
                 <h4 class="section-header">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
@@ -1911,7 +1849,7 @@ class AnalyticsManager {
 
     displayPortfolioOptimization(result, options) {
         console.log('Portfolio Optimization result:', result);
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById('portfolioOptimization') || document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
         // --- Extract Current Settings ---
@@ -1995,7 +1933,7 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!-- Results -->
+            <!--Results -->
             <div id="optimizationResults"></div>
 
             <!-- Analysis Parameters Footer -->
@@ -2165,7 +2103,7 @@ class AnalyticsManager {
                                 callbacks: {
                                     label: (ctx) => {
                                         const pt = ctx.raw;
-                                        return `${ctx.dataset.label}: Risk ${(pt.x * 100).toFixed(2)}%, Ret ${(pt.y * 100).toFixed(2)}%`;
+                                        return `${ctx.dataset.label}: Risk ${(pt.x * 100).toFixed(2)}%, Ret ${(pt.y * 100).toFixed(2)}% `;
                                     }
                                 }
                             }
@@ -2195,7 +2133,7 @@ class AnalyticsManager {
             if (Math.abs(curr) < 0.001 && Math.abs(opt) < 0.001) return '';
 
             return `
-                <tr>
+            <tr>
                     <td class="px-3 py-2 font-medium text-gray-900">${sym}</td>
                     <td class="px-3 py-2 text-right text-gray-500">${fmtPct(curr)}</td>
                     <td class="px-3 py-2 text-right font-semibold text-indigo-600">${fmtPct(opt)}</td>
@@ -2210,17 +2148,294 @@ class AnalyticsManager {
     // Display Technical Indicators result
     displayTechnicalIndicators(result, options) {
         console.log('Technical Indicators result:', result);
-        const container = document.getElementById('analysisContent');
-        if (!container) return;
-        // Simple placeholder rendering
-        container.innerHTML = `< div class="text-center py-4" > Technical Indicators data received.</div > `;
+        // Robust container selection
+        const container = document.getElementById('enhancedTechnicalAnalysis') ||
+            document.getElementById('technicalAnalysis') ||
+            document.getElementById('technicalIndicators') ||
+            document.getElementById(DEFAULT_CONTAINER_ID);
+
+        if (!container) {
+            console.error('Technical Indicators container not found');
+            return;
+        }
+
+        const data = result.technical_analysis || {};
+        const settings = options || {}; // Fix ReferenceError
+        const summary = data.summary || {};
+        const individual = data.individual_analysis || {};
+        let portSignals = data.portfolio_signals || {};
+
+        // Always calculate signal counts from individual analysis for consistency and chart data
+        let bullishCount = 0, bearishCount = 0, neutralCount = 0, totalCount = 0;
+        Object.values(individual).forEach(analysis => {
+            const signal = analysis.overall_signal || 'Neutral';
+            if (signal === 'Bullish') bullishCount++;
+            else if (signal === 'Bearish') bearishCount++;
+            else neutralCount++;
+            totalCount++;
+        });
+
+        // Use calculated weights if total > 0, otherwise defaults
+        if (totalCount > 0) {
+            portSignals.bullish_weight = bullishCount / totalCount;
+            portSignals.bearish_weight = bearishCount / totalCount;
+            portSignals.neutral_weight = neutralCount / totalCount;
+
+            // Determine overall signal based on max count
+            if (bullishCount > bearishCount && bullishCount > neutralCount) portSignals.overall = 'Bullish';
+            else if (bearishCount > bullishCount && bearishCount > neutralCount) portSignals.overall = 'Bearish';
+            else portSignals.overall = 'Neutral';
+        } else if (portSignals.bullish_weight === undefined) {
+            // Fallback if no individual data and no API weights
+            portSignals.bullish_weight = 0;
+            portSignals.bearish_weight = 0;
+            portSignals.neutral_weight = 1;
+            portSignals.overall = 'Neutral';
+
+            // Ensure weights are assigned to data object
+            data.portfolio_signals = portSignals;
+        }
+
+        // Current Settings (for UI state)
+        const currentPeriod = options.period || '1Y';
+        const currentTimeframe = options.timeframe || 'Daily';
+        const currentSignalStrength = options.signal_strength || 'Medium';
+        const currentIndicators = options.indicators || ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'];
+
+        // Helper to check if indicator is selected
+        const isIndSelected = (ind) => currentIndicators.includes(ind);
+
+        // Parameters
+        const rsiParams = options.rsi_parameters || { period: 14, oversold: 30, overbought: 70 };
+        const macdParams = options.macd_parameters || { fast: 12, slow: 26, signal: 9 };
+        const bbParams = options.bollinger_parameters || { period: 20, std_dev: 2 };
+
+        const getSignalColor = (signal) => {
+            if (!signal) return 'gray';
+            const s = signal.toLowerCase();
+            if (s.includes('bullish')) return 'green';
+            if (s.includes('bearish')) return 'red';
+            return 'gray';
+        };
+
+        const getSignalBadge = (signal) => {
+            const color = getSignalColor(signal);
+            const label = signal || 'Neutral';
+            return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800">
+            ${label}
+            </span>`;
+        };
+
+
+
+        // Render UI - Matching P&L Attribution Style (No Apply Button, Auto-Update)
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">Technical Analysis</h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="toggleTechnicalSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                        Settings
+                    </button>
+                    <button onclick="updateTechnicalAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div id="technicalSettings" class="settings-panel hidden mb-6">
+                <!-- Row 1: 5-Column Grid matching P&L Attribution -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                        <select id="technicalPeriod" onchange="updateTechnicalAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                            <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                            <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                            <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+                        <select id="technicalTimeframe" onchange="updateTechnicalAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="Daily" ${currentTimeframe === 'Daily' ? 'selected' : ''}>Daily</option>
+                            <option value="Weekly" ${currentTimeframe === 'Weekly' ? 'selected' : ''}>Weekly</option>
+                            <option value="Monthly" ${currentTimeframe === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">RSI Period</label>
+                        <select id="technicalRsiPeriod" onchange="updateTechnicalAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="14" ${settings?.rsi_period === 14 ? 'selected' : ''}>14</option>
+                            <option value="21" ${settings?.rsi_period === 21 ? 'selected' : ''}>21</option>
+                            <option value="30" ${settings?.rsi_period === 30 ? 'selected' : ''}>30</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">MACD Fast</label>
+                        <select id="technicalMacdFast" onchange="updateTechnicalAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="12" ${settings?.macd_fast === 12 ? 'selected' : ''}>12</option>
+                            <option value="8" ${settings?.macd_fast === 8 ? 'selected' : ''}>8</option>
+                            <option value="15" ${settings?.macd_fast === 15 ? 'selected' : ''}>15</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Signal Strength</label>
+                        <select id="technicalSignalStrength" onchange="updateTechnicalAnalysis()" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
+                            <option value="Weak" ${currentSignalStrength === 'Weak' ? 'selected' : ''}>Weak</option>
+                            <option value="Medium" ${currentSignalStrength === 'Medium' ? 'selected' : ''}>Medium</option>
+                            <option value="Strong" ${currentSignalStrength === 'Strong' ? 'selected' : ''}>Strong</option>
+                        </select>
+                    </div>
+                </div>
+                
+
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">Overall Sentiment</h3>
+                    <div class="flex items-center">
+                        ${getSignalBadge(portSignals.overall)}
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">Signal Breakdown</h3>
+                    <div class="grid grid-cols-3 gap-1 text-center text-xs">
+                        <div>
+                            <div class="font-bold text-green-600">${bullishCount}</div>
+                            <div>Bull</div>
+                        </div>
+                        <div>
+                            <div class="font-bold text-red-600">${bearishCount}</div>
+                            <div>Bear</div>
+                        </div>
+                        <div>
+                            <div class="font-bold text-gray-600">${neutralCount}</div>
+                            <div>Neut</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 col-span-2">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">Signal Distribution</h3>
+                     <div id="signalDistChart" class="h-32 w-full"></div>
+                </div>
+            </div>
+
+            <!-- Detailed Table -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                     <h3 class="text-lg font-medium text-gray-900">Indicator Analysis</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overall</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RSI</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MACD</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bollinger</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${Object.entries(individual).map(([sym, details]) => `
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${sym}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">$${details.values?.current_price?.toFixed(2) || '0.00'}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">${getSignalBadge(details.overall_signal)}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <div class="flex flex-col">
+                                            <span class="font-medium">${details.values?.rsi?.toFixed(1) || '-'}</span>
+                                            <span class="text-xs text-gray-500">${details.signals?.rsi || '-'}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                         <div class="flex flex-col">
+                                            <span class="text-xs text-gray-500">${details.signals?.macd || '-'}</span>
+                                            <span class="text-xs text-gray-400">H: ${details.values?.macd?.histogram.toFixed(2) || '-'}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                         <span class="text-xs text-gray-500">${details.signals?.bollinger || '-'}</span>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="details-box mt-6">
+                <h4 class="section-header">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="detail-label">Period:</span> <span class="detail-value">${currentPeriod}</span></div>
+                    <div><span class="detail-label">Timeframe:</span> <span class="detail-value">${currentTimeframe}</span></div>
+                    <div><span class="detail-label">Signal Str:</span> <span class="detail-value">${currentSignalStrength}</span></div>
+                    <div class="col-span-2"><span class="detail-label">Indicators:</span> <span class="detail-value">${currentIndicators.join(', ')}</span></div>
+                </div>
+            </div>
+        `;
+
+        // Render Chart
+        setTimeout(() => {
+            if (!document.querySelector("#signalDistChart")) return;
+
+            // Clean up
+            if (window.techSignalChart) {
+                window.techSignalChart.destroy();
+                window.techSignalChart = null;
+            }
+
+            // Calculations are done above, just use them
+            const rawSeries = [
+                portSignals.bullish_weight,
+                portSignals.bearish_weight,
+                portSignals.neutral_weight
+            ];
+
+            // Validate and convert to percentages
+            const series = rawSeries.map(v => {
+                const num = parseFloat(v);
+                return (!isNaN(num) && num >= 0) ? num * 100 : 0;
+            });
+
+            // Check if we have any data to prevent NaN errors in chart
+            const totalVal = series.reduce((a, b) => a + b, 0);
+            if (totalVal <= 0.01) {
+                document.querySelector("#signalDistChart").innerHTML =
+                    '<div class="flex items-center justify-center h-full text-gray-400 text-xs">No Signal Data</div>';
+                return;
+            }
+
+            const options = {
+                series: series,
+                labels: ['Bullish', 'Bearish', 'Neutral'],
+                colors: ['#10B981', '#EF4444', '#9CA3AF'],
+                chart: { type: 'donut', height: 140, background: 'transparent' },
+                dataLabels: { enabled: false },
+                legend: { position: 'right', fontSize: '12px' },
+                plotOptions: {
+                    pie: { donut: { size: '70%', labels: { show: false } } }
+                },
+                tooltip: { y: { formatter: (val) => val.toFixed(1) + '%' } }
+            };
+
+            window.techSignalChart = new ApexCharts(document.querySelector("#signalDistChart"), options);
+            window.techSignalChart.render();
+        }, 100);
     }
 
     // Display Sector Allocation result
     // Display Sector Allocation result
     displaySectorAllocation(result, options) {
         console.log('Sector Allocation result:', result);
-        const container = document.getElementById('analysisContent');
+        const container = document.getElementById('sectorAllocation') || document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
         // Current Settings
@@ -2302,7 +2517,7 @@ class AnalyticsManager {
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">Sector Allocation</h2>
                 <div class="flex items-center space-x-2">
-                    <button onclick="document.getElementById('sectorSettings').classList.toggle('hidden')" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                    <button onclick="toggleSectorSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
                     </button>
                     <button onclick="window.updateSectorAllocationV2 && window.updateSectorAllocationV2()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
@@ -2445,11 +2660,17 @@ class AnalyticsManager {
 
             let apexOptions = {};
 
+            // Helper to safely get number
+            const safeNum = (v) => {
+                if (v === null || v === undefined || isNaN(v)) return 0;
+                return Number(v);
+            };
+
             if (currentView === 'Treemap') {
                 // ApexCharts Treemap
                 const seriesData = filteredData.map(d => ({
                     x: d.name,
-                    y: d.portfolio
+                    y: safeNum(d.portfolio)
                 }));
 
                 apexOptions = {
@@ -2474,13 +2695,13 @@ class AnalyticsManager {
             } else if (currentView === 'Bar') {
                 // ApexCharts Bar (Horizontal)
                 const categories = filteredData.map(d => d.name);
-                const pfSeries = filteredData.map(d => d.portfolio);
+                const pfSeries = filteredData.map(d => safeNum(d.portfolio));
 
                 const series = [{ name: 'Portfolio', data: pfSeries }];
 
                 // Add Benchmark if present
                 if (currentBenchmark !== 'None') {
-                    const bmSeries = filteredData.map(d => d.benchmark);
+                    const bmSeries = filteredData.map(d => safeNum(d.benchmark));
                     series.push({ name: currentBenchmark, data: bmSeries });
                 }
 
@@ -2511,7 +2732,7 @@ class AnalyticsManager {
             } else {
                 // ApexCharts Pie (Donut) - Default
                 const labels = filteredData.map(d => d.name);
-                const values = filteredData.map(d => d.portfolio);
+                const values = filteredData.map(d => safeNum(d.portfolio));
 
                 apexOptions = {
                     ...commonOptions,
@@ -2560,7 +2781,7 @@ class AnalyticsManager {
         // Try to find the specific container, or fallback to generic analysis container
         let container = document.getElementById('strategyBacktesting') ||
             document.getElementById('backtestingResults') ||
-            document.getElementById('analysisContent');
+            document.getElementById(DEFAULT_CONTAINER_ID);
 
         console.log('[AnalyticsManager] Container found:', container?.id || 'NONE');
 
@@ -2569,7 +2790,7 @@ class AnalyticsManager {
             console.error('[AnalyticsManager] Available elements:', {
                 strategyBacktesting: !!document.getElementById('strategyBacktesting'),
                 backtestingResults: !!document.getElementById('backtestingResults'),
-                analysisContent: !!document.getElementById('analysisContent')
+                analysisContent: !!document.getElementById(DEFAULT_CONTAINER_ID)
             });
             return;
         }
@@ -2621,8 +2842,10 @@ class AnalyticsManager {
             return val.toFixed(2);
         };
 
-        // Color coding function
-        const getValueColor = (value, type) => {
+
+
+        // Better Helper that supports the tiered coloring from before but maps to standard classes where possible, or tailwind
+        const getColorClass = (value, type) => {
             if (value === null || value === undefined || isNaN(value)) return 'text-gray-400';
 
             switch (type) {
@@ -2634,14 +2857,16 @@ class AnalyticsManager {
                     if (value >= 0.5) return 'text-orange-600';
                     return 'text-red-600';
                 case 'drawdown':
-                    if (Math.abs(value) <= 0.05) return 'text-green-600';
-                    if (Math.abs(value) <= 0.10) return 'text-yellow-600';
-                    if (Math.abs(value) <= 0.20) return 'text-orange-600';
+                    // Drawdown is typically 0 to -1. Or 0 to 1 magnitude
+                    const mag = Math.abs(value);
+                    if (mag <= 0.05) return 'text-green-600';
+                    if (mag <= 0.10) return 'text-yellow-600';
+                    if (mag <= 0.20) return 'text-orange-600';
                     return 'text-red-600';
                 case 'winrate':
-                    if (value >= 70) return 'text-green-600';
-                    if (value >= 60) return 'text-yellow-600';
-                    if (value >= 50) return 'text-orange-600';
+                    if (value >= 0.70) return 'text-green-600';
+                    if (value >= 0.60) return 'text-yellow-600';
+                    if (value >= 0.50) return 'text-orange-600';
                     return 'text-red-600';
                 default:
                     return 'text-gray-900';
@@ -2649,10 +2874,10 @@ class AnalyticsManager {
         };
 
         container.innerHTML = `
-            < div class="flex justify-between items-center mb-6" >
+            <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">Strategy Backtesting</h2>
                 <div class="flex items-center space-x-2">
-                    <button onclick="document.getElementById('backtestSettings').classList.toggle('hidden')" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                    <button onclick="toggleBacktestSettingsPanel()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
                     </button>
                     <button onclick="window.updateStrategyBacktesting && window.updateStrategyBacktesting()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
@@ -2662,7 +2887,7 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div >
+            </div>
 
             <div id="backtestSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2710,21 +2935,21 @@ class AnalyticsManager {
                     <h4 class="section-header">Performance Metrics</h4>
                     <div class="metric-row">
                         <span class="metric-label">Total Return</span>
-                        <span class="metric-value ${getValueColor(performanceMetrics.total_return, 'return')}">
+                        <span class="metric-value ${getColorClass(performanceMetrics.total_return, 'return')}">
                             ${fmtPct(performanceMetrics.total_return)}
                         </span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Sharpe Ratio</span>
-                        <span class="metric-value ${getValueColor(performanceMetrics.sharpe_ratio, 'ratio')}">${fmtNum(performanceMetrics.sharpe_ratio)}</span>
+                        <span class="metric-value ${getColorClass(performanceMetrics.sharpe_ratio, 'ratio')}">${fmtNum(performanceMetrics.sharpe_ratio)}</span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Max Drawdown</span>
-                        <span class="metric-value ${getValueColor(riskMetrics.max_drawdown, 'drawdown')}">${fmtPct(riskMetrics.max_drawdown)}</span>
+                        <span class="metric-value ${getColorClass(riskMetrics.max_drawdown, 'drawdown')}">${fmtPct(riskMetrics.max_drawdown)}</span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Win Rate</span>
-                        <span class="metric-value ${getValueColor(performanceMetrics.win_rate, 'winrate')}">${fmtPct(performanceMetrics.win_rate)}</span>
+                        <span class="metric-value ${getColorClass(performanceMetrics.win_rate, 'winrate')}">${fmtPct(performanceMetrics.win_rate)}</span>
                     </div>
                 </div>
                 
@@ -2740,7 +2965,7 @@ class AnalyticsManager {
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Alpha</span>
-                        <span class="metric-value">${fmtPct(performanceMetrics.alpha)}</span>
+                        <span class="metric-value ${getColorClass(performanceMetrics.alpha, 'return')}">${fmtPct(performanceMetrics.alpha)}</span>
                     </div>
                     <div class="metric-row">
                         <span class="metric-label">Profitable Trades</span>
@@ -2749,12 +2974,12 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!--Chart Container Placeholder-- >
+            <!--Chart Container Placeholder-->
             <div id="backtestChartContainer" class="bg-white rounded-lg shadow p-6 mb-6 hidden">
                 <div id="backtestChart" style="width:100%; height:400px;"></div>
             </div>
 
-            <!--Analysis Parameters-- >
+            <!--Analysis Parameters-->
             <div class="details-box mt-6 mb-6">
                 <h4 class="section-header">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -2774,67 +2999,88 @@ class AnalyticsManager {
                 chartContainer.classList.remove('hidden');
             }
 
-            // Render chart using ApexCharts
-            if (window.ApexCharts) {
-                const dates = equityCurve.map(p => new Date(p.date).toLocaleDateString());
-                const values = equityCurve.map(p => p.equity);
+            // Render chart using ApexCharts in a timeout to ensure container is visible and sized
+            setTimeout(() => {
+                if (window.ApexCharts && document.querySelector("#backtestChart")) {
+                    // Validate and format data
+                    const validPoints = equityCurve.filter(p =>
+                        p &&
+                        p.date &&
+                        p.equity !== undefined &&
+                        p.equity !== null &&
+                        !isNaN(parseFloat(p.equity)) &&
+                        isFinite(parseFloat(p.equity))
+                    );
 
-                const options = {
-                    series: [{
-                        name: 'Portfolio Value',
-                        data: values
-                    }],
-                    chart: {
-                        type: 'area',
-                        height: 350,
-                        toolbar: {
-                            show: false
-                        }
-                    },
-                    dataLabels: {
-                        enabled: false
-                    },
-                    stroke: {
-                        curve: 'smooth',
-                        width: 2
-                    },
-                    xaxis: {
-                        categories: dates,
-                        labels: {
-                            show: false // Hide labels if too many points
+                    if (validPoints.length === 0) {
+                        console.warn('No valid equity curve points found');
+                        document.getElementById('backtestChart').innerHTML = '<p class="text-center text-gray-500 py-10">No valid chart data available</p>';
+                        return;
+                    }
+
+                    const dates = validPoints.map(p => {
+                        const d = new Date(p.date);
+                        return isNaN(d.getTime()) ? 'Invalid Date' : d.toLocaleDateString();
+                    });
+
+                    const values = validPoints.map(p => parseFloat(p.equity));
+
+                    // Destroy existing if any
+                    if (window.backtestChartInstance) {
+                        try { window.backtestChartInstance.destroy(); } catch (e) { }
+                    }
+
+                    const options = {
+                        series: [{
+                            name: 'Portfolio Value',
+                            data: values
+                        }],
+                        chart: {
+                            type: 'area',
+                            height: 350,
+                            toolbar: { show: false },
+                            animations: { enabled: false } // Disable animations to prevent calc errors during resize
                         },
-                        tooltip: {
-                            enabled: false
-                        }
-                    },
-                    yaxis: {
-                        labels: {
-                            formatter: function (value) {
-                                return "$" + value.toLocaleString();
+                        dataLabels: { enabled: false },
+                        stroke: { curve: 'smooth', width: 2 },
+                        xaxis: {
+                            categories: dates,
+                            labels: {
+                                show: dates.length < 20, // Only show labels if few points, or let Apex handle it? Better to hide if potentially thousands
+                                rotate: -45,
+                                style: { fontSize: '10px' }
+                            },
+                            tooltip: { enabled: false },
+                            tickAmount: Math.min(10, dates.length)
+                        },
+                        yaxis: {
+                            labels: {
+                                formatter: function (value) {
+                                    return "$" + (value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value.toFixed(0));
+                                }
+                            }
+                        },
+                        theme: { mode: 'light' },
+                        colors: ['#4F46E5'],
+                        fill: {
+                            type: 'gradient',
+                            gradient: {
+                                shadeIntensity: 1,
+                                opacityFrom: 0.7,
+                                opacityTo: 0.9,
+                                stops: [0, 90, 100]
                             }
                         }
-                    },
-                    theme: {
-                        mode: 'light'
-                    },
-                    colors: ['#4F46E5'], // Indigo-600
-                    fill: {
-                        type: 'gradient',
-                        gradient: {
-                            shadeIntensity: 1,
-                            opacityFrom: 0.7,
-                            opacityTo: 0.9,
-                            stops: [0, 90, 100]
-                        }
-                    }
-                };
+                    };
 
-                const chart = new ApexCharts(document.querySelector("#backtestChart"), options);
-                chart.render();
-            } else {
-                console.warn('ApexCharts not loaded');
-                document.getElementById('backtestChart').innerHTML = '<p class="text-center text-gray-500">Chart library not loaded</p>';
-            }
+                    window.backtestChartInstance = new ApexCharts(document.querySelector("#backtestChart"), options);
+                    window.backtestChartInstance.render();
+                } else {
+                    console.warn('ApexCharts not loaded or container missing');
+                    const chartEl = document.getElementById('backtestChart');
+                    if (chartEl) chartEl.innerHTML = '<p class="text-center text-gray-500">Chart library not loaded</p>';
+                }
+            }, 100);
         }
     }
 
@@ -2916,7 +3162,7 @@ window.changeOptionsPage = (newPage) => {
             const returnColor = returnVal >= 0 ? 'text-green-600' : 'text-red-600';
 
             return `
-            < tr >
+            <tr>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${opp.symbol}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${strategyName}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${expiry}</td>
@@ -2925,8 +3171,8 @@ window.changeOptionsPage = (newPage) => {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${deltaDisplay}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${ivDisplay}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${returnColor} text-right font-bold">${returnDisplay}</td>
-            </tr >
-            `}).join('');
+            </tr>`;
+        }).join('');
     }
 };
 
@@ -2971,10 +3217,10 @@ window.filterOptionsStrategies = () => {
     const summaryContainer = document.getElementById('optionsSummaryCards');
     if (summaryContainer) {
         summaryContainer.innerHTML = `
-            < div class="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-500" >
+            <div class="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-500">
                 <div class="text-xs font-semibold text-gray-400 uppercase">Opportunities</div>
                 <div class="text-2xl font-bold text-gray-900">${totalCount}</div>
-            </div >
+            </div>
             <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
                 <div class="text-xs font-semibold text-gray-400 uppercase">Est. Avg Return</div>
                 <div class="text-2xl font-bold text-gray-900">${avgReturn}%</div>
@@ -3009,7 +3255,7 @@ window.getFilteredOpportunities = (opportunities) => {
 
 // Hide analysis content function
 window.hideAnalysisContent = () => {
-    const container = document.getElementById('analysisContent');
+    const container = document.getElementById(DEFAULT_CONTAINER_ID);
     if (container) {
         container.classList.add('hidden');
     }
@@ -3056,7 +3302,7 @@ window.updateCorrelationAnalysis = () => {
     };
 
     // Show immediate feedback that settings are being applied
-    const container = document.getElementById('analysisContent');
+    const container = document.getElementById(DEFAULT_CONTAINER_ID);
     if (container) {
         const summaryBoxes = container.querySelectorAll('.details-box .metric-value');
         summaryBoxes.forEach(box => {
@@ -3330,11 +3576,15 @@ window.toggleTechnicalSettings = () => {
 };
 
 window.updateTechnicalAnalysis = () => {
-    const period = document.getElementById('technicalPeriod')?.value || '6M';
+    // Collect all settings from DOM
+    const period = document.getElementById('technicalPeriod')?.value || '1Y';
     const timeframe = document.getElementById('technicalTimeframe')?.value || 'Daily';
     const rsiPeriod = parseInt(document.getElementById('technicalRsiPeriod')?.value) || 14;
     const macdFast = parseInt(document.getElementById('technicalMacdFast')?.value) || 12;
     const signalStrength = document.getElementById('technicalSignalStrength')?.value || 'Medium';
+
+    // Default indicators
+    const indicators = ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'];
 
     const options = {
         period,
@@ -3342,7 +3592,7 @@ window.updateTechnicalAnalysis = () => {
         rsi_period: rsiPeriod,
         macd_fast: macdFast,
         signal_strength: signalStrength,
-        indicators: ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'],
+        indicators,
         rsi_oversold: 30,
         rsi_overbought: 70,
         macd_slow: 26,
@@ -3351,16 +3601,10 @@ window.updateTechnicalAnalysis = () => {
         bb_std: 2
     };
 
-    console.log('[TECHNICAL UPDATE] Settings from UI:', {
-        period, timeframe, rsiPeriod, macdFast, signalStrength
-    });
-    console.log('[TECHNICAL UPDATE] Full options object:', options);
+    console.log('[TECHNICAL UPDATE] Updating with options:', options);
 
     if (!window.analyticsCore) window.analyticsCore = {};
     window.analyticsCore.technicalSettings = options;
-
-    console.log('[TECHNICAL UPDATE] Stored in analyticsCore:', window.analyticsCore.technicalSettings);
-    console.log('[TECHNICAL UPDATE] Calling loadModule with technical-indicators');
 
     window.analyticsManager.loadModule('technical-indicators');
 };
@@ -3503,95 +3747,22 @@ window.toggleTechnicalSettings = () => {
     }
 };
 
-window.updateTechnicalAnalysis = async () => {
-    const period = document.getElementById('technicalPeriod')?.value || '6M';
-    const timeframe = document.getElementById('technicalTimeframe')?.value || 'Daily';
-    const rsiPeriod = parseInt(document.getElementById('technicalRsiPeriod')?.value) || 14;
-    const rsiOversold = parseInt(document.getElementById('technicalRsiOversold')?.value) || 30;
-    const rsiOverbought = parseInt(document.getElementById('technicalRsiOverbought')?.value) || 70;
-    const macdFast = parseInt(document.getElementById('technicalMacdFast')?.value) || 12;
-    const macdSlow = parseInt(document.getElementById('technicalMacdSlow')?.value) || 26;
-    const signalStrength = document.getElementById('technicalSignalStrength')?.value || 'Medium';
 
-    // Store settings for API call
-    window.analyticsCore.technicalSettings = {
-        period,
-        timeframe,
-        indicators: ['RSI', 'MACD', 'Bollinger', 'SMA', 'EMA'],
-        rsi_period: rsiPeriod,
-        rsi_oversold: rsiOversold,
-        rsi_overbought: rsiOverbought,
-        macd_fast: macdFast,
-        macd_slow: macdSlow,
-        macd_signal: 9,
-        bb_period: 20,
-        bb_std: 2,
-        signal_strength: signalStrength
-    };
-
-    // Show loading state
-    const container = document.getElementById('analysisContent');
-    if (container) {
-        container.innerHTML = `
-            `;
-    }
-
-    // Get portfolio data
-    const portfolioData = window.analyticsCore?.portfolioData || [];
-    if (!portfolioData || portfolioData.length === 0) {
-        alert('Please upload a portfolio first');
-        return;
-    }
-
-    try {
-        const response = await fetch(`${window.API_BASE || window.location.origin} /api/technical - analysis ? ` + Date.now(), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache'
-            },
-            body: JSON.stringify({
-                portfolio: portfolioData,
-                options: window.analyticsCore.technicalSettings
-            })
-        });
-
-        const data = await response.json();
-        console.log('[TECHNICAL UPDATE] API Response:', data);
-
-        if (data.success) {
-            window.analyticsManager.displayTechnicalIndicators(data, window.analyticsCore.technicalSettings);
-        } else {
-            if (container) {
-                container.innerHTML = `
-            < div class="text-center py-8" >
-                <p class="text-red-600">Technical analysis failed: ${data.error || 'Unknown error'}</p>
-                    </div >
-            `;
-            }
-        }
-    } catch (error) {
-        console.error('[TECHNICAL UPDATE] Error:', error);
-        if (container) {
-            container.innerHTML = `
-            < div class="text-center py-8" >
-                <p class="text-red-600">Failed to run technical analysis: ${error.message}</p>
-                </div >
-            `;
-        }
-    }
-};
 
 // Strategy Backtesting Settings
-window.toggleBacktestSettings = () => {
+// Strategy Backtesting Settings
+window.toggleBacktestSettingsPanel = () => {
+    console.log('[UI] Toggling backtest settings panel');
     const settings = document.getElementById('backtestSettings');
     if (settings) {
         settings.classList.toggle('hidden');
+    } else {
+        console.error('[UI] Backtest settings panel not found (id=backtestSettings)');
     }
 };
 
 // Alias for compatibility
-window.toggleBacktestingSettings = window.toggleBacktestSettings;
+window.toggleBacktestingSettings = window.toggleBacktestSettingsPanel;
 
 
 // Alias for compatibility
@@ -3605,7 +3776,7 @@ window.updateStrategyBacktesting = () => {
     // Update settings object (like P&L Attribution's updatePnlOptions)
     const period = document.getElementById('backtestPeriod')?.value || '6M';
     const rebalancing = document.getElementById('backtestRebalancing')?.value || 'Quarterly';
-    const costs = parseFloat(document.getElementById('backtestCosts')?.value || '0.001');
+    const costs = parseFloat(document.getElementById('backtestCosts')?.value || '0.001') * 100; // Convert to percentage (0.1 for 0.1%)
     const benchmark = document.getElementById('backtestBenchmark')?.value || 'SPY';
 
     // Save to analyticsCore.backtestSettings (persistent storage)
@@ -3686,6 +3857,47 @@ window.updatePortfolioOptimization = () => {
 };
 
 // Helper for Sector Allocation updates
+
+
+// ----------------------------------------------------------------------------------
+// Risk Metrics Helpers (Migrated from strategy-backtesting-globals.js)
+// ----------------------------------------------------------------------------------
+
+window.toggleRiskSettingsPanel = () => {
+    const settings = document.getElementById('riskSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updateRiskAnalysis = () => {
+    const period = document.getElementById('riskPeriod')?.value;
+    const confidence = document.getElementById('riskConfidence')?.value;
+    const model = document.getElementById('riskModel')?.value;
+    const benchmark = document.getElementById('riskBenchmark')?.value;
+    const window_size = document.getElementById('riskRollingWindow')?.value || document.getElementById('riskWindow')?.value;
+
+    if (!period || !confidence || !model || !benchmark || !window_size) {
+        console.error('Missing required Risk settings');
+        return;
+    }
+
+    if (!window.analyticsCore) window.analyticsCore = {};
+    window.analyticsCore.riskSettings = {
+        period: period,
+        var_confidence: parseFloat(confidence),
+        risk_model: model,
+        benchmark: benchmark,
+        rolling_window: parseInt(window_size)
+    };
+
+    console.log('[Risk Metrics] Updating with settings:', window.analyticsCore.riskSettings);
+    window.analyticsManager.loadModule('risk-metrics');
+};
+
+
+
+
 
 
 // Initialize Analytics Manager instance

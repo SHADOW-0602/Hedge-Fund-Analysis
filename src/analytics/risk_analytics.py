@@ -362,8 +362,47 @@ class RiskAnalyzer:
         # Calculate comprehensive drawdown metrics using market data
         drawdown_metrics = self._calculate_accurate_drawdown(available_symbols, available_weights, period)
         
+        # Calculate additional metrics
+        
+        # 1. Downside Deviation
+        neg_returns = portfolio_returns[portfolio_returns < 0]
+        downside_deviation = neg_returns.std() * np.sqrt(252) if len(neg_returns) > 0 else 0.0
+        
+        # 2. Calmar Ratio
+        annualized_return = portfolio_returns.mean() * 252
+        max_dd_abs = abs(drawdown_metrics.get('max_drawdown', 0.0))
+        calmar_ratio = annualized_return / max_dd_abs if max_dd_abs > 0 else 0.0
+        
+        # 3. Upside/Downside Capture
+        upside_capture = 0.0
+        downside_capture = 0.0
+        if self.benchmark_symbol in returns.columns:
+             bench_rets = returns[self.benchmark_symbol]
+             # Align dates
+             common_idx = portfolio_returns.index.intersection(bench_rets.index)
+             if len(common_idx) > 10:
+                 port_aligned = portfolio_returns.loc[common_idx]
+                 bench_aligned = bench_rets.loc[common_idx]
+                 
+                 # Up Capture
+                 up_mask = bench_aligned > 0
+                 if up_mask.sum() > 0:
+                     port_up_ret = (1 + port_aligned[up_mask]).prod() ** (252 / len(port_aligned[up_mask])) - 1
+                     bench_up_ret = (1 + bench_aligned[up_mask]).prod() ** (252 / len(bench_aligned[up_mask])) - 1
+                     if abs(bench_up_ret) > 0.0001:
+                         upside_capture = port_up_ret / bench_up_ret
+
+                 # Down Capture
+                 down_mask = bench_aligned < 0
+                 if down_mask.sum() > 0:
+                     port_down_ret = (1 + port_aligned[down_mask]).prod() ** (252 / len(port_aligned[down_mask])) - 1
+                     bench_down_ret = (1 + bench_aligned[down_mask]).prod() ** (252 / len(bench_aligned[down_mask])) - 1
+                     if abs(bench_down_ret) > 0.0001:
+                         downside_capture = port_down_ret / bench_down_ret
+
         result = {
             'portfolio_volatility': self._safe_value(portfolio_vol),
+            'volatility': self._safe_value(portfolio_vol), # Alias for frontend
             'individual_volatilities': {k: self._safe_value(v) for k, v in (returns_subset.std() * np.sqrt(252)).fillna(0).to_dict().items()},
             'avg_correlation': self._calculate_avg_correlation(corr_matrix, available_symbols),
             'correlation_matrix': {k: {k2: self._safe_value(v2) for k2, v2 in v.items()} for k, v in corr_matrix.fillna(0).to_dict().items()} if not corr_matrix.empty else {},
@@ -377,6 +416,10 @@ class RiskAnalyzer:
             'rolling_window': rolling_window,
             'sharpe_ratio': self._calculate_sharpe_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 10 else None,
             'sortino_ratio': self._calculate_sortino_with_debug(portfolio_returns, risk_free_rate) if len(portfolio_returns) >= 10 else None,
+            'calmar_ratio': self._safe_value(calmar_ratio),
+            'downside_deviation': self._safe_value(downside_deviation),
+            'upside_capture': self._safe_value(upside_capture),
+            'downside_capture': self._safe_value(downside_capture),
             'max_drawdown': self._safe_value(drawdown_metrics.get('max_drawdown', 0.0)),
             'current_drawdown': self._safe_value(drawdown_metrics.get('current_drawdown', 0.0)),
             'recovery_days': drawdown_metrics.get('recovery_days'),
@@ -693,9 +736,12 @@ class RiskAnalyzer:
         try:
             # Get historical price data including benchmark
             all_symbols = symbols + [self.benchmark_symbol]
+            print(f"DEBUG: Calculating Beta for {len(symbols)} symbols against {self.benchmark_symbol} over {period}")
+            
             price_data = self.data_client.get_price_data(all_symbols, period)
             
             if price_data.empty or self.benchmark_symbol not in price_data.columns:
+                print(f"DEBUG: Price data empty ({price_data.empty}) or benchmark missing ({self.benchmark_symbol not in price_data.columns})")
                 return 0.0
             
             # Calculate returns
@@ -704,6 +750,7 @@ class RiskAnalyzer:
             # Calculate portfolio returns
             portfolio_symbols = [s for s in symbols if s in returns.columns]
             if not portfolio_symbols:
+                print("DEBUG: No portfolio symbols in returns columns")
                 return 0.0
                 
             weight_array = np.array([weights.get(symbol, 0) for symbol in portfolio_symbols])
@@ -720,19 +767,23 @@ class RiskAnalyzer:
                     'benchmark': benchmark_returns
                 }).dropna()
                 
+                print(f"DEBUG: Valid data for beta: {len(valid_data)} rows")
+
                 if len(valid_data) > 10:
                     covariance = np.cov(valid_data['portfolio'], valid_data['benchmark'])[0, 1]
                     benchmark_variance = np.var(valid_data['benchmark'])
                     
+                    print(f"Beta Debug - Covariance: {covariance:.6f}, Benchmark Var: {benchmark_variance:.6f}")
+
                     if benchmark_variance > 0:
                         beta = covariance / benchmark_variance
-                        
-                        # Return calculated beta without artificial bounds
-                        print(f"Beta Debug - Covariance: {covariance:.6f}, Benchmark Var: {benchmark_variance:.6f}")
                         print(f"Beta Debug - Calculated Beta: {beta:.4f}")
                         return beta
+            else:
+                 print(f"DEBUG: Insufficient data. Port: {len(portfolio_returns)}, Bench: {len(benchmark_returns)}")
             
             # Fallback: calculate weighted average of individual stock betas
+            print("DEBUG: Using fallback individual beta calculation")
             individual_betas = []
             for symbol in portfolio_symbols:
                 if symbol in returns.columns:

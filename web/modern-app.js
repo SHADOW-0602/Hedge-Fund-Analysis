@@ -7,23 +7,23 @@ let userPortfolios = [];
 const API_BASE = `${window.location.origin}/api`;
 
 // Initialize app
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     console.log('Modern app initializing...');
-    
+
     // Theme toggle setup
     const themeToggle = document.getElementById('themeToggle');
     if (themeToggle) {
         const savedTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         themeToggle.checked = savedTheme === 'dark';
-        
+
         themeToggle.addEventListener('change', () => {
             const newTheme = themeToggle.checked ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
         });
     }
-    
+
     initializeApp();
 });
 
@@ -33,11 +33,11 @@ function initializeApp() {
         currentUser = SessionManager.getSession();
         showMainApp();
     }
-    
+
     // Setup forms
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
     document.getElementById('registerForm').addEventListener('submit', handleRegister);
-    
+
     // Load user data if logged in
     if (currentUser) {
         loadUserPortfolios();
@@ -50,14 +50,14 @@ function showAuthTab(tabName) {
     // Hide all auth tabs
     document.getElementById('loginTab').classList.add('hidden');
     document.getElementById('registerTab').classList.add('hidden');
-    
+
     // Show selected tab
     document.getElementById(tabName + 'Tab').classList.remove('hidden');
-    
+
     // Update button styles
     const loginBtn = document.getElementById('loginTabBtn');
     const registerBtn = document.getElementById('registerTabBtn');
-    
+
     if (tabName === 'login') {
         loginBtn.className = 'tab-active px-6 py-3 rounded-lg font-semibold transition-all';
         registerBtn.className = 'bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all';
@@ -73,16 +73,16 @@ async function handleLogin(e) {
     const password = document.getElementById('loginPassword').value;
 
     showLoading(true);
-    
+
     try {
         const response = await fetch(`${API_BASE}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             currentUser = data.user;
             if (window.SessionManager) {
@@ -96,7 +96,7 @@ async function handleLogin(e) {
     } catch (error) {
         showError('Login failed: ' + error.message);
     }
-    
+
     showLoading(false);
 }
 
@@ -109,16 +109,16 @@ async function handleRegister(e) {
     const password = document.getElementById('registerPassword').value;
 
     showLoading(true);
-    
+
     try {
         const response = await fetch(`${API_BASE}/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, email, phone, role, password })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             showSuccess('Registration successful! Please login.');
             showAuthTab('login');
@@ -128,7 +128,7 @@ async function handleRegister(e) {
     } catch (error) {
         showError('Registration failed');
     }
-    
+
     showLoading(false);
 }
 
@@ -137,15 +137,15 @@ function logout() {
         SessionManager.clearSession();
     }
     localStorage.removeItem('currentUser');
-    
+
     currentUser = null;
     portfolioData = null;
     userPortfolios = [];
-    
+
     document.getElementById('loginSection').style.display = 'block';
     document.getElementById('mainApp').style.display = 'none';
     document.getElementById('userInfo').style.display = 'none';
-    
+
     showSuccess('Logged out successfully');
 }
 
@@ -154,14 +154,14 @@ function showMainApp() {
     document.getElementById('mainApp').style.display = 'block';
     document.getElementById('username').textContent = currentUser.username;
     document.getElementById('userInfo').style.display = 'flex';
-    
+
     applyRoleBasedAccess(currentUser.role);
-    
+
     setTimeout(() => {
         const lastTab = localStorage.getItem('activeTab') || 'portfolio';
         showTab(lastTab);
     }, 100);
-    
+
     loadUserPortfolios();
     loadUserTransactions();
 }
@@ -175,10 +175,10 @@ function applyRoleBasedAccess(userRole) {
         'viewer': ['portfolio', 'transactions', 'risk', 'options', 'analytics'],
         'admin': ['portfolio', 'transactions', 'plaid', 'risk', 'options', 'analytics']
     };
-    
+
     const allowedTabs = rolePermissions[userRole] || ['portfolio', 'transactions', 'risk', 'options', 'analytics'];
     const allTabs = ['portfolio', 'transactions', 'plaid', 'risk', 'options', 'analytics'];
-    
+
     allTabs.forEach(tab => {
         const tabButton = document.getElementById(tab + 'NavBtn');
         if (tabButton) {
@@ -195,18 +195,18 @@ function applyRoleBasedAccess(userRole) {
 function showTab(tabName) {
     console.log('Switching to tab:', tabName);
     localStorage.setItem('activeTab', tabName);
-    
+
     // Hide all tabs
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.style.display = 'none';
     });
-    
+
     // Show selected tab
     const targetTab = document.getElementById(tabName + 'Tab');
     if (targetTab) {
         targetTab.style.display = 'block';
     }
-    
+
     // Update navigation button styles
     const allNavBtns = ['portfolioNavBtn', 'transactionsNavBtn', 'plaidNavBtn', 'riskNavBtn', 'optionsNavBtn', 'analyticsNavBtn'];
     allNavBtns.forEach(btnId => {
@@ -225,25 +225,25 @@ function showTab(tabName) {
 async function uploadPortfolio() {
     const fileInput = document.getElementById('portfolioFile');
     const file = fileInput.files[0];
-    
+
     if (!file) {
         showError('Please select a file');
         return;
     }
-    
+
     showLoading(true);
-    
+
     const formData = new FormData();
     formData.append('file', file);
-    
+
     try {
         const response = await fetch(`${API_BASE}/upload-portfolio`, {
             method: 'POST',
             body: formData
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             portfolioData = data.portfolio;
             displayPortfolio(portfolioData);
@@ -254,20 +254,20 @@ async function uploadPortfolio() {
     } catch (error) {
         showError('Upload failed: ' + error.message);
     }
-    
+
     showLoading(false);
 }
 
 function displayPortfolio(data) {
     const container = document.getElementById('portfolioData');
-    
+
     let html = '<div class="bg-white rounded-xl shadow-lg p-6 mb-8">';
     html += '<h3 class="text-xl font-bold text-gray-900 mb-4">Portfolio Holdings</h3>';
     html += '<div class="overflow-x-auto">';
     html += '<table class="min-w-full">';
     html += '<thead><tr><th class="text-left">Symbol</th><th class="text-left">Quantity</th><th class="text-left">Avg Cost</th><th class="text-left">Market Value</th></tr></thead>';
     html += '<tbody>';
-    
+
     let totalValue = 0;
     data.forEach(holding => {
         const marketValue = holding.quantity * holding.avg_cost;
@@ -279,9 +279,9 @@ function displayPortfolio(data) {
             <td class="metric-value">$${marketValue.toFixed(2)}</td>
         </tr>`;
     });
-    
+
     html += '</tbody></table></div>';
-    
+
     // Total value card
     html += '<div class="mt-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-6 text-white">';
     html += '<div class="text-center">';
@@ -289,12 +289,12 @@ function displayPortfolio(data) {
     html += '<div class="text-indigo-100">Total Portfolio Value</div>';
     html += '</div></div>';
     html += '</div>';
-    
+
     container.innerHTML = html;
-    
+
     // Create charts
     createPortfolioCharts(data);
-    
+
     // Auto-run analysis
     setTimeout(() => {
         if (currentUser && currentUser.role) {
@@ -304,7 +304,7 @@ function displayPortfolio(data) {
             technicalAnalysis();
         }
     }, 1000);
-    
+
     // Show save section
     if (currentUser && currentUser.user_id) {
         document.getElementById('savePortfolioSection').style.display = 'block';
@@ -313,12 +313,24 @@ function displayPortfolio(data) {
 
 function createPortfolioCharts(data) {
     if (!data || data.length === 0) return;
-    
+
+    // Validate and Clean Data
+    const validData = data.filter(item =>
+        item.symbol &&
+        !isNaN(parseFloat(item.quantity)) &&
+        !isNaN(parseFloat(item.avg_cost))
+    );
+
+    if (validData.length === 0) return;
+
     // Portfolio Allocation Chart (ApexCharts)
     const allocationOptions = {
-        series: data.map(item => item.quantity * item.avg_cost),
+        series: validData.map(item => {
+            const val = parseFloat(item.quantity) * parseFloat(item.avg_cost);
+            return isNaN(val) ? 0 : val;
+        }),
         chart: { type: 'donut', height: 350 },
-        labels: data.map(item => item.symbol),
+        labels: validData.map(item => item.symbol),
         colors: ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'],
         title: { text: 'Portfolio Allocation', align: 'center', style: { fontSize: '18px', fontWeight: 'bold' } },
         legend: { position: 'bottom' },
@@ -330,7 +342,13 @@ function createPortfolioCharts(data) {
                         total: {
                             show: true,
                             label: 'Total Value',
-                            formatter: () => '$' + data.reduce((sum, item) => sum + (item.quantity * item.avg_cost), 0).toLocaleString()
+                            formatter: () => {
+                                const total = validData.reduce((sum, item) => {
+                                    const val = parseFloat(item.quantity) * parseFloat(item.avg_cost);
+                                    return sum + (isNaN(val) ? 0 : val);
+                                }, 0);
+                                return '$' + total.toLocaleString();
+                            }
                         }
                     }
                 }
@@ -338,28 +356,31 @@ function createPortfolioCharts(data) {
         },
         dataLabels: {
             enabled: true,
-            formatter: (val) => val.toFixed(1) + '%'
+            formatter: (val) => isNaN(val) ? '0%' : val.toFixed(1) + '%'
         }
     };
-    
+
     // Performance Bar Chart
     const performanceOptions = {
         series: [{
             name: 'Market Value',
-            data: data.map(item => item.quantity * item.avg_cost)
+            data: validData.map(item => {
+                const val = parseFloat(item.quantity) * parseFloat(item.avg_cost);
+                return isNaN(val) ? 0 : val;
+            })
         }],
         chart: { type: 'bar', height: 350 },
-        xaxis: { categories: data.map(item => item.symbol) },
+        xaxis: { categories: validData.map(item => item.symbol) },
         yaxis: {
             labels: {
-                formatter: val => '$' + val.toLocaleString()
+                formatter: val => '$' + (isNaN(val) ? 0 : val).toLocaleString()
             }
         },
         colors: ['#6366f1'],
         title: { text: 'Holdings Comparison', align: 'center', style: { fontSize: '18px', fontWeight: 'bold' } },
         dataLabels: {
             enabled: true,
-            formatter: val => '$' + val.toLocaleString()
+            formatter: val => '$' + (isNaN(val) ? 0 : val).toLocaleString()
         },
         plotOptions: {
             bar: {
@@ -368,16 +389,16 @@ function createPortfolioCharts(data) {
             }
         }
     };
-    
+
     // Clear and render charts
     const allocationContainer = document.querySelector('#allocationChart');
     const performanceContainer = document.querySelector('#performanceChart');
-    
+
     if (allocationContainer) {
         allocationContainer.innerHTML = '';
         new ApexCharts(allocationContainer, allocationOptions).render();
     }
-    
+
     if (performanceContainer) {
         performanceContainer.innerHTML = '';
         new ApexCharts(performanceContainer, performanceOptions).render();
@@ -387,11 +408,11 @@ function createPortfolioCharts(data) {
 // Keep existing API functions but update UI styling
 async function loadUserPortfolios() {
     if (!currentUser || !currentUser.user_id) return;
-    
+
     try {
         const response = await fetch(`${API_BASE}/load-portfolios?user_id=${currentUser.user_id}`);
         const data = await response.json();
-        
+
         if (data.success) {
             userPortfolios = data.portfolios || [];
             updatePortfolioDropdown();
@@ -404,7 +425,7 @@ async function loadUserPortfolios() {
 function updatePortfolioDropdown() {
     const select = document.getElementById('savedPortfolios');
     select.innerHTML = '<option value="">Select a portfolio...</option>';
-    
+
     userPortfolios.forEach(portfolio => {
         const option = document.createElement('option');
         option.value = portfolio.id;
@@ -417,14 +438,14 @@ async function loadSavedPortfolio() {
     const select = document.getElementById('savedPortfolios');
     const portfolioId = select.value;
     const deleteBtn = document.getElementById('deletePortfolioBtn');
-    
+
     if (!portfolioId) {
         deleteBtn.style.display = 'none';
         return;
     }
-    
+
     deleteBtn.style.display = 'block';
-    
+
     const portfolio = userPortfolios.find(p => p.id === portfolioId);
     if (portfolio) {
         portfolioData = portfolio.portfolio_data;
@@ -451,9 +472,9 @@ function showNotification(message, type) {
     const notification = document.createElement('div');
     notification.className = `${type} fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-lg max-w-sm`;
     notification.textContent = message;
-    
+
     document.body.appendChild(notification);
-    
+
     setTimeout(() => {
         if (document.body.contains(notification)) {
             document.body.removeChild(notification);
@@ -513,12 +534,12 @@ async function sectorAnalysis() {
 // Strategy Backtesting
 async function strategyBacktesting() {
     console.log('Strategy backtesting button clicked');
-    
+
     if (!portfolioData || portfolioData.length === 0) {
         showError('Please upload a portfolio first');
         return;
     }
-    
+
     // Show backtesting settings interface
     if (window.backtestingManager) {
         window.backtestingManager.showBacktestingSettings();
@@ -571,13 +592,13 @@ async function deleteSelectedPortfolio() {
 // Statistical Analysis Functions
 function statisticalAnalysis() {
     console.log('Statistical analysis button clicked');
-    
+
     // Check if we have portfolio data
     if (!portfolioData || portfolioData.length === 0) {
         showError('Please upload a portfolio first');
         return;
     }
-    
+
     // Use analytics manager to load statistical analysis
     if (window.analyticsManager && window.analyticsManager.loadModule) {
         window.analyticsManager.loadModule('statistical-analysis');
@@ -589,9 +610,9 @@ async function runStatisticalAnalysis() {
         showError('Please upload a portfolio first');
         return;
     }
-    
+
     showLoading(true);
-    
+
     try {
         const options = {
             lookback_period: document.getElementById('lookbackPeriod').value,
@@ -599,9 +620,9 @@ async function runStatisticalAnalysis() {
             benchmark: document.getElementById('benchmark').value,
             confidence_level: parseFloat(document.getElementById('confidenceLevel').value)
         };
-        
+
         console.log('Sending statistical analysis request:', { portfolio: portfolioData, options });
-        
+
         const response = await fetch(`${API_BASE}/statistical-analysis`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -610,10 +631,10 @@ async function runStatisticalAnalysis() {
                 options: options
             })
         });
-        
+
         const data = await response.json();
         console.log('Statistical analysis response:', data);
-        
+
         if (data.success && data.statistical_analysis) {
             displayStatisticalResults(data.statistical_analysis);
             showSuccess('Statistical analysis completed');
@@ -624,32 +645,32 @@ async function runStatisticalAnalysis() {
     } catch (error) {
         showError('Statistical analysis failed: ' + error.message);
     }
-    
+
     showLoading(false);
 }
 
 function displayStatisticalResults(results) {
     console.log('Displaying statistical results:', results);
-    
+
     const resultsDiv = document.getElementById('statisticalResults');
     const contentDiv = document.getElementById('statisticalContent');
-    
+
     if (!resultsDiv || !contentDiv) {
         console.error('Statistical results containers not found');
         return;
     }
-    
+
     if (!results) {
         console.error('No results to display');
         contentDiv.innerHTML = '<p class="text-red-600">No statistical analysis results available</p>';
         resultsDiv.style.display = 'block';
         return;
     }
-    
+
     resultsDiv.style.display = 'block';
-    
+
     let html = '';
-    
+
     // Parameters Summary
     if (results.parameters) {
         html += '<div class="mb-6 p-4 bg-gray-50 rounded-lg">';
@@ -661,7 +682,7 @@ function displayStatisticalResults(results) {
         html += `<div><span class="font-medium">Confidence:</span> ${(results.parameters.confidence_level * 100).toFixed(0)}%</div>`;
         html += '</div></div>';
     }
-    
+
     // Correlation Analysis
     if (results.correlation_analysis) {
         html += '<div class="mb-6">';
@@ -680,7 +701,7 @@ function displayStatisticalResults(results) {
         html += `<div class="text-sm text-gray-600">Lowest Correlation</div>`;
         html += `</div>`;
         html += '</div>';
-        
+
         // High correlation pairs
         if (results.correlation_analysis.pairs && Object.keys(results.correlation_analysis.pairs).length > 0) {
             html += '<div class="bg-yellow-50 p-4 rounded-lg">';
@@ -695,7 +716,7 @@ function displayStatisticalResults(results) {
         }
         html += '</div>';
     }
-    
+
     // Risk Metrics
     if (results.risk_metrics) {
         html += '<div class="mb-6">';
@@ -709,7 +730,7 @@ function displayStatisticalResults(results) {
         html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">VaR</th>';
         html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Max Drawdown</th>';
         html += '</tr></thead><tbody>';
-        
+
         Object.entries(results.risk_metrics).forEach(([symbol, metrics]) => {
             html += '<tr class="border-t">';
             html += `<td class="px-4 py-2 font-medium text-indigo-600">${symbol}</td>`;
@@ -719,10 +740,10 @@ function displayStatisticalResults(results) {
             html += `<td class="px-4 py-2">${(metrics.max_drawdown * 100).toFixed(2)}%</td>`;
             html += '</tr>';
         });
-        
+
         html += '</tbody></table></div></div>';
     }
-    
+
     // Performance Metrics
     if (results.performance_metrics) {
         html += '<div class="mb-6">';
@@ -736,7 +757,7 @@ function displayStatisticalResults(results) {
         html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">R-squared</th>';
         html += '<th class="px-4 py-2 text-left text-sm font-medium text-gray-900">Correlation</th>';
         html += '</tr></thead><tbody>';
-        
+
         Object.entries(results.performance_metrics).forEach(([symbol, metrics]) => {
             html += '<tr class="border-t">';
             html += `<td class="px-4 py-2 font-medium text-indigo-600">${symbol}</td>`;
@@ -746,10 +767,10 @@ function displayStatisticalResults(results) {
             html += `<td class="px-4 py-2">${(metrics.correlation_with_benchmark * 100).toFixed(1)}%</td>`;
             html += '</tr>';
         });
-        
+
         html += '</tbody></table></div></div>';
     }
-    
+
     // Portfolio Metrics (if available)
     if (results.portfolio_metrics) {
         html += '<div class="mb-6">';
@@ -769,20 +790,20 @@ function displayStatisticalResults(results) {
         html += `</div>`;
         html += '</div></div>';
     }
-    
+
     contentDiv.innerHTML = html;
 }
 
 // Simple fallback display for statistical results
 function displaySimpleStatisticalResults(data) {
     console.log('Using simple display for:', data);
-    
+
     const contentDiv = document.getElementById('statisticalContent');
     if (!contentDiv) return;
-    
+
     let html = '<div class="p-4 bg-gray-50 rounded-lg">';
     html += '<h4 class="font-semibold text-gray-900 mb-4">Statistical Analysis Results</h4>';
-    
+
     // Handle different response formats
     if (data.portfolio_statistics) {
         html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
@@ -800,7 +821,7 @@ function displaySimpleStatisticalResults(data) {
         html += `<div class="text-sm text-gray-600">R-Squared</div></div>`;
         html += '</div>';
     }
-    
+
     if (data.risk_metrics) {
         html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
         html += `<div class="bg-yellow-50 p-3 rounded text-center">`;
@@ -817,7 +838,7 @@ function displaySimpleStatisticalResults(data) {
         html += `<div class="text-sm text-gray-600">Sharpe Ratio</div></div>`;
         html += '</div>';
     }
-    
+
     if (data.summary) {
         html += '<div class="mt-4 p-3 bg-white rounded border">';
         html += '<h5 class="font-medium text-gray-900 mb-2">Analysis Summary</h5>';
@@ -828,7 +849,7 @@ function displaySimpleStatisticalResults(data) {
         html += `<div><span class="font-medium">Data Points:</span> ${data.summary.data_points || 'N/A'}</div>`;
         html += '</div></div>';
     }
-    
+
     html += '</div>';
     contentDiv.innerHTML = html;
 }
@@ -838,21 +859,21 @@ function switchAnalysisType(type) {
     // Update button styles
     const portfolioBtn = document.getElementById('portfolioAnalysisBtn');
     const transactionBtn = document.getElementById('transactionAnalysisBtn');
-    
+
     if (type === 'portfolio') {
         portfolioBtn.className = 'tab-active px-6 py-3 rounded-lg font-semibold transition-all';
         transactionBtn.className = 'bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all';
-        
+
         document.getElementById('portfolioAnalysisSection').style.display = 'block';
         document.getElementById('transactionAnalysisSection').style.display = 'none';
     } else {
         transactionBtn.className = 'tab-active px-6 py-3 rounded-lg font-semibold transition-all';
         portfolioBtn.className = 'bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all';
-        
+
         document.getElementById('portfolioAnalysisSection').style.display = 'none';
         document.getElementById('transactionAnalysisSection').style.display = 'block';
     }
-    
+
     // Clear results
     const resultsDiv = document.getElementById('analyticsResults');
     if (resultsDiv) resultsDiv.innerHTML = '';

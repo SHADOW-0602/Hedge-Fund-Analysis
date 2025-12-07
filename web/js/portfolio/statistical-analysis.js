@@ -6,25 +6,25 @@ let currentStatisticalOptions = {
     confidence_level: 0.95
 };
 
-window.loadStatisticalAnalysis = function(portfolioData, options = {}) {
+window.loadStatisticalAnalysis = function (portfolioData, options = {}) {
     if (window.analyticsManager) {
         window.analyticsManager.loadModule('statistical-analysis');
     }
 };
 
 // Display function for statistical analysis
-window.displayStatisticalAnalysisResults = function(result, options) {
-    const container = document.getElementById('analysisContent');
+window.displayStatisticalAnalysisResults = function (result, options) {
+    const container = document.getElementById('statisticalAnalysis') || document.getElementById('analysisContent');
     if (!container) return;
-    
+
     container.classList.remove('hidden');
-    
+
     console.log('[STATISTICAL] Raw result received:', result);
     console.log('[STATISTICAL] Options received:', options);
-    
+
     // Handle the actual API response structure
     let statisticalData, parameters, riskMetrics, performanceMetrics, correlationAnalysis;
-    
+
     if (result.statistical_analysis) {
         // API response format: { success: true, statistical_analysis: {...} }
         statisticalData = result.statistical_analysis;
@@ -40,9 +40,9 @@ window.displayStatisticalAnalysisResults = function(result, options) {
         performanceMetrics = result.performance_metrics || {};
         correlationAnalysis = result.correlation_analysis || {};
     }
-    
+
     console.log('[STATISTICAL] Processed data:', { statisticalData, parameters, riskMetrics, performanceMetrics });
-    
+
     // Update current options from result or passed options
     currentStatisticalOptions = {
         lookback_period: options?.lookback_period || parameters.lookback_period || currentStatisticalOptions.lookback_period,
@@ -50,14 +50,14 @@ window.displayStatisticalAnalysisResults = function(result, options) {
         benchmark: options?.benchmark || parameters.benchmark || currentStatisticalOptions.benchmark,
         confidence_level: options?.confidence_level || parameters.confidence_level || currentStatisticalOptions.confidence_level
     };
-    
+
     // Get symbols for analysis
     const riskSymbols = Object.keys(riskMetrics);
     const performanceSymbols = Object.keys(performanceMetrics);
     const allSymbols = [...new Set([...riskSymbols, ...performanceSymbols])];
-    
+
     console.log('[STATISTICAL] Symbols found:', { riskSymbols, performanceSymbols, allSymbols });
-    
+
     // If no statistical data, show error with debug info
     if (allSymbols.length === 0) {
         container.innerHTML = `
@@ -79,7 +79,7 @@ window.displayStatisticalAnalysisResults = function(result, options) {
         `;
         return;
     }
-    
+
     container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-900">Statistical Analysis</h2>
@@ -310,7 +310,7 @@ window.toggleStatisticalSettings = () => {
     const settings = document.getElementById('statisticalSettings');
     if (settings) {
         settings.classList.toggle('hidden');
-        
+
         // Set default values if not already set
         if (!document.getElementById('statisticalLookbackPeriod').value) {
             document.getElementById('statisticalLookbackPeriod').value = '1Y';
@@ -341,12 +341,12 @@ function updateStatisticalOptions() {
 window.updateStatisticalAnalysis = () => {
     updateStatisticalOptions();
     console.log('[STATISTICAL] Updating with settings:', currentStatisticalOptions);
-    
+
     // Store options and call analysis
     window.analyticsCore.statisticalOptions = currentStatisticalOptions;
-    
+
     // Show loading state first
-    const container = document.getElementById('analysisContent');
+    const container = document.getElementById('statisticalAnalysis') || document.getElementById('analysisContent');
     if (container) {
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
@@ -365,10 +365,10 @@ window.updateStatisticalAnalysis = () => {
             </div>
         `;
     }
-    
+
     window.analyticsCore.analyzePortfolio(
         'statistical-analysis',
-        'analysisContent',
+        'statisticalAnalysis',
         window.displayStatisticalAnalysisResults,
         'statisticalSettings'
     );
@@ -378,7 +378,7 @@ window.updateStatisticalAnalysis = () => {
 window.refreshStatisticalAnalysis = () => {
     window.analyticsCore.analyzePortfolio(
         'statistical-analysis',
-        'analysisContent',
+        'statisticalAnalysis',
         window.displayStatisticalAnalysisResults,
         'statisticalSettings'
     );
