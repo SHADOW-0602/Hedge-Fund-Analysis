@@ -2,8 +2,8 @@ name: Daily News Refresh
 
 on:
   schedule:
-    # 6:00 AM IST = 00:30 UTC
-    - cron: '30 0 * * *'
+    # 5:35 AM IST = 00:05 UTC
+    - cron: '5 0 * * *'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -15,5 +15,7 @@ jobs:
           echo "Triggering daily news refresh..."
           curl -X POST "https://shmventures.org/us-news/api/refresh" \
           -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" \
+          -H "User-Agent: GitHubActions/1.0" \
           --fail || exit 1
           echo "Refresh triggered successfully"

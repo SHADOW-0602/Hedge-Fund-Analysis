@@ -24,8 +24,9 @@ supabase: Client = create_client(
 )
 
 # Initialize Gemini AI
+# Initialize Gemini AI
 genai.configure(api_key=os.getenv('GEMINI_API_KEY_5'))
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel('gemini-flash-latest')
 
 # Universe of popular stocks to monitor (Top US Companies by Market Cap + Popular Tech/Meme)
 TICKER_UNIVERSE = [
@@ -48,27 +49,37 @@ TICKER_UNIVERSE = [
 ]
 
 # Global variable to store current active list
-ACTIVE_TICKERS = TICKER_UNIVERSE[:50]  # Default to first 50
+ACTIVE_TICKERS = TICKER_UNIVERSE[:30]  # Default to first 30
 IS_PROCESSING = False  # Track if news processing is running
 
 def get_dynamic_tickers():
-    """Select Top 50 tickers based on market volume/activity"""
+    """Select Top 30 tickers based on recent market volume/activity"""
     print("Updating active ticker list based on market activity...")
     try:
-        # For now, we'll use the defined universe. 
-        # In a full production app, you could sort this list by real-time volume using yfinance
-        # e.g., tickers_with_vol = [(t, yf.Ticker(t).info.get('volume', 0)) for t in TICKER_UNIVERSE]
-        # But doing 60+ API calls synchronously takes too long for this demo.
+        # Bulk download last 5 days of data for all tickers to get volume
+        # This is much faster than individual calls
+        data = yf.download(TICKER_UNIVERSE, period="5d", progress=False)['Volume']
         
-        # We will cycle/refresh the list to ensure the core ones are always there
-        # and limit to 50 for the UI
-        return TICKER_UNIVERSE[:50]
+        # Calculate average volume for each ticker
+        avg_volumes = data.mean()
+        
+        # Sort headers (tickers) by average volume descending
+        sorted_tickers = avg_volumes.sort_values(ascending=False)
+        
+        # Get top 30
+        top_30 = sorted_tickers.head(30).index.tolist()
+        
+        print(f"  ✓ Selected top 30 tickers by volume: {', '.join(top_30[:5])}...")
+        return top_30
+        
     except Exception as e:
         print(f"Error updating tickers: {e}")
-        return TICKER_UNIVERSE[:50]
+        # Fallback to default static list
+        return TICKER_UNIVERSE[:30]
 
-# Initialize active tickers with default list first to avoid blocking import
-ACTIVE_TICKERS = TICKER_UNIVERSE[:50]
+# Initialize active tickers with default list first
+ACTIVE_TICKERS = TICKER_UNIVERSE[:30]
+ACTIVE_TICKERS.sort()
 
 # We will let the background thread or first request update this
 # ACTIVE_TICKERS = get_dynamic_tickers()
@@ -195,9 +206,11 @@ def fetch_news_for_ticker(ticker):
     print(f"  → Total articles fetched: {len(all_news)}")
     return all_news
 
-def generate_ai_summary(ticker, news_articles):
-    """Generate AI summary using Gemini 2.0 Flash"""
-    if not news_articles:
+import concurrent.futures
+
+def generate_ai_summary(ticker, news_articles, api_key):
+    """Generate AI summary using Gemini REST API (supports parallel keys)"""
+    if not news_articles or not api_key:
         return None
     
     # Prepare news content for AI
@@ -214,7 +227,6 @@ def generate_ai_summary(ticker, news_articles):
             'source': article['source']
         })
     
-    # Create prompt for Gemini
     prompt = f"""Analyze the following news articles about {ticker} stock and create a comprehensive summary in exactly 50-100 words for each section.
 
 {news_text}
@@ -228,26 +240,65 @@ Please provide a JSON response with the following structure:
 }}
 
 Keep each section between 50-100 words. Be concise and factual."""
+
+    # Call Gemini REST API directly
+    # Using explicitly available model from user's list
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+
+    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }],
+        "generationConfig": {
+            "responseMimeType": "application/json"
+        }
+    }
     
-    try:
-        response = model.generate_content(prompt)
-        response_text = response.text.strip()
-        
-        # Remove markdown code blocks if present
-        if response_text.startswith('```json'):
-            response_text = response_text[7:]
-        if response_text.startswith('```'):
-            response_text = response_text[3:]
-        if response_text.endswith('```'):
-            response_text = response_text[:-3]
-        
-        summary_data = json.loads(response_text.strip())
-        summary_data['sources'] = sources_list
-        
-        return summary_data
-    except Exception as e:
-        print(f"AI summary error for {ticker}: {e}")
-        return None
+    # Retry loop for rate limits
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            
+            # If rate limited (too many requests), wait and retry
+            if response.status_code == 429:
+                sleep_time = (attempt + 1) * 5  # Aggressive backoff: 5s, 10s, 15s
+                print(f"  ⚠ Rate limited (429). Retrying in {sleep_time}s...")
+                time.sleep(sleep_time)
+                continue
+                
+            if response.status_code != 200:
+                print(f"  ✗ Gemini API Error ({response.status_code}): {response.text}")
+                return None
+                
+            data = response.json()
+            if 'candidates' not in data or not data['candidates']:
+                 print(f"  ✗ No candidates returned: {data}")
+                 return None
+
+            response_text = data['candidates'][0]['content']['parts'][0]['text']
+            
+            # Clean markdown
+            if response_text.startswith('```json'):
+                response_text = response_text[7:]
+            if response_text.startswith('```'):
+                response_text = response_text[3:]
+            if response_text.endswith('```'):
+                response_text = response_text[:-3]
+            
+            summary_data = json.loads(response_text.strip())
+            summary_data['sources'] = sources_list
+            
+            return summary_data
+            
+        except Exception as e:
+            print(f"AI summary error for {ticker} (attempt {attempt+1}): {e}")
+            if attempt == max_retries - 1:
+                return None
+            time.sleep(5)
+            
+    return None
 
 def store_news_and_summary(ticker, news_articles, summary_data):
     """Store news articles and AI summary in database"""
@@ -296,12 +347,25 @@ def store_news_and_summary(ticker, news_articles, summary_data):
     except Exception as e:
         print(f"Error storing data for {ticker}: {e}")
 
+def process_single_ticker(ticker, api_key):
+    """Worker function to process a single ticker"""
+    print(f"Processing {ticker}...")
+    try:
+        news_articles = fetch_news_for_ticker(ticker)
+        if news_articles:
+            summary_data = generate_ai_summary(ticker, news_articles, api_key)
+            store_news_and_summary(ticker, news_articles, summary_data)
+        else:
+            print(f"  - No news found for {ticker}")
+    except Exception as e:
+        print(f"  ✗ Error processing {ticker}: {e}")
+
 def process_news_for_active_tickers(force=False):
-    """Process news for all active tickers"""
-    global IS_PROCESSING
+    """Process news for all active tickers in parallel"""
+    global IS_PROCESSING, ACTIVE_TICKERS
     
     if IS_PROCESSING:
-        print("News processing already in progress via another thread/request.")
+        print("News processing already in progress.")
         return
 
     if not force and check_daily_run():
@@ -309,42 +373,43 @@ def process_news_for_active_tickers(force=False):
         return
     
     IS_PROCESSING = True
-    print(f"Starting news fetch cycle for {len(ACTIVE_TICKERS)} tickers...")
+    print(f"Starting PARALLEL news fetch cycle for {len(ACTIVE_TICKERS)} tickers...")
     
     try:
-        # Update tickers before running
-        # ACTIVE_TICKERS = get_dynamic_tickers() # Keep using static list for stability
+        # Update tickers
+        tickers_by_volume = get_dynamic_tickers()
+        tickers_by_volume.sort()
+        ACTIVE_TICKERS = tickers_by_volume
         
-        count = 0
-        for ticker in ACTIVE_TICKERS:
-            count += 1
-            print(f"[{count}/{len(ACTIVE_TICKERS)}] Processing {ticker}...")
+        # Split tickers (First 15 use Key 5, Last 15 use Key 4)
+        mid_point = 15
+        first_batch = ACTIVE_TICKERS[:mid_point]
+        second_batch = ACTIVE_TICKERS[mid_point:]
+        
+        key_5 = os.getenv('GEMINI_API_KEY_5')
+        key_4 = os.getenv('GEMINI_API_KEY_4')
+        
+        if not key_4:
+            print("Warning: GEMINI_API_KEY_4 not found, using Key 5 for all.")
+            key_4 = key_5
             
-            try:
-                # Add delay to avoid hitting rate limits (2s + jitter)
-                if count > 1:
-                    sleep_time = 2.0 + random.uniform(0.1, 0.5)
-                    time.sleep(sleep_time)
-
-                # Fetch news
-                news_articles = fetch_news_for_ticker(ticker)
-                
-                if news_articles:
-                    # Generate AI summary
-                    summary_data = generate_ai_summary(ticker, news_articles)
-                    
-                    # Store in database
-                    store_news_and_summary(ticker, news_articles, summary_data)
-                else:
-                    print(f"  - No news found for {ticker}")
-            except Exception as e:
-                print(f"  ✗ Error processing {ticker}: {e}")
-                # Continue to next ticker
+        tasks = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            # Submit first batch
+            for ticker in first_batch:
+                tasks.append(executor.submit(process_single_ticker, ticker, key_5))
+            
+            # Submit second batch
+            for ticker in second_batch:
+                tasks.append(executor.submit(process_single_ticker, ticker, key_4))
+            
+            # Wait for completion
+            concurrent.futures.wait(tasks)
             
         mark_daily_run()
         print("News fetch cycle completed successfully!")
     except Exception as e:
-        print(f"Critial error in news processing cycle: {e}")
+        print(f"Critical error in news processing cycle: {e}")
     finally:
         IS_PROCESSING = False
 
@@ -357,11 +422,27 @@ def run_background_refresh():
 @us_news_bp.route('/')
 def index():
     """Render the main page"""
-    return render_template('us_news_index.html', tickers=ACTIVE_TICKERS, now=int(time.time()))
+    return render_template('us_news_index.html', 
+                         tickers=ACTIVE_TICKERS, 
+                         now=int(time.time()),
+                         api_token=os.getenv('API_TOKEN', ''))
 
 @us_news_bp.route('/api/refresh', methods=['POST'])
 def refresh_news():
     """Trigger a manual refresh of all news"""
+    # Check for authentication
+    from flask import request
+    
+    auth_header = request.headers.get('Authorization')
+    expected_token = os.getenv('API_TOKEN')
+    
+    # If API_TOKEN is set in env, enforce it
+    if expected_token:
+        if not auth_header or auth_header != f"Bearer {expected_token}":
+             # Also allow if header is just the token
+             if auth_header != expected_token:
+                return jsonify({'error': 'Unauthorized', 'message': 'Invalid or missing API token'}), 401
+    
     run_background_refresh()
     return jsonify({'status': 'started', 'message': 'News refresh started in background'})
 
@@ -369,6 +450,50 @@ def refresh_news():
 def get_status():
     """Check processing status"""
     return jsonify({'is_processing': IS_PROCESSING})
+
+@us_news_bp.route('/api/generate/<ticker>', methods=['POST', 'GET'], strict_slashes=False)
+def generate_ticker_summary(ticker):
+    """Force generate summary for a specific ticker"""
+    from flask import request
+    print(f"DEBUG: Hit generate_ticker_summary for {ticker} with method {request.method}")
+    # Check auth
+    auth_header = request.headers.get('Authorization')
+    expected_token = os.getenv('API_TOKEN')
+    
+    if expected_token:
+        # Allow Bearer token or direct token
+        token = auth_header.replace('Bearer ', '') if auth_header and auth_header.startswith('Bearer ') else auth_header
+        if token != expected_token:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+    if ticker not in TICKER_UNIVERSE:
+         return jsonify({'error': 'Invalid ticker'}), 400
+         
+    # Run in background to avoid timeout
+    def run_single():
+        # Load balance across all available keys in .env
+        keys = [
+            os.getenv('GEMINI_API_KEY'),
+            os.getenv('GEMINI_API_KEY_2'),
+            os.getenv('GEMINI_API_KEY_3'),
+            os.getenv('GEMINI_API_KEY_4'),
+            os.getenv('GEMINI_API_KEY_5')
+        ]
+        # Filter None
+        keys = [k for k in keys if k]
+        
+        if not keys:
+            print("No Gemini keys available!")
+            return
+
+        # Pick random key to avoid rate limits
+        api_key = random.choice(keys)
+        process_single_ticker(ticker, api_key)
+        
+    thread = threading.Thread(target=run_single)
+    thread.start()
+    
+    return jsonify({'status': 'started', 'message': f'Generating summary for {ticker}'})
 
 @us_news_bp.route('/api/summary/<ticker>')
 def get_summary(ticker):

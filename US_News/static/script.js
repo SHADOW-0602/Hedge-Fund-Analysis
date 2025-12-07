@@ -12,6 +12,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = await response.json();
         currentTickers = data.tickers;
 
+        // Theme Handling (Synced with Landing Page)
+        const themeToggle = document.getElementById('themeToggle');
+        const savedTheme = localStorage.getItem('theme') || 'light';
+
+        // Apply saved theme
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        if (themeToggle) {
+            themeToggle.checked = savedTheme === 'dark';
+
+            // Listen for changes
+            themeToggle.addEventListener('change', () => {
+                const newTheme = themeToggle.checked ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+            });
+        }
+
         // Add click handlers to ticker items
         const tickerItems = document.querySelectorAll('.ticker-item');
         tickerItems.forEach((item, index) => {
@@ -20,10 +37,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selectTicker(item.dataset.ticker);
             });
         });
-
-        // Add navigation button handlers
-        document.getElementById('prevBtn').addEventListener('click', navigatePrev);
-        document.getElementById('nextBtn').addEventListener('click', navigateNext);
 
         // Add refresh button handler
         document.getElementById('refreshBtn').addEventListener('click', handleRefresh);
@@ -35,6 +48,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const summarySection = document.querySelector('.summary-section');
         summarySection.addEventListener('touchstart', handleTouchStart, { passive: true });
         summarySection.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+        // Initialize ticker persistence
+        const savedTicker = localStorage.getItem('selectedTicker');
+        if (savedTicker && currentTickers.includes(savedTicker)) {
+            currentIndex = currentTickers.indexOf(savedTicker);
+            selectTicker(savedTicker);
+        } else {
+            // Optional: Auto-select first ticker or stay on empty state
+            if (currentTickers.length > 0) selectTicker(currentTickers[0]);
+        }
+
 
     } catch (error) {
         console.error('Error loading tickers:', error);
@@ -90,7 +114,13 @@ async function handleRefresh() {
     span.textContent = 'Started...';
 
     try {
-        const response = await fetch('api/refresh', { method: 'POST' });
+        const apiToken = document.querySelector('meta[name="api-token"]')?.content;
+        const headers = apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {};
+
+        const response = await fetch('api/refresh', {
+            method: 'POST',
+            headers: headers
+        });
         const data = await response.json();
 
         if (response.ok) {
@@ -131,18 +161,19 @@ async function handleRefresh() {
 }
 
 async function selectTicker(ticker) {
+    // Save state
+    localStorage.setItem('selectedTicker', ticker);
+
     // Update active state
     document.querySelectorAll('.ticker-item').forEach(item => {
         item.classList.remove('active');
     });
-    document.querySelector(`[data-ticker="${ticker}"]`).classList.add('active');
+    const activeItem = document.querySelector(`[data-ticker="${ticker}"]`);
+    if (activeItem) activeItem.classList.add('active');
 
     // Show loading state
     const summaryContent = document.getElementById('summaryContent');
     summaryContent.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-    // Enable/disable navigation buttons
-    updateNavigationButtons();
 
     try {
         const response = await fetch(`api/summary/${ticker}`);
@@ -155,17 +186,61 @@ async function selectTicker(ticker) {
         displaySummary(data);
 
     } catch (error) {
+        // Auto-generate if missing
         summaryContent.innerHTML = `
             <div class="placeholder">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-                <p>No summary available for ${ticker} today</p>
-                <p style="font-size: 14px; margin-top: 8px;">Please check back later or try another ticker</p>
+                <div class="glass-card">
+                    <div class="glass-icon">
+                        <svg class="spinning" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                        </svg>
+                    </div>
+                    <h2 class="glass-title">Generating Intelligence</h2>
+                    <p class="glass-subtitle">Analyzing ${ticker} data strings... please wait.<br>This takes about 10 seconds.</p>
+                </div>
             </div>
         `;
+
+        try {
+            const apiToken = document.querySelector('meta[name="api-token"]')?.content;
+            const headers = apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {};
+
+            // Trigger generation
+            const res = await fetch(`api/generate/${ticker}`, {
+                method: 'POST',
+                headers: headers
+            });
+
+            if (res.ok) {
+                // Poll for completion
+                let attempts = 0;
+                const checkInterval = setInterval(async () => {
+                    attempts++;
+                    try {
+                        const summaryRes = await fetch(`api/summary/${ticker}`);
+                        if (summaryRes.ok) {
+                            clearInterval(checkInterval);
+                            const data = await summaryRes.json();
+                            displaySummary(data);
+                        }
+                    } catch (e) { }
+
+                    if (attempts > 20) { // Timeout after 60s
+                        clearInterval(checkInterval);
+                        summaryContent.innerHTML = `
+                             <div class="placeholder">
+                                <div class="glass-card">
+                                    <h2 class="glass-title">Analysis Failed</h2>
+                                    <p class="glass-subtitle">Could not generate data for ${ticker}.<br>Please try again later.</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }, 3000);
+            }
+        } catch (e) {
+            console.error('Auto-generation failed', e);
+        }
     }
 }
 
@@ -231,10 +306,4 @@ function navigateNext() {
     }
 }
 
-function updateNavigationButtons() {
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
 
-    prevBtn.disabled = currentIndex === 0;
-    nextBtn.disabled = currentIndex === currentTickers.length - 1;
-}
