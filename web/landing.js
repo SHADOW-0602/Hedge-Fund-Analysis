@@ -112,7 +112,7 @@ async function loadNews() {
 
 function displayNews(articles) {
     const newsGrid = document.getElementById('newsGrid');
-    
+
     if (!newsGrid) {
         console.warn('newsGrid element not found');
         return;
@@ -343,10 +343,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Load images
         loadImages();
-        
+
         // Load tickers
         loadTickers();
-        
+
         // Auto-fetch missing logos after initial load
         setTimeout(() => {
             fetch(`${API_BASE}/api/fetch-logos`, { method: 'POST' })
@@ -557,8 +557,8 @@ async function addTicker() {
             message.style.color = 'var(--error-color)';
         }
     } catch (error) {
-        const errorMsg = error.name === 'TypeError' && error.message.includes('fetch') 
-            ? 'Network error. Please check your connection.' 
+        const errorMsg = error.name === 'TypeError' && error.message.includes('fetch')
+            ? 'Network error. Please check your connection.'
             : 'Error adding ticker. Please try again.';
         message.textContent = errorMsg;
         message.className = 'message error';
@@ -567,8 +567,48 @@ async function addTicker() {
     }
 }
 
-// Load tickers from API
+// Render stocks grid
+function renderStocksGrid(tickersWithLogos) {
+    const stocksGrid = document.getElementById('stocks-grid');
+    if (!stocksGrid) return;
+
+    if (!tickersWithLogos || tickersWithLogos.length === 0) {
+        stocksGrid.innerHTML = '<p style="text-align: center; color: var(--text-secondary); grid-column: 1 / -1;">No stocks added yet. Add some tickers to get started!</p>';
+        return;
+    }
+
+    stocksGrid.innerHTML = tickersWithLogos.map(ticker => `
+        <div class="stock-card" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; text-align: center; position: relative; transition: all 0.3s ease; cursor: pointer;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+            <button class="remove-btn" onclick="removeTicker('${ticker.symbol}')" style="position: absolute; top: 8px; right: 8px; background: var(--error-color); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+            <div class="stock-logo" onclick="viewStock('${ticker.symbol}')" style="width: 60px; height: 60px; margin: 0 auto 1rem; background: var(--primary-color); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: white;">
+                ${ticker.logoUrl ?
+            `<img src="${ticker.logoUrl}" alt="${ticker.symbol}" style="width: 100%; height: 100%; object-fit: contain; border-radius: 12px;">` :
+            `${ticker.symbol.charAt(0)}`
+        }
+            </div>
+            <h4 onclick="viewStock('${ticker.symbol}')" style="color: var(--text-primary); margin: 0 0 0.5rem; font-size: 1.1rem; font-weight: 600;">${ticker.symbol}</h4>
+            <p onclick="viewStock('${ticker.symbol}')" style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">${ticker.company_name || 'Company Name'}</p>
+        </div>
+    `).join('');
+}
+
+// Load tickers from API with caching
 async function loadTickers() {
+    const cacheKey = 'landing_tickers_cache';
+    const stocksGrid = document.getElementById('stocks-grid');
+
+    // 1. Try to load from cache
+    const cachedData = localStorage.getItem(cacheKey);
+    if (cachedData) {
+        try {
+            const tickersWithLogos = JSON.parse(cachedData);
+            // console.log('Loading tickers from cache');
+            renderStocksGrid(tickersWithLogos);
+        } catch (e) {
+            console.warn('Error parsing cached tickers', e);
+        }
+    }
+
     try {
         const response = await fetch(`${API_BASE}/api/tickers`);
 
@@ -577,60 +617,54 @@ async function loadTickers() {
         }
 
         const tickers = await response.json();
-        const stocksGrid = document.getElementById('stocks-grid');
 
         if (!Array.isArray(tickers)) {
             throw new Error('Invalid response format');
         }
 
         if (tickers.length === 0) {
-            stocksGrid.innerHTML = '<p style="text-align: center; color: var(--text-secondary); grid-column: 1 / -1;">No stocks added yet. Add some tickers to get started!</p>';
+            localStorage.removeItem(cacheKey);
+            renderStocksGrid([]);
             return;
         }
 
-        // Load logos for each ticker with better error handling
-        const tickersWithLogos = [];
-        for (const tickerData of tickers) {
+        // Load logos for each ticker with parallel fetching
+        const logoPromises = tickers.map(async (tickerData) => {
             const symbol = typeof tickerData === 'string' ? tickerData : tickerData.symbol;
             let logoUrl = null;
-            
+
             try {
                 const logoResponse = await fetch(`${API_BASE}/api/logo/${symbol}`);
                 if (logoResponse.status === 200) {
                     const logoData = await logoResponse.json();
                     logoUrl = logoData?.image || null;
-                }
-                // Consume response to prevent console logging
-                if (!logoResponse.ok) {
-                    await logoResponse.text();
+                } else if (!logoResponse.ok) {
+                    await logoResponse.text(); // Consume response
                 }
             } catch (error) {
                 // Silently handle logo fetch errors
             }
-            
-            tickersWithLogos.push({
+
+            return {
                 symbol: symbol,
                 company_name: typeof tickerData === 'object' ? tickerData.company_name : null,
                 logoUrl: logoUrl
-            });
-        }
+            };
+        });
 
-        stocksGrid.innerHTML = tickersWithLogos.map(ticker => `
-            <div class="stock-card" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; text-align: center; position: relative; transition: all 0.3s ease; cursor: pointer;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                <button class="remove-btn" onclick="removeTicker('${ticker.symbol}')" style="position: absolute; top: 8px; right: 8px; background: var(--error-color); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
-                <div class="stock-logo" onclick="viewStock('${ticker.symbol}')" style="width: 60px; height: 60px; margin: 0 auto 1rem; background: var(--primary-color); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: white;">
-                    ${ticker.logoUrl ?
-                        `<img src="${ticker.logoUrl}" alt="${ticker.symbol}" style="width: 100%; height: 100%; object-fit: contain; border-radius: 12px;">` :
-                        `${ticker.symbol.charAt(0)}`
-                    }
-                </div>
-                <h4 onclick="viewStock('${ticker.symbol}')" style="color: var(--text-primary); margin: 0 0 0.5rem; font-size: 1.1rem; font-weight: 600;">${ticker.symbol}</h4>
-                <p onclick="viewStock('${ticker.symbol}')" style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">${ticker.company_name || 'Company Name'}</p>
-            </div>
-        `).join('');
+        const tickersWithLogos = await Promise.all(logoPromises);
+
+        // Update cache
+        localStorage.setItem(cacheKey, JSON.stringify(tickersWithLogos));
+
+        // Render fresh data
+        renderStocksGrid(tickersWithLogos);
+
     } catch (error) {
         console.error('Error loading tickers:', error);
-        document.getElementById('stocks-grid').innerHTML = `<p style="text-align: center; color: var(--error-color); grid-column: 1 / -1;">Error loading stocks: ${error.message}</p>`;
+        if (!cachedData) {
+            document.getElementById('stocks-grid').innerHTML = `<p style="text-align: center; color: var(--error-color); grid-column: 1 / -1;">Error loading stocks: ${error.message}</p>`;
+        }
     }
 }
 
@@ -695,7 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tickerInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') addTicker();
         });
-        
+
         // Auto-uppercase ticker input
         tickerInput.addEventListener('input', (e) => {
             e.target.value = e.target.value.toUpperCase();
@@ -704,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load tickers when page loads
     loadTickers();
-    
+
     // Auto-fetch missing logos on page load
     setTimeout(() => {
         fetch(`${API_BASE}/api/fetch-logos`, { method: 'POST' })

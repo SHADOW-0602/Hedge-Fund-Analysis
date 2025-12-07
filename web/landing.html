@@ -111,42 +111,26 @@
         </div>
     </section>
 
-    <!-- Newsletter Section -->
-    <section class="newsletter-section">
-        <div class="newsletter-content">
-            <h3>Get Daily Stock Analysis Reports</h3>
-            <p>Receive AI-powered stock summaries directly in your inbox every morning</p>
-            <div class="newsletter-form">
-                <input type="email" id="newsletter-email" placeholder="Enter your email address">
-                <button onclick="subscribeNewsletter()">Subscribe Free</button>
-            </div>
-            <div id="newsletter-message" class="message"></div>
-            <p class="newsletter-note">Free forever • Weekly reports • No spam</p>
-        </div>
-    </section>
-
-    <!-- Add Stock Section (Hidden) -->
+    <!-- Add Ticker Section (Hidden) -->
     <!--
     <section class="add-ticker-section">
-        <h2>Add New Stock</h2>
+        <h2>Add New Ticker</h2>
         <div class="add-ticker-form">
             <input type="text" id="ticker-input" placeholder="Enter ticker symbol (e.g., AAPL)" maxlength="10">
-            <button onclick="addTicker()">Add Stock</button>
+            <button onclick="addTicker()">Add Ticker</button>
         </div>
         <div id="add-message" class="message"></div>
     </section>
     -->
 
-    <!-- Stocks Portfolio Section -->
+    <!-- Tickers Portfolio Section -->
     <section class="stocks-section">
-        <h2>Your Stock Portfolio</h2>
-        <p>AI-powered analysis for your tracked stocks with real-time news aggregation and sentiment analysis</p>
+        <h2>News Summary</h2>
+        <p>Get instant AI-generated news summaries and sentiment analysis for any stock ticker</p>
         <div id="stocks-grid" class="stocks-grid">
-            <div class="loading">Loading your stocks...</div>
+            <div class="loading">Loading your tickers...</div>
         </div>
     </section>
-
-
 
     <!-- About Section -->
     <section id="about" class="about">
@@ -169,6 +153,21 @@
             </div>
         </div>
     </section>
+
+    <!-- Newsletter Section -->
+    <section class="newsletter-section">
+        <div class="newsletter-content">
+            <h3>Get Daily News Summaries</h3>
+            <p>Receive AI-powered news summaries directly in your inbox every morning</p>
+            <div class="newsletter-form">
+                <input type="email" id="newsletter-email" placeholder="Enter your email address">
+                <button onclick="subscribeNewsletter()">Subscribe Free</button>
+            </div>
+            <div id="newsletter-message" class="message"></div>
+            <p class="newsletter-note">Free forever • Weekly reports • No spam</p>
+        </div>
+    </section>
+
 
     <!-- Footer -->
     <footer class="footer">
