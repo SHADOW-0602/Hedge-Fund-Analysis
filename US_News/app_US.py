@@ -192,8 +192,12 @@ def fetch_news_for_ticker(ticker):
         
         if news:
             for article in news[:10]:  # Get up to 10 articles
+                title = article.get('title', '').strip()
+                if not title: # Skip empty titles
+                    continue
+                    
                 all_news.append({
-                    'title': article.get('title', ''),
+                    'title': title,
                     'url': article.get('link', ''),
                     'source': article.get('publisher', 'Yahoo Finance'),
                     'published_at': datetime.fromtimestamp(article.get('providerPublishTime', 0)).isoformat(),
@@ -203,14 +207,23 @@ def fetch_news_for_ticker(ticker):
     except Exception as e:
         print(f"  ✗ Yahoo Finance: {e}")
     
-    print(f"  → Total articles fetched: {len(all_news)}")
-    return all_news
+    # Final cleanup: Filter out any duplicates or empty titles from other sources
+    unique_news = []
+    seen_urls = set()
+    
+    for n in all_news:
+        if n['title'] and n['url'] not in seen_urls:
+            unique_news.append(n)
+            seen_urls.add(n['url'])
+            
+    print(f"  → Total valid articles fetched: {len(unique_news)}")
+    return unique_news
 
 import concurrent.futures
 
-def generate_ai_summary(ticker, news_articles, api_key, key_name="Unknown Key"):
-    """Generate AI summary using Gemini REST API (supports parallel keys)"""
-    if not news_articles or not api_key:
+def generate_ai_summary(ticker, news_articles, all_keys_data):
+    """Generate AI summary using Gemini REST API with Smart Key Rotation"""
+    if not news_articles or not all_keys_data:
         return None
     
     # ... (code omitted for brevity, logic same until request) ...
@@ -242,9 +255,6 @@ Please provide a JSON response with the following structure:
 
 Keep each section between 50-100 words. Be concise and factual. Do not mention the word count in the output."""
 
-    # Call Gemini REST API directly
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
-
     headers = {'Content-Type': 'application/json'}
     payload = {
         "contents": [{
@@ -255,27 +265,32 @@ Keep each section between 50-100 words. Be concise and factual. Do not mention t
         }
     }
     
-    # Retry loop for rate limits
-    max_retries = 3
-    for attempt in range(max_retries):
+    # Smart Key Rotation Implementation
+    # Shuffle keys to load balance distribution across requests
+    # But ensure we try ALL keys before failing
+    available_keys = list(all_keys_data) # Copy list
+    random.shuffle(available_keys)
+    
+    for attempt, (api_key, key_name) in enumerate(available_keys):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+        
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            # Short timeout to fail fast and rotate
+            response = requests.post(url, headers=headers, json=payload, timeout=25)
             
             # If rate limited (too many requests), wait and retry
             if response.status_code == 429:
-                sleep_time = (attempt + 1) * 10 
-                print(f"  ⚠ Rate limited (429) on {key_name}. Retrying in {sleep_time}s...")
-                time.sleep(sleep_time)
+                print(f"  ⚠ Rate limited (429) on {key_name}. Rotating to next key...")
                 continue
                 
             if response.status_code != 200:
-                print(f"  ✗ Gemini API Error ({response.status_code}) on {key_name}: {response.text}")
-                return None
+                print(f"  ✗ Gemini API Error ({response.status_code}) on {key_name}: {response.text[:100]}")
+                continue # Try next key on other errors too
                 
             data = response.json()
             if 'candidates' not in data or not data['candidates']:
                  print(f"  ✗ No candidates returned for {ticker} using {key_name}")
-                 return None
+                 continue
 
             response_text = data['candidates'][0]['content']['parts'][0]['text']
             
@@ -293,11 +308,11 @@ Keep each section between 50-100 words. Be concise and factual. Do not mention t
             return summary_data
             
         except Exception as e:
-            print(f"AI summary error for {ticker} using {key_name} (attempt {attempt+1}): {e}")
-            if attempt == max_retries - 1:
-                return None
-            time.sleep(5)
+            print(f"AI summary error for {ticker} using {key_name}: {e}")
+            continue # Try next key
             
+    # If we get here, ALL keys failed
+    print(f"  ❌ All {len(available_keys)} API keys exhausted/failed for {ticker}.")
     return None
 
 def store_news_and_summary(ticker, news_articles, summary_data):
@@ -324,14 +339,16 @@ def store_news_and_summary(ticker, news_articles, summary_data):
         # Store AI summary
         if summary_data:
             try:
-                # First try to delete any existing summary for this ticker/date to avoid conflicts
-                # This is cleaner than upsert race conditions
-                supabase.table('ticker_summaries').delete().match({
-                    'ticker': ticker, 
-                    'summary_date': str(today)
-                }).execute()
-                
-                # Then insert the new one
+                # Delete existing summary for today to allow overwrite (essential for retries)
+                try:
+                    supabase.table('ticker_summaries').delete().match({
+                        'ticker': ticker, 
+                        'summary_date': str(today)
+                    }).execute()
+                except Exception:
+                    pass
+
+                # Insert new summary
                 supabase.table('ticker_summaries').insert({
                     'ticker': ticker,
                     'executive_summary': summary_data['executive_summary'],
@@ -347,28 +364,23 @@ def store_news_and_summary(ticker, news_articles, summary_data):
     except Exception as e:
         print(f"Error storing data for {ticker}: {e}")
 
-def process_single_ticker(ticker, api_key_data):
+def process_single_ticker(ticker, all_keys_data):
     """Worker function to process a single ticker"""
-    # Handle both tuple (key, name) and string (key only)
-    if isinstance(api_key_data, tuple):
-        api_key, key_name = api_key_data
-    else:
-        api_key = api_key_data
-        key_name = "Unknown Key"
-
-    print(f"Processing {ticker} using {key_name}...")
+    # all_keys_data is now a list of (key, name) tuples
+    
+    print(f"Processing {ticker} using {len(all_keys_data)} available keys...")
     try:
         news_articles = fetch_news_for_ticker(ticker)
         if news_articles:
             # Small random sleep to prevent synchronized API hits
             time.sleep(random.uniform(0.5, 2.0))
             
-            summary_data = generate_ai_summary(ticker, news_articles, api_key, key_name)
+            summary_data = generate_ai_summary(ticker, news_articles, all_keys_data)
             if summary_data:
                 store_news_and_summary(ticker, news_articles, summary_data)
             else:
                 # Fallback
-                print(f"  ⚠ AI generation failed for {ticker} ({key_name}), storing fallback.")
+                print(f"  ⚠ AI generation failed for {ticker} (All keys exhausted), storing fallback.")
                 fallback_summary = {
                     'executive_summary': 'Brief analysis unavailable at this moment due to high demand. News sources are listed below.',
                     'what_changed': 'Refer to news sources.',
@@ -430,14 +442,14 @@ def process_news_for_active_tickers(force=False):
             IS_PROCESSING = False
             return
             
-        print(f"  ✓ Optimized Mode: Distributing workload across {len(all_keys)} API keys.")
+        print(f"  ✓ Optimized Mode: Shared key pool of {len(all_keys)} keys distributed across threads.")
 
         tasks = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor: 
-            for i, ticker in enumerate(ACTIVE_TICKERS):
-                # Round-robin key assignment
-                assigned_key_tuple = all_keys[i % len(all_keys)]
-                tasks.append(executor.submit(process_single_ticker, ticker, assigned_key_tuple))
+            for ticker in ACTIVE_TICKERS:
+                # Pass ALL keys to each thread. 
+                # generate_ai_summary will shuffle them to ensure load balancing.
+                tasks.append(executor.submit(process_single_ticker, ticker, all_keys))
             
             # Wait for completion
             concurrent.futures.wait(tasks)
@@ -501,30 +513,26 @@ def generate_ticker_summary(ticker):
         token = auth_header.replace('Bearer ', '') if auth_header and auth_header.startswith('Bearer ') else auth_header
         if token != expected_token:
             return jsonify({'error': 'Unauthorized'}), 401
-
-    if ticker not in TICKER_UNIVERSE:
-         return jsonify({'error': 'Invalid ticker'}), 400
          
     # Run in background to avoid timeout
     def run_single():
         # Load balance across all available keys in .env
-        keys = [
-            os.getenv('GEMINI_API_KEY'),
-            os.getenv('GEMINI_API_KEY_2'),
-            os.getenv('GEMINI_API_KEY_3'),
-            os.getenv('GEMINI_API_KEY_4'),
-            os.getenv('GEMINI_API_KEY_5')
+        raw_keys = [
+            (os.getenv('GEMINI_API_KEY'), 'GEMINI_API_KEY'),
+            (os.getenv('GEMINI_API_KEY_2'), 'GEMINI_API_KEY_2'),
+            (os.getenv('GEMINI_API_KEY_3'), 'GEMINI_API_KEY_3'),
+            (os.getenv('GEMINI_API_KEY_4'), 'GEMINI_API_KEY_4'),
+            (os.getenv('GEMINI_API_KEY_5'), 'GEMINI_API_KEY_5')
         ]
         # Filter None
-        keys = [k for k in keys if k]
+        keys = [k for k in raw_keys if k[0]]
         
         if not keys:
             print("No Gemini keys available!")
             return
 
-        # Pick random key to avoid rate limits
-        api_key = random.choice(keys)
-        process_single_ticker(ticker, api_key)
+        # Pass ALL keys to allow rotation
+        process_single_ticker(ticker, keys)
         
     thread = threading.Thread(target=run_single)
     thread.start()

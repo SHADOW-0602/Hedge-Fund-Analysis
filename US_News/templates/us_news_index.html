@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="api-token" content="{{ api_token }}">
-    <title>U.S. Stock News with AI</title>
+    <title>SHM Ventures</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('us_news.static', filename='style.css') }}?v={{ now }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,6 +46,15 @@
         <div class="content-wrapper">
             <!-- Ticker List Sidebar -->
             <div class="ticker-sidebar">
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <input type="text" id="tickerSearch" placeholder="Search ticker..." maxlength="5">
+                    </div>
+                </div>
                 <div class="ticker-list" id="tickerList">
                     {% for ticker in tickers %}
                     <div class="ticker-item" data-ticker="{{ ticker }}">

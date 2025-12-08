@@ -55,15 +55,55 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentIndex = currentTickers.indexOf(savedTicker);
             selectTicker(savedTicker);
         } else {
-            // Optional: Auto-select first ticker or stay on empty state
             if (currentTickers.length > 0) selectTicker(currentTickers[0]);
         }
 
+        // Search Handler
+        const searchInput = document.getElementById('tickerSearch');
+        if (searchInput) {
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    handleSearch(e.target.value);
+                    e.target.value = '';
+                    e.target.blur();
+                }
+            });
+        }
 
     } catch (error) {
         console.error('Error loading tickers:', error);
     }
 });
+
+async function handleSearch(query) {
+    if (!query) return;
+    const ticker = query.toUpperCase().trim();
+    if (ticker.length < 2 || ticker.length > 5) return; // Basic validation
+
+    if (currentTickers.includes(ticker)) {
+        // Exists
+        currentIndex = currentTickers.indexOf(ticker);
+        selectTicker(ticker);
+
+        // Scroll to view
+        const item = document.querySelector(`[data-ticker="${ticker}"]`);
+        if (item) item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+        // New Ticker (Do not add to list, just show summary)
+        currentIndex = -1; // Reset index since it's not in the list
+
+        // Deselect all list items
+        document.querySelectorAll('.ticker-item').forEach(item => {
+            item.classList.remove('active');
+        });
+
+        // Select and generate
+        selectTicker(ticker);
+    }
+}
+
+
+
 
 // Keyboard navigation handler
 function handleKeyboardNavigation(event) {
@@ -160,6 +200,100 @@ async function handleRefresh() {
     }
 }
 
+
+// Expose generation function globally for the refresh button
+window.generateTickerSummary = async function (ticker, event) {
+    const summaryContent = document.getElementById('summaryContent');
+    let isInlineRefresh = false;
+    let refreshBtn = null;
+
+    // Check if triggered by button click (Authentication/Event handling)
+    if (event && event.currentTarget) {
+        isInlineRefresh = true;
+        refreshBtn = event.currentTarget;
+        // Start spinning
+        refreshBtn.querySelector('svg').classList.add('spinning');
+        refreshBtn.disabled = true;
+    }
+
+    // Only show full loading card if NOT an inline refresh
+    if (!isInlineRefresh) {
+        summaryContent.innerHTML = `
+            <div class="loading">
+                <div class="glass-card">
+                    <div class="glass-icon">
+                        <svg class="spinning" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                        </svg>
+                    </div>
+                    <h2 class="glass-title">Generating Intelligence</h2>
+                    <p class="glass-subtitle">Analyzing ${ticker} data strings... please wait.<br>This may take up to a minute during high load.</p>
+                </div>
+            </div>
+        `;
+    }
+
+    try {
+        const apiToken = document.querySelector('meta[name="api-token"]')?.content;
+        const headers = apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {};
+
+        // Trigger generation (GET)
+        const res = await fetch(`api/generate/${ticker}`, {
+            method: 'GET',
+            headers: headers
+        });
+
+        if (res.ok) {
+            // Poll for completion
+            let attempts = 0;
+            const checkInterval = setInterval(async () => {
+                attempts++;
+                try {
+                    const summaryRes = await fetch(`api/summary/${ticker}`);
+                    if (summaryRes.ok) {
+                        const data = await summaryRes.json();
+                        if (data.status === 'found') {
+                            clearInterval(checkInterval);
+                            displaySummary(data);
+                        }
+                    }
+                } catch (e) { }
+
+                if (attempts > 60) { // Timeout after 180s (3mins)
+                    clearInterval(checkInterval);
+                    if (!isInlineRefresh) {
+                        summaryContent.innerHTML = `
+                            <div class="placeholder">
+                                <div class="glass-card">
+                                    <h2 class="glass-title">Analysis Failed</h2>
+                                    <p class="glass-subtitle">Could not generate data for ${ticker}.<br>Please try again later.</p>
+                                </div>
+                            </div>
+                        `;
+                    } else if (refreshBtn) {
+                        refreshBtn.querySelector('svg').classList.remove('spinning');
+                        refreshBtn.disabled = false;
+                        alert('Analysis timed out. Please try again.');
+                    }
+                }
+            }, 3000);
+        }
+    } catch (e) {
+        console.error('Auto-generation failed', e);
+        if (!isInlineRefresh) {
+            summaryContent.innerHTML = `
+                <div class="placeholder">
+                    <h3>Connection Error</h3>
+                    <p>Could not trigger analysis.</p>
+                </div>
+            `;
+        } else if (refreshBtn) {
+            refreshBtn.querySelector('svg').classList.remove('spinning');
+            refreshBtn.disabled = false;
+        }
+    }
+}
+
 async function selectTicker(ticker) {
     // Save state
     localStorage.setItem('selectedTicker', ticker);
@@ -187,61 +321,7 @@ async function selectTicker(ticker) {
 
     } catch (error) {
         // Auto-generate if missing
-        summaryContent.innerHTML = `
-                    <div class="glass-card">
-                        <div class="glass-icon">
-                            <svg class="spinning" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-                            </svg>
-                        </div>
-                        <h2 class="glass-title">Generating Intelligence</h2>
-                        <p class="glass-subtitle">Analyzing ${ticker} data strings... please wait.<br>This may take up to a minute during high load.</p>
-                    </div>
-                </div>
-            `;
-
-        try {
-            const apiToken = document.querySelector('meta[name="api-token"]')?.content;
-            const headers = apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {};
-
-            // Trigger generation
-            const res = await fetch(`api/generate/${ticker}`, {
-                method: 'POST',
-                headers: headers
-            });
-
-            if (res.ok) {
-                // Poll for completion
-                let attempts = 0;
-                const checkInterval = setInterval(async () => {
-                    attempts++;
-                    try {
-                        const summaryRes = await fetch(`api/summary/${ticker}`);
-                        if (summaryRes.ok) {
-                            const data = await summaryRes.json();
-                            if (data.status === 'found') {
-                                clearInterval(checkInterval);
-                                displaySummary(data);
-                            }
-                        }
-                    } catch (e) { }
-
-                    if (attempts > 60) { // Timeout after 180s (3mins)
-                        clearInterval(checkInterval);
-                        summaryContent.innerHTML = `
-                                <div class="placeholder">
-                                    <div class="glass-card">
-                                        <h2 class="glass-title">Analysis Failed</h2>
-                                        <p class="glass-subtitle">Could not generate data for ${ticker}.<br>Please try again later.</p>
-                                    </div>
-                                </div>
-                            `;
-                    }
-                }, 3000);
-            }
-        } catch (e) {
-            console.error('Auto-generation failed', e);
-        }
+        window.generateTickerSummary(ticker);
     }
 }
 
@@ -313,7 +393,16 @@ function displaySummary(data) {
 
     summaryContent.innerHTML = `
         <div class="summary-display">
-            <h2>${data.ticker}</h2>
+            <h2 style="display: flex; align-items: center; gap: 12px;">
+                ${data.ticker}
+                <button onclick="window.generateTickerSummary('${data.ticker}', event)" class="ticker-refresh-btn" title="Force Refresh Analysis">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 4v6h-6"></path>
+                        <path d="M1 20v-6h6"></path>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                </button>
+            </h2>
             
             <div class="summary-section-block">
                 <h3>Executive Summary</h3>
