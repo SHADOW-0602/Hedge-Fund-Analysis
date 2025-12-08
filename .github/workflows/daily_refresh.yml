@@ -10,16 +10,16 @@ jobs:
   refresh-news:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
       - name: Trigger News Refresh
+        env:
+          API_TOKEN: ${{ secrets.API_TOKEN }}
         run: |
-          echo "Triggering daily news refresh..."
-          curl -X POST "https://shmventures.org/us-news/api/refresh" \
-          -H "Content-Type: application/json" \
-          -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" \
-          -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-          -H "Accept: application/json, text/javascript, */*; q=0.01" \
-          -H "Accept-Language: en-US,en;q=0.9" \
-          -H "Origin: https://shmventures.org" \
-          -H "Referer: https://shmventures.org/us-news/" \
-          --fail || exit 1
-          echo "Refresh triggered successfully"
+          pip install requests
+          python scripts/trigger_refresh.py

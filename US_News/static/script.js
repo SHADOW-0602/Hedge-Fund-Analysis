@@ -177,29 +177,28 @@ async function selectTicker(ticker) {
 
     try {
         const response = await fetch(`api/summary/${ticker}`);
+        const data = await response.json();
 
-        if (!response.ok) {
+        if (response.ok && data.status === 'found') {
+            displaySummary(data);
+        } else {
             throw new Error('Summary not available');
         }
-
-        const data = await response.json();
-        displaySummary(data);
 
     } catch (error) {
         // Auto-generate if missing
         summaryContent.innerHTML = `
-            <div class="placeholder">
-                <div class="glass-card">
-                    <div class="glass-icon">
-                        <svg class="spinning" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-                        </svg>
+                    <div class="glass-card">
+                        <div class="glass-icon">
+                            <svg class="spinning" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                            </svg>
+                        </div>
+                        <h2 class="glass-title">Generating Intelligence</h2>
+                        <p class="glass-subtitle">Analyzing ${ticker} data strings... please wait.<br>This may take up to a minute during high load.</p>
                     </div>
-                    <h2 class="glass-title">Generating Intelligence</h2>
-                    <p class="glass-subtitle">Analyzing ${ticker} data strings... please wait.<br>This takes about 10 seconds.</p>
                 </div>
-            </div>
-        `;
+            `;
 
         try {
             const apiToken = document.querySelector('meta[name="api-token"]')?.content;
@@ -219,22 +218,24 @@ async function selectTicker(ticker) {
                     try {
                         const summaryRes = await fetch(`api/summary/${ticker}`);
                         if (summaryRes.ok) {
-                            clearInterval(checkInterval);
                             const data = await summaryRes.json();
-                            displaySummary(data);
+                            if (data.status === 'found') {
+                                clearInterval(checkInterval);
+                                displaySummary(data);
+                            }
                         }
                     } catch (e) { }
 
-                    if (attempts > 20) { // Timeout after 60s
+                    if (attempts > 60) { // Timeout after 180s (3mins)
                         clearInterval(checkInterval);
                         summaryContent.innerHTML = `
-                             <div class="placeholder">
-                                <div class="glass-card">
-                                    <h2 class="glass-title">Analysis Failed</h2>
-                                    <p class="glass-subtitle">Could not generate data for ${ticker}.<br>Please try again later.</p>
+                                <div class="placeholder">
+                                    <div class="glass-card">
+                                        <h2 class="glass-title">Analysis Failed</h2>
+                                        <p class="glass-subtitle">Could not generate data for ${ticker}.<br>Please try again later.</p>
+                                    </div>
                                 </div>
-                            </div>
-                        `;
+                            `;
                     }
                 }, 3000);
             }
@@ -244,21 +245,70 @@ async function selectTicker(ticker) {
     }
 }
 
+function cleanText(text) {
+    if (!text) return '';
+    // Remove (XX words) patterns, case insensitive
+    return text.replace(/\(\d+\s*words\)/gi, '').trim();
+}
+
+// Modal Toggle Function
+window.toggleSourcesModal = function (event) {
+    if (event) event.preventDefault();
+    const modal = document.getElementById('sourcesModal');
+    if (modal) {
+        if (modal.classList.contains('open')) {
+            modal.classList.remove('open');
+            setTimeout(() => { modal.style.display = 'none'; }, 300); // Wait for transition
+        } else {
+            modal.style.display = 'flex';
+            // slight delay to allow display:flex to apply before adding opacity class
+            setTimeout(() => { modal.classList.add('open'); }, 10);
+        }
+    }
+}
+
 function displaySummary(data) {
     const summaryContent = document.getElementById('summaryContent');
 
     let sourcesHTML = '';
     if (data.sources && data.sources.length > 0) {
-        sourcesHTML = `
-            <div class="sources-section">
-                <h3>Sources Used</h3>
-                ${data.sources.map(source => `
-                    <a href="${source.url}" target="_blank" class="source-link">
-                        ${source.title}
-                    </a>
-                `).join('')}
+        // Trigger Link
+        const sourcesTrigger = `
+            <div class="sources-trigger-wrapper">
+                <a href="#" class="sources-trigger" onclick="toggleSourcesModal(event)">
+                    <span>Sources</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                </a>
             </div>
         `;
+
+        // Modal Structure
+        const sourcesList = data.sources.map(source => `
+            <a href="${source.url}" target="_blank" class="source-item">
+                <div style="font-weight: 500; margin-bottom: 2px;">${source.title}</div>
+                <div style="font-size: 12px; color: var(--accent);">${source.source}</div>
+            </a>
+        `).join('');
+
+        const modal = `
+            <div id="sourcesModal" class="modal-overlay" onclick="toggleSourcesModal(event)">
+                <div class="modal-content" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <h3>Sources Used</h3>
+                        <button class="modal-close" onclick="toggleSourcesModal(event)">×</button>
+                    </div>
+                    <div class="modal-body">
+                        ${sourcesList}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        sourcesHTML = sourcesTrigger + modal;
     }
 
     summaryContent.innerHTML = `
@@ -267,22 +317,22 @@ function displaySummary(data) {
             
             <div class="summary-section-block">
                 <h3>Executive Summary</h3>
-                <p>${data.executive_summary}</p>
+                <p>${cleanText(data.executive_summary)}</p>
             </div>
             
             <div class="summary-section-block">
                 <h3>What changed today?</h3>
-                <p>${data.what_changed}</p>
+                <p>${cleanText(data.what_changed)}</p>
             </div>
             
             <div class="summary-section-block">
                 <h3>Analyst/Earnings Updates</h3>
-                <p>${data.analyst_earnings}</p>
+                <p>${cleanText(data.analyst_earnings)}</p>
             </div>
             
             <div class="summary-section-block">
                 <h3>Last week updates</h3>
-                <p>${data.last_week_updates}</p>
+                <p>${cleanText(data.last_week_updates)}</p>
             </div>
             
             ${sourcesHTML}

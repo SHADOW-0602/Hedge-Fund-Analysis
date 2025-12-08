@@ -170,6 +170,15 @@ app = app
 def health_check():
     return {'status': 'healthy', 'service': 'hedge-fund-analysis'}
 
+# Global Security Headers
+@app.after_request
+def add_security_headers(response):
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    return response
+
 # Cloudflare Pages compatibility
 def application(environ, start_response):
     """WSGI application for Cloudflare Pages"""

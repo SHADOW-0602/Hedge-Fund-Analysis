@@ -20,6 +20,7 @@ body.light-mode {
 /* Header */
 .analysis-header {
     background: rgba(255, 255, 255, 0.05);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding: 1rem 2rem;
@@ -754,11 +755,11 @@ body.light-mode .financial-chart {
     border-radius: 50%;
 }
 
-input:checked + .slider {
+input:checked+.slider {
     background-color: #00d4ff;
 }
 
-input:checked + .slider:before {
+input:checked+.slider:before {
     transform: translateX(26px);
 }
 
@@ -1105,29 +1106,29 @@ body.light-mode .financial-table th {
     .analysis-main {
         padding: 1rem;
     }
-    
+
     .header-content {
         flex-direction: column;
         gap: 1rem;
         text-align: center;
     }
-    
+
     .chart-controls,
     .financials-controls {
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     .timeframe-selector,
     .statement-selector,
     .period-selector {
         justify-content: center;
     }
-    
+
     .trade-recommendations {
         grid-template-columns: 1fr;
     }
-    
+
     .tab-navigation {
         overflow-x: auto;
         white-space: nowrap;

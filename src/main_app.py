@@ -38,6 +38,7 @@ from api.admin_routes import register_admin_routes
 from api.cache_routes import register_cache_routes
 from api.sector_routes import sector_bp
 from api.backtesting_routes import register_backtesting_routes
+from api.chat_routes import chat_bp
 
 # Add News system to path for integration
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'News'))
@@ -244,6 +245,7 @@ register_secure_plaid_routes(app)
 
 # Register sector analysis routes
 app.register_blueprint(sector_bp)
+app.register_blueprint(chat_bp)
 
 # Register backtesting routes
 try:

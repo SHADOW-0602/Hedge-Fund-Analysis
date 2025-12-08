@@ -208,11 +208,12 @@ def fetch_news_for_ticker(ticker):
 
 import concurrent.futures
 
-def generate_ai_summary(ticker, news_articles, api_key):
+def generate_ai_summary(ticker, news_articles, api_key, key_name="Unknown Key"):
     """Generate AI summary using Gemini REST API (supports parallel keys)"""
     if not news_articles or not api_key:
         return None
     
+    # ... (code omitted for brevity, logic same until request) ...
     # Prepare news content for AI
     news_text = f"Stock Ticker: {ticker}\n\n"
     sources_list = []
@@ -239,10 +240,9 @@ Please provide a JSON response with the following structure:
     "last_week_updates": "A 50-100 word summary of developments from the past week"
 }}
 
-Keep each section between 50-100 words. Be concise and factual."""
+Keep each section between 50-100 words. Be concise and factual. Do not mention the word count in the output."""
 
     # Call Gemini REST API directly
-    # Using explicitly available model from user's list
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
 
     headers = {'Content-Type': 'application/json'}
@@ -263,18 +263,18 @@ Keep each section between 50-100 words. Be concise and factual."""
             
             # If rate limited (too many requests), wait and retry
             if response.status_code == 429:
-                sleep_time = (attempt + 1) * 5  # Aggressive backoff: 5s, 10s, 15s
-                print(f"  ⚠ Rate limited (429). Retrying in {sleep_time}s...")
+                sleep_time = (attempt + 1) * 10 
+                print(f"  ⚠ Rate limited (429) on {key_name}. Retrying in {sleep_time}s...")
                 time.sleep(sleep_time)
                 continue
                 
             if response.status_code != 200:
-                print(f"  ✗ Gemini API Error ({response.status_code}): {response.text}")
+                print(f"  ✗ Gemini API Error ({response.status_code}) on {key_name}: {response.text}")
                 return None
                 
             data = response.json()
             if 'candidates' not in data or not data['candidates']:
-                 print(f"  ✗ No candidates returned: {data}")
+                 print(f"  ✗ No candidates returned for {ticker} using {key_name}")
                  return None
 
             response_text = data['candidates'][0]['content']['parts'][0]['text']
@@ -293,7 +293,7 @@ Keep each section between 50-100 words. Be concise and factual."""
             return summary_data
             
         except Exception as e:
-            print(f"AI summary error for {ticker} (attempt {attempt+1}): {e}")
+            print(f"AI summary error for {ticker} using {key_name} (attempt {attempt+1}): {e}")
             if attempt == max_retries - 1:
                 return None
             time.sleep(5)
@@ -347,18 +347,55 @@ def store_news_and_summary(ticker, news_articles, summary_data):
     except Exception as e:
         print(f"Error storing data for {ticker}: {e}")
 
-def process_single_ticker(ticker, api_key):
+def process_single_ticker(ticker, api_key_data):
     """Worker function to process a single ticker"""
-    print(f"Processing {ticker}...")
+    # Handle both tuple (key, name) and string (key only)
+    if isinstance(api_key_data, tuple):
+        api_key, key_name = api_key_data
+    else:
+        api_key = api_key_data
+        key_name = "Unknown Key"
+
+    print(f"Processing {ticker} using {key_name}...")
     try:
         news_articles = fetch_news_for_ticker(ticker)
         if news_articles:
-            summary_data = generate_ai_summary(ticker, news_articles, api_key)
-            store_news_and_summary(ticker, news_articles, summary_data)
+            # Small random sleep to prevent synchronized API hits
+            time.sleep(random.uniform(0.5, 2.0))
+            
+            summary_data = generate_ai_summary(ticker, news_articles, api_key, key_name)
+            if summary_data:
+                store_news_and_summary(ticker, news_articles, summary_data)
+            else:
+                # Fallback
+                print(f"  ⚠ AI generation failed for {ticker} ({key_name}), storing fallback.")
+                fallback_summary = {
+                    'executive_summary': 'Brief analysis unavailable at this moment due to high demand. News sources are listed below.',
+                    'what_changed': 'Refer to news sources.',
+                    'analyst_earnings': 'N/A',
+                    'last_week_updates': 'N/A'
+                }
+                store_news_and_summary(ticker, news_articles, fallback_summary)
         else:
             print(f"  - No news found for {ticker}")
+            # Store empty state
+            empty_summary = {
+                'executive_summary': 'No significant news articles found for this ticker in the last 7 days.',
+                'what_changed': 'N/A',
+                'analyst_earnings': 'N/A',
+                'last_week_updates': 'N/A'
+            }
+            store_news_and_summary(ticker, [], empty_summary)
     except Exception as e:
         print(f"  ✗ Error processing {ticker}: {e}")
+        # Store error state so frontend knows it failed
+        error_summary = {
+            'executive_summary': f"Analysis failed due to a system error: {str(e)[:100]}...",
+            'what_changed': 'N/A',
+            'analyst_earnings': 'N/A',
+            'last_week_updates': 'N/A'
+        }
+        store_news_and_summary(ticker, [], error_summary)
 
 def process_news_for_active_tickers(force=False):
     """Process news for all active tickers in parallel"""
@@ -381,27 +418,26 @@ def process_news_for_active_tickers(force=False):
         tickers_by_volume.sort()
         ACTIVE_TICKERS = tickers_by_volume
         
-        # Split tickers (First 15 use Key 5, Last 15 use Key 4)
-        mid_point = 15
-        first_batch = ACTIVE_TICKERS[:mid_point]
-        second_batch = ACTIVE_TICKERS[mid_point:]
-        
-        key_5 = os.getenv('GEMINI_API_KEY_5')
-        key_4 = os.getenv('GEMINI_API_KEY_4')
-        
-        if not key_4:
-            print("Warning: GEMINI_API_KEY_4 not found, using Key 5 for all.")
-            key_4 = key_5
+        # Load balance across ALL available keys
+        all_keys = []
+        key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5']
+        for var in key_vars:
+            k = os.getenv(var)
+            if k: all_keys.append((k, var)) # Store tuple (key, name)
             
+        if not all_keys:
+            print("CRITICAL: No Gemini API keys found in environment variables!")
+            IS_PROCESSING = False
+            return
+            
+        print(f"  ✓ Optimized Mode: Distributing workload across {len(all_keys)} API keys.")
+
         tasks = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            # Submit first batch
-            for ticker in first_batch:
-                tasks.append(executor.submit(process_single_ticker, ticker, key_5))
-            
-            # Submit second batch
-            for ticker in second_batch:
-                tasks.append(executor.submit(process_single_ticker, ticker, key_4))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor: 
+            for i, ticker in enumerate(ACTIVE_TICKERS):
+                # Round-robin key assignment
+                assigned_key_tuple = all_keys[i % len(all_keys)]
+                tasks.append(executor.submit(process_single_ticker, ticker, assigned_key_tuple))
             
             # Wait for completion
             concurrent.futures.wait(tasks)
@@ -509,9 +545,16 @@ def get_summary(ticker):
             # Get sources from news table
             news_result = supabase.table('news').select('title, original_url, source').eq('ticker', ticker).order('published_at', desc=True).limit(10).execute()
             
-            sources = [{'title': n['title'], 'url': n['original_url'], 'source': n['source']} for n in news_result.data]
+            # Dedup sources by URL
+            seen_urls = set()
+            sources = []
+            for n in news_result.data:
+                if n['original_url'] not in seen_urls:
+                    sources.append({'title': n['title'], 'url': n['original_url'], 'source': n['source']})
+                    seen_urls.add(n['original_url'])
             
             return jsonify({
+                'status': 'found',
                 'ticker': ticker,
                 'executive_summary': summary['executive_summary'],
                 'what_changed': summary['what_changed'],
@@ -521,7 +564,8 @@ def get_summary(ticker):
                 'date': summary['summary_date']
             })
         else:
-            return jsonify({'error': 'No summary available for today'}), 404
+            # Return 200 with status=not_found to avoid console errors during polling
+            return jsonify({'status': 'not_found', 'message': 'No summary available for today'})
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500

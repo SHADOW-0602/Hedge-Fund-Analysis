@@ -19,6 +19,7 @@ body.light-mode {
 /* Header */
 .main-header {
     background: rgba(255, 255, 255, 0.1);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     padding: 1rem 0;
 }
@@ -128,6 +129,7 @@ body.light-mode .hero-overlay {
     font-size: 0.9rem;
     font-weight: 500;
     margin-bottom: 2rem;
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.3);
 }
@@ -214,7 +216,8 @@ body.light-mode .stat-label {
     text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8);
 }
 
-.btn-primary, .btn-secondary {
+.btn-primary,
+.btn-secondary {
     padding: 0.8rem 2rem;
     border-radius: 25px;
     font-weight: 500;
@@ -330,6 +333,7 @@ body.light-mode .features-header p {
 .feature-card {
     text-align: center;
     background: rgba(255, 255, 255, 0.05);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     padding: 2.5rem 2rem;
     border-radius: 20px;
@@ -456,6 +460,7 @@ body.light-mode .stocks-section p {
 
 .stock-card {
     background: rgba(255, 255, 255, 0.05);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     padding: 1.5rem;
     border-radius: 15px;
@@ -485,6 +490,7 @@ body.light-mode .stock-card {
         opacity: 0;
         transform: scale(0.8) translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: scale(1) translateY(0);
@@ -496,6 +502,7 @@ body.light-mode .stock-card {
         opacity: 1;
         transform: scale(1) translateY(0);
     }
+
     to {
         opacity: 0;
         transform: scale(0.8) translateY(-20px);
@@ -650,6 +657,7 @@ body.light-mode #add-btn {
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -697,7 +705,7 @@ body.light-mode #add-btn {
         flex-direction: column;
         align-items: center;
     }
-    
+
     #ticker-input {
         min-width: 250px;
     }
@@ -811,47 +819,48 @@ body.light-mode .newsletter-note {
         gap: 1rem;
         padding: 1rem;
     }
-    
+
     .nav-links {
         gap: 1rem;
     }
-    
+
     .hero {
         padding: 4rem 1rem;
     }
-    
+
     .hero-title {
         font-size: 2.5rem;
     }
-    
+
     .hero-buttons {
         flex-direction: column;
         align-items: center;
     }
-    
-    .btn-primary, .btn-secondary {
+
+    .btn-primary,
+    .btn-secondary {
         width: 200px;
     }
-    
+
     .stats {
         grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
     }
-    
+
     .stocks-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
     }
-    
+
     .stocks-section h2 {
         font-size: 2rem;
     }
-    
+
     .newsletter-form {
         flex-direction: column;
         align-items: center;
     }
-    
+
     #newsletter-email {
         min-width: 280px;
     }
