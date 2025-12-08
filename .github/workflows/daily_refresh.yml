@@ -16,6 +16,6 @@ jobs:
           curl -X POST "https://shmventures.org/us-news/api/refresh" \
           -H "Content-Type: application/json" \
           -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" \
-          -H "User-Agent: GitHubActions/1.0" \
+          -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
           --fail || exit 1
           echo "Refresh triggered successfully"
