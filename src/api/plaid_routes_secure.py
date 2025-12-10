@@ -1,4 +1,6 @@
 from flask import request, jsonify, session
+import pandas as pd
+import numpy as np
 try:
     from clients.plaid_client import plaid_client
 except ImportError:
@@ -306,10 +308,26 @@ def register_plaid_routes(app):
             
             if not transactions_df.empty:
                 transactions = transactions_df.to_dict('records')
+                
+                # Safe JSON serialization for dates and custom types
+                safe_transactions = []
+                for txn in transactions:
+                    clean_txn = {}
+                    for k, v in txn.items():
+                        # Handle dates
+                        if hasattr(v, 'isoformat'):
+                            clean_txn[k] = v.isoformat()
+                        # Handle NaNs/Infinities
+                        elif isinstance(v, float) and (pd.isna(v) or np.isinf(v)):
+                            clean_txn[k] = 0.0
+                        else:
+                            clean_txn[k] = v
+                    safe_transactions.append(clean_txn)
+                
                 return jsonify({
                     'success': True,
-                    'transactions': transactions,
-                    'count': len(transactions)
+                    'transactions': safe_transactions,
+                    'count': len(safe_transactions)
                 })
             else:
                 return jsonify({'success': False, 'error': 'No investment transactions found'}), 200

@@ -26,7 +26,7 @@ async function uploadTransactions() {
         console.log('API_BASE:', API_BASE);
         console.log('Uploading to:', `${API_BASE}/upload-portfolio`);
         console.log('FormData:', formData);
-        
+
         const response = await fetch(`${API_BASE}/api/upload-transactions`, {
             method: 'POST',
             body: formData
@@ -34,7 +34,7 @@ async function uploadTransactions() {
 
         console.log('Response status:', response.status);
         console.log('Response headers:', response.headers);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -44,7 +44,7 @@ async function uploadTransactions() {
 
         if (data.success) {
             let saveSuccess = false;
-            
+
             if (currentUser && currentUser.user_id) {
                 try {
                     const saveResult = await saveTransactionsToSupabase(file.name, data.transactions);
@@ -59,15 +59,15 @@ async function uploadTransactions() {
                     console.log('Supabase save error:', err);
                 }
             }
-            
+
             // Set global transaction data
             window.currentTransactions = data.transactions;
-            
+
             // Clear any existing data first
             localStorage.removeItem('currentTransactions');
-            
+
             const transactionFiles = JSON.parse(localStorage.getItem('transactionFiles') || '[]');
-            
+
             // Check for duplicate names in localStorage only
             const existingLocalFile = transactionFiles.find(f => f.filename === file.name);
             if (existingLocalFile) {
@@ -80,22 +80,22 @@ async function uploadTransactions() {
                 const index = transactionFiles.findIndex(f => f.filename === file.name);
                 transactionFiles.splice(index, 1);
             }
-            
+
             // Add new file data
             transactionFiles.push({ filename: file.name, data: data.transactions, timestamp: Date.now() });
             localStorage.setItem('transactionFiles', JSON.stringify(transactionFiles));
             localStorage.setItem('currentTransactions', JSON.stringify(data.transactions));
-            
+
             // Force refresh file selectors to get fresh Supabase data
             await updateFileSelectors();
-            
+
             try {
                 await analyzeTransactionData(data.transactions);
-                const message = saveSuccess ? 
-                    '✓ Transactions uploaded and saved successfully' : 
+                const message = saveSuccess ?
+                    '✓ Transactions uploaded and saved successfully' :
                     '✓ Transactions uploaded (local only - server unavailable)';
                 statusDiv.innerHTML = `<span class="text-green-600">${message}</span>`;
-                
+
                 // Show data action buttons
                 if (typeof showDataActions === 'function') {
                     showDataActions();
@@ -119,7 +119,7 @@ async function uploadTransactions() {
 
 async function analyzeTransactionData(transactions) {
     showLoading(true);
-    
+
     const transactionSection = document.getElementById('transactionAnalysis');
     if (transactionSection && !transactionSection.classList.contains('hidden')) {
         showAllTransactionCardLoading();
@@ -149,7 +149,7 @@ async function analyzeTransactionData(transactions) {
 
 function displayTransactionResults(data) {
     const container = document.getElementById('transactionData');
-    
+
     if (!container) {
         console.error('transactionData container not found');
         return;
@@ -287,76 +287,149 @@ function displayTransactionResults(data) {
 }
 
 async function loadUserTransactions() {
-    if (!currentUser || !currentUser.user_id) {
-        console.log('No user logged in for transaction loading');
-        return;
-    }
+    let transactions = [];
 
-    try {
-        console.log('Loading transactions for user:', currentUser.user_id);
-        // Force fresh data with cache-busting parameter
-        const response = await fetch(`${API_BASE}/api/load-transactions?user_id=${currentUser.user_id}&_t=${Date.now()}`);
-        console.log('Load transactions response status:', response.status);
-        
-        const data = await response.json();
-        console.log('Load transactions data:', data);
+    // 1. Fetch from API if logged in
+    if (currentUser && currentUser.user_id) {
+        try {
+            console.log('Loading transactions for user:', currentUser.user_id);
+            const url = `${API_BASE}/api/load-transactions?user_id=${currentUser.user_id}&_t=${Date.now()}`;
+            const response = await fetch(url);
 
-        if (data.success) {
-            const transactions = data.transactions || [];
-            console.log('Loaded transactions:', transactions.length);
-            updateTransactionsDropdown(transactions);
-        } else {
-            console.log('Load transactions failed:', data.error);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && Array.isArray(data.transactions)) {
+                    transactions = data.transactions;
+                } else {
+                    console.error('Load transactions failed or invalid format:', data);
+                }
+            } else {
+                console.error(`HTTP error loading transactions: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Transaction loading error:', error);
         }
-    } catch (error) {
-        console.log('Database not available - using local storage only:', error);
     }
+
+    // 2. Fetch from LocalStorage and merge (Fallback/Offline support)
+    try {
+        const localFiles = JSON.parse(localStorage.getItem('transactionFiles') || '[]');
+        if (Array.isArray(localFiles)) {
+            let localCount = 0;
+            localFiles.forEach(file => {
+                // Check if already exists in API results (by name)
+                const exists = transactions.some(t => t.transaction_set_name === file.filename);
+                if (!exists) {
+                    transactions.push({
+                        id: `local_${file.timestamp || Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        transaction_set_name: file.filename,
+                        created_at: new Date(file.timestamp || Date.now()).toISOString(),
+                        transactions_data: file.data, // Match the schema expected by viewSelectedTransactions
+                        data: file.data, // Legacy support
+                        is_local: true
+                    });
+                    localCount++;
+                }
+            });
+            if (localCount > 0) console.log(`Merged ${localCount} local transaction files`);
+        }
+    } catch (e) {
+        console.error('Error loading local transaction files:', e);
+    }
+
+    // 3. Update Global State and UI
+    window.userTransactions = transactions;
+    console.log('Loaded transactions array:', transactions.length);
+    updateTransactionsDropdown(transactions);
 }
 
 function updateTransactionsDropdown(transactions) {
-    const select = document.getElementById('savedTransactions');
-    if (!select) {
-        console.log('savedTransactions element not found');
+    if (!Array.isArray(transactions)) {
+        console.error('updateTransactionsDropdown called with non-array:', transactions);
         return;
     }
-    const currentValue = select.value;
-    select.innerHTML = '<option value="">Select transactions...</option>';
 
-    transactions.forEach(txn => {
-        const option = document.createElement('option');
-        option.value = txn.id;
-        option.textContent = `${txn.transaction_set_name} (${new Date(txn.created_at).toLocaleDateString()})`;
-        select.appendChild(option);
-    });
+    console.log('Updating transaction dropdowns with', transactions.length, 'items');
 
-    if (currentValue && !transactions.find(t => t.id === currentValue)) {
-        select.value = '';
-        document.getElementById('deleteTransactionsBtn').style.display = 'none';
+    // Legacy element
+    const savedSelect = document.getElementById('savedTransactions');
+    if (savedSelect) {
+        savedSelect.innerHTML = '<option value="">Select transactions...</option>';
+        transactions.forEach(txn => {
+            const displayDate = txn.created_at ? new Date(txn.created_at).toLocaleDateString() : 'Unknown';
+            const displayName = txn.transaction_set_name || `Set ${txn.id}`;
+            const option = document.createElement('option');
+            option.value = txn.id;
+            option.textContent = `${displayName} (${displayDate})`;
+            savedSelect.appendChild(option);
+        });
+    }
+
+    // Main application element
+    const fileSelect = document.getElementById('transactionFileSelect');
+    if (fileSelect) {
+        const currentValue = fileSelect.value;
+        fileSelect.innerHTML = '<option value="" selected>Select transaction file...</option>';
+
+        transactions.forEach(txn => {
+            const displayDate = txn.created_at ? new Date(txn.created_at).toLocaleDateString() : 'Unknown';
+            let displayName = txn.transaction_set_name || `Set ${txn.id}`;
+
+            // Clean up display name
+            try {
+                // Remove timestamp suffix like _20251020_154526
+                displayName = displayName.replace(/_\d{8}_\d{6}$/, '');
+                // Remove prefix
+                displayName = displayName.replace(/^Transactions_/, '');
+                // Remove extension
+                displayName = displayName.replace(/\.csv$/i, '').replace(/\.xlsx$/i, '');
+            } catch (e) {
+                // Keep original
+            }
+
+            const option = document.createElement('option');
+            // Use ID as value to match viewSelectedTransactions logic
+            option.value = txn.id;
+            // Styling fallback
+            option.textContent = `${displayName} (${displayDate})`;
+            fileSelect.appendChild(option);
+        });
+
+        // Restore selection if possible, or reset UI if item is gone
+        if (currentValue && !transactions.find(t => t.id == currentValue)) {
+            fileSelect.value = '';
+            const deleteBtn = document.getElementById('deleteTransactionsBtn');
+            if (deleteBtn) deleteBtn.style.display = 'none';
+        }
+    } else {
+        console.error('transactionFileSelect element NOT found in DOM');
     }
 }
 
 function viewSelectedTransactions() {
     const select = document.getElementById('transactionFileSelect');
     const index = select.value;
-    
+
     if (index === '' || index === null) {
         showError('Please select a transaction file');
         return;
     }
-    
-    if (!window.transactionFiles || !window.transactionFiles[index]) {
+
+    const transactions = window.userTransactions || [];
+    // Select value is ID
+    const fileData = transactions.find(t => t.id == index || t.id === parseInt(index));
+
+    if (!fileData) {
         showError('Transaction file not found. Please refresh and try again.');
         return;
     }
-    
-    const fileData = window.transactionFiles[index];
-    
+
     try {
         // Hide portfolio analysis and clear portfolio selection
         const portfolioAnalysis = document.getElementById('portfolioAnalysis');
         const portfolioSelect = document.getElementById('portfolioFileSelect');
         const deletePortfolioBtn = document.getElementById('deletePortfolioBtn');
-        
+
         if (portfolioAnalysis) portfolioAnalysis.classList.add('hidden');
         if (portfolioSelect) portfolioSelect.value = '';
         if (deletePortfolioBtn) deletePortfolioBtn.style.display = 'none';
@@ -367,26 +440,34 @@ function viewSelectedTransactions() {
             transactionAnalysis.classList.remove('hidden');
             transactionAnalysis.scrollIntoView({ behavior: 'smooth' });
         }
-        
+
+        // Robust data extraction
+        const transactionData = fileData.transactions_data || fileData.data || fileData.transactions || [];
+
+        if (!transactionData || transactionData.length === 0) {
+            showError('File contains no transaction data.');
+            return;
+        }
+
         // Set global transaction data
-        window.currentTransactions = fileData.data;
-        localStorage.setItem('currentTransactions', JSON.stringify(fileData.data));
-        
+        window.currentTransactions = transactionData;
+        localStorage.setItem('currentTransactions', JSON.stringify(transactionData));
+
         window.currentDataType = 'transaction';
         window.currentDataIndex = index;
-        
+
         showAllTransactionCardLoading();
-        
+
         // Load all transaction analytics
         if (typeof loadAllTransactionAnalytics === 'function') {
-            loadAllTransactionAnalytics(fileData.data);
+            loadAllTransactionAnalytics(transactionData);
         } else if (typeof loadTransactionAnalytics === 'function') {
-            loadTransactionAnalytics(fileData.data);
+            loadTransactionAnalytics(transactionData);
         } else {
             // Fallback to analyzeTransactionData
-            analyzeTransactionData(fileData.data);
+            analyzeTransactionData(transactionData);
         }
-        
+
     } catch (error) {
         showError('Failed to load transaction data: ' + error.message);
     }
@@ -421,22 +502,22 @@ async function deleteSelectedTransactions() {
         showError('Please select a transaction file to delete');
         return;
     }
-    
+
     if (!confirm('Are you sure you want to delete this transaction file?')) {
         return;
     }
-    
+
     const selectedIndex = parseInt(select.value);
     const transactionFiles = window.transactionFiles || [];
-    
+
     if (selectedIndex < 0 || selectedIndex >= transactionFiles.length) {
         showError('Invalid transaction file selected');
         return;
     }
-    
+
     const fileToDelete = transactionFiles[selectedIndex];
     showLoading(true);
-    
+
     try {
         // Delete from Supabase first
         if (fileToDelete.source === 'supabase' && fileToDelete.id && currentUser?.user_id) {
@@ -448,12 +529,12 @@ async function deleteSelectedTransactions() {
                 },
                 body: JSON.stringify({ transaction_id: fileToDelete.id })
             });
-            
+
             if (!response.ok) {
                 throw new Error(`Server error: ${response.status}`);
             }
         }
-        
+
         // Also delete any matching files from uploaded_files table
         if (currentUser?.user_id) {
             try {
@@ -469,7 +550,7 @@ async function deleteSelectedTransactions() {
                 console.log('Uploaded file cleanup failed:', e);
             }
         }
-        
+
         // Remove only the deleted file from localStorage
         const localFiles = JSON.parse(localStorage.getItem('transactionFiles') || '[]');
         const localIndex = localFiles.findIndex(f => f.filename === fileToDelete.filename);
@@ -478,47 +559,47 @@ async function deleteSelectedTransactions() {
             localStorage.setItem('transactionFiles', JSON.stringify(localFiles));
         }
         localStorage.removeItem('currentTransactions');
-        
+
         // Clear current data only
         window.currentTransactions = null;
-        
+
         // Clear file input
         const fileInput = document.getElementById('transactionFile');
         if (fileInput) fileInput.value = '';
-        
+
         // Hide analysis section
         const analysisSection = document.getElementById('transactionAnalysis');
         if (analysisSection) analysisSection.classList.add('hidden');
-        
+
         // Clear analysis content
         const analysisCards = ['pnlAttribution', 'tradePerformance', 'costAnalysis', 'turnoverAnalysis', 'taxAnalysis', 'cashFlowAnalysis', 'fifoLifoAnalysis', 'tradeTimingAnalysis', 'drawdownAnalysis', 'returnAttribution'];
         analysisCards.forEach(id => {
             const element = document.getElementById(id);
             if (element) element.innerHTML = '';
         });
-        
+
         // Force fresh reload from Supabase
         await loadUserTransactions();
         await updateFileSelectors();
-        
+
         // Reset dropdown selection and hide delete button
         select.value = '';
         const deleteBtn = document.getElementById('deleteTransactionBtn');
         if (deleteBtn) deleteBtn.style.display = 'none';
-        
+
         showSuccess('Transaction file deleted successfully');
-        
+
     } catch (error) {
         showError('Failed to delete transaction file: ' + error.message);
     }
-    
+
     showLoading(false);
 }
 
 function toggleTransactionDelete() {
     const select = document.getElementById('transactionFileSelect');
     const deleteBtn = document.getElementById('deleteTransactionBtn');
-    
+
     if (select && deleteBtn) {
         deleteBtn.style.display = select.value ? 'block' : 'none';
     }
@@ -536,17 +617,17 @@ function showAllTransactionCardLoading() {
 
 async function refreshTransactionAnalysis() {
     let currentTransactions = JSON.parse(localStorage.getItem('currentTransactions') || '[]');
-    
+
     if (!currentTransactions || currentTransactions.length === 0) {
         showError('No transaction data to refresh');
         const analysisSection = document.getElementById('transactionAnalysis');
         if (analysisSection) analysisSection.classList.add('hidden');
         return;
     }
-    
+
     showLoading(true);
     showAllTransactionCardLoading();
-    
+
     try {
         // Re-run transaction analysis
         await analyzeTransactionData(currentTransactions);
@@ -554,7 +635,7 @@ async function refreshTransactionAnalysis() {
     } catch (error) {
         showError('Failed to refresh analysis: ' + error.message);
     }
-    
+
     showLoading(false);
 }
 

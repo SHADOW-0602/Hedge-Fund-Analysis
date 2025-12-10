@@ -153,38 +153,54 @@ function updatePortfolioMetrics(data) {
 
 async function loadUserPortfolios() {
     if (!currentUser || !currentUser.user_id) {
+        console.log('No user logged in for portfolio loading');
         return;
     }
 
     try {
-        // Add cache-busting parameter to force fresh data
-        const response = await fetch(`${API_BASE}/api/load-portfolios?user_id=${currentUser.user_id}&_t=${Date.now()}`);
+        console.log('Loading portfolios for user:', currentUser.user_id);
+        const url = `${API_BASE}/api/load-portfolios?user_id=${currentUser.user_id}&_t=${Date.now()}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
+        console.log('Load portfolios data:', data);
 
         if (data.success) {
-            userPortfolios = data.portfolios || [];
+            const portfolios = Array.isArray(data.portfolios) ? data.portfolios : [];
+            window.userPortfolios = portfolios;
+            console.log('Loaded portfolios array:', portfolios.length);
             updatePortfolioDropdown();
+        } else {
+            console.error('Load portfolios failed:', data.error);
         }
     } catch (error) {
-        console.log('Database not available - using local storage only');
+        console.error('Portfolio loading error:', error);
     }
 }
 
 function updatePortfolioDropdown() {
+    const portfolios = window.userPortfolios || [];
+    console.log('Updating portfolio dropdowns with', portfolios.length, 'items');
+
     const select = document.getElementById('savedPortfolios');
     const fileSelect = document.getElementById('portfolioFileSelect');
     const currentValue = select ? select.value : '';
 
     if (select) {
         select.innerHTML = '<option value="">Select a portfolio...</option>';
-        userPortfolios.forEach(portfolio => {
+        portfolios.forEach(portfolio => {
+            const displayDate = portfolio.created_at ? new Date(portfolio.created_at).toLocaleDateString() : 'Unknown';
             const option = document.createElement('option');
             option.value = portfolio.id;
-            option.textContent = `${portfolio.portfolio_name} (${new Date(portfolio.created_at).toLocaleDateString()})`;
+            option.textContent = `${portfolio.portfolio_name} (${displayDate})`;
             select.appendChild(option);
         });
 
-        if (currentValue && !userPortfolios.find(p => p.id === currentValue)) {
+        if (currentValue && !portfolios.find(p => p.id === currentValue)) {
             select.value = '';
             const deleteBtn = document.getElementById('deletePortfolioBtn');
             if (deleteBtn) deleteBtn.style.display = 'none';
@@ -193,12 +209,20 @@ function updatePortfolioDropdown() {
 
     if (fileSelect) {
         fileSelect.innerHTML = '<option value="" selected>Select portfolio file...</option>';
-        userPortfolios.forEach((portfolio, index) => {
+        portfolios.forEach((portfolio, index) => {
             const option = document.createElement('option');
+            // Use Index as value to match viewSelectedPortfolio logic
             option.value = index;
-            option.textContent = portfolio.portfolio_name;
+            // Display name fallback
+            option.textContent = portfolio.portfolio_name || `Portfolio ${index + 1}`;
             fileSelect.appendChild(option);
         });
+
+        if (portfolios.length === 0) {
+            console.log('Portfolios list is empty');
+        }
+    } else {
+        console.error('portfolioFileSelect element NOT found');
     }
 }
 
@@ -215,24 +239,26 @@ async function viewSelectedPortfolio() {
     const transactionAnalysis = document.getElementById('transactionAnalysis');
     const transactionSelect = document.getElementById('transactionFileSelect');
     const deleteTransactionBtn = document.getElementById('deleteTransactionBtn');
-    
+
     if (transactionAnalysis) transactionAnalysis.classList.add('hidden');
     if (transactionSelect) transactionSelect.value = '';
     if (deleteTransactionBtn) deleteTransactionBtn.style.display = 'none';
-    
+
     const selectedOption = select.options[select.selectedIndex];
     const filename = selectedOption ? selectedOption.text : 'Portfolio';
-    
-    // Get actual portfolio data from selected file
-    const portfolioFiles = window.portfolioFiles || [];
-    const selectedPortfolio = portfolioFiles[selectedIndex];
 
-    if (!selectedPortfolio || !selectedPortfolio.data) {
+    // Get actual portfolio data from selected file
+    const portfolios = window.userPortfolios || [];
+    const selectedPortfolio = portfolios[selectedIndex];
+
+    if (!selectedPortfolio) {
         showError('No portfolio data found in selected file');
         return;
     }
 
-    portfolioData = selectedPortfolio.data;
+    // Handle both Supabase structure (data field) and direct structure
+    // Handle both Supabase structure (portfolio_data/data field) and direct structure
+    portfolioData = selectedPortfolio.portfolio_data || selectedPortfolio.data || selectedPortfolio;
     await displayPortfolio(portfolioData);
 
     setTimeout(() => {
@@ -240,7 +266,7 @@ async function viewSelectedPortfolio() {
         if (portfolioSection) {
             portfolioSection.classList.remove('hidden');
             showAllPortfolioCardLoading();
-            
+
             // Analytics are now loaded on-demand via sidebar clicks
 
             portfolioSection.scrollIntoView({ behavior: 'smooth' });
@@ -248,7 +274,7 @@ async function viewSelectedPortfolio() {
     }, 100);
 
     showSuccess(`Portfolio "${filename}" loaded successfully`);
-    
+
     // Show data action buttons
     if (typeof showDataActions === 'function') {
         showDataActions();
@@ -274,7 +300,7 @@ async function deleteSelectedPortfolio() {
     if (!confirm('Are you sure you want to delete this portfolio file?')) {
         return;
     }
-    
+
     const selectedIndex = parseInt(select.value);
     const portfolioFiles = window.portfolioFiles || [];
 
@@ -282,7 +308,7 @@ async function deleteSelectedPortfolio() {
         showError('Invalid portfolio file selected');
         return;
     }
-    
+
     const fileToDelete = portfolioFiles[selectedIndex];
     showLoading(true);
 
@@ -297,12 +323,12 @@ async function deleteSelectedPortfolio() {
                 },
                 body: JSON.stringify({ portfolio_id: fileToDelete.id })
             });
-            
+
             if (!response.ok) {
                 throw new Error(`Server error: ${response.status}`);
             }
         }
-        
+
         // Remove only the deleted file from localStorage
         const localFiles = JSON.parse(localStorage.getItem('portfolioFiles') || '[]');
         const localIndex = localFiles.findIndex(f => f.filename === fileToDelete.filename);
@@ -312,29 +338,29 @@ async function deleteSelectedPortfolio() {
 
             localStorage.removeItem('currentPortfolio');
         }
-        
+
         // Clear current data only
         window.portfolioData = null;
-        
+
         // Clear file input
         const fileInput = document.getElementById('portfolioFile');
         if (fileInput) fileInput.value = '';
-        
+
         // Hide analysis section
         const analysisSection = document.getElementById('portfolioAnalysis');
         if (analysisSection) analysisSection.classList.add('hidden');
-        
+
         // Clear analysis content
         const analysisCards = ['riskResults', 'optionsResults', 'performanceAttribution', 'technicalAnalysis', 'correlationMatrix', 'sectorAllocation'];
         analysisCards.forEach(id => {
             const element = document.getElementById(id);
             if (element) element.innerHTML = '';
         });
-        
+
         // Force fresh reload from Supabase
         await loadUserPortfolios();
         await updateFileSelectors();
-        
+
         // Reset dropdown selection and hide delete button
         select.value = '';
         const deleteBtn = document.getElementById('deletePortfolioBtn');
@@ -375,7 +401,7 @@ async function refreshPortfolioAnalysis() {
         if (analysisSection) analysisSection.classList.add('hidden');
         return;
     }
-    
+
     // Update window variable
     window.portfolioData = portfolioData;
 

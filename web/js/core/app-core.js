@@ -1,8 +1,9 @@
 // Core application initialization and global variables
-let currentUser = null;
-let portfolioData = null;
-let userPortfolios = [];
-let isServerMode = true;
+var currentUser = null;
+var portfolioData = null;
+var userPortfolios = [];
+var userTransactions = []; // Adding this explicitly
+var isServerMode = true;
 
 // API base URL
 const API_BASE = `${window.location.origin}`;
@@ -13,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Theme toggle setup
     initThemeToggle();
-    
+
     // Mobile optimizations
     initializeMobileOptimizations();
     initializeApp();
@@ -22,20 +23,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function initThemeToggle() {
     console.log('Initializing theme toggle...');
-    
+
     const themeToggleMobile = document.getElementById('themeToggleMobile');
     const themeToggleDesktop = document.getElementById('themeToggleDesktop');
-    
+
     console.log('Theme toggles found:', {
         mobile: !!themeToggleMobile,
         desktop: !!themeToggleDesktop
     });
-    
+
     const savedTheme = localStorage.getItem('theme') || 'light';
     console.log('Saved theme:', savedTheme);
-    
+
     document.documentElement.setAttribute('data-theme', savedTheme);
-    
+
     // Set initial state for both toggles
     if (themeToggleMobile) themeToggleMobile.checked = savedTheme === 'dark';
     if (themeToggleDesktop) themeToggleDesktop.checked = savedTheme === 'dark';
@@ -46,10 +47,10 @@ function initThemeToggle() {
             toggle.addEventListener('change', () => {
                 const newTheme = toggle.checked ? 'dark' : 'light';
                 console.log('Theme changed to:', newTheme);
-                
+
                 document.documentElement.setAttribute('data-theme', newTheme);
                 localStorage.setItem('theme', newTheme);
-                
+
                 // Sync both toggles
                 if (themeToggleMobile) themeToggleMobile.checked = newTheme === 'dark';
                 if (themeToggleDesktop) themeToggleDesktop.checked = newTheme === 'dark';
@@ -74,7 +75,7 @@ function setupEventListeners() {
             if (e.target.files[0]) uploadTransactions();
         });
     }
-    
+
     // Transaction select listener
     const transactionSelect = document.getElementById('transactionFileSelect');
     if (transactionSelect) {
@@ -85,7 +86,7 @@ function setupEventListeners() {
     setTimeout(() => {
         const viewTransactionBtn = document.querySelector('[onclick="viewSelectedTransactions()"]');
         if (viewTransactionBtn) {
-            viewTransactionBtn.addEventListener('click', function(e) {
+            viewTransactionBtn.addEventListener('click', function (e) {
                 e.preventDefault();
                 viewSelectedTransactions();
             });
@@ -93,7 +94,7 @@ function setupEventListeners() {
 
         const plaidBtn = document.querySelector('[onclick="connectPlaid()"]');
         if (plaidBtn) {
-            plaidBtn.addEventListener('click', function(e) {
+            plaidBtn.addEventListener('click', function (e) {
                 e.preventDefault();
                 connectPlaid();
             });
@@ -156,12 +157,12 @@ async function initializeApp() {
     currentUser = SessionManager.getSession();
     window.currentUser = currentUser; // Make sure it's globally available
     console.log('[APP] Current user set:', currentUser);
-    
+
     await checkServerMode();
     connectSupabaseAndLoadData();
     restoreApplicationState();
     showMainApp();
-    
+
     // Trigger Plaid auto-connect after user is set
     if (window.autoConnectPlaid) {
         window.autoConnectPlaid();
@@ -183,7 +184,7 @@ function updateModeIndicator() {
 }
 
 // Listen for mode changes from admin panel
-window.addEventListener('storage', function(e) {
+window.addEventListener('storage', function (e) {
     if (e.key === 'serverMode' || e.key === 'modeChangeEvent') {
         checkServerMode();
     }

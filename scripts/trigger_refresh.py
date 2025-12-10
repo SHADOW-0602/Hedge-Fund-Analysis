@@ -2,10 +2,12 @@ import os
 import sys
 import requests
 import time
-from dotenv import load_dotenv
-
-# Load environment variables from .env file if present
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv is not installed, assuming environment variables are set explicitly
+    pass
 
 def trigger_refresh():
     token = os.environ.get('API_TOKEN')

@@ -1,0 +1,64 @@
+/* =========================================
+   THEME TOGGLE (From US_News)
+   ========================================= */
+.theme-toggle-wrapper {
+    display: flex;
+    align-items: center;
+    margin-right: 1rem;
+}
+
+.theme-checkbox {
+    opacity: 0;
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.theme-label {
+    background-color: var(--bg-card-hover);
+    /* Adapted for main app */
+    border: 1px solid var(--border-card);
+    border-radius: 50px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px;
+    position: relative;
+    height: 26px;
+    width: 50px;
+    transform: scale(1.0);
+    transition: background-color 0.3s ease;
+}
+
+.theme-label .ball {
+    background-color: var(--accent-color);
+    /* Adapted */
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    height: 20px;
+    /* Adjusted slightly */
+    width: 20px;
+    transition: transform 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.theme-checkbox:checked+.theme-label .ball {
+    transform: translateX(24px);
+}
+
+.moon {
+    color: #f1c40f;
+    font-size: 12px;
+    margin-left: 5px;
+    /* Adjust positioning */
+}
+
+.sun {
+    color: #f39c12;
+    font-size: 12px;
+    margin-right: 5px;
+    /* Adjust positioning */
+}

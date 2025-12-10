@@ -367,74 +367,18 @@ async function loadReturnAttribution(transactions) {
 }
 
 async function updateFileSelectors() {
-    const portfolioSelect = document.getElementById('portfolioFileSelect');
-    const transactionSelect = document.getElementById('transactionFileSelect');
-
-    // Force reload from Supabase to get fresh data
-    if (currentUser && currentUser.user_id) {
-        await loadUserPortfolios();
-    }
-
-    if (portfolioSelect) {
-        portfolioSelect.innerHTML = '<option value="" selected>Select portfolio file...</option>';
-        userPortfolios.forEach((portfolio, index) => {
-            const option = document.createElement('option');
-            option.value = index;
-            option.textContent = `${portfolio.portfolio_name} (${new Date(portfolio.created_at).toLocaleDateString()})`;
-            portfolioSelect.appendChild(option);
-        });
-    }
-
-    let transactionFiles = [];
-
+    // Simply trigger a reload of data which will update dropdowns via module functions
     if (currentUser && currentUser.user_id) {
         try {
-            // Force fresh reload with cache-busting parameter
-            const transactionResponse = await fetch(`${API_BASE}/api/load-transactions?user_id=${currentUser.user_id}&_t=${Date.now()}`);
-            const transactionData = await transactionResponse.json();
-            if (transactionData.success && transactionData.transactions) {
-                transactionFiles = transactionData.transactions.map(t => ({
-                    id: t.id,
-                    filename: t.transaction_set_name,
-                    data: typeof t.transactions_data === 'string' ? JSON.parse(t.transactions_data) : t.transactions_data,
-                    source: 'supabase',
-                    created_at: t.created_at
-                }));
-            }
+            await Promise.all([
+                loadUserPortfolios(),
+                loadUserTransactions()
+            ]);
+            console.log('File selectors updated via modules');
         } catch (error) {
-            console.log('Failed to load from Supabase, trying local storage:', error);
+            console.error('Failed to update file selectors:', error);
         }
     }
-
-    if (transactionFiles.length === 0) {
-        const localTransactions = JSON.parse(localStorage.getItem('transactionFiles') || '[]');
-        transactionFiles = localTransactions.map((file, index) => ({
-            ...file,
-            id: index,
-            source: 'local',
-            filename: file.filename || `Transaction Set ${index + 1}`
-        }));
-    }
-
-    // No sample transactions - only real data
-
-    if (transactionSelect) {
-        transactionSelect.innerHTML = '<option value="" selected>Select transaction file...</option>';
-        transactionFiles.forEach((file, index) => {
-            const option = document.createElement('option');
-            option.value = index;
-            option.textContent = file.filename + (file.source === 'sample' ? ' (Demo)' : '');
-            transactionSelect.appendChild(option);
-        });
-    }
-
-    window.portfolioFiles = userPortfolios.map(p => ({
-        id: p.id,
-        filename: p.portfolio_name,
-        data: typeof p.portfolio_data === 'string' ? JSON.parse(p.portfolio_data) : p.portfolio_data,
-        source: 'supabase'
-    }));
-    window.transactionFiles = transactionFiles;
 }
 
 async function connectSupabaseAndLoadData() {
