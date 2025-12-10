@@ -657,10 +657,15 @@ function beautifySummary(summary) {
     if (!summary) return '';
 
     let beautified = summary
+        // Convert ### Headers to h3
+        .replace(/^### (.*)$/gm, '<h3>$1</h3>')
         // Convert **text** to bold
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        // Highlight Key Terms (Bull/Bear/Risks)
+        .replace(/(Bull Case|Bear Case|Upside|Downside|Price Catalysts|Strategic Implications|Risk\/Reward|Reward:|Risk:)/g, '<strong style="color: #00d4ff;">$1</strong>')
         // Convert bullet points to proper list items
-        .replace(/^• (.+)$/gm, '<li>$1</li>')
+        .replace(/^[\t ]*• (.+)$/gm, '<li>$1</li>')
+        .replace(/^[\t ]*\* (.+)$/gm, '<li>$1</li>')
         // Highlight financial metrics with yellow background
         .replace(/(\$[0-9,]+(?:\.[0-9]+)?[BMK]?)/g, '<mark class="highlight">$1</mark>')
         // Highlight percentages

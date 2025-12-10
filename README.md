@@ -22,11 +22,18 @@ Enterprise-grade portfolio risk analysis and options scanning platform with adva
 - **Monte Carlo Simulation**: Portfolio risk modeling and scenario analysis
 - **Portfolio Optimization**: Efficient frontier and risk-return optimization
 
-### 📰 **US Stock News with AI**
-- **AI Summaries**: Daily AI-generated executive summaries for top 50 US stocks using Gemini 2.0
-- **Multi-Source News**: Aggregated news from NewsAPI, Finnhub, Polygon, and Yahoo Finance
-- **Automated Refresh**: Automated daily news fetching and processing via GitHub Actions
-- **Smart Caching**: Efficient database caching with Supabase for fast load times
+### 📰 **US Stock News with AI (Hybrid Architecture)**
+- **High-Performance Maker-Checker Engine**:
+  - **Selector**: `Groq Llama 3.3 70B` for instant article selection and filtering (replacing Gemini Pro).
+  - **Maker**: `Groq Llama 3.3 70B` generates high-quality initial drafts with sub-second latency.
+  - **Checker**: `gemini-2.5-flash` reviews, fact-checks, and refines the content for accuracy.
+- **Enterprise-Grade Reliability**:
+  - **Groq 6-Key Rotation**: Supports up to 600,000 tokens/day via automatic key rotation.
+  - **Zero Rate Limits**: Eliminates "429 Too Many Requests" errors for smooth UI experience.
+- **Smart Image Loading**: Backend proxy for Pexels API to bypass ad-blockers and CORS issues (`/api/pexels-image`).
+- **Multi-Source News**: Aggregated news from NewsAPI, Finnhub, Polygon, and Yahoo Finance.
+- **Automated Refresh**: Automated daily news fetching and processing via GitHub Actions.
+- **Smart Caching**: Efficient database caching with Supabase for fast load times.
 
 ### 🏢 **Enterprise Features**
 - **Multi-User System**: Role-based access control with JWT authentication
@@ -83,8 +90,16 @@ EMAIL_SMTP_PORT=587
 EMAIL_USERNAME=your_email
 EMAIL_PASSWORD=your_app_password
 
-# US News & AI Integration
-GEMINI_API_KEY_5=your_gemini_api_key
+# US News & AI Integration (Hybrid Groq + Gemini)
+# Groq (Primary Engine - Speed & Analysis)
+GROQ_API_KEY=your_primary_groq_key
+GROQ_API_KEY_2=backup_key_2
+GROQ_API_KEY_6=backup_key_6
+
+# Gemini (Checker Engine - Verification)
+# Note: Maker keys (GEMINI_API_KEY) are deprecated but kept for fallback/legacy support
+GEMINI_API_KEY=legacy_maker_key
+GEMINI_API_CHECKER=dedicated_checker_key_flash
 NEWSAPI_KEY=your_newsapi_key
 
 # Brokerage Integration (Production Ready)

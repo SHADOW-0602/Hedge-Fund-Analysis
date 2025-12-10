@@ -85,11 +85,25 @@ GEMINI_API_KEYS = [
     os.getenv('GEMINI_API_KEY_2'),
     os.getenv('GEMINI_API_KEY_3'),
     os.getenv('GEMINI_API_KEY_4'),
-    os.getenv('GEMINI_API_KEY_5')
+    os.getenv('GEMINI_API_KEY_5'),
+    os.getenv('GEMINI_API_KEY_6')
 ]
 # Filter out None/empty keys
 GEMINI_API_KEYS = [key for key in GEMINI_API_KEYS if key and key.strip() and key != 'your-gemini-api-key']
-GEMINI_API_KEY = GEMINI_API_KEYS[0]  # For backward compatibility
+GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None  # Backward compat
+
+# Configuration - Multiple Groq API Keys from .env
+GROQ_API_KEYS = [
+    os.getenv('GROQ_API_KEY'),
+    os.getenv('GROQ_API_KEY_2'),
+    os.getenv('GROQ_API_KEY_3'),
+    os.getenv('GROQ_API_KEY_4'),
+    os.getenv('GROQ_API_KEY_5'),
+    os.getenv('GROQ_API_KEY_6')
+]
+# Filter out None/empty keys
+GROQ_API_KEYS = [key for key in GROQ_API_KEYS if key and key.strip()]
+
 POLYGON_API_KEY = os.getenv('POLYGON_API_KEY')
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
 TWELVE_DATA_API_KEY = os.getenv('TWELVE_DATA_API_KEY')
@@ -103,6 +117,7 @@ IEX_API_KEY = os.getenv('IEX_API_KEY')
 QUANDL_API_KEY = os.getenv('QUANDL_API_KEY')
 FMP_API_KEY = os.getenv('FMP_API_KEY')
 PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
+GEMINI_API_CHECKER = os.getenv('GEMINI_API_CHECKER')
 
 logger.info("Stock News AI Summarizer started")
 
@@ -114,9 +129,18 @@ gemini_rotation = {
     'total_calls': 0
 }
 
+# Groq API Key Rotation System
+groq_rotation = {
+    'current_key_index': 0,
+    'call_count': 0,
+    'calls_per_key': 100, # Switch after 100 calls (1000 daily limit / 10 keys safety? or purely round robin)
+    'total_calls': 0
+}
+
 # API Usage Tracking
 api_usage = {
     'gemini': {'calls': 0, 'last_reset': datetime.now().date()},
+    'groq': {'calls': 0, 'last_reset': datetime.now().date()},
     'polygon': {'calls': 0, 'last_reset': datetime.now().date()},
     'alpha_vantage': {'calls': 0, 'last_reset': datetime.now().date()},
     'twelve_data': {'calls': 0, 'last_reset': datetime.now().date()},
@@ -126,19 +150,17 @@ api_usage = {
 
 ML_CACHE_DURATION = 12 * 3600  # 12 hours for ML predictions
 
-# Financial statements now handled directly by Yahoo Finance in the endpoint
-
-
-
 # Daily Limits (official free tier limits)
 DAILY_LIMITS = {
     'gemini': 1500,  # 15 RPM, 1M tokens/month (daily estimate)
+    'groq': 6000,    # 1000 req/day * 6 keys
     'polygon': 'unlimited',  # 5 RPM but unlimited monthly calls
     'alpha_vantage': 25,  # 25 requests/day (free tier)
     'twelve_data': 800,  # 800 requests/day (free tier)
     'finnhub': 60,  # 60 calls/minute, ~86,400/day theoretical
     'newsapi': 1000,  # 1000 requests/day (free tier)
-    'alpaca': 'unlimited'  # Unlimited real-time data
+    'alpaca': 'unlimited',  # Unlimited real-time data
+    'gemini_checker': 'unlimited'  # Assuming separate paid/free tier for checker
 }
 
 def check_api_quota(service):
@@ -174,26 +196,78 @@ def check_api_quota(service):
     return True
 
 def get_current_gemini_key():
-    """Get current Gemini API key based on rotation"""
-    return GEMINI_API_KEYS[gemini_rotation['current_key_index']]
+    """Get the currently active Gemini API Key"""
+    if not GEMINI_API_KEYS:
+        return None
+    mapped_index = gemini_rotation['current_key_index'] % len(GEMINI_API_KEYS)
+    return GEMINI_API_KEYS[mapped_index]
 
-def rotate_gemini_key():
-    """Rotate to next Gemini API key after 40 calls"""
+def get_current_groq_key():
+    """Get the currently active Groq API Key"""
+    if not GROQ_API_KEYS:
+        return None
+    mapped_index = groq_rotation['current_key_index'] % len(GROQ_API_KEYS)
+    return GROQ_API_KEYS[mapped_index]
+
+def rotate_gemini_key(force=False):
+    """
+    Rotate to the next Gemini API key.
+    force: If True, switch immediately even if calls_per_key hasn't been reached.
+    """
+    if not GEMINI_API_KEYS:
+        return None
+        
     gemini_rotation['call_count'] += 1
     gemini_rotation['total_calls'] += 1
     
-    if gemini_rotation['call_count'] >= gemini_rotation['calls_per_key']:
-        # Switch to next key
+    # Rotate if forced or limit reached
+    if force or gemini_rotation['call_count'] >= gemini_rotation['calls_per_key']:
+        old_index = gemini_rotation['current_key_index']
         gemini_rotation['current_key_index'] = (gemini_rotation['current_key_index'] + 1) % len(GEMINI_API_KEYS)
-        gemini_rotation['call_count'] = 0
+        gemini_rotation['call_count'] = 0  # Reset counter for new key
         
-        new_key = get_current_gemini_key()
-        logger.info(f"GEMINI ROTATION: Switched to key {gemini_rotation['current_key_index'] + 1} ({new_key[:15]}...) after {gemini_rotation['total_calls']} total calls")
+        # Log rotation
+        try:
+            old_key = GEMINI_API_KEYS[old_index % len(GEMINI_API_KEYS)]
+            new_key = GEMINI_API_KEYS[gemini_rotation['current_key_index'] % len(GEMINI_API_KEYS)]
+            masked_old = f"{old_key[:4]}...{old_key[-4:]}" if old_key else "None"
+            masked_new = f"{new_key[:4]}...{new_key[-4:]}" if new_key else "None"
+            if force:
+                logger.warning(f"GEMINI ROTATION (FORCED): Switched from {masked_old} to {masked_new}")
+            else:
+                logger.info(f"GEMINI ROTATION: Switched from {masked_old} to {masked_new}")
+        except:
+            pass
+            
+    # Update global reference for backward compatibility
+    global GEMINI_API_KEY
+    GEMINI_API_KEY = get_current_gemini_key()
+    return GEMINI_API_KEY
+
+def rotate_groq_key(force=False):
+    """
+    Rotate to the next Groq API key.
+    force: If True, switch immediately.
+    """
+    if not GROQ_API_KEYS:
+        return None
         
-        # Reconfigure genai with new key
-        if genai:
-            genai.configure(api_key=new_key)
-            logger.info(f"GEMINI ROTATION: Reconfigured client with new key")
+    groq_rotation['call_count'] += 1
+    groq_rotation['total_calls'] += 1
+    
+    # Rotate if forced or limit reached
+    if force or groq_rotation['call_count'] >= groq_rotation['calls_per_key']:
+        old_index = groq_rotation['current_key_index']
+        groq_rotation['current_key_index'] = (groq_rotation['current_key_index'] + 1) % len(GROQ_API_KEYS)
+        groq_rotation['call_count'] = 0  # Reset counter
+        
+        try:
+            new_key = GROQ_API_KEYS[groq_rotation['current_key_index'] % len(GROQ_API_KEYS)]
+            logger.info(f"GROQ ROTATION: Switched for load balancing.")
+        except:
+            pass
+            
+    return get_current_groq_key()
 
 def increment_api_usage(service):
     """Increment API usage counter"""
@@ -206,6 +280,8 @@ def increment_api_usage(service):
     # Handle Gemini key rotation
     if service == 'gemini':
         rotate_gemini_key()
+    elif service == 'groq':
+        rotate_groq_key()
 
 # Initialize Gemini client with rotation system
 logger.info(f"Gemini initialization - Library: {bool(genai)}, Keys available: {len(GEMINI_API_KEYS)}")
@@ -1738,35 +1814,138 @@ class AIProcessor:
             logger.error("GEMINI API: Client not initialized")
             return fallback_result
         
-        try:
-            logger.debug("GEMINI API: Making API call...")
-            time.sleep(2)  # Rate limiting
-            
-            model = self.client.GenerativeModel('gemini-2.5-pro')
-            response = model.generate_content(prompt)
-            
-            increment_api_usage('gemini')
-            
-            if response and hasattr(response, 'text') and response.text:
-                logger.info(f"GEMINI API: Success - {len(response.text)} chars")
-                return response
-            else:
-                logger.error("GEMINI API: Empty or invalid response")
-                return fallback_result
+        # Try to find a working key, rotating through all available keys if needed
+        max_retries = len(GEMINI_API_KEYS)
+        
+        for attempt in range(max_retries):
+            # Check basic quota before each attempt (skip if totally exhausted)
+            if not check_api_quota('gemini'):
+                max_daily_calls = len(GEMINI_API_KEYS) * gemini_rotation['calls_per_key']
+                if gemini_rotation['total_calls'] >= max_daily_calls:
+                    logger.error(f"GEMINI API: All {len(GEMINI_API_KEYS)} keys exhausted! Aborting.")
+                    return fallback_result
+
+            try:
+                # Aggressive Exponential Backoff to ensure Pro model availability
+                # Attempt 0: 5s
+                # Attempt 1: 10s
+                # Attempt 2: 20s
+                delay = 5 * (2 ** attempt)
+                logger.debug(f"GEMINI API: Attempt {attempt+1}/{max_retries} (Pro) - Waiting {delay:.1f}s to clear quotas...")
+                time.sleep(delay)
                 
-        except Exception as e:
-            error_str = str(e)
-            logger.error(f"GEMINI API: Error - {error_str}")
-            
-            # Check for quota/rate limit errors
-            if any(keyword in error_str.lower() for keyword in ['quota', 'limit', 'exceeded', 'rate']):
-                logger.error(f"GEMINI API: Quota/rate limit hit")
-                api_usage['gemini']['calls'] = DAILY_LIMITS['gemini']
-            
-            return fallback_result
+                # Re-initialize model to pick up potentially new key from rotation
+                model = self.client.GenerativeModel('gemini-2.5-pro')
+                response = model.generate_content(prompt)
+                
+                increment_api_usage('gemini')
+                
+                if response and hasattr(response, 'text') and response.text:
+                    logger.info(f"GEMINI API: Success (Pro) - {len(response.text)} chars")
+                    return response
+                else:
+                    logger.error("GEMINI API: Empty or invalid response")
+                    # Don't retry immediately on empty response, could be content safety
+                    # But we continue to see if another key/model works better (unlikely but safe)
+                    return fallback_result
+                    
+            except Exception as e:
+                error_str = str(e)
+                logger.warning(f"GEMINI API: Error on attempt {attempt+1} (Pro) - {error_str}")
+                
+                is_quota_error = any(keyword in error_str.lower() for keyword in ['quota', 'limit', 'exceeded', 'rate', '429'])
+                
+                if is_quota_error:
+                    logger.warning(f"GEMINI API: Quota/limit hit. Rotating key...")
+                    rotate_gemini_key(force=True)
+                    continue # Retry with new key
+                else:
+                    # Non-quota error (e.g. invalid prompt), abort
+                    return fallback_result
+
+        logger.error("GEMINI API: Totally failed after retries.")
+        return fallback_result
+
+    def _call_groq_with_fallback(self, prompt, fallback_result):
+        """
+        Helper function to call Groq API with quota checking and fallback.
+        """
+        groq_url = "https://api.groq.com/openai/v1/chat/completions"
+        model_id = "llama-3.3-70b-versatile" # Latest supported model
+        
+        # Try up to N times (cycling through keys if needed)
+        max_retries = len(GROQ_API_KEYS) if GROQ_API_KEYS else 1
+        
+        for attempt in range(max_retries):
+            # Check basic quota before each attempt
+            if not check_api_quota('groq'):
+                logger.error("GROQ API: Daily limit exhausted.")
+                return fallback_result
+
+            current_key = get_current_groq_key()
+            if not current_key:
+                logger.error("No Groq keys available.")
+                return fallback_result
+
+            try:
+                delay = 0
+                if attempt > 0:
+                    delay = 2 * (1.5 ** attempt) # Backoff if retrying
+                    logger.debug(f"GROQ API: Attempt {attempt+1}/{max_retries} - Waiting {delay:.1f}s...")
+                    time.sleep(delay)
+                
+                headers = {
+                    "Authorization": f"Bearer {current_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                payload = {
+                    "model": model_id,
+                    "messages": [
+                        {"role": "system", "content": "You are a Senior Financial Analyst."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.4,
+                    "max_tokens": 4096 
+                }
+                
+                logger.info(f"GROQ API: Generating summary (Attempt {attempt+1})...")
+                response = requests.post(groq_url, headers=headers, json=payload, timeout=20)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data['choices'][0]['message']['content']
+                    increment_api_usage('groq')
+                    
+                    # Mock response object to match expected interface (response.text)
+                    class GroqResponse:
+                        def __init__(self, text):
+                            self.text = text
+                            
+                    logger.info(f"GROQ API: Success - {len(content)} chars")
+                    return GroqResponse(content)
+                    
+                elif response.status_code == 429:
+                    logger.warning(f"GROQ API: Rate Limit (429) on key {current_key[:5]}...")
+                    rotate_groq_key(force=True)
+                    continue # Retry with next key
+                    
+                else:
+                    logger.error(f"GROQ API: Error {response.status_code} - {response.text}")
+                    # Non-retriable error (e.g. 400 Bad Request)
+                    return fallback_result
+                    
+            except Exception as e:
+                logger.warning(f"GROQ API: Exception on attempt {attempt+1} - {e}")
+                # Network error, rotate and retry might help
+                rotate_groq_key()
+                continue
+
+        logger.error("GROQ API: Failed after cycling through keys.")
+        return fallback_result
     
     def select_top_articles(self, articles, ticker):
-        """Use Gemini to select top 5-7 most relevant articles"""
+        """Use Groq (Llama 3.3) to select top 5-7 most relevant articles"""
         logger.info(f"ARTICLE SELECTION: Starting with {len(articles)} articles for {ticker}")
         if not articles:
             logger.warning("No articles provided for selection")
@@ -1778,6 +1957,7 @@ class AIProcessor:
             return articles
         
         try:
+            # Prepare article text for prompt
             articles_text = "\n\n".join([
                 f"Article {i+1}:\nTitle: {art['title']}\nSource: {art['source']}\nContent: {art['content'][:200]}..."
                 for i, art in enumerate(articles[:15])  # Limit to first 15 to avoid token limits
@@ -1799,102 +1979,113 @@ Articles:
 Return only numbers separated by commas (e.g., 1,3,5,7,9):
 """
             
-            logger.info(f"GEMINI ARTICLE SELECTION: Calling API for {ticker}")
+            logger.info(f"GROQ ARTICLE SELECTION: Calling API for {ticker}")
             
-            current_key = get_current_gemini_key()
-            if not self.client or not current_key or current_key.strip() == '' or current_key == 'your-gemini-api-key':
-                logger.warning(f"GEMINI ARTICLE SELECTION: API not configured (key present: {bool(current_key)}, client: {bool(self.client)}), using first 5")
-                return articles[:5]
+            # Call Groq
+            # Fallback is None, so we can detect failure and return default list
+            response = self._call_groq_with_fallback(prompt, None)
             
-            response = self._call_gemini_with_fallback(prompt, None)
             if response is None:
-                logger.warning("GEMINI ARTICLE SELECTION: API failed, using first 5")
+                logger.warning("GROQ ARTICLE SELECTION: API failed to return valid response, using first 5")
                 return articles[:5]
             
             if hasattr(response, 'text') and response.text:
-                logger.info(f"GEMINI ARTICLE SELECTION: Got response: {response.text[:50]}...")
+                import re
+                text_content = response.text.replace('```', '').strip()
+                logger.info(f"GROQ ARTICLE SELECTION: Got response: {text_content[:50]}...")
                 try:
-                    selected_indices = [int(x.strip()) - 1 for x in response.text.split(',') if x.strip().isdigit()]
+                    # Clean the response to ensure we only get numbers
+                    # Find all numbers in the response
+                    numbers = re.findall(r'\d+', text_content)
+                    selected_indices = [int(x) - 1 for x in numbers]
+                    # Filter valid indices
                     selected_articles = [articles[i] for i in selected_indices if 0 <= i < len(articles)]
-                    if selected_articles:
-                        logger.info(f"GEMINI ARTICLE SELECTION: Selected {len(selected_articles)} articles")
-                        return selected_articles
+                    
+                    # Deduplicate while preserving order
+                    seen = set()
+                    unique_selected = []
+                    for art in selected_articles:
+                        # Use title as unique identifier
+                        if art['title'] not in seen:
+                            unique_selected.append(art)
+                            seen.add(art['title'])
+                    
+                    if unique_selected:
+                        logger.info(f"GROQ ARTICLE SELECTION: Selected {len(unique_selected)} articles")
+                        return unique_selected[:7] # Ensure max 7
                 except Exception as parse_error:
-                    logger.error(f"GEMINI ARTICLE SELECTION: Parse error: {parse_error}")
+                    logger.error(f"GROQ ARTICLE SELECTION: Parse error: {parse_error}")
             
-            logger.warning("GEMINI ARTICLE SELECTION: Invalid response, using first 5")
+            logger.warning("GROQ ARTICLE SELECTION: Invalid response format, using first 5")
             return articles[:5]
             
         except Exception as e:
-            logger.error(f"GEMINI ARTICLE SELECTION: Error: {e}")
+            logger.error(f"GROQ ARTICLE SELECTION: Error: {e}")
             return articles[:5]
     
     def generate_summary(self, ticker, selected_articles, historical_summaries, alpaca_quote=None):
-        """Generate comprehensive summary with 'What changed today' section"""
-        logger.info(f"SUMMARY GENERATION: Starting for {ticker} with {len(selected_articles)} articles")
+        """Generate comprehensive summary using Maker-Checker architecture"""
+        logger.info(f"SUMMARY GENERATION: Starting Maker-Checker process for {ticker}")
+        
+        # Step 1: Maker - Generate Initial Summary
+        initial_summary_result = self._generate_initial_summary(ticker, selected_articles, historical_summaries, alpaca_quote)
+        
+        # If Maker failed, return fallback immediately
+        if "ANALYSIS ERROR" in initial_summary_result.get('summary', '') or "analysis temporarily unavailable" in initial_summary_result.get('summary', ''):
+            return initial_summary_result
+
+        # Step 2: Checker - Verify and Refine
+        final_result = self._verify_and_refine_summary(ticker, initial_summary_result, selected_articles)
+        
+        return final_result
+
+    def _generate_initial_summary(self, ticker, selected_articles, historical_summaries, alpaca_quote=None):
+        """Maker: Generate initial draft summary using Groq (Llama 3.3)"""
+        logger.info(f"MAKER: Generating initial draft for {ticker} using Groq")
+        
+        fallback_result = {
+            'summary': f"**{ticker} ANALYSIS** - AI Temporarily Unavailable. Please try again.",
+            'what_changed': "Analysis failed."
+        } if selected_articles else {
+            'summary': f"No news articles available for {ticker}.",
+            'what_changed': "No Data"
+        }
         
         if not selected_articles:
-            logger.warning(f"SUMMARY GENERATION: No articles provided for {ticker}")
-            return {
-                'summary': f"No news articles available for {ticker} analysis.",
-                'what_changed': "No news data available."
-            }
+            return fallback_result
         
         # Add Alpaca context if available
         market_context = ""
         if alpaca_quote:
             market_context = f"\nCurrent Price: ${alpaca_quote['price']:.2f} (Bid: ${alpaca_quote['bid']:.2f}, Ask: ${alpaca_quote['ask']:.2f})\n"
+            
+        articles_text = "\n\n".join([
+            f"Source: {art['source']}\nTitle: {art['title']}\nContent: {art['content'][:300]}..."
+            for art in selected_articles[:5]
+        ])
         
-        try:
-            current_key = get_current_gemini_key()
-            if not self.client or not current_key or current_key.strip() == '' or current_key == 'your-gemini-api-key':
-                logger.error(f"SUMMARY GENERATION: Gemini API not configured for {ticker} (key present: {bool(current_key)}, client: {bool(self.client)})")
-                return {
-                    'summary': f"**{ticker} ANALYSIS** - AI summary unavailable (API not configured). {len(selected_articles)} articles collected from multiple sources. Manual review recommended for trading decisions.",
-                    'what_changed': "AI analysis unavailable - check articles manually for developments."
-                }
+        # Clean up old data first
+        db.cleanup_old_data(ticker, days=7)
+        # Get exactly last 7 days of historical summaries
+        recent_history = db.get_summaries_last_7_days_only(ticker)
+        
+        # Format historical data
+        if recent_history:
+            history_entries = []
+            for summary in recent_history:
+                date_str = summary.get('date', summary.get('created_at', ''))
+                summary_text = summary.get('summary', '')
+                what_changed = summary.get('what_changed', '')
+                if summary_text:
+                    entry = f"{date_str}: {summary_text[:200]}..."
+                    if what_changed:
+                        entry += f" | Changes: {what_changed[:150]}..."
+                    history_entries.append(entry)
+            history_text = "\n".join(history_entries) if history_entries else "No detailed historical data available."
+        else:
+            history_text = "No historical data available."
             
-            # Check if all keys are exhausted
-            max_daily_calls = len(GEMINI_API_KEYS) * gemini_rotation['calls_per_key']
-            if gemini_rotation['total_calls'] >= max_daily_calls:
-                logger.error(f"SUMMARY GENERATION: All {len(GEMINI_API_KEYS)} Gemini keys exhausted for today ({gemini_rotation['total_calls']}/{max_daily_calls} calls used)")
-                return {
-                    'summary': f"**{ticker} DAILY LIMIT REACHED** - All {len(GEMINI_API_KEYS)} Gemini API keys have been exhausted for today ({gemini_rotation['total_calls']}/{max_daily_calls} calls used). {len(selected_articles)} articles collected from multiple sources. AI analysis will resume tomorrow at midnight. Manual review recommended.",
-                    'what_changed': f"Daily AI quota exhausted ({gemini_rotation['total_calls']}/{max_daily_calls} calls). Service resumes tomorrow."
-                }
-            
-            articles_text = "\n\n".join([
-                f"Source: {art['source']}\nTitle: {art['title']}\nContent: {art['content'][:300]}..."
-                for art in selected_articles[:5]  # Limit to 5 articles to avoid token limits
-            ])
-            
-            # Clean up old data first (older than 7 days) for this ticker
-            db.cleanup_old_data(ticker, days=7)
-            
-            # Get exactly last 7 days of historical summaries for comparison
-            recent_history = db.get_summaries_last_7_days_only(ticker)
-            logger.info(f"Retrieved {len(recent_history)} summaries from exactly last 7 days for {ticker}")
-            
-            # Format historical data properly with dates
-            if recent_history:
-                history_entries = []
-                for summary in recent_history:
-                    date_str = summary.get('date', summary.get('created_at', ''))
-                    summary_text = summary.get('summary', '')
-                    what_changed = summary.get('what_changed', '')
-                    
-                    if summary_text:
-                        # Include both summary and what_changed for better context
-                        entry = f"{date_str}: {summary_text[:200]}..."
-                        if what_changed:
-                            entry += f" | Changes: {what_changed[:150]}..."
-                        history_entries.append(entry)
-                
-                history_text = "\n".join(history_entries) if history_entries else "No detailed historical data available."
-            else:
-                history_text = "No historical data available."
-            
-            prompt = f"""
+        prompt = f"""
 Analyze {ticker} for trading decisions:
 
 TODAY'S NEWS:
@@ -1903,86 +2094,163 @@ TODAY'S NEWS:
 LAST 7 DAYS HISTORY:
 {history_text}{market_context}
 
-Provide a concise trading analysis with these sections:
+Provide a COMPREHENSIVE and DETAILED trading analysis (Long-Form) with these sections:
 
 **TRADING THESIS**
-Bull/bear case with price catalysts.
+Detailed Bull/Bear case with price catalysts. Write at least 2-3 detailed paragraphs explaining the strategic implications. Do not be brief.
 
 **KEY DEVELOPMENTS**
-• Financial impact with numbers
-• Regulatory/legal updates
-• Strategic moves and partnerships
+Deep dive into the financial and operational impact of today's news. Explain WHY this matters.
 
-**RISK/REWARD**
-• Upside catalysts with timeline
-• Downside risks
-• Technical levels
+**WHAT CHANGED**
+One sentence on how the outlook shifted since yesterday.
 
-**WHAT CHANGED TODAY**
-Carefully compare today's news against the 7-day history provided above. Identify what is genuinely NEW or DIFFERENT today versus what was already covered in recent days. Look for:
-- New earnings/financial results not mentioned before
-- Fresh regulatory/legal developments
-- New partnerships, acquisitions, or strategic moves
-- Management changes or insider activity
-- Shifts in analyst sentiment or price targets
-- Market events affecting the stock differently than before
-If nothing materially new happened, state "No significant new developments beyond ongoing themes."
-
-Keep under 400 words, focus on actionable insights.
+Output Format:
+Plain Text with Markdown headers. Do NOT use JSON.
 """
+        # CALL GROQ
+        try:
+            response = self._call_groq_with_fallback(prompt, fallback_result)
             
-            logger.info(f"SUMMARY GENERATION: Calling Gemini API for {ticker}")
-            
-            fallback_summary = {
-                'summary': f"**{ticker} TRADING ALERT** - AI analysis temporarily unavailable. {len(selected_articles)} articles collected from {', '.join(set(art['source'] for art in selected_articles))}. Key themes may include earnings, regulatory updates, or strategic announcements. Manual review recommended.",
-                'what_changed': "AI analysis unavailable - check collected articles for material developments."
-            }
-            
-            response = self._call_gemini_with_fallback(prompt, fallback_summary)
-            if isinstance(response, dict):  # Fallback was returned
-                logger.warning(f"SUMMARY GENERATION: Using fallback for {ticker}")
-                return response
-            
-            if not hasattr(response, 'text') or not response.text:
-                logger.error(f"SUMMARY GENERATION: Invalid response for {ticker}")
-                return fallback_summary
-            
-            summary_text = response.text.strip()
-            logger.info(f"SUMMARY GENERATION: Generated {len(summary_text)} chars for {ticker}")
-            
-            # Extract "What changed today" section - show complete content
-            what_changed = "No material developments identified."
-            
-            # Look for the section
-            if "**WHAT CHANGED TODAY**" in summary_text:
-                parts = summary_text.split("**WHAT CHANGED TODAY**")
+            if hasattr(response, 'text') and response.text:
+                full_text = response.text.replace('```markdown', '').replace('```', '').strip()
+                
+                # Robust Split Logic using Regex
+                import re
+                # Pattern matches: **WHAT CHANGED**, ### WHAT CHANGED, ## WHAT CHANGED, etc.
+                # using case-insensitive flag and allowing for optional colons
+                separator_pattern = r'(\*\*|###|##)\s*WHAT CHANGED:?'
+                
+                parts = re.split(separator_pattern, full_text, flags=re.IGNORECASE)
+                
+                summary_text = full_text
+                what_changed_text = "See analysis."
+                
                 if len(parts) > 1:
-                    what_changed_raw = parts[1].strip()
-                    # Clean up and take all relevant content (not just first paragraph)
-                    lines = what_changed_raw.split('\n')
-                    clean_lines = [line.strip() for line in lines if line.strip() and not line.strip().startswith('**')]
-                    if clean_lines:
-                        # Join all lines to show complete "What changed today" content
-                        what_changed = '\n'.join(clean_lines).strip()
-                        # Only truncate if extremely long (over 800 chars)
-                        if len(what_changed) > 800:
-                            what_changed = what_changed[:800] + '...'
-            
-            result = {
-                'summary': summary_text,
-                'what_changed': what_changed
-            }
-            
-            logger.info(f"SUMMARY GENERATION: Completed successfully for {ticker}")
-            return result
+                    # parts[0] is everything BEFORE the separator (Summary)
+                    summary_text = parts[0].strip()
+                    
+                    # parts[-1] is the content AFTER the separator (What Changed)
+                    # (parts in between are the captured delimiters like '**')
+                    what_changed_raw = parts[-1].strip()
+                    
+                    # Take the first non-empty line or paragraph
+                    lines = [line.strip() for line in what_changed_raw.split('\n') if line.strip()]
+                    if lines:
+                        what_changed_text = lines[0]
+                        # If the first line is just dashes or markup, take the next one
+                        if (what_changed_text.startswith('---') or what_changed_text.startswith('**')) and len(lines) > 1:
+                            what_changed_text = lines[1]
+                
+                return {
+                    'summary': summary_text,
+                    'what_changed': what_changed_text
+                }
+                
+            return fallback_result
             
         except Exception as e:
-            error_msg = str(e)
-            logger.error(f"SUMMARY GENERATION: Error for {ticker}: {error_msg}")
-            return {
-                'summary': f"**{ticker} ANALYSIS ERROR** - Technical issue during AI processing. {len(selected_articles)} articles collected but summary generation failed. Error: {error_msg[:100]}. Manual review of articles recommended.",
-                'what_changed': "Technical error during analysis - check articles manually."
+            logger.error(f"MAKER (Groq) Failure: {e}")
+            return fallback_result
+
+    def _verify_and_refine_summary(self, ticker, initial_result, articles):
+        """Checker: Verify facts and refine logic using Flash model"""
+        logger.info(f"CHECKER: Verifying summary for {ticker}")
+        
+        # Ensure GEMINI_API_CHECKER is loaded from environment variables
+        # Assuming GEMINI_API_CHECKER is a global variable like other API keys
+        global GEMINI_API_CHECKER
+        if 'GEMINI_API_CHECKER' not in globals():
+            GEMINI_API_CHECKER = os.getenv('GEMINI_API_CHECKER', 'your_checker_key_here')
+
+        if not GEMINI_API_CHECKER or GEMINI_API_CHECKER == "your_checker_key_here":
+            logger.warning("CHECKER: Refinement skipped - GEMINI_API_CHECKER not configured")
+            return initial_result
+
+        try:
+            # Prepare context for Checker
+            articles_text = "\n\n".join([
+                f"Source: {art['source']}\nTitle: {art['title']}\nContent: {art['content'][:300]}..."
+                for art in articles[:5]
+            ])
+            
+            prompt = f"""
+<ROLE>
+You are a Senior Financial Editor and Risk Manager. Your job is to verify and refine an AI-generated stock analysis (Maker output) against the source news articles.
+</ROLE>
+
+<SOURCE_ARTICLES>
+{articles_text}
+</SOURCE_ARTICLES>
+
+<DRAFT_ANALYSIS>
+{initial_result.get('summary', '')}
+</DRAFT_ANALYSIS>
+
+<TASK>
+1. **Fact Check**: Verify that every claim in the "KEY DEVELOPMENTS" and "WHAT CHANGED TODAY" sections is supported by the Source Articles. Remove any hallucinations or unsupported claims.
+2. **Logic Check**: Ensure the "TRADING THESIS" follows logically from the news.
+3. **Refinement**: Polish the language to be professional, concise, and actionable for a hedge fund trader.
+4. **Output**: Return the REFINED analysis in the EXACT same format as the Draft (with sections: TRADING THESIS, KEY DEVELOPMENTS, RISK/REWARD, WHAT CHANGED TODAY).
+5. **Critique**: If the draft was perfect, just return it as is. If you made changes, ensure they improve accuracy.
+</TASK>
+"""
+            
+            # Temporary switch to Checker Key
+            # We need to re-configure the client for this specific call
+            # Note: This is a synchronous blocking call, so we can swap, call, and swap back (or just swap for this thread if strictly scoped, but genai.configure is global)
+            # Given Flask is threaded, swapping global config is risky. 
+            # SAFETY: We will try to instantiate a separate client if possible, or use the raw requests if the library forces global config.
+            # Assuming google-generativeai library handles `configure` globally.
+            
+            # For robust production use in threaded flask with global state, we should probably use the REST API directly for the checker 
+            # OR assume the user is okay with the brief switch (risky).
+            # BETTER OPTION: Use the `client` object we already have but see if we can create a new isolated one.
+            # If not, let's use the REST API for the checker to avoid global state issues.
+            
+            import requests
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_CHECKER}"
+            headers = {'Content-Type': 'application/json'}
+            data = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.2}
             }
+            
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+            
+            if response.status_code == 200:
+                result_json = response.json()
+                if 'candidates' in result_json and result_json['candidates']:
+                    content = result_json['candidates'][0]['content']['parts'][0]['text']
+                    logger.info(f"CHECKER: Refinement successful ({len(content)} chars)")
+                    
+                    # Extract "What changed today" from the refined text
+                    what_changed = initial_result.get('what_changed', '')
+                    if "**WHAT CHANGED TODAY**" in content:
+                        parts = content.split("**WHAT CHANGED TODAY**")
+                        if len(parts) > 1:
+                            what_changed_raw = parts[1].strip()
+                            lines = what_changed_raw.split('\n')
+                            # Clean up
+                            clean_lines = [line.strip() for line in lines if line.strip() and not line.strip().startswith('**')]
+                            if clean_lines:
+                                what_changed = '\n'.join(clean_lines).strip()
+                    
+                    return {
+                        'summary': content,
+                        'what_changed': what_changed
+                    }
+                else:
+                    logger.warning("CHECKER: Empty response content")
+            else:
+                logger.error(f"CHECKER: API Request failed {response.status_code}: {response.text[:200]}")
+
+        except Exception as e:
+            logger.error(f"CHECKER: Refinement failed: {e}")
+        
+        # Fallback to initial result if Checker fails
+        logger.info("CHECKER: Returning initial Maker result due to failure")
+        return initial_result
 
 # Initialize components
 collector = NewsCollector()
@@ -2922,6 +3190,7 @@ def process_ticker_news(ticker):
     end_time = time.time()
     processing_time = end_time - start_time
     logger.info(f"=== Completed processing for {ticker} in {processing_time:.1f}s ===")
+    return summary_result
 
 @app.route('/api/refresh/<ticker>', methods=['GET', 'POST'])
 def refresh_ticker(ticker):

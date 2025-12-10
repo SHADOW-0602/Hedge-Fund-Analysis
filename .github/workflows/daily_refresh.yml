@@ -21,5 +21,5 @@ jobs:
         env:
           API_TOKEN: ${{ secrets.API_TOKEN }}
         run: |
-          pip install requests
+          pip install requests python-dotenv
           python scripts/trigger_refresh.py

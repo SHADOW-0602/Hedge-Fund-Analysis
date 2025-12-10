@@ -14,46 +14,30 @@ async function loadConfig() {
 
 // Helper to check availability of the API key
 function hasPexelsKey() {
-    return PEXELS_API_KEY && PEXELS_API_KEY.trim().length > 0;
+    return true; // Backend handles key
 }
 
 // Pexels API functions
 async function fetchPexelsImage(query, size = 'medium') {
-    if (!hasPexelsKey()) {
-        // API key not configured; avoid attempting network call and log a warning for diagnostics
-        console.warn('Pexels API key not configured; skipping image fetch for query:', query);
-        return '';
-    }
-
     try {
-        const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&size=${encodeURIComponent(size)}`;
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': PEXELS_API_KEY,
-                'Accept': 'application/json'
-            }
-        });
+        // Use backend proxy to avoid CORS issues and expose API key
+        // Note: The backend endpoint /api/pexels-image defaults to 'medium' size
+        const url = `${API_BASE}/api/pexels-image?query=${encodeURIComponent(query)}`;
+
+        const response = await fetch(url);
 
         if (!response.ok) {
-            console.warn('Pexels API responded with non-OK status:', response.status, response.statusText);
-            return '';
-        }
-
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
-            console.warn('Pexels API returned unexpected content type:', contentType);
+            // Silently fail for 404s (image not found)
+            if (response.status !== 404) {
+                console.warn('Pexels Proxy responded with non-OK status:', response.status);
+            }
             return '';
         }
 
         const data = await response.json();
-        if (!data || !Array.isArray(data.photos) || data.photos.length === 0) {
-            return '';
-        }
+        return data.image || '';
 
-        const photoSrc = data.photos[0] && data.photos[0].src && (data.photos[0].src.medium || data.photos[0].src.original || '');
-        return photoSrc || '';
     } catch (error) {
-        // Catch network, parsing, and other runtime errors and return a safe fallback
         console.error('Error fetching Pexels image:', error);
         return '';
     }
