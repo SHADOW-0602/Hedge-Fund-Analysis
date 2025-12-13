@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Features - SHM Ventures</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="css/landing.css">
+    <link rel="stylesheet" href="css/chatbot.css">
+    <script src="js/chatbot.js" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Specific overrides for sub-page */
+        .page-header {
+            padding-top: 120px;
+            padding-bottom: 60px;
+            text-align: center;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+            color: white;
+        }
+
+        /* Detailed Feature Rows */
+        .feature-section-detailed {
+            padding: 0;
+            background: var(--bg-primary);
+        }
+
+        .feature-row {
+            padding: 6rem 0;
+        }
+
+        .feature-row .container {
+            display: flex;
+            align-items: center;
+            gap: 4rem;
+        }
+
+        .feature-row:nth-child(even) {
+            background-color: var(--bg-secondary);
+        }
+
+        /* Desktop: Row Reverse for even items */
+        .feature-row:nth-child(even) .container {
+            flex-direction: row-reverse;
+        }
+
+        .feature-text {
+            flex: 1;
+        }
+
+        .feature-text h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .feature-text p {
+            font-size: 1.125rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .feature-text ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-text ul li {
+            margin-bottom: 0.75rem;
+            padding-left: 1.5rem;
+            position: relative;
+            color: var(--text-secondary);
+        }
+
+        .feature-text ul li::before {
+            content: "✓";
+            color: var(--accent-primary);
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        .feature-image {
+            flex: 1;
+        }
+
+        .feature-image img {
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-image img:hover {
+            transform: scale(1.02);
+        }
+
+        @media (max-width: 768px) {
+            .feature-row {
+                padding: 4rem 1rem;
+            }
+
+            .feature-row .container,
+            .feature-row:nth-child(even) .container {
+                flex-direction: column-reverse;
+                /* Image first, then text */
+                gap: 2rem;
+            }
+
+            .feature-text h2 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <!-- Header injected by HeaderManager -->
+
+
+    <!-- Page Title -->
+    <section class="page-header">
+        <div class="container">
+            <h1 style="font-size: 3rem; margin-bottom: 1rem;">Platform Features</h1>
+            <p style="font-size: 1.25rem; opacity: 0.9;">Comprehensive tools for professional portfolio analysis</p>
+        </div>
+    </section>
+
+    <!-- Features Content -->
+    <section class="feature-section-detailed">
+        <!-- 1. Portfolio Management -->
+        <div class="feature-row">
+            <div class="container">
+                <div class="feature-text">
+                    <h2>Portfolio Management</h2>
+                    <p>Experience a unified view of your investments. Our platform supports diverse file formats
+                        including CSV, Excel, and JSON for seamless data import, giving you a complete picture of your
+                        financial health.</p>
+                    <ul>
+                        <li>Multi-format data ingestion</li>
+                        <li>Unified dashboard view</li>
+                        <li>Automated asset categorization</li>
+                        <li>Real-time value tracking</li>
+                    </ul>
+                </div>
+                <div class="feature-image">
+                    <img id="img-portfolio" src="" alt="Portfolio Management Dashboard">
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Risk Analytics -->
+        <div class="feature-row">
+            <div class="container">
+                <div class="feature-text">
+                    <h2>Risk Analytics</h2>
+                    <p>Navigate market volatility with confidence. Our advanced risk engine calculates Value at Risk
+                        (VaR) and Conditional VaR (CVaR) using sophisticated Monte Carlo simulations to stress-test your
+                        portfolio.</p>
+                    <ul>
+                        <li>Monte Carlo simulations</li>
+                        <li>Value at Risk (VaR) calculation</li>
+                        <li>Drawdown analysis</li>
+                        <li>Sharpe & Sortino ratios</li>
+                    </ul>
+                </div>
+                <div class="feature-image">
+                    <img id="img-risk" src="" alt="Risk Analysis Charts">
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Options Analysis -->
+        <div class="feature-row">
+            <div class="container">
+                <div class="feature-text">
+                    <h2>Options Analysis</h2>
+                    <p>Unlock the power of derivatives with our professional grade tools. Analyze complex option
+                        strategies with real-time Greek calculations (Delta, Gamma, Theta, Vega) and visual payoff
+                        diagrams.</p>
+                    <ul>
+                        <li>Real-time Greeks calculation</li>
+                        <li>Covered call strategy finder</li>
+                        <li>Volatility skew analysis</li>
+                        <li>Payoff visualization</li>
+                    </ul>
+                </div>
+                <div class="feature-image">
+                    <img id="img-options" src="" alt="Options Trading Analytics">
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Brokerage Integration -->
+        <div class="feature-row">
+            <div class="container">
+                <div class="feature-text">
+                    <h2>Brokerage Integration</h2>
+                    <p>Connect seamlessly to your brokerage accounts. Leveraging Plaid and SnapTrade integrations, we
+                        provide secure, real-time synchronization of your balances, positions, and transaction history.
+                    </p>
+                    <ul>
+                        <li>Secure Plaid & SnapTrade connection</li>
+                        <li>Automated daily sync</li>
+                        <li>Bank-level encryption security</li>
+                        <li>Support for major brokerages</li>
+                    </ul>
+                </div>
+                <div class="feature-image">
+                    <img id="img-broker" src="" alt="Brokerage Integration">
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Transaction Analysis -->
+        <div class="feature-row">
+            <div class="container">
+                <div class="feature-text">
+                    <h2>Transaction Analysis</h2>
+                    <p>Deep dive into your trading history. Our granular transaction analysis module automatically
+                        categorizes trades, tracks wash sales, and provides detailed P&L attribution.</p>
+                    <ul>
+                        <li>FIFO cost basis accounting</li>
+                        <li>Wash sale tracking</li>
+                        <li>Realized vs Unrealized P&L</li>
+                        <li>Tax-efficiency reports</li>
+                    </ul>
+                </div>
+                <div class="feature-image">
+                    <img id="img-transaction" src="" alt="Transaction History Analysis">
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Performance Tracking -->
+        <div class="feature-row">
+            <div class="container">
+                <div class="feature-text">
+                    <h2>Performance Tracking</h2>
+                    <p>Monitor your success in real-time. Compare your returns against major benchmarks like SPY and VT.
+                        Our dynamic dashboards provide instant visibility into your alpha generation.</p>
+                    <ul>
+                        <li>Benchmark comparison (SPY, VT)</li>
+                        <li>Alpha & Beta calculation</li>
+                        <li>Time-weighted returns</li>
+                        <li>Daily & Monthly performance heatmaps</li>
+                    </ul>
+                </div>
+                <div class="feature-image">
+                    <img id="img-performance" src="" alt="Performance Graphs">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <h3>SHM Ventures</h3>
+                    <p>Professional portfolio analysis platform</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Product</h4>
+                        <a href="features.html" class="active">Features</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Support</h4>
+                        <a href="about.html">About</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 SHM Ventures. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Define API base URL
+        globalThis.API_BASE = globalThis.location.origin;
+        if (globalThis.API_BASE === 'null' || globalThis.API_BASE.startsWith('file:')) {
+            globalThis.API_BASE = 'http://127.0.0.1:8080';
+        }
+    </script>
+    <script src="utils.js"></script>
+    <!-- Use specific script for this detailed page -->
+    <script src="js/features.js"></script>
+</body>
+
+</html>

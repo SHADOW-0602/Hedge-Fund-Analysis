@@ -405,6 +405,12 @@ Features include:
 - **Multi-user Authentication**: Role-based access control
 - **Live Brokerage Connections**: Plaid Production Mode integration
 
+### **Enhanced Web Experience**
+- **Dedicated Landing Pages**: Comprehensive 'Features' and 'About Us' pages with detailed content.
+- **Dynamic Visuals**: Integrated Pexels API for high-quality, relevant background images.
+- **Responsive Design**: Optimized layouts for both desktop and mobile viewing (text/image alternating rows).
+- **Unified Navigation**: Dynamic header injection for consistent navigation across all pages.
+
 ---
 
 **Built for professional portfolio management with institutional-grade analytics and security.**

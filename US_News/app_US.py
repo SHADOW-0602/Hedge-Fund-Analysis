@@ -318,7 +318,9 @@ Keep each section between 50-100 words. Be concise and factual. Do not mention t
 def store_news_and_summary(ticker, news_articles, summary_data):
     """Store news articles and AI summary in database"""
     today = date.today()
+    print(f"DEBUG: store_news_and_summary called for {ticker} on date {today} with {len(news_articles)} articles")
     
+    DB_LOCK.acquire()
     try:
         # Store individual news articles
         for article in news_articles:
@@ -363,6 +365,8 @@ def store_news_and_summary(ticker, news_articles, summary_data):
             
     except Exception as e:
         print(f"Error storing data for {ticker}: {e}")
+    finally:
+        DB_LOCK.release()
 
 def process_single_ticker(ticker, all_keys_data):
     """Worker function to process a single ticker"""
@@ -580,9 +584,11 @@ def get_summary(ticker):
     today = date.today()
     
     try:
+        print(f"DEBUG: get_summary checking for {ticker} on date {today}")
         result = supabase.table('ticker_summaries').select('*').eq('ticker', ticker).eq('summary_date', str(today)).execute()
         
         if result.data:
+            print(f"DEBUG: Found summary for {ticker}")
             summary = result.data[0]
             
             # Get sources from news table
@@ -607,6 +613,7 @@ def get_summary(ticker):
                 'date': summary['summary_date']
             })
         else:
+            print(f"DEBUG: No summary found for {ticker} on date {today}")
             # Return 200 with status=not_found to avoid console errors during polling
             return jsonify({'status': 'not_found', 'message': 'No summary available for today'})
             

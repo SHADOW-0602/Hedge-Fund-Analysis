@@ -178,6 +178,18 @@ def dashboard():
 def admin_portal():
     return app.send_static_file('admin.html')
 
+@app.route('/learn-more.html')
+def learn_more():
+    return app.send_static_file('learn-more.html')
+
+@app.route('/features.html')
+def features():
+    return app.send_static_file('features.html')
+
+@app.route('/about.html')
+def about():
+    return app.send_static_file('about.html')
+
 @app.route('/favicon.ico')
 def favicon():
     return app.send_static_file('favicon.png')

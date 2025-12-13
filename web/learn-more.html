@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn More - SHM Ventures</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="css/landing.css">
+    <link rel="stylesheet" href="css/chatbot.css">
+    <script src="js/chatbot.js" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Specific overrides for sub-page */
+        .page-header {
+            padding-top: 120px;
+            padding-bottom: 60px;
+            text-align: center;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+            color: white;
+        }
+
+        /* Detailed Section Rows */
+        .learn-section-detailed {
+            padding: 0;
+            background: var(--bg-primary);
+        }
+
+        .learn-row {
+            padding: 6rem 0;
+        }
+
+        .learn-row .container {
+            display: flex;
+            align-items: center;
+            gap: 4rem;
+        }
+
+        .learn-row:nth-child(even) {
+            background-color: var(--bg-secondary);
+        }
+
+        /* Desktop: Row Reverse for even items */
+        .learn-row:nth-child(even) .container {
+            flex-direction: row-reverse;
+        }
+
+        .learn-text {
+            flex: 1;
+        }
+
+        .learn-text h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .learn-text p {
+            font-size: 1.125rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .learn-text ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .learn-text ul li {
+            margin-bottom: 0.75rem;
+            padding-left: 1.5rem;
+            position: relative;
+            color: var(--text-secondary);
+        }
+
+        .learn-text ul li::before {
+            content: "➤";
+            color: var(--accent-primary);
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        .learn-image {
+            flex: 1;
+        }
+
+        .learn-image img {
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            transition: transform 0.3s ease;
+            opacity: 0;
+            /* Start hidden for fade-in */
+        }
+
+        .learn-image img.loaded {
+            opacity: 1;
+            /* Fade in when loaded */
+            animation: fadeIn 0.8s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+
+        @media (max-width: 768px) {
+            .learn-row {
+                padding: 4rem 1rem;
+            }
+
+            .learn-row .container,
+            .learn-row:nth-child(even) .container {
+                flex-direction: column-reverse;
+                /* Image first, then text */
+                gap: 2rem;
+            }
+
+            .learn-text h2 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <!-- Header injected by HeaderManager -->
+
+
+    <!-- Page Title -->
+    <section class="page-header">
+        <div class="container">
+            <h1 style="font-size: 3rem; margin-bottom: 1rem;">Under the Hood</h1>
+            <p style="font-size: 1.25rem; opacity: 0.9;">Institutional Grade Architecture for Individual Investors</p>
+        </div>
+    </section>
+
+    <!-- Content -->
+    <section class="learn-section-detailed">
+        <!-- 1. AI Engine -->
+        <div class="learn-row">
+            <div class="container">
+                <div class="learn-text">
+                    <h2>Advanced AI Engine</h2>
+                    <p>At the core of our platform lies a sophisticated hybrid AI engine. We combine the blazing speed
+                        of
+                        Groq's Llama 3 models for initial data processing with the analytical depth of Google's Gemini
+                        Pro for verification and insight generation.</p>
+                    <ul>
+                        <li>Hybrid Architecture: Groq Speed + Gemini Intelligence</li>
+                        <li>Real-time sentiment analysis of news and earnings</li>
+                        <li>Automated summarization of complex financial reports</li>
+                        <li>Custom fine-tuned models for financial context</li>
+                    </ul>
+                </div>
+                <div class="learn-image">
+                    <img id="img-ai" src="" alt="Artificial Intelligence Engine">
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Real-Time Data Pipeline -->
+        <div class="learn-row">
+            <div class="container">
+                <div class="learn-text">
+                    <h2>High-Frequency Data Pipeline</h2>
+                    <p>Decision making requires up-to-the-second data. Our architecture ingests market data from
+                        multiple
+                        providers including Polygon, Finnhub, and Yahoo Finance, processing thousands of data points per
+                        second to give you a live view of the market.</p>
+                    <ul>
+                        <li>Multi-provider redundancy for 99.9% uptime</li>
+                        <li>WebSocket connections for live price updates</li>
+                        <li>Smart caching with Redis/Supabase for sub-ms latency</li>
+                        <li>Historical data spanning 20+ years</li>
+                    </ul>
+                </div>
+                <div class="learn-image">
+                    <img id="img-data" src="" alt="Real-Time Data Streams">
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Security Architecture -->
+        <div class="learn-row">
+            <div class="container">
+                <div class="learn-text">
+                    <h2>Zero-Trust Security</h2>
+                    <p>Your financial data is sensitive, and we treat it that way. We employ a zero-trust architecture
+                        where your credentials are never stored in plain text. All data at rest is encrypted with
+                        AES-256, and data in transit is protected by TLS 1.3.</p>
+                    <ul>
+                        <li>Bank-level AES-256 encryption</li>
+                        <li>Zero-knowledge proof authentication</li>
+                        <li>SOC2 compliant infrastructure partners</li>
+                        <li>Regular third-party security audits</li>
+                    </ul>
+                </div>
+                <div class="learn-image">
+                    <img id="img-security" src="" alt="Cyber Security Architecture">
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <h3>SHM Ventures</h3>
+                    <p>Professional portfolio analysis platform</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Product</h4>
+                        <a href="features.html">Features</a>
+                        <a href="learn-more.html" class="active">Technology</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Support</h4>
+                        <a href="about.html">About</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 SHM Ventures. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Define API base URL
+        globalThis.API_BASE = globalThis.location.origin;
+        if (globalThis.API_BASE === 'null' || globalThis.API_BASE.startsWith('file:')) {
+            globalThis.API_BASE = 'http://127.0.0.1:8080';
+        }
+    </script>
+    <script src="utils.js"></script>
+    <!-- Use specific script for this detailed page -->
+    <script src="js/learn-more.js"></script>
+</body>
+
+</html>

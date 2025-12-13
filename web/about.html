@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Us - SHM Ventures</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="css/landing.css">
+    <link rel="stylesheet" href="css/chatbot.css">
+    <script src="js/chatbot.js" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Specific overrides for sub-page */
+        .page-header {
+            padding-top: 120px;
+            padding-bottom: 60px;
+            text-align: center;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+            color: white;
+        }
+
+        /* Detailed About Rows */
+        .about-section-detailed {
+            padding: 0;
+            background: var(--bg-primary);
+        }
+
+        .about-row {
+            padding: 6rem 0;
+        }
+
+        .about-row .container {
+            display: flex;
+            align-items: center;
+            gap: 4rem;
+        }
+
+        .about-row:nth-child(even) {
+            background-color: var(--bg-secondary);
+        }
+
+        /* Desktop: Row Reverse for even items */
+        .about-row:nth-child(even) .container {
+            flex-direction: row-reverse;
+        }
+
+        .about-text {
+            flex: 1;
+        }
+
+        .about-text h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .about-text p {
+            font-size: 1.125rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .about-text ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .about-text ul li {
+            margin-bottom: 0.75rem;
+            padding-left: 1.5rem;
+            position: relative;
+            color: var(--text-secondary);
+        }
+
+        .about-text ul li::before {
+            content: "✓";
+            color: var(--accent-primary);
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        .about-image {
+            flex: 1;
+        }
+
+        .about-image img {
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            transition: transform 0.3s ease;
+        }
+
+        .about-image img:hover {
+            transform: scale(1.02);
+        }
+
+        @media (max-width: 768px) {
+            .about-row {
+                padding: 4rem 1rem;
+            }
+
+            .about-row .container,
+            .about-row:nth-child(even) .container {
+                flex-direction: column-reverse;
+                /* Image first, then text */
+                gap: 2rem;
+            }
+
+            .about-text h2 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <!-- Header injected by HeaderManager -->
+
+
+    <!-- Page Title -->
+    <section class="page-header">
+        <div class="container">
+            <h1 style="font-size: 3rem; margin-bottom: 1rem;">About SHM Ventures</h1>
+            <p style="font-size: 1.25rem; opacity: 0.9;">Empowering investors with institutional-grade tools</p>
+        </div>
+    </section>
+
+    <!-- About Content -->
+    <section class="about-section-detailed">
+        <!-- 1. Our Mission -->
+        <div class="about-row">
+            <div class="container">
+                <div class="about-text">
+                    <h2>Our Mission</h2>
+                    <p>At SHM Ventures, we believe that professional-grade financial analysis shouldn't be the exclusive
+                        domain of institutional investors. Our mission is to democratize access to sophisticated risk
+                        management and portfolio analysis tools, empowering individual investors to make data-driven
+                        decisions with confidence.</p>
+                    <ul>
+                        <li>Democratizing financial data</li>
+                        <li>Bridging the institutional gap</li>
+                        <li>Empowering self-directed investors</li>
+                        <li>Transparency and precision</li>
+                    </ul>
+                </div>
+                <div class="about-image">
+                    <img id="img-mission" src="" alt="Team Collaboration">
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Technology -->
+        <div class="about-row">
+            <div class="container">
+                <div class="about-text">
+                    <h2>Our Technology</h2>
+                    <p>Built on a robust Python backend and enhanced by cutting-edge AI, our platform processes vast
+                        amounts of market data in real-time. We leverage advanced machine learning models (Gemini, Groq)
+                        to provide intelligent insights, while our cloud-native architecture ensures speed, reliability,
+                        and scalability.</p>
+                    <ul>
+                        <li>AI-driven insights (Gemini & Groq)</li>
+                        <li>Real-time data processing</li>
+                        <li>Cloud-native architecture</li>
+                        <li>High-frequency calculation engine</li>
+                    </ul>
+                </div>
+                <div class="about-image">
+                    <img id="img-tech" src="" alt="Technology Stack">
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Security -->
+        <div class="about-row">
+            <div class="container">
+                <div class="about-text">
+                    <h2>Security & Privacy</h2>
+                    <p>We take the security of your financial data seriously. We employ bank-level encryption standards
+                        and partner with industry leaders like Plaid to ensure your connection is secure. We never sell
+                        your personal data, and your credentials are never stored on our servers.</p>
+                    <ul>
+                        <li>Bank-level AES-256 encryption</li>
+                        <li>SOC2 compliant partners (Plaid)</li>
+                        <li>Zero-knowledge privacy architecture</li>
+                        <li>Regular security audits</li>
+                    </ul>
+                </div>
+                <div class="about-image">
+                    <img id="img-security" src="" alt="Digital Security">
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <h3>SHM Ventures</h3>
+                    <p>Professional portfolio analysis platform</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Product</h4>
+                        <a href="features.html">Features</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Support</h4>
+                        <a href="about.html" class="active">About</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 SHM Ventures. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Define API base URL
+        globalThis.API_BASE = globalThis.location.origin;
+        if (globalThis.API_BASE === 'null' || globalThis.API_BASE.startsWith('file:')) {
+            globalThis.API_BASE = 'http://127.0.0.1:8080';
+        }
+    </script>
+    <script src="utils.js"></script>
+    <!-- Use specific script for this detailed page -->
+    <script src="js/about.js"></script>
+</body>
+
+</html>

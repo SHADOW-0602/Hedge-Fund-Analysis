@@ -81,27 +81,27 @@ class ProgressManager {
 class ThemeManager {
     static init() {
         // Check for saved theme preference or default to 'light'
-        const savedTheme = CookieManager.get('theme') || 
-                          localStorage.getItem('theme') || 
-                          'light';
-        
+        const savedTheme = CookieManager.get('theme') ||
+            localStorage.getItem('theme') ||
+            'light';
+
         this.setTheme(savedTheme);
         this.setupThemeToggle();
     }
 
     static setTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
-        
+
         // Save to both cookie and localStorage for redundancy
         CookieManager.set('theme', theme, 365);
         localStorage.setItem('theme', theme);
-        
+
         // Update checkbox theme toggles
         const checkboxToggles = document.querySelectorAll('#themeToggle');
         checkboxToggles.forEach(toggle => {
             toggle.checked = theme === 'dark';
         });
-        
+
         // Update old style theme toggles (if any)
         const toggles = document.querySelectorAll('.theme-toggle');
         toggles.forEach(toggle => {
@@ -127,7 +127,7 @@ class ThemeManager {
                 this.setTheme(newTheme);
             });
         });
-        
+
         // Handle old style toggles
         const toggles = document.querySelectorAll('.theme-toggle');
         toggles.forEach(toggle => {
@@ -147,7 +147,7 @@ class SessionManager {
             loginTime: Date.now(),
             theme: ThemeManager.getCurrentTheme()
         };
-        
+
         CookieManager.set('currentUser', sessionData, 1);
         ProgressManager.saveProgress('lastLogin', { timestamp: Date.now() });
     }
@@ -164,16 +164,16 @@ class SessionManager {
     static isLoggedIn() {
         const session = this.getSession();
         if (!session) return false;
-        
+
         // Check if session is expired (24 hours)
         const sessionAge = Date.now() - session.loginTime;
         const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-        
+
         if (sessionAge > maxAge) {
             this.clearSession();
             return false;
         }
-        
+
         return true;
     }
 }
@@ -181,13 +181,13 @@ class SessionManager {
 // Auto-restore progress on page load
 document.addEventListener('DOMContentLoaded', () => {
     ThemeManager.init();
-    
+
     // Restore saved progress
     const savedProgress = ProgressManager.getProgress();
     if (savedProgress.portfolioData) {
         console.log('Restored portfolio data from cookies');
     }
-    
+
     // Auto-save form data
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
@@ -202,8 +202,132 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+class HeaderManager {
+    static init() {
+        this.render();
+        this.setupTheme();
+        this.checkAuthState();
+        this.setupMobileMenu();
+
+        // Listen for login/logout events to update UI
+        window.addEventListener('sessionChanged', () => this.checkAuthState());
+    }
+
+    static render() {
+        // Only inject if header doesn't exist or we want to replace it
+        // For this task, we assume we are replacing/injecting into a placeholder or body
+        // But to be safe for existing pages, let's look for a placeholder or existing header
+        let header = document.querySelector('header');
+        if (!header) {
+            header = document.createElement('header');
+            header.className = 'header';
+            document.body.insertBefore(header, document.body.firstChild);
+        }
+
+        header.innerHTML = `
+            <nav class="nav">
+                <div class="nav-brand">
+                    <a href="landing.html" style="text-decoration: none; color: inherit;">
+                        <h1>SHM Ventures</h1>
+                    </a>
+                </div>
+                <div class="nav-links">
+                    <div class="theme-toggle-wrapper">
+                        <input type="checkbox" class="theme-checkbox" id="themeToggle">
+                        <label for="themeToggle" class="theme-label">
+                            <span class="moon">🌙</span>
+                            <span class="sun">☀️</span>
+                            <span class="ball"></span>
+                        </label>
+                    </div>
+                    <!-- US News Button -->
+                    <button onclick="window.location.href='/us-news/'"
+                        style="border: none; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0 1rem;">News</button>
+
+                    <div class="auth-buttons">
+                        <!-- Injected by checkAuthState -->
+                    </div>
+                </div>
+            </nav>
+        `;
+    }
+
+    static setupTheme() {
+        const themeToggle = document.getElementById('themeToggle');
+        if (!themeToggle) return;
+
+        const currentTheme = ThemeManager.getCurrentTheme();
+        themeToggle.checked = currentTheme === 'dark';
+
+        themeToggle.addEventListener('change', () => {
+            const newTheme = themeToggle.checked ? 'dark' : 'light';
+            ThemeManager.setTheme(newTheme);
+        });
+    }
+
+    static checkAuthState() {
+        const authButtons = document.querySelector('.auth-buttons');
+        if (!authButtons) return;
+
+        authButtons.innerHTML = ''; // Clear
+
+        if (SessionManager.isLoggedIn()) {
+            const user = SessionManager.getSession();
+
+            // User info text
+            const span = document.createElement('span');
+            span.className = 'user-welcome';
+            span.textContent = `Welcome, ${user.username || 'User'}`;
+            span.style.marginRight = '10px';
+            span.style.fontSize = '0.9rem';
+
+            // Dashboard button
+            const dashBtn = document.createElement('button');
+            dashBtn.className = 'btn-auth btn-dashboard';
+            dashBtn.textContent = 'Dashboard';
+            dashBtn.onclick = () => window.location.href = '/app';
+
+            // Logout button
+            const logoutBtn = document.createElement('button');
+            logoutBtn.className = 'btn-auth btn-logout';
+            logoutBtn.textContent = 'Logout';
+            logoutBtn.onclick = () => {
+                SessionManager.clearSession();
+                window.location.reload();
+            };
+
+            // Responsive wrapper
+            const container = document.createElement('div');
+            container.className = 'user-info-landing';
+            container.appendChild(span);
+            container.appendChild(dashBtn);
+            container.appendChild(logoutBtn);
+
+            authButtons.appendChild(container);
+        } else {
+            const signin = document.createElement('button');
+            signin.className = 'btn-auth btn-signin';
+            signin.textContent = 'Sign In';
+            signin.onclick = () => window.location.href = '/app';
+
+            const signup = document.createElement('button');
+            signup.className = 'btn-auth btn-signup';
+            signup.textContent = 'Sign Up';
+            signup.onclick = () => window.location.href = '/app';
+
+            authButtons.appendChild(signin);
+            authButtons.appendChild(signup);
+        }
+    }
+
+    static setupMobileMenu() {
+        // Optional: Add hamburger menu logic here if needed
+    }
+}
+
 // Export for global use
 window.CookieManager = CookieManager;
 window.ProgressManager = ProgressManager;
 window.ThemeManager = ThemeManager;
 window.SessionManager = SessionManager;
+window.HeaderManager = HeaderManager;
