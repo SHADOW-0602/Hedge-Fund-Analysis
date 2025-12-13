@@ -38,7 +38,7 @@ class BacktestingManager {
         });
 
         const data = await response.json();
-        
+
         if (!data.success) {
             throw new Error(data.error || 'Backtesting failed');
         }
@@ -63,7 +63,7 @@ class BacktestingManager {
         // Helper function to get color based on value and type
         const getValueColor = (value, type) => {
             if (value === null || value === undefined || isNaN(value)) return 'text-gray-500';
-            
+
             switch (type) {
                 case 'return':
                     return value >= 0 ? 'text-green-600' : 'text-red-600';
@@ -101,7 +101,7 @@ class BacktestingManager {
         let html = `
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Performance Metrics -->
-                <div class="bg-white rounded-lg shadow p-6">
+                <div class="analysis-card p-6">
                     <h4 class="text-lg font-semibold text-gray-900 mb-4">Performance</h4>
                     <div class="space-y-3">
                         <div class="flex justify-between">
@@ -132,7 +132,7 @@ class BacktestingManager {
                 </div>
 
                 <!-- Risk Metrics -->
-                <div class="bg-white rounded-lg shadow p-6">
+                <div class="analysis-card p-6">
                     <h4 class="text-lg font-semibold text-gray-900 mb-4">Risk Metrics</h4>
                     <div class="space-y-3">
                         <div class="flex justify-between">
@@ -163,7 +163,7 @@ class BacktestingManager {
                 </div>
 
                 <!-- Benchmark Comparison -->
-                <div class="bg-white rounded-lg shadow p-6">
+                <div class="analysis-card p-6">
                     <h4 class="text-lg font-semibold text-gray-900 mb-4">Benchmark Comparison</h4>
                     <div class="space-y-3">
                         <div class="flex justify-between">
@@ -189,7 +189,7 @@ class BacktestingManager {
             </div>
 
             <!-- Backtest Parameters -->
-            <div class="mt-6 bg-gray-50 rounded-lg p-6">
+            <div class="rounded-lg p-6" style="background: var(--bg-card-hover);">
                 <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${summary.backtest_period}</span></div>
@@ -200,7 +200,7 @@ class BacktestingManager {
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
                     <div><span class="text-gray-600">Data Points:</span> <span class="font-medium text-gray-900">${results.portfolio_returns?.length || 0}</span></div>
-                    <div><span class="text-gray-600">Start Date:</span> <span class="font-medium text-gray-900">${summary.start_date || new Date(Date.now() - 365*24*60*60*1000).toISOString().split('T')[0]}</span></div>
+                    <div><span class="text-gray-600">Start Date:</span> <span class="font-medium text-gray-900">${summary.start_date || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}</span></div>
                     <div><span class="text-gray-600">End Date:</span> <span class="font-medium text-gray-900">${summary.end_date || new Date().toISOString().split('T')[0]}</span></div>
                     <div><span class="text-gray-600">Symbols:</span> <span class="font-medium text-gray-900">${summary.symbols ? summary.symbols.join(', ') : (summary.symbols_count || 0)}</span></div>
                 </div>
@@ -214,7 +214,7 @@ class BacktestingManager {
         if (!results.portfolio_returns || results.portfolio_returns.length === 0) {
             return '0.00';
         }
-        
+
         const positiveReturns = results.portfolio_returns.filter(r => r > 0).length;
         const totalReturns = results.portfolio_returns.length;
         return ((positiveReturns / totalReturns) * 100).toFixed(2);
@@ -294,7 +294,7 @@ class BacktestingManager {
                 </div>
             </div>
             
-            <div id="backtestContent" class="bg-white rounded-lg shadow p-8 text-center">
+            <div class="analysis-card p-8 text-center">
                 <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                 </svg>
@@ -317,7 +317,7 @@ function updateBacktestOptions() {
         benchmark: document.getElementById('benchmark')?.value || 'SPY',
         riskModel: document.getElementById('riskModel')?.value || 'historical'
     };
-    
+
     // Don't auto-run, just update options
     console.log('Backtest options updated:', currentBacktestOptions);
 }
@@ -334,11 +334,11 @@ async function runStrategyBacktest() {
     const contentDiv = document.getElementById('backtestContent');
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-12 text-center">
+            <div class="analysis-card p-12 text-center">
                 <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
                 <h3 class="text-xl font-semibold text-gray-900 mb-2">Running Backtest</h3>
                 <p class="text-gray-600 mb-4">Analyzing strategy performance...</p>
-                <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
+                <div class="w-full rounded-full h-2 mb-4 max-w-md mx-auto" style="background: var(--border-card);">
                     <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
                 </div>
                 <p class="text-sm text-gray-500">This may take a few moments</p>
@@ -352,7 +352,7 @@ async function runStrategyBacktest() {
 
         const results = await window.backtestingManager.runBacktest(portfolioData, currentBacktestOptions);
         window.backtestingManager.displayResults(results);
-        
+
     } catch (error) {
         console.error('Backtesting error:', error);
         showBacktestError('Backtesting failed: ' + error.message);
@@ -371,7 +371,7 @@ function showBacktestError(message) {
     const contentDiv = document.getElementById('backtestContent');
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-8 text-center text-red-600">
+            <div class="analysis-card p-8 text-center text-red-600">
                 <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>

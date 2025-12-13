@@ -141,10 +141,10 @@ async function fetchTechnicalIndicators(portfolioData) {
 
         </div>
         
-        <div id="technicalContent" class="bg-white rounded-lg shadow p-12 text-center">
+        <div id="technicalContent" class="analysis-card p-12 text-center">
             <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
-            <p class="text-gray-600 mb-4">Analyzing ${portfolioData?.length || 0} positions and calculating technical indicators...</p>
+            <h3 class="text-xl font-semibold text-primary mb-2">Processing Your Data</h3>
+            <p class="text-secondary mb-4">Analyzing ${portfolioData?.length || 0} positions and calculating technical indicators...</p>
             <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
@@ -258,47 +258,47 @@ function displayTechnicalIndicators(technicalData) {
         <div class="space-y-6">
             <!-- Summary Statistics -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Total Signals</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Total Signals</h3>
                     <p class="text-3xl font-bold text-blue-600">
                         ${totalSignals}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">Technical indicators</p>
+                    <p class="text-sm text-secondary mt-1">Technical indicators</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Overall Signal</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Overall Signal</h3>
                     <p class="text-3xl font-bold ${technicalData.portfolio_signals?.overall === 'Bullish' ? 'text-green-600' : technicalData.portfolio_signals?.overall === 'Bearish' ? 'text-red-600' : 'text-gray-600'}">
                         ${technicalData.portfolio_signals?.overall || 'Neutral'}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">Portfolio signal</p>
+                    <p class="text-sm text-secondary mt-1">Portfolio signal</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Data Points</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Data Points</h3>
                     <p class="text-3xl font-bold text-blue-600">
                         ${technicalData.summary?.data_points || 'N/A'}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">${currentTechnicalOptions.period} analysis</p>
+                    <p class="text-sm text-secondary mt-1">${currentTechnicalOptions.period} analysis</p>
                 </div>
             </div>
             
             <!-- Signal Breakdown -->
-            <div class="bg-white rounded-lg shadow p-6 mb-6">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">Signal Breakdown</h3>
+            <div class="analysis-card p-6 mb-6">
+                <h3 class="text-lg font-medium text-primary mb-4">Signal Breakdown</h3>
                 <div class="grid grid-cols-3 gap-4">
                     <div class="text-center">
                         <div class="text-3xl font-bold text-green-600 mb-2">${bullishCount}</div>
-                        <div class="text-sm font-medium text-gray-900">Bullish Signals</div>
-                        <div class="text-xs text-gray-500 mt-1">Buy opportunities</div>
+                        <div class="text-sm font-medium text-primary">Bullish Signals</div>
+                        <div class="text-xs text-secondary mt-1">Buy opportunities</div>
                     </div>
                     <div class="text-center">
                         <div class="text-3xl font-bold text-red-600 mb-2">${bearishCount}</div>
-                        <div class="text-sm font-medium text-gray-900">Bearish Signals</div>
-                        <div class="text-xs text-gray-500 mt-1">Sell warnings</div>
+                        <div class="text-sm font-medium text-primary">Bearish Signals</div>
+                        <div class="text-xs text-secondary mt-1">Sell warnings</div>
                     </div>
                     <div class="text-center">
-                        <div class="text-3xl font-bold text-gray-600 mb-2">${neutralCount}</div>
-                        <div class="text-sm font-medium text-gray-900">Neutral Signals</div>
-                        <div class="text-xs text-gray-500 mt-1">Hold / Indecisive</div>
+                        <div class="text-3xl font-bold text-gray-500 mb-2">${neutralCount}</div>
+                        <div class="text-sm font-medium text-primary">Neutral Signals</div>
+                        <div class="text-xs text-secondary mt-1">Hold / Indecisive</div>
                     </div>
                 </div>
             </div>
@@ -306,23 +306,23 @@ function displayTechnicalIndicators(technicalData) {
             
             <!-- Technical Indicators Table -->
             ${symbols.length > 0 ? `
-                <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
-                    <div class="px-4 py-3 border-b border-gray-200">
-                        <h3 class="text-lg font-medium text-gray-900">Technical Analysis Results</h3>
+                <div class="analysis-card overflow-hidden mb-6">
+                    <div class="px-4 py-3 border-b border-card">
+                        <h3 class="text-lg font-medium text-primary">Technical Analysis Results</h3>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overall Signal</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RSI</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MACD</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bollinger</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SMA</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">Symbol</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">Overall Signal</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">RSI</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">MACD</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">Bollinger</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">SMA</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
+                            <tbody class="bg-card divide-y border-card">
                                 ${symbols.map(symbol => {
         const analysis = individualAnalysis[symbol] || {};
         const signals = analysis.signals || {};
@@ -335,25 +335,25 @@ function displayTechnicalIndicators(technicalData) {
 
         return `
                                         <tr>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${symbol}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">${symbol}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${overallSignal === 'Bullish' ? 'bg-green-100 text-green-800' :
                 overallSignal === 'Bearish' ? 'bg-red-100 text-red-800' :
                     'bg-gray-100 text-gray-800'
             }">${overallSignal}</span>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
                                                 ${values.rsi ? values.rsi.toFixed(2) : 'N/A'}
                                                 <div class="text-xs text-gray-400">${signals.rsi || 'N/A'}</div>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
                                                 ${values.macd?.histogram ? values.macd.histogram.toFixed(3) : 'N/A'}
                                                 <div class="text-xs text-gray-400">${signals.macd || 'N/A'}</div>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
                                                 <div class="text-xs text-gray-400">${signals.bollinger || 'N/A'}</div>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-secondary">
                                                 <div class="text-xs text-gray-400">${signals.sma || 'N/A'}</div>
                                             </td>
                                         </tr>
@@ -366,19 +366,19 @@ function displayTechnicalIndicators(technicalData) {
             ` : ''}
             
             <!-- Analysis Parameters -->
-            <div class="bg-gray-50 rounded-lg p-6">
-                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+            <div class="analysis-card p-6">
+                <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentTechnicalOptions.period}</span></div>
-                    <div><span class="text-gray-600">Timeframe:</span> <span class="font-medium text-gray-900">${currentTechnicalOptions.timeframe}</span></div>
-                    <div><span class="text-gray-600">RSI Period:</span> <span class="font-medium text-gray-900">${currentTechnicalOptions.rsi_period}</span></div>
-                    <div><span class="text-gray-600">MACD Fast:</span> <span class="font-medium text-gray-900">${currentTechnicalOptions.macd_fast}</span></div>
+                    <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentTechnicalOptions.period}</span></div>
+                    <div><span class="text-secondary">Timeframe:</span> <span class="font-medium text-primary">${currentTechnicalOptions.timeframe}</span></div>
+                    <div><span class="text-secondary">RSI Period:</span> <span class="font-medium text-primary">${currentTechnicalOptions.rsi_period}</span></div>
+                    <div><span class="text-secondary">MACD Fast:</span> <span class="font-medium text-primary">${currentTechnicalOptions.macd_fast}</span></div>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
-                    <div><span class="text-gray-600">Signal Strength:</span> <span class="font-medium text-gray-900">${currentTechnicalOptions.signal_strength}</span></div>
-                    <div><span class="text-gray-600">Symbols:</span> <span class="font-medium text-gray-900">${symbols.length}</span></div>
-                    <div><span class="text-gray-600">Data Points:</span> <span class="font-medium text-gray-900">${technicalData.summary?.data_points || 'N/A'}</span></div>
-                    <div><span class="text-gray-600">Last Updated:</span> <span class="font-medium text-gray-900">${new Date().toLocaleDateString()}</span></div>
+                    <div><span class="text-secondary">Signal Strength:</span> <span class="font-medium text-primary">${currentTechnicalOptions.signal_strength}</span></div>
+                    <div><span class="text-secondary">Symbols:</span> <span class="font-medium text-primary">${symbols.length}</span></div>
+                    <div><span class="text-secondary">Data Points:</span> <span class="font-medium text-primary">${technicalData.summary?.data_points || 'N/A'}</span></div>
+                    <div><span class="text-secondary">Last Updated:</span> <span class="font-medium text-primary">${new Date().toLocaleDateString()}</span></div>
                 </div>
             </div>
         </div>
@@ -398,12 +398,12 @@ function showTechnicalError(message) {
 
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-8 text-center text-red-600">
+            <div class="analysis-card p-8 text-center text-red-600">
                 <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p class="text-xl font-semibold mb-2">Analysis Error</p>
-                <p class="text-sm text-gray-600">${message}</p>
+                <p class="text-sm text-secondary">${message}</p>
             </div>
         `;
     }

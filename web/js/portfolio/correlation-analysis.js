@@ -6,25 +6,25 @@ let currentCorrelationOptions = {
     rolling_window: '30d'
 };
 
-window.loadCorrelationAnalysis = function(portfolioData, options = {}) {
+window.loadCorrelationAnalysis = function (portfolioData, options = {}) {
     if (window.analyticsManager) {
         window.analyticsManager.loadModule('correlation-analysis');
     }
 };
 
 // Display function for correlation analysis
-window.displayCorrelationAnalysisResults = function(result, options) {
+window.displayCorrelationAnalysisResults = function (result, options) {
     const container = document.getElementById('analysisContent');
     if (!container) return;
-    
+
     container.classList.remove('hidden');
-    
+
     console.log('[CORRELATION] Raw result received:', result);
     console.log('[CORRELATION] Options received:', options);
-    
+
     // Handle the actual API response structure
     let correlationData, correlation, summary;
-    
+
     if (result.correlation_analysis) {
         // API response format: { success: true, correlation_analysis: {...} }
         correlationData = result.correlation_analysis;
@@ -41,9 +41,9 @@ window.displayCorrelationAnalysisResults = function(result, options) {
         correlation = result.correlation_matrix || {};
         summary = result.summary || {};
     }
-    
+
     console.log('[CORRELATION] Processed data:', { correlationData, correlation, summary });
-    
+
     // Update current options from result or passed options
     currentCorrelationOptions = {
         period: options?.period || summary.period || currentCorrelationOptions.period,
@@ -51,11 +51,11 @@ window.displayCorrelationAnalysisResults = function(result, options) {
         method: options?.method || summary.method || currentCorrelationOptions.method,
         rolling_window: options?.rolling_window || currentCorrelationOptions.rolling_window
     };
-    
+
     // Get symbols for matrix display
     const symbols = Object.keys(correlation);
     console.log('[CORRELATION] Symbols found:', symbols);
-    
+
     // If no correlation data, show error with debug info
     if (symbols.length === 0) {
         container.innerHTML = `
@@ -67,7 +67,7 @@ window.displayCorrelationAnalysisResults = function(result, options) {
                     </svg>
                 </button>
             </div>
-            <div class="bg-white rounded-lg shadow p-8">
+            <div class="analysis-card p-8">
                 <h3 class="text-lg font-bold text-red-600 mb-4">DEBUG: No correlation data found</h3>
                 <div class="space-y-3 text-sm">
                     <div><strong>Raw result:</strong> <pre class="bg-gray-100 p-2 rounded text-xs overflow-auto">${JSON.stringify(result, null, 2)}</pre></div>
@@ -85,7 +85,7 @@ window.displayCorrelationAnalysisResults = function(result, options) {
         `;
         return;
     }
-    
+
     container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-900">Correlation Analysis</h2>
@@ -151,72 +151,73 @@ window.displayCorrelationAnalysisResults = function(result, options) {
         <div class="space-y-6">
             <!-- Summary Statistics -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Average Correlation</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Average Correlation</h3>
                     <p class="text-3xl font-bold ${(summary.average_correlation || 0) > 0.7 ? 'text-red-600' : (summary.average_correlation || 0) > 0.3 ? 'text-yellow-600' : 'text-green-600'}">
                         ${window.analyticsCore.formatNumber(summary.average_correlation || 0)}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">${(summary.average_correlation || 0) > 0.7 ? 'High correlation' : (summary.average_correlation || 0) > 0.3 ? 'Moderate correlation' : 'Low correlation'}</p>
+                    <p class="text-sm text-secondary mt-1">${(summary.average_correlation || 0) > 0.7 ? 'High correlation' : (summary.average_correlation || 0) > 0.3 ? 'Moderate correlation' : 'Low correlation'}</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Max Correlation</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Max Correlation</h3>
                     <p class="text-3xl font-bold ${(summary.max_correlation || 0) > 0.8 ? 'text-red-600' : 'text-blue-600'}">
                         ${window.analyticsCore.formatNumber(summary.max_correlation || 0)}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">Highest pair correlation</p>
+                    <p class="text-sm text-secondary mt-1">Highest pair correlation</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Min Correlation</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Min Correlation</h3>
                     <p class="text-3xl font-bold ${(summary.min_correlation || 0) < -0.3 ? 'text-green-600' : 'text-blue-600'}">
                         ${window.analyticsCore.formatNumber(summary.min_correlation || 0)}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">Lowest pair correlation</p>
+                    <p class="text-sm text-secondary mt-1">Lowest pair correlation</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Data Points</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Data Points</h3>
                     <p class="text-3xl font-bold text-blue-600">
                         ${summary.data_points || 'N/A'}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">${symbols.length} symbols analyzed</p>
+                    <p class="text-sm text-secondary mt-1">${symbols.length} symbols analyzed</p>
                 </div>
             </div>
             
             <!-- Correlation Matrix -->
             ${symbols.length > 0 ? `
-                <div class="bg-white rounded-lg shadow p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Correlation Matrix</h3>
+                <div class="analysis-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-primary mb-4">Correlation Matrix</h3>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
+                        <table class="min-w-full divide-y divide-card">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
                                 <tr>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
-                                    ${symbols.map(symbol => `<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">${symbol}</th>`).join('')}
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-secondary uppercase">Symbol</th>
+                                    ${symbols.map(symbol => `<th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">${symbol}</th>`).join('')}
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
+                            <tbody class="bg-card divide-y divide-card">
                                 ${symbols.map(symbol1 => `
                                     <tr>
-                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${symbol1}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-primary">${symbol1}</td>
                                         ${symbols.map(symbol2 => {
-                                            const corrValue = correlation[symbol1]?.[symbol2] || 0;
-                                            const colorClass = symbol1 === symbol2 ? 'bg-gray-100' : 
-                                                             corrValue > 0.7 ? 'bg-red-100 text-red-800' :
-                                                             corrValue > 0.3 ? 'bg-yellow-100 text-yellow-800' :
-                                                             corrValue < -0.3 ? 'bg-green-100 text-green-800' :
-                                                             'bg-blue-100 text-blue-800';
-                                            return `<td class="px-4 py-2 whitespace-nowrap text-sm text-center ${colorClass}">${window.analyticsCore.formatNumber(corrValue)}</td>`;
-                                        }).join('')}
+        const corrValue = correlation[symbol1]?.[symbol2] || 0;
+        const colorClass = symbol1 === symbol2 ? 'bg-gray-100 dark:bg-gray-700 dark:text-primary' :
+            corrValue > 0.7 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-white' :
+                corrValue > 0.3 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-white' :
+                    corrValue < -0.3 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-white' :
+                        'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-white';
+        return `<td class="px-4 py-2 whitespace-nowrap text-sm text-center ${colorClass}">${window.analyticsCore.formatNumber(corrValue)}</td>`;
+    }).join('')}
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
                     </div>
-                    <div class="mt-4 text-sm text-gray-600">
+                    <div class="mt-4 text-sm text-secondary">
                         <div class="flex flex-wrap gap-4">
-                            <div class="flex items-center"><div class="w-4 h-4 bg-red-100 border mr-2"></div>Strong Positive (>0.7)</div>
-                            <div class="flex items-center"><div class="w-4 h-4 bg-yellow-100 border mr-2"></div>Moderate Positive (0.3-0.7)</div>
-                            <div class="flex items-center"><div class="w-4 h-4 bg-blue-100 border mr-2"></div>Weak (-0.3-0.3)</div>
-                            <div class="flex items-center"><div class="w-4 h-4 bg-green-100 border mr-2"></div>Negative (<-0.3)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-red-100 dark:bg-red-900 border border-red-200 dark:border-red-800 mr-2"></div>Strong Positive (>0.7)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-yellow-100 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-800 mr-2"></div>Moderate Positive (0.3-0.7)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-blue-100 dark:bg-blue-900 border border-blue-200 dark:border-blue-800 mr-2"></div>Weak (-0.3-0.3)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-green-100 dark:bg-green-900 border border-green-200 dark:border-green-800 mr-2"></div>Negative (<-0.3)</div>
                         </div>
                     </div>
                 </div>
@@ -224,17 +225,16 @@ window.displayCorrelationAnalysisResults = function(result, options) {
             
             <!-- High Correlation Pairs -->
             ${correlationData.high_correlation_pairs && correlationData.high_correlation_pairs.length > 0 ? `
-                <div class="bg-white rounded-lg shadow p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">High Correlation Pairs</h3>
+                <div class="analysis-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-primary mb-4">High Correlation Pairs</h3>
                     <div class="space-y-2">
                         ${correlationData.high_correlation_pairs.slice(0, 5).map(pair => `
-                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                                <span class="font-medium">${pair.pair.join(' - ')}</span>
-                                <span class="px-2 py-1 rounded text-sm ${
-                                    Math.abs(pair.correlation) > 0.8 ? 'bg-red-100 text-red-800' :
-                                    Math.abs(pair.correlation) > 0.6 ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-blue-100 text-blue-800'
-                                }">${window.analyticsCore.formatNumber(pair.correlation)}</span>
+                            <div class="flex justify-between items-center py-2 border-b border-card">
+                                <span class="font-medium text-primary">${pair.pair.join(' - ')}</span>
+                                <span class="px-2 py-1 rounded text-sm ${Math.abs(pair.correlation) > 0.8 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-white' :
+            Math.abs(pair.correlation) > 0.6 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-white' :
+                'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-white'
+        }">${window.analyticsCore.formatNumber(pair.correlation)}</span>
                             </div>
                         `).join('')}
                     </div>
@@ -243,8 +243,8 @@ window.displayCorrelationAnalysisResults = function(result, options) {
             
             <!-- Correlation Insights -->
             ${symbols.length > 1 ? `
-                <div class="bg-white rounded-lg shadow p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Correlation Insights</h3>
+                <div class="analysis-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-primary mb-4">Correlation Insights</h3>
                     <div class="space-y-3">
                         ${generateCorrelationInsights(correlation, symbols)}
                     </div>
@@ -252,19 +252,19 @@ window.displayCorrelationAnalysisResults = function(result, options) {
             ` : ''}
             
             <!-- Analysis Parameters -->
-            <div class="bg-gray-50 rounded-lg p-6">
-                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+            <div class="analysis-card p-6">
+                <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentCorrelationOptions.period}</span></div>
-                    <div><span class="text-gray-600">Frequency:</span> <span class="font-medium text-gray-900">${currentCorrelationOptions.frequency}</span></div>
-                    <div><span class="text-gray-600">Method:</span> <span class="font-medium text-gray-900">${currentCorrelationOptions.method}</span></div>
-                    <div><span class="text-gray-600">Rolling Window:</span> <span class="font-medium text-gray-900">${currentCorrelationOptions.rolling_window}</span></div>
+                    <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentCorrelationOptions.period}</span></div>
+                    <div><span class="text-secondary">Frequency:</span> <span class="font-medium text-primary">${currentCorrelationOptions.frequency}</span></div>
+                    <div><span class="text-secondary">Method:</span> <span class="font-medium text-primary">${currentCorrelationOptions.method}</span></div>
+                    <div><span class="text-secondary">Rolling Window:</span> <span class="font-medium text-primary">${currentCorrelationOptions.rolling_window}</span></div>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
-                    <div><span class="text-gray-600">Data Points:</span> <span class="font-medium text-gray-900">${summary.data_points || 'N/A'}</span></div>
-                    <div><span class="text-gray-600">Symbols:</span> <span class="font-medium text-gray-900">${symbols.length}</span></div>
-                    <div><span class="text-gray-600">Data Source:</span> <span class="font-medium text-gray-900">${correlationData.data_source || 'Market Data'}</span></div>
-                    <div><span class="text-gray-600">High Pairs:</span> <span class="font-medium text-gray-900">${correlationData.high_correlation_pairs?.length || 0}</span></div>
+                    <div><span class="text-secondary">Data Points:</span> <span class="font-medium text-primary">${summary.data_points || 'N/A'}</span></div>
+                    <div><span class="text-secondary">Symbols:</span> <span class="font-medium text-primary">${symbols.length}</span></div>
+                    <div><span class="text-secondary">Data Source:</span> <span class="font-medium text-primary">${correlationData.data_source || 'Market Data'}</span></div>
+                    <div><span class="text-secondary">High Pairs:</span> <span class="font-medium text-primary">${correlationData.high_correlation_pairs?.length || 0}</span></div>
                 </div>
             </div>
         </div>
@@ -274,44 +274,44 @@ window.displayCorrelationAnalysisResults = function(result, options) {
 // Generate correlation insights
 function generateCorrelationInsights(correlation, symbols) {
     const insights = [];
-    
+
     // Find highest and lowest correlations
     let highestCorr = -1;
     let lowestCorr = 1;
     let highestPair = '';
     let lowestPair = '';
-    
+
     for (let i = 0; i < symbols.length; i++) {
         for (let j = i + 1; j < symbols.length; j++) {
             const symbol1 = symbols[i];
             const symbol2 = symbols[j];
             const corrValue = correlation[symbol1]?.[symbol2] || 0;
-            
+
             if (corrValue > highestCorr) {
                 highestCorr = corrValue;
                 highestPair = `${symbol1} - ${symbol2}`;
             }
-            
+
             if (corrValue < lowestCorr) {
                 lowestCorr = corrValue;
                 lowestPair = `${symbol1} - ${symbol2}`;
             }
         }
     }
-    
+
     if (highestPair) {
         insights.push(`<div class="metric-row"><span class="metric-label">Highest Correlation:</span> <span class="metric-value positive">${highestPair} (${window.analyticsCore.formatNumber(highestCorr)})</span></div>`);
     }
-    
+
     if (lowestPair) {
         insights.push(`<div class="metric-row"><span class="metric-label">Lowest Correlation:</span> <span class="metric-value negative">${lowestPair} (${window.analyticsCore.formatNumber(lowestCorr)})</span></div>`);
     }
-    
+
     // Diversification insight
     const avgCorr = (highestCorr + lowestCorr) / 2;
     const diversificationLevel = avgCorr > 0.7 ? 'Low' : avgCorr > 0.3 ? 'Moderate' : 'High';
     insights.push(`<div class="metric-row"><span class="metric-label">Diversification Level:</span> <span class="metric-value ${diversificationLevel === 'High' ? 'positive' : diversificationLevel === 'Moderate' ? 'neutral' : 'negative'}">${diversificationLevel}</span></div>`);
-    
+
     return insights.join('');
 }
 
@@ -320,7 +320,7 @@ window.toggleCorrelationSettings = () => {
     const settings = document.getElementById('correlationSettings');
     if (settings) {
         settings.classList.toggle('hidden');
-        
+
         // Set default values if not already set
         if (!document.getElementById('correlationPeriod').value) {
             document.getElementById('correlationPeriod').value = '1Y';
@@ -351,10 +351,10 @@ function updateCorrelationOptions() {
 window.updateCorrelationAnalysis = () => {
     updateCorrelationOptions();
     console.log('[CORRELATION] Updating with settings:', currentCorrelationOptions);
-    
+
     // Store options and call analysis
     window.analyticsCore.correlationOptions = currentCorrelationOptions;
-    
+
     // Show loading state first
     const container = document.getElementById('analysisContent');
     if (container) {
@@ -368,14 +368,14 @@ window.updateCorrelationAnalysis = () => {
                     Analyzing...
                 </button>
             </div>
-            <div class="bg-white rounded-lg shadow p-12 text-center">
+            <div class="analysis-card p-12 text-center">
                 <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-                <h3 class="text-xl font-semibold text-gray-900 mb-2">Calculating Correlations</h3>
-                <p class="text-gray-600 mb-4">Analyzing portfolio correlations...</p>
+                <h3 class="text-xl font-semibold text-primary mb-2">Calculating Correlations</h3>
+                <p class="text-secondary mb-4">Analyzing portfolio correlations...</p>
             </div>
         `;
     }
-    
+
     window.analyticsCore.analyzePortfolio(
         'correlation-analysis',
         'analysisContent',

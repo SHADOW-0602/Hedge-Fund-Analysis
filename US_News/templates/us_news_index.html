@@ -52,7 +52,9 @@
                             stroke="currentColor" stroke-width="2">
                             <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                         </svg>
-                        <input type="text" id="tickerSearch" placeholder="Search ticker..." maxlength="5">
+                        <input type="text" id="tickerSearch" placeholder="Search ticker..." maxlength="20"
+                            autocomplete="off">
+                        <div id="searchDropdown" class="search-dropdown"></div>
                     </div>
                 </div>
                 <div class="ticker-list" id="tickerList">
@@ -94,7 +96,6 @@
                         <div class="footer-links">
                             <a href="#">Privacy Policy</a>
                             <a href="#">Terms of Service</a>
-                            <a href="#">Contact Support</a>
                         </div>
                     </div>
                 </footer>

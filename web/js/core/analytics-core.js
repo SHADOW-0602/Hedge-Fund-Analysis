@@ -283,7 +283,18 @@ class AnalyticsCore {
         let portfolioData = this.portfolioData || window.currentPortfolioData;
 
         if (!portfolioData || !Array.isArray(portfolioData) || portfolioData.length === 0) {
-            this.showDataSourceSelection('portfolio');
+            console.log('[ANALYTICS-CORE] No portfolio data available for', endpoint);
+            const analysisName = this.getAnalysisDisplayName(endpoint);
+            const container = document.getElementById(containerId) || document.getElementById('analysisContent');
+            if (container) {
+                container.innerHTML = `
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">${analysisName}</h2>
+                    </div>
+                    <div class="text-center py-4 text-yellow-500">No portfolio data available for ${analysisName.toLowerCase()}</div>
+                `;
+                container.classList.remove('hidden');
+            }
             return;
         }
 
@@ -488,7 +499,17 @@ class AnalyticsCore {
 
         if (!transactionData || !Array.isArray(transactionData) || transactionData.length === 0) {
             console.log('[ANALYTICS-CORE] No transaction data available for', endpoint);
-            this.showDataSourceSelection('transaction');
+            const analysisName = this.getAnalysisDisplayName(endpoint);
+            const container = document.getElementById('analysisContent');
+            if (container) {
+                container.innerHTML = `
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">${analysisName}</h2>
+                    </div>
+                    <div class="text-center py-4 text-yellow-500">No transaction data available for ${analysisName.toLowerCase()}</div>
+                `;
+                container.classList.remove('hidden');
+            }
             return;
         }
 
@@ -554,14 +575,9 @@ class AnalyticsCore {
             if (container) {
                 container.innerHTML = `
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-2xl font-bold text-gray-900">Analysis Error</h2>
-                        <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
-                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Analysis Error</h2>
                     </div>
-                    <div class="text-red-600 text-center py-4">Analysis failed: ${error.message}</div>
+                    <div class="text-red-500 text-center py-4">Analysis failed: ${error.message}</div>
                 `;
             }
         }
@@ -583,43 +599,44 @@ class AnalyticsCore {
         const container = document.getElementById('analysisContent');
         if (!container) return;
 
+        // Ensure other sections are hidden
+        const defaultUpload = document.getElementById('defaultUploadSection');
+        if (defaultUpload) defaultUpload.classList.add('hidden');
+        const dataPreview = document.getElementById('dataPreview');
+        if (dataPreview) dataPreview.classList.add('hidden');
+
         container.classList.remove('hidden');
         const title = type === 'portfolio' ? 'Portfolio Analysis' : 'Transaction Analysis';
         const dataType = type === 'portfolio' ? 'Portfolio' : 'Transaction';
 
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">${title}</h2>
-                <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                    </svg>
-                </button>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">${title}</h2>
             </div>
             <div class="text-center py-8">
-                <h3 class="text-lg font-medium text-gray-900 mb-4">Choose Data Source</h3>
-                <p class="text-gray-600 mb-6">Select how you want to load ${type} data for analysis:</p>
-                
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Choose Data Source</h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-6">Select how you want to load ${type} data for analysis:</p>
+
                 <div class="grid grid-cols-1 md:grid-cols-${type === 'portfolio' ? '2' : '1'} gap-4 max-w-lg mx-auto">
-                    <div class="border-2 border-gray-200 rounded-lg p-6 hover:border-indigo-300 cursor-pointer" onclick="selectDataSource('${type}', 'upload')">
+                    <div class="border-2 border-card rounded-lg p-6 hover:border-indigo-500 cursor-pointer bg-card" onclick="selectDataSource('${type}', 'upload')">
                         <div class="text-indigo-600 mb-3">
                             <svg class="w-8 h-8 mx-auto" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
                             </svg>
                         </div>
-                        <h4 class="font-semibold text-gray-900 mb-2">Upload File</h4>
-                        <p class="text-sm text-gray-600">Upload CSV/Excel files from your computer</p>
+                        <h4 class="font-semibold text-gray-900 dark:text-white mb-2">Upload File</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Upload CSV/Excel files from your computer</p>
                     </div>
-                    
+
                     ${type === 'portfolio' ? `
-                    <div class="border-2 border-gray-200 rounded-lg p-6 hover:border-green-300 cursor-pointer" onclick="selectDataSource('${type}', 'plaid')">
+                    <div class="border-2 border-card rounded-lg p-6 hover:border-green-500 cursor-pointer bg-card" onclick="selectDataSource('${type}', 'plaid')">
                         <div class="text-green-600 mb-3">
                             <svg class="w-8 h-8 mx-auto" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"></path>
                             </svg>
                         </div>
-                        <h4 class="font-semibold text-gray-900 mb-2">Connect Plaid</h4>
-                        <p class="text-sm text-gray-600">Link your brokerage account directly</p>
+                        <h4 class="font-semibold text-gray-900 dark:text-white mb-2">Connect Plaid</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Link your brokerage account directly</p>
                     </div>
                     ` : ''}
                 </div>
@@ -642,12 +659,7 @@ class AnalyticsCore {
         container.classList.remove('hidden');
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Login Required</h2>
-                <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                    </svg>
-                </button>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Login Required</h2>
             </div>
             <div class="text-center py-8">
                 <div class="text-gray-400 mb-4">

@@ -301,25 +301,11 @@ async function checkExistingPlaidConnection() {
     }
 }
 
-// Auto-connect when user is available
+// Auto-connect when user is available - DISABLED AUTO-RUN
 function autoConnectPlaid() {
+    // Only check status, do not auto-load data
     setTimeout(async () => {
-        // Get actual user ID
-        const userId = window.currentUser?.user_id ||
-            window.currentUser?.username ||
-            window.currentUser?.id ||
-            localStorage.getItem('currentUserId') ||
-            'admin';
-
-        console.log('[PLAID] Auto-connecting for user:', userId);
-
-        console.log('[PLAID] Auto-connecting for user:', userId);
-        console.log('[PLAID] Current user object:', window.currentUser);
-        console.log('[PLAID] SessionManager session:', window.SessionManager?.getSession());
-
-        // Check for existing connection first
         const hasExistingConnection = await checkExistingPlaidConnection();
-
         if (!hasExistingConnection) {
             const statusDiv = document.getElementById('plaidStatus');
             if (statusDiv) {
@@ -328,47 +314,79 @@ function autoConnectPlaid() {
             }
             updateConnectButton(false);
         }
-    }, 1500); // Increased timeout to ensure user is loaded
+    }, 1500);
 }
 
-// Initialize Plaid on page load
+// Initialize Plaid status check only
 document.addEventListener('DOMContentLoaded', autoConnectPlaid);
-
-// Also auto-connect when user logs in
 window.addEventListener('userLoggedIn', autoConnectPlaid);
 
 // Toggle Plaid connection (connect/delete)
 function togglePlaidConnection() {
     const btn = document.getElementById('plaidConnectBtn');
-    if (btn && btn.textContent.includes('Delete')) {
+    if (btn && btn.textContent.includes('Load Data')) {
+        loadFullPlaidData();
+    } else if (btn && btn.textContent.includes('Delete')) {
         deletePlaidConnection();
     } else {
         connectPlaid();
     }
 }
 
+// Load BOTH Portfolio and Transactions for Plaid
+async function loadFullPlaidData(connectionId = null) {
+    console.log('[PLAID] Starting full data load (Portfolio + Transactions)...');
+    updatePlaidStatus('Loading full account data...', 'connecting');
+
+    try {
+        // 1. Load Portfolio Holdings
+        await loadPlaidPortfolio(connectionId);
+
+        // 2. Load Transactions
+        await loadPlaidTransactions(connectionId);
+
+        updatePlaidStatus('Data loaded successfully', 'success');
+        if (typeof showSuccess === 'function') {
+            showSuccess('Plaid Account Data Loaded');
+        }
+
+    } catch (error) {
+        console.error('[PLAID] Full load failed:', error);
+        updatePlaidStatus('Partial load failure', 'error');
+    }
+}
+
 // Update connect button based on connection status
 function updateConnectButton(isConnected) {
     const btn = document.getElementById('plaidConnectBtn');
+    const reloadBtn = document.getElementById('plaidReloadBtn');
 
     if (!btn) return;
 
     if (isConnected) {
-        const connectionCount = window.plaidConnectionsManager?.connections?.length || 1;
-        btn.textContent = connectionCount > 1 ? `Manage ${connectionCount} Accounts` : 'Manage Account';
-        btn.className = 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm w-full sm:w-auto';
+        // Button 1: Manage Accounts (Primary for connection management)
+        btn.textContent = 'Manage Accounts';
+        btn.className = 'bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto font-medium';
         btn.onclick = () => {
             showConnectionsManager();
-            // Also show the upload section when managing accounts
-            const uploadSection = document.getElementById('defaultUploadSection');
-            if (uploadSection) {
-                uploadSection.scrollIntoView({ behavior: 'smooth' });
-            }
+            // Scroll to connections list
+            const list = document.getElementById('plaidConnectionsSection');
+            if (list) list.classList.remove('hidden');
         };
+
+        // Button 2: Load Data (Unhide existing reload button)
+        if (reloadBtn) {
+            reloadBtn.classList.remove('hidden');
+            reloadBtn.textContent = 'Load Data';
+            reloadBtn.className = 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2 font-bold';
+            reloadBtn.onclick = () => loadFullPlaidData();
+        }
     } else {
         btn.textContent = 'Connect Account';
         btn.className = 'bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto';
         btn.onclick = () => connectPlaid();
+
+        if (reloadBtn) reloadBtn.classList.add('hidden');
     }
 }
 
@@ -404,13 +422,16 @@ async function loadConnectionsDirectly() {
                         <div>
                             <h4 class="text-sm font-medium text-gray-900">${conn.institution_name}</h4>
                             <p class="text-xs text-gray-500">ID: ${conn.connection_id}</p>
-                            <p class="text-xs text-gray-500">Created: ${conn.created_at}</p>
                             ${conn.accounts_count ? `<p class="text-xs text-blue-600">Accounts: ${conn.accounts_count}</p>` : ''}
-                            ${conn.status ? `<p class="text-xs text-green-600">Status: ${conn.status}</p>` : ''}
                         </div>
-                        <button onclick="deleteConnection('${conn.connection_id}')" class="text-xs px-2 py-1 rounded-md bg-red-100 text-red-700 hover:bg-red-200">
-                            Delete
-                        </button>
+                        <div class="flex space-x-2">
+                            <button onclick="loadFullPlaidData('${conn.connection_id}')" class="text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 font-medium">
+                                Load Data
+                            </button>
+                            <button onclick="deleteConnection('${conn.connection_id}')" class="text-xs px-2 py-1 rounded-md bg-red-100 text-red-700 hover:bg-red-200">
+                                Delete
+                            </button>
+                        </div>
                     </div>
                 </div>
             `).join('');
@@ -429,7 +450,6 @@ function hidePlaidConnections() {
         section.classList.add('hidden');
     }
 }
-
 
 
 
@@ -483,21 +503,26 @@ window.deletePlaidConnection = deletePlaidConnection;
 window.togglePlaidConnection = togglePlaidConnection;
 window.updateConnectButton = updateConnectButton;
 window.loadPlaidPortfolio = loadPlaidPortfolio;
+window.loadPlaidTransactions = loadPlaidTransactions;
+window.loadFullPlaidData = loadFullPlaidData;
 window.testPlaidConnection = testPlaidConnection;
 window.checkExistingPlaidConnection = checkExistingPlaidConnection;
 window.autoConnectPlaid = autoConnectPlaid;
 window.showConnectionsManager = showConnectionsManager;
 window.hidePlaidConnections = hidePlaidConnections;
 
-// Load transaction data from Plaid
-async function loadPlaidTransactions() {
+// Load transaction data from Plaid (Updated for Chaining)
+async function loadPlaidTransactions(connectionId = null) {
     try {
         console.log('[PLAID] Loading transaction data...');
 
-        const userId = window.currentUser?.user_id || window.currentUser?.username || 'admin';
-        const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-transactions?user_id=${userId}`, {
-            credentials: 'include'
-        });
+        // Pass connectionId if available
+        let url = `${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-transactions?user_id=${window.currentUser?.user_id || 'admin'}`;
+        if (connectionId) {
+            url += `&connection_id=${connectionId}`;
+        }
+
+        const response = await fetch(url, { credentials: 'include' });
         const result = await response.json();
 
         if (result.success && result.transactions) {
@@ -532,9 +557,11 @@ async function loadPlaidTransactions() {
 
             console.log('[PLAID] Transaction data stored for analysis:', transactionData.length, 'transactions');
 
+            // OPTIONAL: Switch to transactions tab if needed, or just notify
+            // showSuccess(`Loaded ${transactionData.length} transactions`);
+
         } else {
             console.log('[PLAID] No transactions found or error:', result.error);
-            // Still store empty array to indicate transactions were checked
             window.currentTransactions = [];
             if (window.analyticsCore) {
                 window.analyticsCore.setTransactionData([]);
@@ -544,7 +571,6 @@ async function loadPlaidTransactions() {
 
     } catch (error) {
         console.error('[PLAID] Transaction load failed:', error);
+        throw error; // Re-throw to be caught by loadFullPlaidData
     }
 }
-
-window.loadPlaidTransactions = loadPlaidTransactions;

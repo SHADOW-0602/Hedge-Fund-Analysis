@@ -234,11 +234,13 @@ except Exception as e:
     logger.error(f"Failed to register transaction routes: {e}")
     import traceback
     traceback.print_exc()
+# Register admin routes (handles missing redis internally)
+register_admin_routes(app, redis_client)
+
 if redis_client:
-    register_admin_routes(app, redis_client)
     register_cache_routes(app, redis_client)
 else:
-    logger.warning("Redis not available - admin and cache routes disabled")
+    logger.warning("Redis not available - cache routes disabled")
 # Use secure Plaid routes
 from api.plaid_routes_secure import register_plaid_routes as register_secure_plaid_routes
 register_secure_plaid_routes(app)

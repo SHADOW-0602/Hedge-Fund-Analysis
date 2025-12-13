@@ -28,3 +28,5 @@ APScheduler==3.10.4
 beautifulsoup4==4.12.2
 google-generativeai>=0.4.0
 lxml==4.9.3
+plaid-python>=4.5.0
+pyarrow==14.0.1

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portfolio & Options Analysis Engine</title>
     <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="stylesheet" href="landing.css">
+    <link rel="stylesheet" href="css/landing.css">
     <link rel="stylesheet" href="css/chatbot.css">
     <script src="js/chatbot.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -126,13 +126,7 @@
     -->
 
     <!-- Tickers Portfolio Section -->
-    <section class="stocks-section">
-        <h2>News Summary</h2>
-        <p>Get instant AI-generated news summaries and sentiment analysis for any stock ticker</p>
-        <div id="stocks-grid" class="stocks-grid">
-            <div class="loading">Loading your tickers...</div>
-        </div>
-    </section>
+
 
     <!-- About Section -->
     <section id="about" class="about">
@@ -200,7 +194,12 @@
 
     <script>
         // Define API base URL
+        // Define API base URL with fallback for local file access
         globalThis.API_BASE = globalThis.location.origin;
+        if (globalThis.API_BASE === 'null' || globalThis.API_BASE.startsWith('file:')) {
+            globalThis.API_BASE = 'http://127.0.0.1:8080';
+            console.log('Running locally, set API_BASE to:', globalThis.API_BASE);
+        }
 
         // Smooth scrolling function
         function scrollToSection(sectionId) {

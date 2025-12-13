@@ -46,7 +46,12 @@ async function loadTaxAnalysis(transactions) {
     // Validate transactions
     if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
         console.log('No valid transactions for tax analysis');
-        container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for tax analysis</div>';
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Tax Analysis</h2>
+            </div>
+            <div class="text-center py-4 text-yellow-500">No transactions available for tax analysis</div>
+        `;
         return;
     }
 
@@ -68,7 +73,7 @@ function updateTaxOptions() {
         wash_sale: document.getElementById('washSale')?.value || 'Include',
         harvesting: document.getElementById('harvesting')?.value || 'Opportunities'
     };
-    
+
     console.log('Updating tax options from:', currentTaxOptions, 'to:', newOptions);
     currentTaxOptions = newOptions;
 }
@@ -84,7 +89,7 @@ async function fetchTaxAnalysis(transactions) {
                 <h2 class="text-2xl font-bold text-gray-900">Tax Analysis</h2>
             </div>
         ` : '';
-        
+
         container.innerHTML = `
             ${headerSection}
             <div class="text-center py-8 text-yellow-500">
@@ -101,7 +106,7 @@ async function fetchTaxAnalysis(transactions) {
     // Preserve settings state and values if they exist
     const settingsPanel = document.getElementById('taxSettings');
     const settingsHidden = settingsPanel ? settingsPanel.classList.contains('hidden') : true;
-    
+
     // Update current options from existing form values before regenerating HTML
     if (settingsPanel) {
         updateTaxOptions();
@@ -394,7 +399,7 @@ function showTaxError(message) {
                 </button>
             </div>
         ` : '';
-        
+
         container.innerHTML = `
             ${headerButton}
             <div class="bg-white rounded-lg shadow p-8 text-center text-red-600">
@@ -516,7 +521,7 @@ window.showTaxLossHarvestingPopup = (opportunities, potentialSavings) => {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(popup);
 };
 
@@ -537,7 +542,7 @@ window.togglePopupSettings = () => {
 window.applyFifoMethod = () => {
     // Close the popup
     closeTaxLossHarvestingPopup();
-    
+
     // Switch to FIFO/LIFO accounting analysis
     if (window.analyticsManager && window.analyticsManager.loadModule) {
         window.analyticsManager.loadModule('accounting-analysis');

@@ -4,6 +4,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     analysisButtons.forEach(button => {
         button.addEventListener('click', function () {
+            // Remove active class from all buttons
+            analysisButtons.forEach(btn => btn.classList.remove('active'));
+            // Add active class to clicked button
+            this.classList.add('active');
+
             const analysisType = this.getAttribute('data-analysis');
             showIndividualAnalysis(analysisType);
         });
@@ -118,15 +123,15 @@ function createIndividualAnalysisHTML(analysisType) {
     `;
 
     return `
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div class="analysis-card p-6 mb-8">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">${analysisConfig.title}</h2>
+                <h2 class="text-2xl font-bold text-primary">${analysisConfig.title}</h2>
                 ${buttonsHtml}
             </div>
             
             <div id="${analysisConfig.containerId}" class="min-h-96">
-                <div class="text-center py-12 text-blue-600">
-                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-2"></div>
+                <div class="text-center py-12 text-indigo-500">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mr-2"></div>
                     Loading ${analysisConfig.title.toLowerCase()}...
                 </div>
             </div>

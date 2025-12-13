@@ -4,7 +4,7 @@ function showLoading(show) {
     if (loadingOverlay) {
         loadingOverlay.style.display = show ? 'flex' : 'none';
     }
-    
+
     const loadingSection = document.getElementById('loadingSection');
     if (loadingSection) {
         if (show) {
@@ -34,7 +34,7 @@ function showNotification(message, type) {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.textContent = message;
-    
+
     container.appendChild(notification);
 
     setTimeout(() => {
@@ -53,7 +53,7 @@ function showCardLoading(cardId, loadingText = 'Loading...') {
         container.innerHTML = `
             <div class="flex items-center justify-center py-8">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3"></div>
-                <div class="text-gray-600">${loadingText}</div>
+                <div class="text-secondary">${loadingText}</div>
             </div>
         `;
     }
@@ -107,7 +107,7 @@ function showAnalysisTab(tabName) {
     event.target.classList.add('active');
 
     if (portfolioData) {
-        switch(tabName) {
+        switch (tabName) {
             case 'options':
                 loadOptionsAnalysis();
                 break;
@@ -129,13 +129,13 @@ function switchAnalysis(tabName) {
 
     document.querySelectorAll('#analysisSelector button').forEach(btn => {
         btn.classList.remove('tab-active');
-        btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+        btn.classList.add('bg-card', 'text-secondary', 'hover:bg-gray-100', 'dark:hover:bg-gray-700');
     });
 
     const activeBtn = document.getElementById(tabName + 'Tab');
     if (activeBtn) {
         activeBtn.classList.add('tab-active');
-        activeBtn.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+        activeBtn.classList.remove('bg-card', 'text-secondary', 'hover:bg-gray-100', 'dark:hover:bg-gray-700');
     }
 
     document.getElementById('portfolioAnalysis').classList.add('hidden');
@@ -196,10 +196,10 @@ function restoreApplicationState() {
         const savedState = localStorage.getItem('appState');
         if (savedState) {
             const state = JSON.parse(savedState);
-            
+
             if (Date.now() - state.timestamp < 24 * 60 * 60 * 1000) {
                 portfolioData = state.portfolioData;
-                
+
                 if (state.analyticsResults) {
                     setTimeout(() => {
                         restoreAnalyticsResults(state.analyticsResults);
@@ -216,7 +216,7 @@ function restoreApplicationState() {
 function getCurrentAnalysisType() {
     const portfolioSection = document.getElementById('portfolioAnalysis');
     const transactionSection = document.getElementById('transactionAnalysis');
-    
+
     if (portfolioSection && !portfolioSection.classList.contains('hidden')) {
         return 'portfolio';
     } else if (transactionSection && !transactionSection.classList.contains('hidden')) {
@@ -227,7 +227,7 @@ function getCurrentAnalysisType() {
 
 function getAnalyticsResults() {
     const results = {};
-    
+
     const portfolioCards = document.querySelectorAll('#portfolioAnalysis .analysis-card');
     portfolioCards.forEach(card => {
         const title = card.querySelector('h3')?.textContent;
@@ -236,7 +236,7 @@ function getAnalyticsResults() {
             results[title] = content;
         }
     });
-    
+
     const transactionCards = document.querySelectorAll('#transactionAnalysis .analysis-card');
     transactionCards.forEach(card => {
         const title = card.querySelector('h3')?.textContent;
@@ -245,7 +245,7 @@ function getAnalyticsResults() {
             results[title] = content;
         }
     });
-    
+
     const metrics = ['totalAUM', 'sharpeRatio', 'maxDrawdown', 'beta', 'totalTrades', 'winRate', 'avgTradeSize', 'turnoverRatio'];
     metrics.forEach(metric => {
         const element = document.getElementById(metric);
@@ -253,7 +253,7 @@ function getAnalyticsResults() {
             results[metric] = element.textContent;
         }
     });
-    
+
     return results;
 }
 
@@ -267,7 +267,7 @@ function restoreAnalyticsResults(results) {
             }
         }
     });
-    
+
     Object.keys(results).forEach(title => {
         if (!metrics.includes(title)) {
             const card = Array.from(document.querySelectorAll('.analysis-card h3')).find(h3 => h3.textContent === title);
@@ -284,7 +284,7 @@ function restoreAnalyticsResults(results) {
 function showAnalysisSection(type) {
     const portfolioSection = document.getElementById('portfolioAnalysis');
     const transactionSection = document.getElementById('transactionAnalysis');
-    
+
     if (type === 'portfolio' && portfolioSection) {
         portfolioSection.classList.remove('hidden');
         if (transactionSection) transactionSection.classList.add('hidden');

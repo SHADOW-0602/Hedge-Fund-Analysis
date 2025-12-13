@@ -26,7 +26,12 @@ async function loadCostAnalysis(transactions) {
 
     // Validate transactions
     if (!transactions || transactions.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for cost analysis</div>';
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white">Cost Analysis</h2>
+            </div>
+            <div class="text-center py-4 text-yellow-500">No transactions available for cost analysis</div>
+        `;
         return;
     }
 
@@ -122,10 +127,10 @@ async function fetchCostAnalysis(transactions) {
             </div>
         </div>
         
-        <div id="costContent" class="bg-white rounded-lg shadow p-12 text-center">
+        <div id="costContent" class="analysis-card p-12 text-center">
             <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-2">Calculating Costs</h3>
-            <p class="text-gray-600 mb-4">Processing your data...</p>
+            <h3 class="text-xl font-semibold text-primary mb-2">Calculating Costs</h3>
+            <p class="text-secondary mb-4">Processing your data...</p>
             <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
@@ -188,13 +193,13 @@ function displayCostAnalysis(data) {
 
     if (totalCosts === 0 && commissions === 0 && spreads === 0 && slippage === 0) {
         contentDiv.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-8 text-center">
+            <div class="analysis-card p-8 text-center">
                 <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <h3 class="text-xl font-semibold text-gray-900 mb-2">No Trading Costs Found</h3>
-                <p class="text-gray-600 mb-4">No commission fees, spreads, or slippage costs detected for the selected period.</p>
-                <p class="text-sm text-gray-500">This typically indicates commission-free trading or insufficient market data for cost estimation.</p>
+                <h3 class="text-xl font-semibold text-primary mb-2">No Trading Costs Found</h3>
+                <p class="text-secondary mb-4">No commission fees, spreads, or slippage costs detected for the selected period.</p>
+                <p class="text-sm text-secondary">This typically indicates commission-free trading or insufficient market data for cost estimation.</p>
             </div>
         `;
         return;
@@ -211,50 +216,50 @@ function displayCostAnalysis(data) {
 
     contentDiv.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Total Costs</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Total Costs</h3>
                 <p class="text-3xl font-bold text-red-600">
                     ${currencySymbol}${Math.abs(totalCosts).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-500 mt-1">${currentCostOptions.period}</p>
+                <p class="text-sm text-secondary mt-1">${currentCostOptions.period}</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Commissions</h3>
-                <p class="text-2xl font-bold text-white">
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Commissions</h3>
+                <p class="text-2xl font-bold text-primary">
                     ${currencySymbol}${Math.abs(commissions).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-500 mt-1">Direct Fees</p>
+                <p class="text-sm text-secondary mt-1">Direct Fees</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Est. Spreads</h3>
-                <p class="text-2xl font-bold text-white">
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Est. Spreads</h3>
+                <p class="text-2xl font-bold text-primary">
                     ${currencySymbol}${Math.abs(spreads).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-500 mt-1">Implicit Cost</p>
+                <p class="text-sm text-secondary mt-1">Implicit Cost</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Est. Slippage</h3>
-                <p class="text-2xl font-bold text-white">
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Est. Slippage</h3>
+                <p class="text-2xl font-bold text-primary">
                     ${currencySymbol}${Math.abs(slippage).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-500 mt-1">Market Impact</p>
+                <p class="text-sm text-secondary mt-1">Market Impact</p>
             </div>
         </div>
 
         ${breakdownHtml ? `
-            <div class="bg-white rounded-lg shadow p-6 mb-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">${breakdownType} Breakdown</h3>
+            <div class="analysis-card p-6 mb-6">
+                <h3 class="text-lg font-semibold text-primary mb-4">${breakdownType} Breakdown</h3>
                 <div class="space-y-2">${breakdownHtml}</div>
             </div>
         ` : ''}
 
-        <div class="bg-gray-50 rounded-lg p-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+        <div class="analysis-card p-6">
+            <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentCostOptions.period}</span></div>
-                <div><span class="text-gray-600">View:</span> <span class="font-medium text-gray-900">${currentCostOptions.view}</span></div>
-                <div><span class="text-gray-600">Breakdown:</span> <span class="font-medium text-gray-900">${breakdownType}</span></div>
-                <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium text-gray-900">${currentCostOptions.benchmark}</span></div>
+                <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentCostOptions.period}</span></div>
+                <div><span class="text-secondary">View:</span> <span class="font-medium text-primary">${currentCostOptions.view}</span></div>
+                <div><span class="text-secondary">Breakdown:</span> <span class="font-medium text-primary">${breakdownType}</span></div>
+                <div><span class="text-secondary">Benchmark:</span> <span class="font-medium text-primary">${currentCostOptions.benchmark}</span></div>
             </div>
         </div>
     `;
@@ -272,14 +277,14 @@ function createCostBreakdown(breakdownData, type, currencySymbol) {
             const name = item.name || 'Unknown';
 
             return `
-                <div class="flex flex-col py-3 border-b border-gray-200">
+                <div class="flex flex-col py-3 border-b border-card">
                     <div class="flex justify-between items-center mb-1">
-                        <span class="font-medium text-gray-900">${name}</span>
+                        <span class="font-medium text-primary">${name}</span>
                         <span class="font-semibold text-red-600">
                             ${currencySymbol}${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                     </div>
-                    <div class="flex justify-between text-xs text-gray-500 pl-2">
+                    <div class="flex justify-between text-xs text-secondary pl-2">
                         <span>Commission: ${currencySymbol}${comms.toFixed(2)}</span>
                         <span>Spreads: ${currencySymbol}${spreads.toFixed(2)}</span>
                         <span>Slippage: ${currencySymbol}${slippage.toFixed(2)}</span>
@@ -293,12 +298,12 @@ function showError(message) {
     const contentDiv = document.getElementById('costContent');
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-8 text-center text-red-600">
+            <div class="analysis-card p-8 text-center text-red-600">
                 <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p class="text-xl font-semibold mb-2">Analysis Error</p>
-                <p class="text-sm text-gray-600">${message}</p>
+                <p class="text-sm text-secondary">${message}</p>
             </div>
         `;
     }

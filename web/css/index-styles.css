@@ -679,6 +679,7 @@ select option {
     color: #f3f4f6;
     /* gray-100 */
 }
+
 /* Notification Container Positioning */
 #notificationContainer {
     position: fixed;
@@ -728,4 +729,67 @@ select option {
 /* Ensure text is readable */
 .notification .text-sm {
     color: inherit;
+}
+
+/* =========================================
+   NAVIGATION COMPONENTS
+   ========================================= */
+
+.nav-item {
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+    background: transparent;
+}
+
+.nav-item:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    transform: translateX(4px);
+}
+
+.nav-item.active {
+    background: var(--accent-color);
+    color: #ffffff;
+    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
+}
+
+.nav-section-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    background: rgba(99, 102, 241, 0.05);
+    /* Very light indigo tint */
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    margin-bottom: 0.5rem;
+    border: 1px solid transparent;
+}
+
+[data-theme="dark"] .nav-section-toggle {
+    background: rgba(99, 102, 241, 0.15);
+}
+
+.nav-section-toggle:hover {
+    background: rgba(99, 102, 241, 0.1);
+    border-color: var(--accent-color);
+}
+
+[data-theme="dark"] .nav-section-toggle:hover {
+    background: rgba(99, 102, 241, 0.25);
+}
+
+.nav-section-toggle span {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.nav-section-toggle svg {
+    color: var(--accent-color);
 }

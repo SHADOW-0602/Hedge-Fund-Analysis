@@ -61,11 +61,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Search Handler
         const searchInput = document.getElementById('tickerSearch');
         if (searchInput) {
+            searchInput.addEventListener('input', debounce(handleSearchInput, 300));
+
+            // Allow Enter key to select top result
             searchInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
-                    handleSearch(e.target.value);
-                    e.target.value = '';
-                    e.target.blur();
+                    const dropdown = document.getElementById('searchDropdown');
+                    const firstItem = dropdown.querySelector('.search-result-item');
+                    if (firstItem) {
+                        firstItem.click();
+                        e.target.blur();
+                    } else if (e.target.value.length >= 2) {
+                        // If no suggestions but user hits enter, try exact match
+                        selectTicker(e.target.value.toUpperCase());
+                        e.target.value = '';
+                        e.target.blur();
+                    }
+                }
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.search-container')) {
+                    const dropdown = document.getElementById('searchDropdown');
+                    if (dropdown) dropdown.classList.remove('show');
                 }
             });
         }
@@ -75,31 +94,99 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-async function handleSearch(query) {
-    if (!query) return;
-    const ticker = query.toUpperCase().trim();
-    if (ticker.length < 2 || ticker.length > 5) return; // Basic validation
+// Utility: Debounce
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func.apply(this, args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
 
-    if (currentTickers.includes(ticker)) {
-        // Exists
-        currentIndex = currentTickers.indexOf(ticker);
-        selectTicker(ticker);
+async function handleSearchInput(e) {
+    const query = e.target.value.trim();
+    const dropdown = document.getElementById('searchDropdown');
 
-        // Scroll to view
-        const item = document.querySelector(`[data-ticker="${ticker}"]`);
-        if (item) item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-        // New Ticker (Do not add to list, just show summary)
-        currentIndex = -1; // Reset index since it's not in the list
-
-        // Deselect all list items
-        document.querySelectorAll('.ticker-item').forEach(item => {
-            item.classList.remove('active');
-        });
-
-        // Select and generate
-        selectTicker(ticker);
+    if (query.length < 1) {
+        dropdown.classList.remove('show');
+        dropdown.innerHTML = '';
+        return;
     }
+
+    let results = [];
+
+    // 1. Search Local First (Instant)
+    const upperQuery = query.toUpperCase();
+    const localMatches = currentTickers.filter(t => t.includes(upperQuery));
+    localMatches.forEach(ticker => {
+        results.push({
+            symbol: ticker,
+            shortname: 'Watchlist Ticker',
+            type: 'LOCAL'
+        });
+    });
+
+    // 2. Fetch API Results
+    try {
+        const response = await fetch(`api/search?q=${encodeURIComponent(query)}`);
+        if (response.ok) {
+            const data = await response.json();
+            const quotes = data.quotes || [];
+
+            // Relaxed filtering: Check for valid symbol and ensure it's not already added from local
+            const apiMatches = quotes.filter(q => {
+                const type = (q.quoteType || '').toUpperCase();
+                return (type === 'EQUITY' || type === 'ETF' || type === 'MUTUALFUND');
+            }).map(q => ({
+                symbol: q.symbol,
+                shortname: q.shortname || q.longname || q.symbol,
+                type: 'API'
+            }));
+
+            // Merge unique
+            apiMatches.forEach(match => {
+                if (!results.find(r => r.symbol === match.symbol)) {
+                    results.push(match);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Search error:', error);
+    }
+
+    // Limit results
+    results = results.slice(0, 8);
+
+    if (results.length > 0) {
+        dropdown.innerHTML = results.map(quote => `
+            <div class="search-result-item" onclick="selectSearchResult('${quote.symbol}')">
+                <div style="display:flex; flex-direction:column;">
+                    <span class="result-symbol">${quote.symbol}</span>
+                    ${quote.type === 'LOCAL' ? '<span style="font-size:10px; color:var(--accent);">In Watchlist</span>' : ''}
+                </div>
+                <span class="result-name">${quote.shortname}</span>
+            </div>
+        `).join('');
+        dropdown.classList.add('show');
+    } else {
+        dropdown.innerHTML = '<div class="search-result-item" style="cursor:default; color:var(--text-secondary);">No results found</div>';
+        dropdown.classList.add('show');
+    }
+}
+
+function selectSearchResult(ticker) {
+    const searchInput = document.getElementById('tickerSearch');
+    const dropdown = document.getElementById('searchDropdown');
+
+    searchInput.value = ''; // Clear input
+    dropdown.classList.remove('show');
+
+    // Check if valid ticker via normal flow
+    selectTicker(ticker);
 }
 
 

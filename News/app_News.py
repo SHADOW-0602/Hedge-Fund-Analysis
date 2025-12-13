@@ -306,7 +306,7 @@ else:
 
 # Initialize scheduler for cache cleanup
 scheduler = BackgroundScheduler()
-scheduler.add_job(cache.cleanup_expired, 'interval', hours=1)
+scheduler.add_job(cache.cleanup_expired, 'interval', hours=1, misfire_grace_time=900)
 scheduler.start()
 logger.info("Cache cleanup scheduler started (runs every hour)")
 
@@ -3733,13 +3733,14 @@ def subscribe_email():
             return jsonify({'error': 'Valid email required'}), 400
         
         # Store subscription in database
-        db.add_subscription(email)
-        
-        return jsonify({
-            'success': True,
-            'message': 'Successfully subscribed to daily reports',
-            'email': email
-        })
+        if db.add_subscription(email):
+            return jsonify({
+                'success': True,
+                'message': 'Successfully subscribed to daily reports',
+                'email': email
+            })
+        else:
+            return jsonify({'error': 'Database error: Could not save subscription'}), 500
         
     except Exception as e:
         logger.error(f"Subscription error: {e}")

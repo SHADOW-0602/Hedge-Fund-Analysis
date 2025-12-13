@@ -64,7 +64,7 @@ window.displayStatisticalAnalysisResults = function (result, options) {
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900">Statistical Analysis - DEBUG MODE</h2>
             </div>
-            <div class="bg-white rounded-lg shadow p-8">
+            <div class="analysis-card p-8">
                 <h3 class="text-lg font-bold text-red-600 mb-4">DEBUG: No statistical data found</h3>
                 <div class="space-y-3 text-sm">
                     <div><strong>Raw result:</strong> <pre class="bg-gray-100 p-2 rounded text-xs overflow-auto">${JSON.stringify(result, null, 2)}</pre></div>
@@ -141,59 +141,59 @@ window.displayStatisticalAnalysisResults = function (result, options) {
         <div class="space-y-6">
             <!-- Summary Statistics -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Symbols Analyzed</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Symbols Analyzed</h3>
                     <p class="text-3xl font-bold text-blue-600">
                         ${allSymbols.length}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">Portfolio positions</p>
+                    <p class="text-sm text-secondary mt-1">Portfolio positions</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Data Points</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Data Points</h3>
                     <p class="text-3xl font-bold text-blue-600">
                         ${parameters.data_points || 'N/A'}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">${currentStatisticalOptions.frequency} observations</p>
+                    <p class="text-sm text-secondary mt-1">${currentStatisticalOptions.frequency} observations</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Benchmark</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Benchmark</h3>
                     <p class="text-3xl font-bold text-blue-600">
                         ${currentStatisticalOptions.benchmark}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">${parameters.benchmark || 'Market index'}</p>
+                    <p class="text-sm text-secondary mt-1">${parameters.benchmark || 'Market index'}</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Confidence Level</h3>
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Confidence Level</h3>
                     <p class="text-3xl font-bold text-blue-600">
                         ${(currentStatisticalOptions.confidence_level * 100).toFixed(0)}%
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">Statistical significance</p>
+                    <p class="text-sm text-secondary mt-1">Statistical significance</p>
                 </div>
             </div>
             
             <!-- Risk Metrics Table -->
             ${Object.keys(riskMetrics).length > 0 ? `
-                <div class="bg-white rounded-lg shadow p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Risk Metrics</h3>
+                <div class="analysis-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-primary mb-4">Risk Metrics</h3>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
+                        <table class="min-w-full divide-y divide-card">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
                                 <tr>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Volatility</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Sharpe Ratio</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">VaR</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">CVaR</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Max Drawdown</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Skewness</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Kurtosis</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-secondary uppercase">Symbol</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Volatility</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Sharpe Ratio</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">VaR</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">CVaR</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Max Drawdown</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Skewness</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Kurtosis</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
+                            <tbody class="bg-card divide-y divide-card">
                                 ${Object.entries(riskMetrics).map(([symbol, metrics]) => `
                                     <tr>
-                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${symbol}</td>
-                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center">${window.analyticsCore.formatPercent(metrics.volatility)}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-primary">${symbol}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center text-primary">${window.analyticsCore.formatPercent(metrics.volatility)}</td>
                                         <td class="px-4 py-2 whitespace-nowrap text-sm text-center ${metrics.sharpe_ratio > 1 ? 'text-green-600' : metrics.sharpe_ratio > 0 ? 'text-blue-600' : 'text-red-600'}">${window.analyticsCore.formatNumber(metrics.sharpe_ratio)}</td>
                                         <td class="px-4 py-2 whitespace-nowrap text-sm text-center text-red-600">${window.analyticsCore.formatPercent(metrics.var)}</td>
                                         <td class="px-4 py-2 whitespace-nowrap text-sm text-center text-red-600">${window.analyticsCore.formatPercent(metrics.cvar)}</td>
@@ -210,31 +210,31 @@ window.displayStatisticalAnalysisResults = function (result, options) {
             
             <!-- Performance Metrics Table -->
             ${Object.keys(performanceMetrics).length > 0 ? `
-                <div class="bg-white rounded-lg shadow p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Performance vs Benchmark</h3>
+                <div class="analysis-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-primary mb-4">Performance vs Benchmark</h3>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
+                        <table class="min-w-full divide-y divide-card">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
                                 <tr>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Beta</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Alpha</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">R-Squared</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Tracking Error</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Information Ratio</th>
-                                    <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Correlation</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-secondary uppercase">Symbol</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Beta</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Alpha</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">R-Squared</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Tracking Error</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Information Ratio</th>
+                                    <th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">Correlation</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
+                            <tbody class="bg-card divide-y divide-card">
                                 ${Object.entries(performanceMetrics).map(([symbol, metrics]) => `
                                     <tr>
-                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${symbol}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-primary">${symbol}</td>
                                         <td class="px-4 py-2 whitespace-nowrap text-sm text-center ${metrics.beta > 1.2 ? 'text-red-600' : metrics.beta < 0.8 ? 'text-green-600' : 'text-blue-600'}">${window.analyticsCore.formatNumber(metrics.beta)}</td>
                                         <td class="px-4 py-2 whitespace-nowrap text-sm text-center ${metrics.alpha > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatPercent(metrics.alpha)}</td>
-                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center">${window.analyticsCore.formatPercent(metrics.r_squared)}</td>
-                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center">${window.analyticsCore.formatPercent(metrics.tracking_error)}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center text-primary">${window.analyticsCore.formatPercent(metrics.r_squared)}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center text-primary">${window.analyticsCore.formatPercent(metrics.tracking_error)}</td>
                                         <td class="px-4 py-2 whitespace-nowrap text-sm text-center ${metrics.information_ratio > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatNumber(metrics.information_ratio)}</td>
-                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center">${window.analyticsCore.formatNumber(metrics.correlation_with_benchmark)}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center text-primary">${window.analyticsCore.formatNumber(metrics.correlation_with_benchmark)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -245,20 +245,20 @@ window.displayStatisticalAnalysisResults = function (result, options) {
             
             <!-- Correlation Analysis -->
             ${correlationAnalysis.matrix ? `
-                <div class="bg-white rounded-lg shadow p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Correlation Analysis</h3>
+                <div class="analysis-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-primary mb-4">Correlation Analysis</h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div class="text-center">
                             <div class="text-2xl font-bold text-blue-600">${window.analyticsCore.formatNumber(correlationAnalysis.average_correlation)}</div>
-                            <div class="text-sm text-gray-600">Average Correlation</div>
+                            <div class="text-sm text-secondary">Average Correlation</div>
                         </div>
                         <div class="text-center">
                             <div class="text-2xl font-bold text-red-600">${window.analyticsCore.formatNumber(correlationAnalysis.pairs ? Object.keys(correlationAnalysis.pairs).length : 0)}</div>
-                            <div class="text-sm text-gray-600">Correlation Pairs</div>
+                            <div class="text-sm text-secondary">Correlation Pairs</div>
                         </div>
                         <div class="text-center">
                             <div class="text-2xl font-bold text-green-600">${allSymbols.length}</div>
-                            <div class="text-sm text-gray-600">Symbols Analyzed</div>
+                            <div class="text-sm text-secondary">Symbols Analyzed</div>
                         </div>
                     </div>
                 </div>
@@ -266,39 +266,39 @@ window.displayStatisticalAnalysisResults = function (result, options) {
             
             <!-- Portfolio Metrics -->
             ${statisticalData.portfolio_metrics ? `
-                <div class="bg-white rounded-lg shadow p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Portfolio-Level Metrics</h3>
+                <div class="analysis-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-primary mb-4">Portfolio-Level Metrics</h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="text-center">
                             <div class="text-2xl font-bold ${statisticalData.portfolio_metrics.portfolio_beta > 1 ? 'text-red-600' : 'text-green-600'}">${window.analyticsCore.formatNumber(statisticalData.portfolio_metrics.portfolio_beta)}</div>
-                            <div class="text-sm text-gray-600">Portfolio Beta</div>
+                            <div class="text-sm text-secondary">Portfolio Beta</div>
                         </div>
                         <div class="text-center">
                             <div class="text-2xl font-bold ${statisticalData.portfolio_metrics.portfolio_alpha > 0 ? 'text-green-600' : 'text-red-600'}">${window.analyticsCore.formatPercent(statisticalData.portfolio_metrics.portfolio_alpha)}</div>
-                            <div class="text-sm text-gray-600">Portfolio Alpha</div>
+                            <div class="text-sm text-secondary">Portfolio Alpha</div>
                         </div>
                         <div class="text-center">
                             <div class="text-2xl font-bold ${statisticalData.portfolio_metrics.portfolio_sharpe > 1 ? 'text-green-600' : 'text-blue-600'}">${window.analyticsCore.formatNumber(statisticalData.portfolio_metrics.portfolio_sharpe)}</div>
-                            <div class="text-sm text-gray-600">Portfolio Sharpe</div>
+                            <div class="text-sm text-secondary">Portfolio Sharpe</div>
                         </div>
                     </div>
                 </div>
             ` : ''}
             
             <!-- Analysis Parameters -->
-            <div class="bg-gray-50 rounded-lg p-6">
-                <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+            <div class="analysis-card p-6">
+                <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div><span class="text-gray-600">Lookback Period:</span> <span class="font-medium text-gray-900">${currentStatisticalOptions.lookback_period}</span></div>
-                    <div><span class="text-gray-600">Frequency:</span> <span class="font-medium text-gray-900">${currentStatisticalOptions.frequency}</span></div>
-                    <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium text-gray-900">${currentStatisticalOptions.benchmark}</span></div>
-                    <div><span class="text-gray-600">Confidence Level:</span> <span class="font-medium text-gray-900">${(currentStatisticalOptions.confidence_level * 100).toFixed(0)}%</span></div>
+                    <div><span class="text-secondary">Lookback Period:</span> <span class="font-medium text-primary">${currentStatisticalOptions.lookback_period}</span></div>
+                    <div><span class="text-secondary">Frequency:</span> <span class="font-medium text-primary">${currentStatisticalOptions.frequency}</span></div>
+                    <div><span class="text-secondary">Benchmark:</span> <span class="font-medium text-primary">${currentStatisticalOptions.benchmark}</span></div>
+                    <div><span class="text-secondary">Confidence Level:</span> <span class="font-medium text-primary">${(currentStatisticalOptions.confidence_level * 100).toFixed(0)}%</span></div>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
-                    <div><span class="text-gray-600">Data Points:</span> <span class="font-medium text-gray-900">${parameters.data_points || 'N/A'}</span></div>
-                    <div><span class="text-gray-600">Symbols:</span> <span class="font-medium text-gray-900">${allSymbols.length}</span></div>
-                    <div><span class="text-gray-600">Risk Metrics:</span> <span class="font-medium text-gray-900">${Object.keys(riskMetrics).length}</span></div>
-                    <div><span class="text-gray-600">Performance Metrics:</span> <span class="font-medium text-gray-900">${Object.keys(performanceMetrics).length}</span></div>
+                    <div><span class="text-secondary">Data Points:</span> <span class="font-medium text-primary">${parameters.data_points || 'N/A'}</span></div>
+                    <div><span class="text-secondary">Symbols:</span> <span class="font-medium text-primary">${allSymbols.length}</span></div>
+                    <div><span class="text-secondary">Risk Metrics:</span> <span class="font-medium text-primary">${Object.keys(riskMetrics).length}</span></div>
+                    <div><span class="text-secondary">Performance Metrics:</span> <span class="font-medium text-primary">${Object.keys(performanceMetrics).length}</span></div>
                 </div>
             </div>
         </div>
@@ -358,10 +358,10 @@ window.updateStatisticalAnalysis = () => {
                     Analyzing...
                 </button>
             </div>
-            <div class="bg-white rounded-lg shadow p-12 text-center">
+            <div class="analysis-card p-12 text-center">
                 <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-                <h3 class="text-xl font-semibold text-gray-900 mb-2">Calculating Statistics</h3>
-                <p class="text-gray-600 mb-4">Analyzing portfolio statistics...</p>
+                <h3 class="text-xl font-semibold text-primary mb-2">Calculating Statistics</h3>
+                <p class="text-secondary mb-4">Analyzing portfolio statistics...</p>
             </div>
         `;
     }

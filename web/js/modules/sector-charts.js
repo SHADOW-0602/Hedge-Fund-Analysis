@@ -16,7 +16,7 @@ class SectorCharts {
         if (!container || !this.currentData) return;
 
         const sectorData = this.currentData.sector_allocation || {};
-        
+
         switch (this.currentView) {
             case 'pie':
                 this.renderPieChart(container, sectorData);
@@ -38,8 +38,8 @@ class SectorCharts {
 
         // Use Chart.js for pie chart
         container.innerHTML = `
-            <div class="bg-white p-4 rounded-lg border">
-                <h4 class="text-lg font-semibold mb-4">Sector Allocation - Pie Chart</h4>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                <h4 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Sector Allocation - Pie Chart</h4>
                 <div class="flex items-center justify-center">
                     <div style="width: 400px; height: 300px;">
                         <canvas id="sectorPieChart" width="400" height="300"></canvas>
@@ -57,7 +57,12 @@ class SectorCharts {
                 if (existingChart) {
                     existingChart.destroy();
                 }
-                
+
+                const isDark = document.documentElement.classList.contains('dark');
+                const themeColors = {
+                    text: isDark ? '#e5e7eb' : '#374151'
+                };
+
                 new Chart(ctx, {
                     type: 'pie',
                     data: {
@@ -66,7 +71,7 @@ class SectorCharts {
                             data: data.map(item => item.value),
                             backgroundColor: data.map(item => this.getColor(item.name)),
                             borderWidth: 2,
-                            borderColor: '#fff'
+                            borderColor: isDark ? '#1f2937' : '#fff'
                         }]
                     },
                     options: {
@@ -77,12 +82,13 @@ class SectorCharts {
                                 position: 'right',
                                 labels: {
                                     usePointStyle: true,
-                                    padding: 20
+                                    padding: 20,
+                                    color: themeColors.text
                                 }
                             },
                             tooltip: {
                                 callbacks: {
-                                    label: function(context) {
+                                    label: function (context) {
                                         return context.label + ': ' + context.parsed.toFixed(1) + '%';
                                     }
                                 }
@@ -102,8 +108,8 @@ class SectorCharts {
 
         // Use Chart.js for bar chart
         container.innerHTML = `
-            <div class="bg-white p-4 rounded-lg border">
-                <h4 class="text-lg font-semibold mb-4">Sector Allocation - Bar Chart</h4>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                <h4 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Sector Allocation - Bar Chart</h4>
                 <div style="width: 100%; height: 400px;">
                     <canvas id="sectorBarChart" width="800" height="400"></canvas>
                 </div>
@@ -119,7 +125,13 @@ class SectorCharts {
                 if (existingChart) {
                     existingChart.destroy();
                 }
-                
+
+                const isDark = document.documentElement.classList.contains('dark');
+                const themeColors = {
+                    text: isDark ? '#e5e7eb' : '#374151',
+                    grid: isDark ? '#374151' : '#e5e7eb'
+                };
+
                 new Chart(ctx, {
                     type: 'bar',
                     data: {
@@ -136,13 +148,19 @@ class SectorCharts {
                         responsive: true,
                         maintainAspectRatio: false,
                         scales: {
+                            x: {
+                                ticks: { color: themeColors.text },
+                                grid: { color: themeColors.grid }
+                            },
                             y: {
                                 beginAtZero: true,
                                 ticks: {
-                                    callback: function(value) {
+                                    color: themeColors.text,
+                                    callback: function (value) {
                                         return value + '%';
                                     }
-                                }
+                                },
+                                grid: { color: themeColors.grid }
                             }
                         },
                         plugins: {
@@ -151,7 +169,7 @@ class SectorCharts {
                             },
                             tooltip: {
                                 callbacks: {
-                                    label: function(context) {
+                                    label: function (context) {
                                         return context.dataset.label + ': ' + context.parsed.y.toFixed(1) + '%';
                                     }
                                 }
@@ -172,8 +190,8 @@ class SectorCharts {
 
         // Use D3.js for treemap
         container.innerHTML = `
-            <div class="bg-white p-4 rounded-lg border">
-                <h4 class="text-lg font-semibold mb-4">Sector Allocation - Treemap</h4>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                <h4 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Sector Allocation - Treemap</h4>
                 <div id="sectorTreemap" style="width: 100%; height: 400px;"></div>
             </div>
         `;
@@ -190,7 +208,7 @@ class SectorCharts {
                     .attr('width', width)
                     .attr('height', height);
 
-                const root = d3.hierarchy({children: data})
+                const root = d3.hierarchy({ children: data })
                     .sum(d => d.value)
                     .sort((a, b) => b.value - a.value);
 
@@ -204,11 +222,13 @@ class SectorCharts {
                     .enter().append('g')
                     .attr('transform', d => `translate(${d.x0},${d.y0})`);
 
+                const isDark = document.documentElement.classList.contains('dark');
+
                 leaf.append('rect')
                     .attr('width', d => d.x1 - d.x0)
                     .attr('height', d => d.y1 - d.y0)
                     .attr('fill', d => this.getColor(d.data.name))
-                    .attr('stroke', 'white')
+                    .attr('stroke', isDark ? '#1f2937' : 'white')
                     .attr('stroke-width', 2);
 
                 leaf.append('text')
@@ -235,39 +255,39 @@ class SectorCharts {
             // Technology sectors
             'Technology': '#3B82F6',
             'Software': '#1E40AF',
-            
+
             // Financial sectors
             'Financials': '#10B981',
             'Financial': '#059669',
             'Financial Services': '#047857',
-            
+
             // Healthcare
             'Healthcare': '#F59E0B',
             'Health Care': '#D97706',
-            
+
             // Consumer sectors
             'Consumer Discretionary': '#EF4444',
             'Consumer Cyclical': '#DC2626',
             'Consumer Staples': '#84CC16',
             'Consumer Defensive': '#65A30D',
-            
+
             // Communication
             'Communication Services': '#14B8A6',
             'Communication': '#0F766E',
-            
+
             // Industrial
             'Industrials': '#06B6D4',
             'Industrial': '#0891B2',
-            
+
             // Materials & Energy
             'Materials': '#8B5CF6',
             'Basic Materials': '#7C3AED',
             'Energy': '#F97316',
-            
+
             // Utilities & Real Estate
             'Utilities': '#6366F1',
             'Real Estate': '#EC4899',
-            
+
             // ETFs and Special
             'Broad Market ETF': '#F59E0B',
             'Technology ETF': '#3B82F6',
@@ -275,7 +295,7 @@ class SectorCharts {
             'Healthcare ETF': '#F59E0B',
             'Energy ETF': '#F97316',
             'International ETF': '#8B5CF6',
-            
+
             // Other
             'Other': '#6B7280',
             'Unknown': '#9CA3AF'
@@ -292,7 +312,7 @@ window.updateSectorView = () => {
     const viewSelect = document.getElementById('sectorView');
     if (viewSelect && window.sectorCharts && window.sectorCharts.currentData) {
         window.sectorCharts.updateView(viewSelect.value, window.sectorCharts.currentData);
-        
+
         // Update the analysis parameters display
         const viewParam = document.querySelector('[data-param="view"]');
         if (viewParam) {

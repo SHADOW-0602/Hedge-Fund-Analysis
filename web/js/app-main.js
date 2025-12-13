@@ -180,7 +180,7 @@ async function loadTransactionAnalytics(transactions) {
     showAllTransactionCardLoading();
 
     try {
-        const response = await fetch(`${API_BASE}/analyze-transactions`, {
+        const response = await fetch(`${API_BASE}/api/analyze-transactions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transactions })

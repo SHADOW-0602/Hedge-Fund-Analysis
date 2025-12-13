@@ -435,14 +435,30 @@ function viewSelectedTransactions() {
         if (deletePortfolioBtn) deletePortfolioBtn.style.display = 'none';
 
         // Show transaction analysis
+        // Show transaction analysis
         const transactionAnalysis = document.getElementById('transactionAnalysis');
         if (transactionAnalysis) {
-            transactionAnalysis.classList.remove('hidden');
-            transactionAnalysis.scrollIntoView({ behavior: 'smooth' });
+            transactionAnalysis.classList.add('hidden'); // Ensure analysis is hidden
+
+            // Also show the data table as requested by user
+            if (typeof window.viewLoadedData === 'function') {
+                // Pass 'transactions' preference to prioritize this data type
+                setTimeout(() => window.viewLoadedData('transactions'), 100);
+            }
         }
 
         // Robust data extraction
-        const transactionData = fileData.transactions_data || fileData.data || fileData.transactions || [];
+        let transactionData = fileData.transactions_data || fileData.data || fileData.transactions || [];
+
+        // Ensure data is parsed if arriving as string (common with some DB adapters)
+        if (typeof transactionData === 'string') {
+            try {
+                transactionData = JSON.parse(transactionData);
+            } catch (e) {
+                console.error('Failed to parse transaction JSON:', e);
+                transactionData = [];
+            }
+        }
 
         if (!transactionData || transactionData.length === 0) {
             showError('File contains no transaction data.');
@@ -451,11 +467,15 @@ function viewSelectedTransactions() {
 
         // Set global transaction data
         window.currentTransactions = transactionData;
+        window.portfolioData = []; // Clear portfolio data to prevent confusion
         localStorage.setItem('currentTransactions', JSON.stringify(transactionData));
+        localStorage.removeItem('currentPortfolio'); // Clear portfolio from local storage
 
         window.currentDataType = 'transaction';
         window.currentDataIndex = index;
 
+        // Skip loading analysis for now as per user request
+        /*
         showAllTransactionCardLoading();
 
         // Load all transaction analytics
@@ -467,33 +487,102 @@ function viewSelectedTransactions() {
             // Fallback to analyzeTransactionData
             analyzeTransactionData(transactionData);
         }
+        */
 
     } catch (error) {
         showError('Failed to load transaction data: ' + error.message);
     }
 }
 
-function downloadSampleTransactions() {
-    const csvContent = `symbol,quantity,price,date,transaction_type,fees,portfolio,currency
-CASH,10000,1.00,2024-01-01,DEPOSIT,0,Main,USD
-AAPL,100,150.00,2024-01-15,BUY,9.95,Main,USD
-MSFT,50,280.00,2024-01-20,BUY,9.95,Main,USD
-GOOGL,25,2500.00,2024-01-25,BUY,9.95,Main,USD
-AAPL,-50,160.00,2024-02-15,SELL,9.95,Main,USD
-AAPL,25,2.50,2024-03-15,DIVIDEND,0,Main,USD
-TSLA,75,200.00,2024-02-01,BUY,9.95,Main,USD
-CASH,500,1.00,2024-03-01,INTEREST,0,Main,USD
-NVDA,30,400.00,2024-02-10,BUY,9.95,Main,USD
-META,40,320.75,2024-02-20,BUY,9.95,Main,USD`;
+async function downloadSampleTransactions() {
+    // Check for logged in user
+    if (!currentUser || !currentUser.user_id) {
+        showError('Please login to export transactions');
+        return;
+    }
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'sample_transactions.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
-    showSuccess('Sample transactions CSV downloaded');
+    showLoading(true);
+
+    try {
+        let transactionsToExport = [];
+
+        // 1. Prioritize currently viewed transactions
+        if (window.currentTransactions && window.currentTransactions.length > 0) {
+            transactionsToExport = window.currentTransactions;
+            console.log('Exporting currently viewed transactions');
+        }
+        // 2. Fallback to most recent uploaded file if available in memory
+        else if (window.userTransactions && window.userTransactions.length > 0) {
+            console.log('Exporting most recent transaction file from memory');
+            const latest = window.userTransactions[0];
+            let data = latest.transactions_data || latest.data || [];
+
+            if (typeof data === 'string') {
+                try { data = JSON.parse(data); } catch (e) { data = []; }
+            }
+            transactionsToExport = data;
+        }
+        // 3. Fallback to API fetch
+        else {
+            console.log('Fetching transactions from API for export');
+            const url = `${API_BASE}/api/load-transactions?user_id=${currentUser.user_id}&_t=${Date.now()}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.success && Array.isArray(data.transactions) && data.transactions.length > 0) {
+                const latest = data.transactions[0];
+                let txData = latest.transactions_data || latest.data || [];
+                if (typeof txData === 'string') {
+                    try { txData = JSON.parse(txData); } catch (e) { txData = []; }
+                }
+                transactionsToExport = txData;
+            }
+        }
+
+        if (!transactionsToExport || transactionsToExport.length === 0) {
+            showError('No transaction data found to export.');
+            showLoading(false);
+            return;
+        }
+
+        // Generate CSV
+        const headers = ['symbol', 'quantity', 'price', 'date', 'transaction_type', 'fees', 'portfolio', 'currency'];
+        const csvRows = [headers.join(',')];
+
+        transactionsToExport.forEach(t => {
+            const row = headers.map(header => {
+                // Handle case-insensitivity and missing values
+                let val = t[header] !== undefined ? t[header] :
+                    (t[header.toUpperCase()] !== undefined ? t[header.toUpperCase()] : '');
+
+                // Escape quotes if string
+                if (typeof val === 'string') {
+                    val = val.replace(/"/g, '""');
+                }
+                return `"${val}"`;
+            });
+            csvRows.push(row.join(','));
+        });
+
+        const csvContent = csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'export_transactions.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        showSuccess('Transactions exported successfully');
+
+    } catch (error) {
+        console.error('Export failed:', error);
+        showError('Failed to export transactions: ' + error.message);
+    } finally {
+        showLoading(false);
+    }
 }
 
 async function deleteSelectedTransactions() {

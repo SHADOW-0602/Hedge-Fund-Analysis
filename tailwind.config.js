@@ -19,7 +19,15 @@ module.exports = {
           700: '#4338ca',
           800: '#3730a3',
           900: '#312e81',
-        }
+        },
+        // Theme-aware colors
+        primary: 'var(--text-primary)',
+        secondary: 'var(--text-secondary)',
+        accent: 'var(--accent-color)',
+        card: 'var(--bg-card)',
+        'card-hover': 'var(--bg-card-hover)',
+        'border-card': 'var(--border-card)',
+        body: 'var(--bg-body)',
       }
     },
   },

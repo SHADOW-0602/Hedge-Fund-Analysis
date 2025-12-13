@@ -174,7 +174,7 @@ function exportCorrelationMatrix() {
 function toggleSection(sectionId) {
     const section = document.getElementById(sectionId);
     const chevron = document.getElementById(sectionId.replace('Section', 'Chevron'));
-    
+
     if (section) {
         section.classList.toggle('hidden');
         if (chevron) {
@@ -200,7 +200,7 @@ function refreshTransactionAnalysis() {
 function showPortfolioAnalysis() {
     const portfolioAnalysis = document.getElementById('portfolioAnalysis');
     const transactionAnalysis = document.getElementById('transactionAnalysis');
-    
+
     if (portfolioAnalysis) {
         portfolioAnalysis.classList.remove('hidden');
     }
@@ -212,7 +212,7 @@ function showPortfolioAnalysis() {
 function showTransactionAnalysis() {
     const portfolioAnalysis = document.getElementById('portfolioAnalysis');
     const transactionAnalysis = document.getElementById('transactionAnalysis');
-    
+
     if (portfolioAnalysis) {
         portfolioAnalysis.classList.add('hidden');
     }
@@ -227,17 +227,17 @@ function showDefaultUpload() {
         window.navigationManager.showDefaultUpload();
         return;
     }
-    
+
     // Fallback implementation
     const sectionsToHide = [
         'portfolioAnalysis',
-        'transactionAnalysis', 
+        'transactionAnalysis',
         'analysisContainer',
         'analysisContent',
         'dataPreview',
         'loadingSection'
     ];
-    
+
     sectionsToHide.forEach(sectionId => {
         const section = document.getElementById(sectionId);
         if (section) {
@@ -245,17 +245,17 @@ function showDefaultUpload() {
             section.style.display = 'none'; // Force hide
         }
     });
-    
+
     // Show default upload section
     const defaultSection = document.getElementById('defaultUploadSection');
     if (defaultSection) {
         defaultSection.classList.remove('hidden');
         defaultSection.style.display = 'block'; // Force show
     }
-    
+
     // Clear any loading spinners
     clearAllLoadingSpinners();
-    
+
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -274,25 +274,25 @@ function hideDataActions() {
     }
 }
 
-function viewLoadedData() {
+function viewLoadedData(preferredType = null) {
     const dataPreview = document.getElementById('dataPreview');
     const dataPreviewContent = document.getElementById('dataPreviewContent');
-    
+
     if (!dataPreview || !dataPreviewContent) {
         console.error('Data preview elements not found');
         return;
     }
-    
+
     // Collect all available data sources (deduplicated)
     const dataSources = [];
     const addedTypes = new Set();
-    
+
     // Check portfolio data (prioritize memory over stored)
-    if (window.portfolioData && window.portfolioData.length > 0) {
+    if (window.portfolioData && Array.isArray(window.portfolioData) && window.portfolioData.length > 0) {
         // Detect if data comes from Plaid
-        const isPlaidData = window.portfolioData.some(p => 
-            p.data_source === 'Plaid' || 
-            p.source === 'plaid' || 
+        const isPlaidData = window.portfolioData.some(p =>
+            p.data_source === 'Plaid' ||
+            p.source === 'plaid' ||
             p.portfolio === 'RobinHood'
         );
         const dataType = isPlaidData ? 'Portfolio Data (Plaid)' : 'Portfolio Data (Memory)';
@@ -313,13 +313,13 @@ function viewLoadedData() {
             }
         }
     }
-    
+
     // Check transaction data (prioritize memory over stored)
-    if (window.currentTransactions && window.currentTransactions.length > 0) {
+    if (window.currentTransactions && Array.isArray(window.currentTransactions) && window.currentTransactions.length > 0) {
         // Detect if data comes from Plaid
-        const isPlaidData = window.currentTransactions.some(t => 
-            t.data_source === 'Plaid' || 
-            t.source === 'plaid' || 
+        const isPlaidData = window.currentTransactions.some(t =>
+            t.data_source === 'Plaid' ||
+            t.source === 'plaid' ||
             t.portfolio === 'RobinHood' ||
             (t.account_id && t.account_id.includes('Plaid'))
         );
@@ -341,9 +341,9 @@ function viewLoadedData() {
             }
         }
     }
-    
 
-    
+
+
     // Check saved files
     const portfolioFiles = JSON.parse(localStorage.getItem('portfolioFiles') || '[]');
     portfolioFiles.forEach((file, index) => {
@@ -351,14 +351,14 @@ function viewLoadedData() {
             dataSources.push({ type: `Portfolio File: ${file.filename}`, data: file.data, source: 'file', index });
         }
     });
-    
+
     const transactionFiles = JSON.parse(localStorage.getItem('transactionFiles') || '[]');
     transactionFiles.forEach((file, index) => {
         if (file.data && file.data.length > 0) {
             dataSources.push({ type: `Transaction File: ${file.filename}`, data: file.data, source: 'file', index });
         }
     });
-    
+
     if (dataSources.length === 0) {
         dataPreviewContent.innerHTML = `
             <div class="text-center py-8">
@@ -375,78 +375,98 @@ function viewLoadedData() {
         // Create data source selector and display
         let html = `
             <div class="mb-6">
-                <h3 class="text-lg font-bold text-gray-900 mb-4">Available Data Sources (${dataSources.length})</h3>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Available Data Sources (${dataSources.length})</h3>
                 <div class="mb-4">
-                    <select id="dataSourceSelector" class="w-full p-2 border rounded-md" onchange="switchDataView()">
+                    <select id="dataSourceSelector" class="w-full p-2 border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500" onchange="switchDataView()">
         `;
-        
+
         dataSources.forEach((source, index) => {
             html += `<option value="${index}">${source.type} (${source.data.length} records)</option>`;
         });
-        
+
         html += `
                     </select>
                 </div>
                 <div id="currentDataView"></div>
             </div>
         `;
-        
+
         dataPreviewContent.innerHTML = html;
-        
+
         // Store data sources globally for switching
         window.availableDataSources = dataSources;
-        
+
         // Show first data source by default
-        switchDataView(0);
+        // Determine initial index based on preferredType
+        let initialIndex = 0;
+        if (preferredType) {
+            if (preferredType === 'transactions') {
+                const txIndex = dataSources.findIndex(s => s.type.toLowerCase().includes('transaction'));
+                if (txIndex >= 0) initialIndex = txIndex;
+            } else if (preferredType === 'portfolio') {
+                const pfIndex = dataSources.findIndex(s => s.type.toLowerCase().includes('portfolio'));
+                if (pfIndex >= 0) initialIndex = pfIndex;
+            }
+        }
+
+        switchDataView(initialIndex);
+
+        // Update selector value to match
+        const selector = document.getElementById('dataSourceSelector');
+        if (selector) selector.value = initialIndex;
     }
-    
+
     // Show the preview section
     dataPreview.classList.remove('hidden');
     dataPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+
+
 function switchDataView(index) {
     const selector = document.getElementById('dataSourceSelector');
     const viewContainer = document.getElementById('currentDataView');
-    
+
     if (!selector || !viewContainer || !window.availableDataSources) return;
-    
+
     const selectedIndex = index !== undefined ? index : parseInt(selector.value);
     const selectedSource = window.availableDataSources[selectedIndex];
-    
+
     if (!selectedSource) return;
-    
+
     const data = selectedSource.data;
     const headers = Object.keys(data[0]);
     const maxRows = data.length;
-    
+
     let tableHTML = `
         <div class="mb-4">
             <div class="flex justify-between items-center mb-2">
-                <h4 class="font-semibold text-gray-900">${selectedSource.type}</h4>
-                <span class="text-sm text-gray-500">${selectedSource.source}</span>
+                <h4 class="font-semibold text-gray-900 dark:text-white">${selectedSource.type}</h4>
+                <span class="text-sm text-gray-500 dark:text-gray-400">${selectedSource.source}</span>
             </div>
-            <p class="text-sm text-gray-600">Showing all ${data.length} records</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Showing all ${data.length} records</p>
         </div>
-        <div class="overflow-x-auto border rounded-lg">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+        <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white dark:bg-gray-800">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-indigo-50 dark:bg-gray-700">
                     <tr>
     `;
-    
+
     headers.forEach(header => {
-        tableHTML += `<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">${header}</th>`;
+        tableHTML += `<th class="px-6 py-3 text-left text-xs font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">${header.replace(/_/g, ' ')}</th>`;
     });
-    
+
     tableHTML += `
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
     `;
-    
+
     for (let i = 0; i < maxRows; i++) {
         const row = data[i];
-        tableHTML += '<tr class="hover:bg-gray-50">';
+        const rowClass = i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'; // Zebra striping
+
+        tableHTML += `<tr class="${rowClass} hover:bg-indigo-50/50 dark:hover:bg-indigo-900/20 transition-colors duration-150">`;
         headers.forEach(header => {
             const value = row[header] || '';
             let displayValue = value;
@@ -455,19 +475,23 @@ function switchDataView(index) {
             } else if (typeof value === 'string' && value.length > 30) {
                 displayValue = value.substring(0, 30) + '...';
             }
-            tableHTML += `<td class="px-4 py-3 text-sm text-gray-900" title="${value}">${displayValue}</td>`;
+
+            // Format specific columns if needed
+            if ((header.includes('price') || header.includes('value') || header.includes('cost')) && typeof value === 'number') {
+                displayValue = '$' + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+
+            tableHTML += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300" title="${value}">${displayValue}</td>`;
         });
         tableHTML += '</tr>';
     }
-    
+
     tableHTML += `
                 </tbody>
             </table>
         </div>
     `;
-    
 
-    
     viewContainer.innerHTML = tableHTML;
 }
 
@@ -536,7 +560,7 @@ function clearAllLoadingSpinners() {
         'costAnalysis', 'turnoverAnalysis', 'taxAnalysis', 'cashFlowAnalysis',
         'fifoLifoAnalysis', 'tradeTimingAnalysis', 'drawdownAnalysis', 'returnAttribution'
     ];
-    
+
     loadingContainers.forEach(containerId => {
         const container = document.getElementById(containerId);
         if (container) {
@@ -545,7 +569,7 @@ function clearAllLoadingSpinners() {
             loadingElements.forEach(el => el.remove());
         }
     });
-    
+
     // Also clear main loading section
     const loadingSection = document.getElementById('loadingSection');
     if (loadingSection) {
@@ -585,7 +609,7 @@ function initMobileSidebar() {
         mobileBtn.onclick = toggleMobileSidebar;
         document.body.appendChild(mobileBtn);
     }
-    
+
     // Add mobile overlay if it doesn't exist
     if (!document.getElementById('mobileOverlay')) {
         const overlay = document.createElement('div');
@@ -599,7 +623,7 @@ function initMobileSidebar() {
 function toggleMobileSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('mobileOverlay');
-    
+
     if (sidebar && overlay) {
         sidebar.classList.toggle('mobile-open');
         overlay.classList.toggle('active');
@@ -609,7 +633,7 @@ function toggleMobileSidebar() {
 function closeMobileSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('mobileOverlay');
-    
+
     if (sidebar && overlay) {
         sidebar.classList.remove('mobile-open');
         overlay.classList.remove('active');
@@ -633,7 +657,7 @@ window.initMobileSidebar = initMobileSidebar;
 // Options analysis functions
 async function scanOptions() {
     console.log('scanOptions called');
-    
+
     // Check if we have portfolio data
     const portfolioData = window.portfolioData || window.currentPortfolioData;
     if (!portfolioData || portfolioData.length === 0) {
@@ -644,11 +668,11 @@ async function scanOptions() {
         }
         return;
     }
-    
+
     // Extract symbols from portfolio
     const symbols = portfolioData.map(p => p.symbol).filter(s => s && s.trim());
     console.log('Scanning options for symbols:', symbols);
-    
+
     if (symbols.length === 0) {
         if (window.showError) {
             window.showError('No valid symbols found in portfolio');
@@ -657,7 +681,7 @@ async function scanOptions() {
         }
         return;
     }
-    
+
     // Show loading
     const resultsContainer = document.getElementById('optionsResults');
     if (resultsContainer) {
@@ -669,7 +693,7 @@ async function scanOptions() {
             </div>
         `;
     }
-    
+
     try {
         const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
         const response = await fetch(`${API_BASE}/api/scan-options`, {
@@ -686,10 +710,10 @@ async function scanOptions() {
                 }
             })
         });
-        
+
         const data = await response.json();
         console.log('Options scan response:', data);
-        
+
         if (data.success) {
             displayOptionsResults(data.opportunities || [], data.summary || {});
             if (window.showSuccess) {
@@ -717,9 +741,9 @@ async function scanOptions() {
 function displayOptionsResults(opportunities, summary) {
     const resultsContainer = document.getElementById('optionsResults');
     if (!resultsContainer) return;
-    
+
     console.log('Displaying options results:', { opportunities: opportunities.length, summary });
-    
+
     if (opportunities.length === 0) {
         resultsContainer.innerHTML = `
             <div class="text-center py-8">
@@ -734,7 +758,7 @@ function displayOptionsResults(opportunities, summary) {
         `;
         return;
     }
-    
+
     // Group opportunities by symbol
     const bySymbol = {};
     opportunities.forEach(opp => {
@@ -742,7 +766,7 @@ function displayOptionsResults(opportunities, summary) {
         if (!bySymbol[symbol]) bySymbol[symbol] = [];
         bySymbol[symbol].push(opp);
     });
-    
+
     // Group by strategy
     const byStrategy = {};
     opportunities.forEach(opp => {
@@ -750,7 +774,7 @@ function displayOptionsResults(opportunities, summary) {
         if (!byStrategy[strategy]) byStrategy[strategy] = [];
         byStrategy[strategy].push(opp);
     });
-    
+
     let html = `
         <div class="space-y-6">
             <!-- Summary Cards -->
@@ -774,7 +798,7 @@ function displayOptionsResults(opportunities, summary) {
                 <h3 class="text-lg font-semibold mb-4">Opportunities by Symbol</h3>
                 <div class="space-y-4">
     `;
-    
+
     Object.entries(bySymbol).forEach(([symbol, opps]) => {
         const strategies = [...new Set(opps.map(o => o.strategy))];
         html += `
@@ -787,7 +811,7 @@ function displayOptionsResults(opportunities, summary) {
             </div>
         `;
     });
-    
+
     html += `
                 </div>
             </div>
@@ -808,7 +832,7 @@ function displayOptionsResults(opportunities, summary) {
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
     `;
-    
+
     opportunities.forEach(opp => {
         html += `
             <tr>
@@ -820,7 +844,7 @@ function displayOptionsResults(opportunities, summary) {
             </tr>
         `;
     });
-    
+
     html += `
                         </tbody>
                     </table>
@@ -828,7 +852,7 @@ function displayOptionsResults(opportunities, summary) {
             </div>
         </div>
     `;
-    
+
     resultsContainer.innerHTML = html;
 }
 

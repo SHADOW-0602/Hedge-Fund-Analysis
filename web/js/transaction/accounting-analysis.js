@@ -126,10 +126,10 @@ async function fetchAccountingAnalysis(transactions) {
             </div>
         </div>
         
-        <div id="accountingContent" class="bg-white rounded-lg shadow p-12 text-center">
+        <div id="accountingContent" class="analysis-card p-12 text-center">
             <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
-            <p class="text-gray-600 mb-4">Analyzing ${transactions?.length || 0} transactions using ${currentAccountingOptions.method}...</p>
+            <h3 class="text-xl font-semibold text-primary mb-2">Processing Your Data</h3>
+            <p class="text-secondary mb-4">Analyzing ${transactions?.length || 0} transactions using ${currentAccountingOptions.method}...</p>
             <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
@@ -249,40 +249,40 @@ function displayAccountingAnalysis(data) {
 
     contentDiv.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Realized P&L</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Realized P&L</h3>
                 <p class="text-3xl font-bold ${realizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                     ${realizedPnl >= 0 ? '+' : ''}$${Math.abs(realizedPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-600 mt-1">Using ${result.method || currentAccountingOptions.method}</p>
+                <p class="text-sm text-secondary mt-1">Using ${result.method || currentAccountingOptions.method}</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Est. Tax Liability</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Est. Tax Liability</h3>
                 <p class="text-3xl font-bold text-red-600">
                     $${Math.abs(taxLiability).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-600 mt-1">Based on ${currentAccountingOptions.tax_impact}</p>
+                <p class="text-sm text-secondary mt-1">Based on ${currentAccountingOptions.tax_impact}</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Tax Efficiency</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Tax Efficiency</h3>
                 <p class="text-3xl font-bold ${realizedPnl > 0 ? 'text-blue-600' : 'text-gray-600'}">
                     ${realizedPnl > 0 ? ((1 - (taxLiability / realizedPnl)) * 100).toFixed(1) + '%' : 'N/A'}
                 </p>
-                <p class="text-sm text-gray-600 mt-1">After-tax retention</p>
+                <p class="text-sm text-secondary mt-1">After-tax retention</p>
             </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Gain/Loss Breakdown</h3>
+        <div class="analysis-card p-6 mb-6">
+            <h3 class="text-lg font-semibold text-primary mb-4">Gain/Loss Breakdown</h3>
             <div class="space-y-4">
-                <div class="flex justify-between items-center py-2 border-b border-gray-200">
-                    <span class="font-medium text-gray-900">Short-Term Gains (< 1 Year)</span>
+                <div class="flex justify-between items-center py-2 border-b border-card">
+                    <span class="font-medium text-primary">Short-Term Gains (< 1 Year)</span>
                     <span class="font-semibold ${shortTerm >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${shortTerm >= 0 ? '+' : ''}$${Math.abs(shortTerm).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                 </div>
-                <div class="flex justify-between items-center py-2 border-b border-gray-200">
-                    <span class="font-medium text-gray-900">Long-Term Gains (> 1 Year)</span>
+                <div class="flex justify-between items-center py-2 border-b border-card">
+                    <span class="font-medium text-primary">Long-Term Gains (> 1 Year)</span>
                     <span class="font-semibold ${longTerm >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${longTerm >= 0 ? '+' : ''}$${Math.abs(longTerm).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
@@ -290,13 +290,13 @@ function displayAccountingAnalysis(data) {
             </div>
         </div>
 
-        <div class="bg-gray-50 rounded-lg p-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+        <div class="analysis-card p-6">
+            <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div><span class="text-gray-600">Method:</span> <span class="font-medium text-gray-900">${result.method || currentAccountingOptions.method}</span></div>
-                <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentAccountingOptions.period}</span></div>
-                <div><span class="text-gray-600">Tax Impact:</span> <span class="font-medium text-gray-900">${currentAccountingOptions.tax_impact}</span></div>
-                <div><span class="text-gray-600">Transactions:</span> <span class="font-medium text-gray-900">${result.transaction_count || 0}</span></div>
+                <div><span class="text-secondary">Method:</span> <span class="font-medium text-primary">${result.method || currentAccountingOptions.method}</span></div>
+                <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentAccountingOptions.period}</span></div>
+                <div><span class="text-secondary">Tax Impact:</span> <span class="font-medium text-primary">${currentAccountingOptions.tax_impact}</span></div>
+                <div><span class="text-secondary">Transactions:</span> <span class="font-medium text-primary">${result.transaction_count || 0}</span></div>
             </div>
         </div>
     `;
@@ -307,8 +307,8 @@ function displayComparisonView(data, contentDiv) {
     const details = summary.details || [];
 
     let comparisonHtml = details.map(d => `
-        <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${d.method}</td>
+        <tr class="hover:bg-white/5">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">${d.method}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm ${d.realized_pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                 ${d.realized_pnl >= 0 ? '+' : ''}$${Math.abs(d.realized_pnl).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </td>
@@ -335,27 +335,27 @@ function displayComparisonView(data, contentDiv) {
             </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+        <div class="analysis-card overflow-hidden mb-6">
+            <table class="min-w-full divide-y divide-card">
+                <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Realized P&L</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Tax Liability</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">Method</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">Realized P&L</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">Est. Tax Liability</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="bg-card divide-y divide-card">
                     ${comparisonHtml}
                 </tbody>
             </table>
         </div>
         
-        <div class="bg-gray-50 rounded-lg p-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+        <div class="analysis-card p-6">
+            <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div><span class="text-gray-600">Comparison:</span> <span class="font-medium text-gray-900">${currentAccountingOptions.comparison}</span></div>
-                <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentAccountingOptions.period}</span></div>
-                <div><span class="text-gray-600">Tax Impact:</span> <span class="font-medium text-gray-900">${currentAccountingOptions.tax_impact}</span></div>
+                <div><span class="text-secondary">Comparison:</span> <span class="font-medium text-primary">${currentAccountingOptions.comparison}</span></div>
+                <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentAccountingOptions.period}</span></div>
+                <div><span class="text-secondary">Tax Impact:</span> <span class="font-medium text-primary">${currentAccountingOptions.tax_impact}</span></div>
             </div>
         </div>
     `;
@@ -365,12 +365,12 @@ function showError(message) {
     const contentDiv = document.getElementById('accountingContent');
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-8 text-center text-red-600">
+            <div class="analysis-card p-8 text-center text-red-600">
                 <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p class="text-xl font-semibold mb-2">Analysis Error</p>
-                <p class="text-sm text-gray-600">${message}</p>
+                <p class="text-sm text-secondary">${message}</p>
             </div>
         `;
     }

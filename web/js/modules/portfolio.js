@@ -101,6 +101,11 @@ async function displayPortfolio(data) {
     updatePortfolioMetrics(data);
 
     const hasStoredResults = await loadStoredResultsForPortfolio(data);
+
+    // Show the data table
+    if (typeof window.viewLoadedData === 'function') {
+        window.viewLoadedData('portfolio');
+    }
 }
 
 function updatePortfolioMetrics(data) {
@@ -259,17 +264,28 @@ async function viewSelectedPortfolio() {
     // Handle both Supabase structure (data field) and direct structure
     // Handle both Supabase structure (portfolio_data/data field) and direct structure
     portfolioData = selectedPortfolio.portfolio_data || selectedPortfolio.data || selectedPortfolio;
+
+    // Set global data and clean others to prevent persistence issues
+    window.portfolioData = portfolioData;
+    window.currentTransactions = []; // Clear transaction data
+    localStorage.setItem('currentPortfolio', JSON.stringify(portfolioData));
+    localStorage.removeItem('currentTransactions');
+
+    // Skip displayPortfolio to avoid showing analysis dashboard as per user request
     await displayPortfolio(portfolioData);
 
     setTimeout(() => {
         const portfolioSection = document.getElementById('portfolioAnalysis');
         if (portfolioSection) {
-            portfolioSection.classList.remove('hidden');
-            showAllPortfolioCardLoading();
+            portfolioSection.classList.remove('hidden'); // Ensure analysis is visible
+            // showAllPortfolioCardLoading(); // Disabled loading spinner
 
             // Analytics are now loaded on-demand via sidebar clicks
 
-            portfolioSection.scrollIntoView({ behavior: 'smooth' });
+            // Also show the data table as requested by user
+            if (typeof window.viewLoadedData === 'function') {
+                window.viewLoadedData('portfolio'); // Prioritize portfolio data
+            }
         }
     }, 100);
 

@@ -40,6 +40,46 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
                 df = pd.read_csv(file.stream)
             elif file.filename.lower().endswith(('.xlsx', '.xls')):
                 df = pd.read_excel(file.stream)
+            elif file.filename.lower().endswith('.json'):
+                import json
+                json_content = json.load(file.stream)
+                
+                # Handle list or dict wrapper
+                if isinstance(json_content, dict) and 'positions' in json_content:
+                    data_list = json_content['positions']
+                elif isinstance(json_content, dict) and 'holdings' in json_content: # Plaid Common
+                    data_list = json_content['holdings']
+                elif isinstance(json_content, list):
+                    data_list = json_content
+                else:
+                    data_list = [json_content] if isinstance(json_content, dict) else []
+                
+                # Parse into DataFrame-friendly format with defaults
+                clean_data = []
+                for item in data_list:
+                    if not isinstance(item, dict): continue
+                    cleaned = {k.lower().strip(): v for k, v in item.items()}
+                    
+                    # Robust defaults
+                    symbol = cleaned.get('symbol') or cleaned.get('ticker') or cleaned.get('security_id') or 'UNKNOWN'
+                    qty = cleaned.get('quantity') or cleaned.get('shares')
+                    cost = cleaned.get('avg_cost') or cleaned.get('cost_basis') or cleaned.get('price')
+                    
+                    if qty is None: qty = 0.0
+                    try: qty = float(qty)
+                    except: qty = 0.0
+                    
+                    if cost is None: cost = 0.0
+                    try: cost = float(cost)
+                    except: cost = 0.0
+                    
+                    clean_data.append({
+                        'symbol': symbol,
+                        'quantity': qty,
+                        'avg_cost': cost
+                    })
+                
+                df = pd.DataFrame(clean_data)
             else:
                 return jsonify({'success': False, 'error': 'Unsupported file format'}), 400
             

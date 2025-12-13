@@ -34,40 +34,73 @@ def normalize_transaction_format(transactions_data):
     if not transactions_data:
         return transactions_data
     
-    df_pl = pl.DataFrame(transactions_data)
-    df_pl = df_pl.rename({col: col.lower().strip() for col in df_pl.columns})
-    cols = df_pl.columns
-    
-    if 'action' in cols:
-        df_pl = df_pl.with_columns([pl.col('action').str.to_uppercase().alias('transaction_type')])
-    if 'ticker' in cols:
-        df_pl = df_pl.with_columns([pl.col('ticker').alias('symbol')])
-    
-    if 'transaction_type' in df_pl.columns and 'quantity' in df_pl.columns:
-        df_pl = df_pl.with_columns([
-            pl.when(pl.col('transaction_type') == 'SELL')
-            .then(-pl.col('quantity').abs())
-            .otherwise(pl.col('quantity').abs())
-            .alias('quantity')
-        ])
-    
-    if 'date' in df_pl.columns:
-        current_date = datetime.now().strftime('%Y-%m-%d')
-        df_pl = df_pl.with_columns([
-            pl.when(pl.col('date').is_null() | (pl.col('date') == ''))
-            .then(pl.lit(current_date))
-            .otherwise(pl.col('date'))
-            .alias('date')
-        ])
-    
-    if 'fees' not in df_pl.columns:
-        df_pl = df_pl.with_columns([pl.lit(0.0).alias('fees')])
-    if 'portfolio' not in df_pl.columns:
-        df_pl = df_pl.with_columns([pl.lit('Main').alias('portfolio')])
-    if 'currency' not in df_pl.columns:
-        df_pl = df_pl.with_columns([pl.lit('USD').alias('currency')])
-    
-    return df_pl.to_pandas().to_dict('records')
+    try:
+        # Try using Polars first (requires pyarrow usually)
+        df_pl = pl.DataFrame(transactions_data)
+        df_pl = df_pl.rename({col: col.lower().strip() for col in df_pl.columns})
+        cols = df_pl.columns
+        
+        if 'action' in cols:
+            df_pl = df_pl.with_columns([pl.col('action').str.to_uppercase().alias('transaction_type')])
+        if 'ticker' in cols:
+            df_pl = df_pl.with_columns([pl.col('ticker').alias('symbol')])
+        
+        if 'transaction_type' in df_pl.columns and 'quantity' in df_pl.columns:
+            df_pl = df_pl.with_columns([
+                pl.when(pl.col('transaction_type') == 'SELL')
+                .then(-pl.col('quantity').abs())
+                .otherwise(pl.col('quantity').abs())
+                .alias('quantity')
+            ])
+        
+        if 'date' in df_pl.columns:
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            df_pl = df_pl.with_columns([
+                pl.when(pl.col('date').is_null() | (pl.col('date') == ''))
+                .then(pl.lit(current_date))
+                .otherwise(pl.col('date'))
+                .alias('date')
+            ])
+        
+        if 'fees' not in df_pl.columns:
+            df_pl = df_pl.with_columns([pl.lit(0.0).alias('fees')])
+        if 'portfolio' not in df_pl.columns:
+            df_pl = df_pl.with_columns([pl.lit('Main').alias('portfolio')])
+        if 'currency' not in df_pl.columns:
+            df_pl = df_pl.with_columns([pl.lit('USD').alias('currency')])
+        
+        return df_pl.to_pandas().to_dict('records')
+        
+    except (ImportError, ModuleNotFoundError, Exception) as e:
+        print(f"Polars normalization failed (likely missing pyarrow), falling back to Pandas: {e}")
+        # Pandas Fallback
+        import pandas as pd
+        df = pd.DataFrame(transactions_data)
+        df.columns = [str(c).lower().strip() for c in df.columns]
+        
+        if 'action' in df.columns:
+            df['transaction_type'] = df['action'].str.upper()
+        if 'ticker' in df.columns:
+            df['symbol'] = df['ticker']
+            
+        if 'transaction_type' in df.columns and 'quantity' in df.columns:
+            # Vectorized sell quantity handling
+            is_sell = df['transaction_type'] == 'SELL'
+            df.loc[is_sell, 'quantity'] = -df.loc[is_sell, 'quantity'].abs()
+            df.loc[~is_sell, 'quantity'] = df.loc[~is_sell, 'quantity'].abs()
+            
+        if 'date' in df.columns:
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            df['date'] = df['date'].fillna(current_date).replace('', current_date)
+            
+        if 'fees' not in df.columns:
+            df['fees'] = 0.0
+        if 'portfolio' not in df.columns:
+            df['portfolio'] = 'Main'
+        if 'currency' not in df.columns:
+            df['currency'] = 'USD'
+            
+        return df.to_dict('records')
 
 def register_transaction_routes(app):
     print("[DEBUG] Registering transaction routes")
@@ -89,12 +122,86 @@ def register_transaction_routes(app):
             try:
                 if file.filename.lower().endswith('.csv'):
                     df = pd.read_csv(file.stream)
+                    transactions_data = df.to_dict('records')
                 elif file.filename.lower().endswith(('.xlsx', '.xls')):
                     df = pd.read_excel(file.stream)
+                    transactions_data = df.to_dict('records')
+                elif file.filename.lower().endswith('.json'):
+                    import json
+                    json_content = json.load(file.stream)
+                    print(f"DEBUG: Loaded JSON content type: {type(json_content)}")
+                    
+                    # Handle Plaid-style nested structure
+                    if isinstance(json_content, dict) and 'transactions' in json_content:
+                        transactions_data = json_content['transactions']
+                    elif isinstance(json_content, list):
+                        transactions_data = json_content
+                    else:
+                        # Single object or other dict
+                        transactions_data = [json_content] if isinstance(json_content, dict) else []
+                    
+                    # Enhanced normalization for JSON/Plaid data
+                    normalized_js_data = []
+                    for item in transactions_data:
+                        if not isinstance(item, dict): continue
+                        
+                        # Soft normalization of keys
+                        clean_item = {k.lower().strip(): v for k, v in item.items()}
+                        
+                        # Robust defaults and mapping
+                        # Map Plaid 'amount' to 'price' if price missing, or 'quantity' contextually
+                        # Plaid 'amount' is usually transaction value. Price = quantity * price. 
+                        # If we have 'quantity' and 'amount', price = amount / quantity
+                        
+                        # 1. Date (Plaid: 'date' or 'authorized_date')
+                        date_val = clean_item.get('date') or clean_item.get('authorized_date') or datetime.now().strftime('%Y-%m-%d')
+                        
+                        # 2. Symbol (Plaid: 'security_id' often matches ticker if enriched, else raw name)
+                        norm_symbol = clean_item.get('symbol') or clean_item.get('ticker') or clean_item.get('name') or 'UNKNOWN'
+                        
+                        # 3. Quantity & Price Logic
+                        qty = clean_item.get('quantity')
+                        price = clean_item.get('price')
+                        amount = clean_item.get('amount') # Plaid total value
+                        
+                        if qty is None: qty = 0.0
+                        else: 
+                            try: qty = float(qty)
+                            except: qty = 0.0
+                            
+                        if price is None:
+                            # If we have amount and quantity, calculate price
+                            if amount is not None and qty != 0:
+                                try: price = abs(float(amount)) / abs(qty)
+                                except: price = 0.0
+                            else:
+                                price = 0.0
+                        else:
+                            try: price = float(price)
+                            except: price = 0.0
+                            
+                        # 4. Transaction Type (Plaid: 'payment_channel', 'transaction_code', etc.)
+                        # Simple fallback
+                        tx_type = clean_item.get('transaction_type') or clean_item.get('type') or 'BUY'
+                        if amount and float(amount) < 0: # Plaid: negative amount can imply flow direction depending on account
+                             pass 
+                        
+                        normalized_js_data.append({
+                            'symbol': norm_symbol,
+                            'date': date_val,
+                            'quantity': qty,
+                            'price': price,
+                            'transaction_type': tx_type,
+                            'fees': float(clean_item.get('fees') or 0.0),
+                            'currency': clean_item.get('iso_currency_code', 'USD')
+                        })
+                    
+                    transactions_data = normalized_js_data
+                    
                 else:
                     return jsonify({'success': False, 'error': 'Unsupported file format'}), 400
                 
-                transactions_data = df.to_dict('records')
+                # Use existing normalization for final polars check
                 normalized_data = normalize_transaction_format(transactions_data)
                 
                 print(f"2025-10-26 16:55:49,500 - hedge_fund_app - INFO - Transaction file upload completed successfully")
@@ -105,6 +212,8 @@ def register_transaction_routes(app):
                 })
             except Exception as parse_error:
                 print(f"2025-10-26 16:55:49,600 - hedge_fund_app - ERROR - Transaction file parsing failed: {str(parse_error)}")
+                import traceback
+                traceback.print_exc()
                 return jsonify({'success': False, 'error': f'File parsing failed: {str(parse_error)}'}), 400
                 
         except Exception as e:

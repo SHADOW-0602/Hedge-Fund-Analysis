@@ -499,6 +499,41 @@ def get_status():
     """Check processing status"""
     return jsonify({'is_processing': IS_PROCESSING})
 
+@us_news_bp.route('/api/search', methods=['GET'])
+def search_tickers():
+    """Proxy request to Yahoo Finance for ticker search"""
+    from flask import request
+    query = request.args.get('q', '').strip()
+    
+    if not query:
+        return jsonify({'quotes': []})
+        
+    try:
+        # Use Yahoo Finance's public API
+        url = "https://query2.finance.yahoo.com/v1/finance/search"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        params = {
+            'q': query,
+            'quotesCount': 10,
+            'newsCount': 0,
+            'enableFuzzyQuery': 'false',
+            'quotesQueryId': 'tss_match_phrase_query'
+        }
+        
+        response = requests.get(url, headers=headers, params=params, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            return jsonify({'quotes': data.get('quotes', [])})
+        else:
+            print(f"Yahoo Search Error: {response.status_code}")
+            return jsonify({'quotes': []})
+            
+    except Exception as e:
+        print(f"Search Proxy Error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @us_news_bp.route('/api/generate/<ticker>', methods=['POST', 'GET'], strict_slashes=False)
 def generate_ticker_summary(ticker):
     """Force generate summary for a specific ticker"""

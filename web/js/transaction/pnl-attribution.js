@@ -121,10 +121,10 @@ async function fetchPnlAttribution(transactions) {
             </div>
         </div>
         
-        <div id="pnlContent" class="bg-white rounded-lg shadow p-12 text-center">
+        <div id="pnlContent" class="analysis-card p-12 text-center">
             <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
-            <p class="text-gray-600 mb-4">Analyzing ${transactions?.length || 0} transactions and calculating P&L...</p>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Processing Your Data</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-4">Analyzing ${transactions?.length || 0} transactions and calculating P&L...</p>
             <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
@@ -188,49 +188,49 @@ function displayPnlAttribution(data) {
 
     contentDiv.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Total P&L</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Total P&L</h3>
                 <p class="text-3xl font-bold ${totalPnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                     ${totalPnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(totalPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-600 mt-1">${metadata.period || '1Y'}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">${metadata.period || '1Y'}</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Realized P&L</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Realized P&L</h3>
                 <p class="text-3xl font-bold ${realizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                     ${realizedPnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(realizedPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-600 mt-1">Closed positions</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Closed positions</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Unrealized P&L</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Unrealized P&L</h3>
                 <p class="text-3xl font-bold ${unrealizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                     ${unrealizedPnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(unrealizedPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-600 mt-1">Open positions</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Open positions</p>
             </div>
         </div>
 
         ${breakdownHtml ? `
-            <div class="bg-white rounded-lg shadow p-6 mb-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">${grouping}</h3>
+            <div class="analysis-card p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">${grouping}</h3>
                 <div class="space-y-2">${breakdownHtml}</div>
             </div>
         ` : ''}
 
-        <div class="bg-gray-50 rounded-lg p-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+        <div class="analysis-card p-6">
+            <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${metadata.period || 'ITD'}</span></div>
-                <div><span class="text-gray-600">View:</span> <span class="font-medium text-gray-900">${metadata.view || 'Total'}</span></div>
-                <div><span class="text-gray-600">Grouping:</span> <span class="font-medium text-gray-900">${metadata.grouping || 'By Symbol'}</span></div>
-                <div><span class="text-gray-600">Currency:</span> <span class="font-medium text-gray-900">${metadata.currency || 'USD'}</span></div>
+                <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.period || 'ITD'}</span></div>
+                <div><span class="text-gray-600 dark:text-gray-400">View:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.view || 'Total'}</span></div>
+                <div><span class="text-gray-600 dark:text-gray-400">Grouping:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.grouping || 'By Symbol'}</span></div>
+                <div><span class="text-gray-600 dark:text-gray-400">Currency:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.currency || 'USD'}</span></div>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
-                <div><span class="text-gray-600">Tax Impact:</span> <span class="font-medium text-gray-900">${metadata.tax_impact || 'Pre-tax'}</span></div>
-                <div><span class="text-gray-600">Transactions:</span> <span class="font-medium text-gray-900">${metadata.transaction_count || 0}</span></div>
-                <div><span class="text-gray-600">Start Date:</span> <span class="font-medium text-gray-900">${metadata.start_date || 'N/A'}</span></div>
-                <div><span class="text-gray-600">End Date:</span> <span class="font-medium text-gray-900">${metadata.end_date || 'N/A'}</span></div>
+                <div><span class="text-gray-600 dark:text-gray-400">Tax Impact:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.tax_impact || 'Pre-tax'}</span></div>
+                <div><span class="text-gray-600 dark:text-gray-400">Transactions:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.transaction_count || 0}</span></div>
+                <div><span class="text-gray-600 dark:text-gray-400">Start Date:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.start_date || 'N/A'}</span></div>
+                <div><span class="text-gray-600 dark:text-gray-400">End Date:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.end_date || 'N/A'}</span></div>
             </div>
         </div>
     `;
@@ -240,12 +240,12 @@ function showError(message) {
     const contentDiv = document.getElementById('pnlContent');
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-8 text-center text-red-600">
+            <div class="analysis-card p-8 text-center text-red-600">
                 <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p class="text-xl font-semibold mb-2">Analysis Error</p>
-                <p class="text-sm text-gray-600">${message}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400">${message}</p>
             </div>
         `;
     }
@@ -258,8 +258,8 @@ function createSymbolBreakdown(bySymbol, currencySymbol) {
         .map(([symbol, data]) => {
             const pnl = data.total_pnl || 0;
             return `
-                <div class="flex justify-between items-center py-2 border-b border-gray-200">
-                    <span class="font-medium text-gray-900">${symbol}</span>
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                    <span class="font-medium text-gray-900 dark:text-white">${symbol}</span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
@@ -275,8 +275,8 @@ function createSectorBreakdown(bySector, currencySymbol) {
         .map(([sector, data]) => {
             const pnl = data.total_pnl || 0;
             return `
-                <div class="flex justify-between items-center py-2 border-b border-gray-200">
-                    <span class="font-medium text-gray-900">${sector} <span class="text-sm text-gray-500">(${data.symbols?.length || 0} symbols)</span></span>
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                    <span class="font-medium text-gray-900 dark:text-white">${sector} <span class="text-sm text-gray-600 dark:text-gray-400">(${data.symbols?.length || 0} symbols)</span></span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
@@ -292,8 +292,8 @@ function createDateBreakdown(byDate, currencySymbol) {
         .map(([date, data]) => {
             const pnl = data.total_pnl || 0;
             return `
-                <div class="flex justify-between items-center py-2 border-b border-gray-200">
-                    <span class="font-medium text-gray-900">${date}</span>
+                <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                    <span class="font-medium text-gray-900 dark:text-white">${date}</span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
@@ -309,8 +309,8 @@ function createSizeBreakdown(bySize, currencySymbol) {
             const data = bySize[size];
             const pnl = data.total_pnl || 0;
             return `
-                <div class="flex justify-between items-center py-2 border-b border-gray-200">
-                    <span class="font-medium text-gray-900">${size} <span class="text-sm text-gray-500">(${data.count || 0} positions)</span></span>
+                <div class="flex justify-between items-center py-2 border-b border-card">
+                    <span class="font-medium text-primary">${size} <span class="text-sm text-secondary">(${data.count || 0} positions)</span></span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>

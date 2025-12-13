@@ -28,7 +28,7 @@ async function loadUsers() {
     showLoading(true);
 
     try {
-        const response = await fetch(`${API_BASE}/admin/users`, {
+        const response = await fetch(`${API_BASE}/api/admin/users`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',

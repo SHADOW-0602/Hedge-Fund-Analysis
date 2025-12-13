@@ -121,10 +121,10 @@ async function fetchTradeData() {
             </div>
         </div>
         
-        <div id="tradeContent" class="bg-white rounded-lg shadow p-12 text-center">
+        <div id="tradeContent" class="analysis-card p-12 text-center">
             <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
-            <p class="text-gray-600 mb-4">Analyzing ${window.currentTradeTransactions?.length || 0} transactions...</p>
+            <h3 class="text-xl font-semibold text-primary mb-2">Processing Your Data</h3>
+            <p class="text-secondary mb-4">Analyzing ${window.currentTradeTransactions?.length || 0} transactions...</p>
             <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
@@ -177,44 +177,52 @@ function displayResults(data) {
 
     contentDiv.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Win Rate</h3>
-                <p class="text-3xl font-bold ${data.win_rate >= 0.5 ? 'text-green-600' : 'text-red-600'}">
-                    ${winRate}%
-                </p>
-                <p class="text-sm text-gray-600 mt-1">Success ratio</p>
+            <div class="analysis-card p-6 flex flex-col justify-between h-full">
+                <div>
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Win Rate</h3>
+                    <p class="text-3xl font-bold ${data.win_rate >= 0.5 ? 'text-green-600' : 'text-red-600'}">
+                        ${winRate}%
+                    </p>
+                </div>
+                <p class="text-sm text-secondary mt-1">Success ratio</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Total P&L</h3>
-                <p class="text-3xl font-bold ${totalPnl >= 0 ? 'text-green-600' : 'text-red-600'}">
-                    ${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p class="text-sm text-gray-600 mt-1">Net profit/loss</p>
+            <div class="analysis-card p-6 flex flex-col justify-between h-full">
+                <div>
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Total P&L</h3>
+                    <p class="text-3xl font-bold ${totalPnl >= 0 ? 'text-green-600' : 'text-red-600'} break-words">
+                        ${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                </div>
+                <p class="text-sm text-secondary mt-1">Net profit/loss</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Profit Factor</h3>
-                <p class="text-3xl font-bold ${data.profit_factor >= 1.5 ? 'text-green-600' : data.profit_factor >= 1 ? 'text-yellow-600' : 'text-red-600'}">
-                    ${profitFactor}
-                </p>
-                <p class="text-sm text-gray-600 mt-1">Gross Profit / Gross Loss</p>
+            <div class="analysis-card p-6 flex flex-col justify-between h-full">
+                <div>
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Profit Factor</h3>
+                    <p class="text-3xl font-bold ${data.profit_factor >= 1.5 ? 'text-green-600' : data.profit_factor >= 1 ? 'text-yellow-600' : 'text-red-600'}">
+                        ${profitFactor}
+                    </p>
+                </div>
+                <p class="text-sm text-secondary mt-1">Gross Profit / Gross Loss</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Total Trades</h3>
-                <p class="text-3xl font-bold text-gray-900">
-                    ${data.total_trades}
-                </p>
-                <p class="text-sm text-gray-600 mt-1">Executed trades</p>
+            <div class="analysis-card p-6 flex flex-col justify-between h-full">
+                <div>
+                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Total Trades</h3>
+                    <p class="text-3xl font-bold text-primary">
+                        ${data.total_trades}
+                    </p>
+                </div>
+                <p class="text-sm text-secondary mt-1">Executed trades</p>
             </div>
         </div>
 
         ${trades.length > 0 ? `
-            <div class="bg-white rounded-lg shadow p-6 mb-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Top Trades (${currentTradeOptions.ranking})</h3>
+            <div class="analysis-card p-6 mb-6">
+                <h3 class="text-lg font-semibold text-primary mb-4">Top Trades (${currentTradeOptions.ranking})</h3>
                 <div class="space-y-2">
                     ${trades.slice(0, parseInt(currentTradeOptions.ranking.split(' ')[1]) || 5).map(trade => `
-                        <div class="flex justify-between items-center py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors px-2 rounded">
+                        <div class="flex justify-between items-center py-3 border-b border-card hover:bg-white/5 transition-colors px-2 rounded">
                             <div class="flex items-center">
-                                <span class="font-medium text-gray-900 mr-3">${trade.symbol}</span>
+                                <span class="font-medium text-primary mr-3">${trade.symbol}</span>
                                 <span class="text-xs px-2 py-1 rounded-full ${trade.type === 'Long' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${trade.type || 'Trade'}</span>
                             </div>
                             <div class="text-right">
@@ -227,16 +235,16 @@ function displayResults(data) {
                     `).join('')}
                 </div>
             </div>
-        ` : '<div class="text-center py-8 text-gray-500 bg-white rounded-lg shadow">No trades found matching criteria</div>'}
+        ` : '<div class="text-center py-8 text-secondary analysis-card">No trades found matching criteria</div>'}
 
-        <div class="bg-gray-50 rounded-lg p-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+        <div class="analysis-card p-6">
+            <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentTradeOptions.period}</span></div>
-                <div><span class="text-gray-600">Size:</span> <span class="font-medium text-gray-900">${currentTradeOptions.tradeSize}</span></div>
-                <div><span class="text-gray-600">Metric:</span> <span class="font-medium text-gray-900">${currentTradeOptions.metric}</span></div>
-                <div><span class="text-gray-600">Ranking:</span> <span class="font-medium text-gray-900">${currentTradeOptions.ranking}</span></div>
-                <div><span class="text-gray-600">Filter:</span> <span class="font-medium text-gray-900">${currentTradeOptions.type}</span></div>
+                <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentTradeOptions.period}</span></div>
+                <div><span class="text-secondary">Size:</span> <span class="font-medium text-primary">${currentTradeOptions.tradeSize}</span></div>
+                <div><span class="text-secondary">Metric:</span> <span class="font-medium text-primary">${currentTradeOptions.metric}</span></div>
+                <div><span class="text-secondary">Ranking:</span> <span class="font-medium text-primary">${currentTradeOptions.ranking}</span></div>
+                <div><span class="text-secondary">Filter:</span> <span class="font-medium text-primary">${currentTradeOptions.type}</span></div>
             </div>
         </div>
     `;
@@ -246,12 +254,12 @@ function showError(message) {
     const contentDiv = document.getElementById('tradeContent');
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-8 text-center text-red-600">
+            <div class="analysis-card p-8 text-center text-red-600">
                 <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p class="text-xl font-semibold mb-2">Analysis Error</p>
-                <p class="text-sm text-gray-600">${message}</p>
+                <p class="text-sm text-secondary">${message}</p>
             </div>
         `;
     }

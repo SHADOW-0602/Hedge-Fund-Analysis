@@ -89,7 +89,7 @@ class HedgeFundApp {
         const currentUser = this.authManager.getCurrentUser();
         if (currentUser) {
             this.authManager.applyRoleBasedAccess(currentUser.role);
-            
+
             // Show admin button if admin
             const adminBtn = document.getElementById('adminBtn');
             if (adminBtn && currentUser.role === 'admin') {
@@ -190,13 +190,13 @@ class HedgeFundApp {
 
         if (result.success) {
             this.displayManager.displayPortfolio(result.portfolio);
-            
+
             if (statusDiv) {
                 statusDiv.innerHTML = '<span class="text-green-600">✓ Portfolio uploaded successfully</span>';
             }
-            
+
             this.uiManager.showSuccess('Portfolio uploaded successfully');
-            
+
             // Show save section
             const saveSection = document.getElementById('savePortfolioSection');
             if (saveSection) {
@@ -234,15 +234,15 @@ class HedgeFundApp {
 
         if (result.success) {
             const analysisResult = await this.transactionManager.analyzeTransactions(result.transactions);
-            
+
             if (analysisResult.success) {
                 this.displayManager.displayTransactionResults(analysisResult);
             }
-            
+
             if (statusDiv) {
                 statusDiv.innerHTML = '<span class="text-green-600">✓ Transactions uploaded successfully</span>';
             }
-            
+
             this.uiManager.showSuccess('Transactions uploaded successfully');
         } else {
             if (statusDiv) {
@@ -287,7 +287,7 @@ class HedgeFundApp {
 
         const symbols = portfolioData.map(p => p.symbol);
         console.log(`[OPTIONS ANALYSIS] Starting analysis for ${symbols.length} symbols:`, symbols);
-        
+
         const result = await this.analyticsManager.scanOptions(symbols);
         console.log(`[OPTIONS ANALYSIS] Result:`, result);
 
@@ -326,19 +326,87 @@ class HedgeFundApp {
     }
 
     async downloadSamplePortfolio() {
-        try {
-            const response = await fetch(`${this.API_BASE}/download-sample-portfolio`);
-            const blob = await response.blob();
+        // Check for logged in user
+        const currentUser = this.authManager.getCurrentUser();
+        if (!currentUser || !currentUser.user_id) {
+            this.uiManager.showError('Please login to export portfolio');
+            return;
+        }
 
+        this.uiManager.showLoading(true);
+
+        try {
+            let portfolioToExport = [];
+
+            // 1. Prioritize currently viewed portfolio
+            const portfolioData = this.portfolioManager.getPortfolioData();
+            if (portfolioData && portfolioData.length > 0) {
+                portfolioToExport = portfolioData;
+                console.log('Exporting currently viewed portfolio');
+            }
+            // 2. Fallback to API fetch
+            else {
+                console.log('Fetching portfolio from API for export');
+                const url = `${this.API_BASE}/load-portfolios?user_id=${currentUser.user_id}&_t=${Date.now()}`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success && Array.isArray(data.portfolios) && data.portfolios.length > 0) {
+                    const latest = data.portfolios[0];
+                    let pData = latest.portfolio_data || [];
+                    if (typeof pData === 'string') {
+                        try { pData = JSON.parse(pData); } catch (e) { pData = []; }
+                    }
+                    portfolioToExport = pData;
+                }
+            }
+
+            if (!portfolioToExport || portfolioToExport.length === 0) {
+                this.uiManager.showError('No portfolio data found to export.');
+                this.uiManager.showLoading(false);
+                return;
+            }
+
+            // Generate CSV
+            const headers = ['Symbol', 'Quantity', 'Price', 'Date', 'Type']; // Standard headers
+            // Or infer headers from data
+            const allKeys = new Set();
+            portfolioToExport.forEach(p => Object.keys(p).forEach(k => allKeys.add(k)));
+            const dynamicHeaders = Array.from(allKeys);
+
+            // Allow standard headers priority but fall back to dynamic
+            const finalHeaders = dynamicHeaders.length > 0 ? dynamicHeaders : headers;
+
+            const csvRows = [finalHeaders.join(',')];
+
+            portfolioToExport.forEach(p => {
+                const row = finalHeaders.map(header => {
+                    let val = p[header] !== undefined ? p[header] : '';
+                    if (typeof val === 'string') {
+                        val = val.replace(/"/g, '""');
+                    }
+                    return `"${val}"`;
+                });
+                csvRows.push(row.join(','));
+            });
+
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'enhanced_portfolio.csv';
+            a.download = 'export_portfolio.csv';
+            document.body.appendChild(a);
             a.click();
+            document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-            this.uiManager.showSuccess('Sample portfolio CSV downloaded');
+
+            this.uiManager.showSuccess('Portfolio exported successfully');
         } catch (error) {
-            this.uiManager.showError('Failed to download sample portfolio');
+            console.error('Export failed:', error);
+            this.uiManager.showError('Failed to export portfolio: ' + error.message);
+        } finally {
+            this.uiManager.showLoading(false);
         }
     }
 
@@ -372,7 +440,7 @@ class HedgeFundApp {
     async loadSavedPortfolio() {
         const select = document.getElementById('savedPortfolios');
         const portfolioId = select?.value;
-        
+
         if (!portfolioId) {
             return;
         }
@@ -450,20 +518,20 @@ class HedgeFundApp {
 }
 
 // Global functions for HTML onclick handlers
-window.saveCurrentPortfolio = function() {
+window.saveCurrentPortfolio = function () {
     window.app?.saveCurrentPortfolio();
 };
 
-window.loadSavedPortfolio = function() {
+window.loadSavedPortfolio = function () {
     window.app?.loadSavedPortfolio();
 };
 
 // Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     console.log('DOM loaded, initializing refactored app...');
-    
+
     window.app = new HedgeFundApp();
     window.app.initialize();
-    
+
     console.log('Refactored app initialized successfully');
 });

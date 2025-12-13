@@ -7,6 +7,24 @@
     <title>SHM Ventures</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: 'var(--text-primary)',
+                        secondary: 'var(--text-secondary)',
+                        accent: 'var(--accent-color)',
+                        card: 'var(--bg-card)',
+                        'card-hover': 'var(--bg-card-hover)',
+                        'border-card': 'var(--border-card)',
+                        body: 'var(--bg-body)',
+                    }
+                }
+            }
+        }
+    </script>
     <link rel="stylesheet" href="css/navigation-fix.css">
     <link rel="stylesheet" href="css/plaid-responsive.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/apexcharts/3.44.0/apexcharts.min.js"></script>
@@ -14,15 +32,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
     <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
     <script src="js/global-api-config.js"></script>
-    <link rel="stylesheet" href="index-styles.css">
+    <link rel="stylesheet" href="css/index-styles.css">
     <link rel="stylesheet" href="css/chatbot.css">
-    <link rel="stylesheet" href="footer-styles.css">
+    <link rel="stylesheet" href="css/footer-styles.css">
     <script src="js/chatbot.js" defer></script>
 
 </head>
 
-<body class="gradient-bg min-h-full" data-theme="dark">
-    <div class="min-h-full flex flex-col">
+<body class="gradient-bg min-h-full">
+    <div class="min-h-screen flex flex-col">
         <!-- Header -->
         <header class="border-b-4 border-indigo-600">
             <div class="w-full px-4 sm:px-6 lg:px-8">
@@ -84,94 +102,70 @@
 
                 <!-- Portfolio Analysis Section -->
                 <div class="mb-6">
-                    <button onclick="toggleSection('portfolioSection')"
-                        class="w-full flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-900 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-800 transition-colors">
-                        <span class="font-semibold text-indigo-700 dark:text-indigo-300">Portfolio Analysis</span>
-                        <svg id="portfolioChevron"
-                            class="w-4 h-4 text-indigo-600 dark:text-indigo-400 transform transition-transform"
-                            fill="currentColor" viewBox="0 0 20 20">
+                    <button onclick="toggleSection('portfolioSection')" class="nav-section-toggle">
+                        <span>Portfolio Analysis</span>
+                        <svg id="portfolioChevron" class="w-4 h-4 transform transition-transform" fill="currentColor"
+                            viewBox="0 0 20 20">
                             <path fill-rule="evenodd"
                                 d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
                                 clip-rule="evenodd"></path>
                         </svg>
                     </button>
                     <div id="portfolioSection" class="mt-2 space-y-1 hidden">
-                        <button data-analysis="risk-metrics"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Risk
+                        <button data-analysis="risk-metrics" class="nav-item">Risk
                             Metrics</button>
-                        <button data-analysis="options-strategies"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Options
+                        <button data-analysis="options-strategies" class="nav-item">Options
                             Strategies</button>
-                        <button data-analysis="performance-attribution"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Performance
+                        <button data-analysis="performance-attribution" class="nav-item">Performance
                             Attribution</button>
-                        <button data-analysis="monte-carlo"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Monte
+                        <button data-analysis="monte-carlo" class="nav-item">Monte
                             Carlo</button>
-                        <button data-analysis="portfolio-optimization"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Portfolio
+                        <button data-analysis="portfolio-optimization" class="nav-item">Portfolio
                             Optimization</button>
-                        <button data-analysis="correlation-analysis"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Correlation
+                        <button data-analysis="correlation-analysis" class="nav-item">Correlation
                             Analysis</button>
-                        <button data-analysis="sector-allocation"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Sector
+                        <button data-analysis="sector-allocation" class="nav-item">Sector
                             Allocation</button>
-                        <button data-analysis="statistical-analysis"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Statistical
+                        <button data-analysis="statistical-analysis" class="nav-item">Statistical
                             Analysis</button>
-                        <button data-analysis="technical-indicators"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Technical
+                        <button data-analysis="technical-indicators" class="nav-item">Technical
                             Indicators</button>
-                        <button data-analysis="strategy-backtesting"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Strategy
+                        <button data-analysis="strategy-backtesting" class="nav-item">Strategy
                             Backtesting</button>
                     </div>
                 </div>
 
                 <!-- Transaction Analysis Section -->
                 <div class="mb-6">
-                    <button onclick="toggleSection('transactionSection')"
-                        class="w-full flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-800 transition-colors">
-                        <span class="font-semibold text-purple-700 dark:text-purple-300">Transaction Analysis</span>
-                        <svg id="transactionChevron"
-                            class="w-4 h-4 text-purple-600 dark:text-purple-400 transform transition-transform"
-                            fill="currentColor" viewBox="0 0 20 20">
+                    <button onclick="toggleSection('transactionSection')" class="nav-section-toggle">
+                        <span>Transaction Analysis</span>
+                        <svg id="transactionChevron" class="w-4 h-4 transform transition-transform" fill="currentColor"
+                            viewBox="0 0 20 20">
                             <path fill-rule="evenodd"
                                 d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
                                 clip-rule="evenodd"></path>
                         </svg>
                     </button>
                     <div id="transactionSection" class="mt-2 space-y-1 hidden">
-                        <button data-analysis="pnl-attribution"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">P&L
+                        <button data-analysis="pnl-attribution" class="nav-item">P&L
                             Attribution</button>
-                        <button data-analysis="trade-performance"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade
+                        <button data-analysis="trade-performance" class="nav-item">Trade
                             Performance</button>
-                        <button data-analysis="cost-analysis"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cost
+                        <button data-analysis="cost-analysis" class="nav-item">Cost
                             Analysis</button>
-                        <button data-analysis="turnover-analysis"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Turnover
+                        <button data-analysis="turnover-analysis" class="nav-item">Turnover
                             Analysis</button>
-                        <button data-analysis="tax-analysis"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Tax
+                        <button data-analysis="tax-analysis" class="nav-item">Tax
                             Analysis</button>
-                        <button data-analysis="cash-flow"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Cash
+                        <button data-analysis="cash-flow" class="nav-item">Cash
                             Flow Analysis</button>
-                        <button data-analysis="accounting-analysis"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">FIFO/LIFO
+                        <button data-analysis="accounting-analysis" class="nav-item">FIFO/LIFO
                             Accounting</button>
-                        <button data-analysis="trade-timing"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Trade
+                        <button data-analysis="trade-timing" class="nav-item">Trade
                             Timing</button>
-                        <button data-analysis="drawdown-analysis"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Drawdown
+                        <button data-analysis="drawdown-analysis" class="nav-item">Drawdown
                             Analysis</button>
-                        <button data-analysis="return-attribution"
-                            class="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md">Return
+                        <button data-analysis="return-attribution" class="nav-item">Return
                             Attribution</button>
                     </div>
                 </div>
@@ -180,22 +174,71 @@
             </div>
 
             <!-- Main Content Area -->
-            <div class="flex-1">
+            <div class="flex-1 min-w-0">
                 <!-- Hidden file inputs for upload functionality -->
-                <input type="file" id="portfolioFile" accept=".csv,.xlsx,.xls" class="hidden"
+                <input type="file" id="portfolioFile" accept=".csv,.xlsx,.xls,.json" class="hidden"
                     aria-label="Upload portfolio file">
-                <input type="file" id="transactionFile" accept=".csv,.xlsx,.xls" class="hidden"
+                <input type="file" id="transactionFile" accept=".csv,.xlsx,.xls,.json" class="hidden"
                     aria-label="Upload transaction file">
 
-                <!-- Default Upload Section -->
-                <div id="defaultUploadSection" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Data Upload & Management</h2>
-                        <div id="dataActions" class="hidden">
-                            <button onclick="viewLoadedData()"
-                                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm">View
-                                Data</button>
+
+                <!-- Data Requirements Info -->
+                <div
+                    class="analysis-card p-6 mb-8 bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-gray-700">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                         </div>
+                        <div class="ml-4 flex-1">
+                            <h3 class="text-lg font-medium text-blue-900 dark:text-blue-100">How to Load Data for
+                                Analysis</h3>
+                            <div class="mt-3 text-sm text-blue-800 dark:text-gray-300 grid md:grid-cols-2 gap-6">
+                                <div>
+                                    <h4 class="font-bold text-blue-900 dark:text-blue-100 mb-2">Option 1: Upload Files
+                                        (Manual)</h4>
+                                    <ol class="list-decimal pl-5 space-y-1">
+                                        <li>Prepare a CSV file with columns: <span
+                                                class="font-mono text-xs bg-blue-100 dark:bg-gray-700 px-1 rounded">date,
+                                                ticker, action,
+                                                shares, price</span>.</li>
+                                        <li>Click <strong>"+ Upload New Portfolio/Transactions"</strong> below.</li>
+                                        <li>Select your uploaded file from the dropdown menu.</li>
+                                        <li>Click <strong>"View Portfolio"</strong> or <strong>"View
+                                                Transactions"</strong> to load data.</li>
+                                    </ol>
+                                </div>
+                                <div class="md:border-l md:border-blue-200 dark:md:border-gray-700 md:pl-6">
+                                    <h4 class="font-bold text-blue-900 dark:text-blue-100 mb-2">Option 2: Connect via
+                                        Plaid (Auto)</h4>
+                                    <ol class="list-decimal pl-5 space-y-1">
+                                        <li>Click the <strong>"Connect Account"</strong> button in the green box below.
+                                        </li>
+                                        <li>Follow the prompts to securely link your brokerage.</li>
+                                        <li>Once connected, click <strong>"Load Data."</strong></li>
+                                        <li>Your live portfolio and transaction data will be automatically loaded for
+                                            analysis.</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <p
+                                class="mt-3 text-xs text-blue-600 dark:text-blue-400 border-t border-blue-200 dark:border-gray-700 pt-2">
+                                <span class="font-semibold">Note:</span> For both methods, historical market data and
+                                price history is automatically fetched by the system for powerful portfolio analysis. No
+                                need to upload extra price files.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Default Upload Section -->
+                <div id="defaultUploadSection" class="analysis-card p-6 mb-8">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-primary">Data Upload & Management</h2>
+                        <div id="dataActions" class="hidden"></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -261,6 +304,9 @@
                                 <button id="plaidConnectBtn" onclick="togglePlaidConnection()"
                                     class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto">Connect
                                     Account</button>
+                                <button id="plaidReloadBtn" onclick="loadPlaidPortfolio()"
+                                    class="hidden bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2">Reload
+                                    Data</button>
                                 <div id="plaidStatus" class="mt-2 text-xs text-gray-600">Connect your brokerage account
                                     for real-time data</div>
                             </div>
@@ -287,9 +333,9 @@
                 </div>
 
                 <!-- Data Preview Section -->
-                <div id="dataPreview" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8 hidden">
+                <div id="dataPreview" class="analysis-card p-6 mb-8 hidden">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Loaded Data Preview</h3>
+                        <h3 class="text-lg font-bold text-primary">Loaded Data Preview</h3>
                         <button onclick="hideDataPreview()" class="text-gray-400 hover:text-gray-600">
                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd"
@@ -302,18 +348,20 @@
                 </div>
 
                 <!-- Dynamic Analysis Content -->
-                <div id="analysisContent" class="bg-white rounded-xl shadow-lg p-6 mb-8 hidden">
-                    <div id="analysisTitle" class="text-xl font-bold text-gray-900 mb-4">Select an analysis from the
+                <!-- Dynamic Analysis Content -->
+                <div id="analysisContent" class="analysis-card p-6 mb-8 hidden">
+                    <div id="analysisTitle" class="text-xl font-bold text-primary mb-4">Select an analysis from the
                         sidebar</div>
-                    <div id="analysisBody">Choose an analysis type from the left sidebar to view detailed results.</div>
+                    <div id="analysisBody" class="text-secondary">Choose an analysis type from the left sidebar to view
+                        detailed results.</div>
                 </div>
 
                 <!-- Loading Section -->
-                <div id="loadingSection" class="bg-white rounded-xl shadow-lg p-12 mb-8 hidden">
+                <div id="loadingSection" class="analysis-card p-12 mb-8 hidden">
                     <div class="text-center">
                         <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mb-6">
                         </div>
-                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
+                        <h3 class="text-xl font-semibold text-primary mb-2">Processing Your Data</h3>
                         <p class="text-gray-600 mb-4">Analyzing portfolio holdings and calculating risk metrics...</p>
                         <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
                             <div id="progressBar" class="bg-indigo-600 h-2 rounded-full transition-all duration-500"
@@ -1051,7 +1099,7 @@
 
 
     </div>
-    </div>
+
     <!-- Footer -->
     <footer class="app-footer glass-footer mt-auto">
         <div class="app-footer-content">
@@ -1059,9 +1107,9 @@
                 <span>&copy; 2025 SHM Ventures. All rights reserved.</span>
             </div>
             <div class="footer-links">
-                <a href="#">Privacy Policy</a>
-                <a href="#">Terms of Service</a>
-                <a href="#">Contact Support</a>
+                <a href="privacy-policy.html">Privacy Policy</a>
+                <a href="terms-of-service.html">Terms of Service</a>
+
             </div>
         </div>
     </footer>
@@ -1112,7 +1160,7 @@
     <script src="js/core/sidebar-handler.js"></script>
     <script src="js/modules/sector-charts.js"></script>
     <link rel="stylesheet" href="css/analytics-simple.css">
-    <link rel="stylesheet" href="css/dark-analysis.css">
+
     <link rel="stylesheet" href="css/settings-panel.css">
 
     <script src="js/missing-functions.js"></script>
@@ -1167,6 +1215,11 @@
             // Apply initial theme
             document.body.setAttribute('data-theme', initialTheme);
             document.documentElement.setAttribute('data-theme', initialTheme);
+            if (initialTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
 
             if (themeToggle) {
                 // Checkbox state: checked = dark, unchecked = light
@@ -1177,6 +1230,13 @@
                     const newTheme = themeToggle.checked ? 'dark' : 'light';
                     document.body.setAttribute('data-theme', newTheme);
                     document.documentElement.setAttribute('data-theme', newTheme);
+
+                    if (newTheme === 'dark') {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+
                     localStorage.setItem('theme', newTheme);
                 });
             }

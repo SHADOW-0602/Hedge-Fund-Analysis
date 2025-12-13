@@ -142,10 +142,10 @@ async function fetchCashFlowAnalysis(transactions) {
             </div>
         </div>
         
-        <div id="cashFlowContent" class="bg-white rounded-lg shadow p-12 text-center">
+        <div id="cashFlowContent" class="analysis-card p-12 text-center">
             <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
-            <p class="text-gray-600 mb-4">Analyzing ${transactions?.length || 0} transactions and calculating cash flows...</p>
+            <h3 class="text-xl font-semibold text-primary mb-2">Processing Your Data</h3>
+            <p class="text-secondary mb-4">Analyzing ${transactions?.length || 0} transactions and calculating cash flows...</p>
             <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
@@ -241,45 +241,45 @@ function displayCashFlowAnalysis(data) {
 
     contentDiv.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Total Inflows</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Total Inflows</h3>
                 <p class="text-3xl font-bold text-green-600">
                     ${currencySymbol}${Math.abs(totalInflows).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-500 mt-1">${summary.period || '1Y'}</p>
+                <p class="text-sm text-secondary mt-1">${summary.period || '1Y'}</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Total Outflows</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Total Outflows</h3>
                 <p class="text-3xl font-bold text-red-600">
                     ${currencySymbol}${Math.abs(totalOutflows).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-500 mt-1">Investments & Fees</p>
+                <p class="text-sm text-secondary mt-1">Investments & Fees</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
-                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Net Flow</h3>
+            <div class="analysis-card p-6">
+                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Net Flow</h3>
                 <p class="text-3xl font-bold ${netFlow >= 0 ? 'text-green-600' : 'text-red-600'}">
                     ${netFlow >= 0 ? '+' : ''}${currencySymbol}${Math.abs(netFlow).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                <p class="text-sm text-gray-500 mt-1">Net Position</p>
+                <p class="text-sm text-secondary mt-1">Net Position</p>
             </div>
         </div>
 
         ${chartHtml}
 
-        <div class="bg-gray-50 rounded-lg p-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+        <div class="analysis-card p-6">
+            <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${summary.period || 'ITD'}</span></div>
-                <div><span class="text-gray-600">Flow Type:</span> <span class="font-medium text-gray-900">${summary.flow_type || 'Net'}</span></div>
-                <div><span class="text-gray-600">Frequency:</span> <span class="font-medium text-gray-900">${summary.frequency || 'Daily'}</span></div>
-                <div><span class="text-gray-600">Smoothing:</span> <span class="font-medium text-gray-900">${summary.smoothing || 'None'}</span></div>
-                <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium text-gray-900">${summary.benchmark || 'Cash yield'}</span></div>
+                <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${summary.period || 'ITD'}</span></div>
+                <div><span class="text-secondary">Flow Type:</span> <span class="font-medium text-primary">${summary.flow_type || 'Net'}</span></div>
+                <div><span class="text-secondary">Frequency:</span> <span class="font-medium text-primary">${summary.frequency || 'Daily'}</span></div>
+                <div><span class="text-secondary">Smoothing:</span> <span class="font-medium text-primary">${summary.smoothing || 'None'}</span></div>
+                <div><span class="text-secondary">Benchmark:</span> <span class="font-medium text-primary">${summary.benchmark || 'Cash yield'}</span></div>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
-                <div><span class="text-gray-600">Avg Daily Inflow:</span> <span class="font-medium text-gray-900">${currencySymbol}${(summary.avg_daily_inflow || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                <div><span class="text-gray-600">Avg Daily Outflow:</span> <span class="font-medium text-gray-900">${currencySymbol}${(summary.avg_daily_outflow || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                <div><span class="text-gray-600">Avg Daily Net:</span> <span class="font-medium text-gray-900">${currencySymbol}${(summary.avg_daily_net || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                <div><span class="text-gray-600">Data Points:</span> <span class="font-medium text-gray-900">${summary.data_points || 0}</span></div>
+                <div><span class="text-secondary">Avg Daily Inflow:</span> <span class="font-medium text-primary">${currencySymbol}${(summary.avg_daily_inflow || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div><span class="text-secondary">Avg Daily Outflow:</span> <span class="font-medium text-primary">${currencySymbol}${(summary.avg_daily_outflow || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div><span class="text-secondary">Avg Daily Net:</span> <span class="font-medium text-primary">${currencySymbol}${(summary.avg_daily_net || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div><span class="text-secondary">Data Points:</span> <span class="font-medium text-primary">${summary.data_points || 0}</span></div>
             </div>
         </div>
     `;
@@ -305,8 +305,8 @@ function createCashFlowChart(chartData, benchmarkData) {
     }, 100);
 
     return `
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Cash Flow Trend</h3>
+        <div class="analysis-card p-6 mb-6">
+            <h3 class="text-lg font-semibold text-primary mb-4">Cash Flow Trend</h3>
             <div style="position: relative; height: 400px; width: 100%;">
                 <canvas id="${chartId}" style="width: 100%; height: 100%;"></canvas>
             </div>
@@ -414,12 +414,12 @@ function showError(message) {
     const contentDiv = document.getElementById('cashFlowContent');
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-8 text-center text-red-600">
+            <div class="analysis-card p-8 text-center text-red-600">
                 <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p class="text-xl font-semibold mb-2">Analysis Error</p>
-                <p class="text-sm text-gray-600">${message}</p>
+                <p class="text-sm text-secondary">${message}</p>
             </div>
         `;
     }

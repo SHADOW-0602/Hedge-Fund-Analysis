@@ -1,8 +1,11 @@
 .settings-panel {
-    background-color: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-card);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border-card);
     border-radius: 0.5rem;
     padding: 1rem;
+    color: var(--text-primary);
 }
 
 .settings-panel.hidden {
@@ -10,13 +13,14 @@
 }
 
 .settings-panel select {
-    background-color: white;
-    border: 1px solid #d1d5db;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-card);
     border-radius: 0.375rem;
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     line-height: 1.25rem;
     width: 100%;
+    color: var(--text-primary);
 }
 
 .settings-panel select:focus {
@@ -29,6 +33,6 @@
     display: block;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #374151;
+    color: var(--text-primary);
     margin-bottom: 0.25rem;
 }

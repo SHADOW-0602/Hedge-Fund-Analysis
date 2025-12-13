@@ -19,12 +19,12 @@ async function loadTurnoverAnalysis(transactions) {
         console.error('[TURNOVER-ANALYSIS] turnoverAnalysis container not found');
         return;
     }
-    
+
     console.log('[TURNOVER-ANALYSIS] Container found, proceeding with interactive analysis');
-    
+
     // Clear any existing content immediately
     container.innerHTML = '';
-    
+
     // Force display of interactive analysis
     console.log('[TURNOVER-ANALYSIS] Forcing interactive turnover analysis display');
 
@@ -69,7 +69,7 @@ async function fetchTurnoverAnalysis(transactions) {
     // Show loading state with full UI
     container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">Turnover Analysis</h2>
+            <h2 class="text-2xl font-bold text-primary">Turnover Analysis</h2>
             <div class="flex items-center space-x-2">
                 <button onclick="toggleTurnoverSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                     Settings
@@ -87,7 +87,7 @@ async function fetchTurnoverAnalysis(transactions) {
         <div id="turnoverSettings" class="settings-panel ${settingsHidden ? 'hidden' : ''} mb-6">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                    <label class="block text-sm font-medium text-secondary mb-1">Period</label>
                     <select id="turnoverPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="handleTurnoverPeriodChange()">
                         <option value="1M" ${currentTurnoverOptions.period === '1M' ? 'selected' : ''}>1 Month</option>
                         <option value="3M" ${currentTurnoverOptions.period === '3M' ? 'selected' : ''}>3 Months</option>
@@ -98,14 +98,14 @@ async function fetchTurnoverAnalysis(transactions) {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Calculation</label>
+                    <label class="block text-sm font-medium text-secondary mb-1">Calculation</label>
                     <select id="turnoverCalculation" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
                         <option value="Buy+Sell" ${currentTurnoverOptions.calculation === 'Buy+Sell' ? 'selected' : ''}>Buy + Sell</option>
                         <option value="Portfolio-weighted" ${currentTurnoverOptions.calculation === 'Portfolio-weighted' ? 'selected' : ''}>Portfolio-weighted</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                    <label class="block text-sm font-medium text-secondary mb-1">Frequency</label>
                     <select id="turnoverFrequency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
                         <option value="Daily" ${currentTurnoverOptions.frequency === 'Daily' ? 'selected' : ''}>Daily</option>
                         <option value="Weekly" ${currentTurnoverOptions.frequency === 'Weekly' ? 'selected' : ''}>Weekly</option>
@@ -113,7 +113,7 @@ async function fetchTurnoverAnalysis(transactions) {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                    <label class="block text-sm font-medium text-secondary mb-1">Benchmark</label>
                     <select id="turnoverBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
                         <option value="Mutual Fund avg" ${currentTurnoverOptions.benchmark === 'Mutual Fund avg' ? 'selected' : ''}>Mutual Fund Avg</option>
                         <option value="ETF avg" ${currentTurnoverOptions.benchmark === 'ETF avg' ? 'selected' : ''}>ETF Avg</option>
@@ -121,7 +121,7 @@ async function fetchTurnoverAnalysis(transactions) {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Trend Window</label>
+                    <label class="block text-sm font-medium text-secondary mb-1">Trend Window</label>
                     <select id="turnoverTrend" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
                         <option value="30d" ${currentTurnoverOptions.trend === '30d' ? 'selected' : ''}>Rolling 30d</option>
                         <option value="90d" ${currentTurnoverOptions.trend === '90d' ? 'selected' : ''}>Rolling 90d</option>
@@ -133,20 +133,20 @@ async function fetchTurnoverAnalysis(transactions) {
             <!-- Custom Date Range Inputs (Hidden by default) -->
             <div id="turnoverCustomDates" class="grid grid-cols-2 gap-4 mt-4 ${currentTurnoverOptions.period === 'Custom' ? '' : 'hidden'}">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <label class="block text-sm font-medium text-secondary mb-1">Start Date</label>
                     <input type="date" id="turnoverStartDate" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value="${currentTurnoverOptions.start_date || ''}" onchange="updateTurnoverAnalysis()">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <label class="block text-sm font-medium text-secondary mb-1">End Date</label>
                     <input type="date" id="turnoverEndDate" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value="${currentTurnoverOptions.end_date || ''}" onchange="updateTurnoverAnalysis()">
                 </div>
             </div>
         </div>
         
-        <div id="turnoverContent" class="bg-white rounded-lg shadow p-12 text-center">
+        <div id="turnoverContent" class="analysis-card p-12 text-center">
             <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
             <h3 class="text-xl font-semibold text-gray-900 mb-2">Analyzing Turnover</h3>
-            <p class="text-gray-600 mb-4">Processing ${transactions?.length || 0} transactions...</p>
+            <p class="text-secondary mb-4">Processing ${transactions?.length || 0} transactions...</p>
             <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
@@ -189,28 +189,28 @@ function displayTurnoverResults(data) {
 
     contentDiv.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="analysis-card p-6">
                 <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Annualized Turnover</h3>
                 <p class="text-3xl font-bold text-blue-600">
                     ${(annualizedTurnover * 100).toFixed(1)}%
                 </p>
-                <p class="text-sm text-gray-600 mt-1">Portfolio churn rate</p>
+                <p class="text-sm text-secondary mt-1">Portfolio churn rate</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="analysis-card p-6">
                 <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Avg Daily Volume</h3>
                 <p class="text-3xl font-bold text-green-600">
                     $${formatCompactNumber(avgDailyTurnover)}
                 </p>
                 <p class="text-sm text-gray-600 mt-1">Daily trading volume</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="analysis-card p-6">
                 <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Trading Activity</h3>
                 <p class="text-3xl font-bold text-purple-600">
                     ${tradingDays}
                 </p>
                 <p class="text-sm text-gray-600 mt-1">Active trading days</p>
             </div>
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="analysis-card p-6">
                 <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Trading Frequency</h3>
                 <p class="text-3xl font-bold text-orange-600">
                     ${(turnoverFreq * 100).toFixed(1)}%
@@ -220,24 +220,24 @@ function displayTurnoverResults(data) {
         </div>
 
         <!-- Chart Section -->
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">Turnover Trend Analysis</h3>
+        <div class="analysis-card p-6 mb-6">
+            <h3 class="text-lg font-semibold text-primary mb-4">Turnover Trend Analysis</h3>
             <div class="h-80 relative">
                 <canvas id="turnoverTrendChart"></canvas>
             </div>
         </div>
 
         <!-- Analysis Parameters Footer -->
-        <div class="bg-gray-50 rounded-lg p-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+        <div class="analysis-card p-6">
+            <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentTurnoverOptions.period}</span></div>
-                <div><span class="text-gray-600">Calculation:</span> <span class="font-medium text-gray-900">${currentTurnoverOptions.calculation}</span></div>
-                <div><span class="text-gray-600">Frequency:</span> <span class="font-medium text-gray-900">${currentTurnoverOptions.frequency}</span></div>
-                <div><span class="text-gray-600">Benchmark:</span> <span class="font-medium text-gray-900">${currentTurnoverOptions.benchmark}</span></div>
+                <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentTurnoverOptions.period}</span></div>
+                <div><span class="text-secondary">Calculation:</span> <span class="font-medium text-primary">${currentTurnoverOptions.calculation}</span></div>
+                <div><span class="text-secondary">Frequency:</span> <span class="font-medium text-primary">${currentTurnoverOptions.frequency}</span></div>
+                <div><span class="text-secondary">Benchmark:</span> <span class="font-medium text-primary">${currentTurnoverOptions.benchmark}</span></div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-2">
-                <div><span class="text-gray-600">Trend Window:</span> <span class="font-medium text-gray-900">${currentTurnoverOptions.trend}</span></div>
+                <div><span class="text-secondary">Trend Window:</span> <span class="font-medium text-primary">${currentTurnoverOptions.trend}</span></div>
             </div>
         </div>
     `;
@@ -253,13 +253,13 @@ function renderTurnoverChart(data) {
         turnoverChart.destroy();
         turnoverChart = null;
     }
-    
+
     // Force canvas reset
     ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
 
     const chartData = data.chart_data || [];
     const benchmarkData = data.benchmark_data || [];
-    
+
     // Prepare datasets
     const labels = chartData.map(d => d.date);
     const rollingTurnover = chartData.map(d => d.rolling_turnover);
@@ -323,7 +323,7 @@ function renderTurnoverChart(data) {
                 },
                 x: {
                     grid: { display: false },
-                    ticks: { 
+                    ticks: {
                         maxTicksLimit: 8,
                         maxRotation: 45,
                         minRotation: 45
