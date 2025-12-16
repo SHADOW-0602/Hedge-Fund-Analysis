@@ -4,6 +4,7 @@ import json
 import random
 import time
 import requests
+import textwrap
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -39,20 +40,21 @@ def generate_custom_summary(ticker, news_articles, all_keys_data):
         news_text += f"   Source: {article['source']}\n"
         news_text += f"   {article['description']}\n\n"
 
-    # CUSTOM PROMPT with 60-70 words requirement
+    # CUSTOM PROMPT: Optimized to ONLY ask for executive_summary
     prompt = f"""Analyze the following news articles about {ticker} stock.
 
 {news_text}
 
 Please provide a JSON response with the following structure:
 {{
-    "executive_summary": "An executive summary of exactly 60-70 words describing the main developments.",
-    "what_changed": "Brief summary",
-    "analyst_earnings": "Brief summary",
-    "last_week_updates": "Brief summary"
+    "executive_summary": "An executive summary of exactly 60-70 words describing the main developments."
 }}
 
-IMPORTANT: The 'executive_summary' field MUST be exactly 60-70 words long. Be concise and factual."""
+IMPORTANT: 
+1. Return ONLY valid JSON.
+2. Generate ONLY the 'executive_summary' field. Do not generate other fields.
+3. The summary MUST be exactly 100-120 words long. 
+4. Be concise and factual."""
 
     headers = {'Content-Type': 'application/json', 'Authorization': ''}
     payload = {
@@ -112,23 +114,29 @@ def main():
         print("No Groq keys found.")
         return
 
-    output_file = "executive_summaries.txt"
+    # Generate timestamped filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = f"executive_summaries_{timestamp}.txt"
+    
+    # Create new file
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(f"Executive Summaries Generated at {datetime.now().isoformat()}\n")
-        f.write("="*50 + "\n\n")
+        pass  
 
+    total_start = time.time()
     for ticker in tickers:
         print(f"Processing {ticker}...")
         news = fetch_news_for_ticker(ticker)
         summary_text = generate_custom_summary(ticker, news, keys)
         
-        print(f"  > Summary length: {len(summary_text.split())} words")
+        word_count = len(summary_text.split())
+        print(f"  > Summary length: {word_count} words")
         
         with open(output_file, "a", encoding="utf-8") as f:
-            f.write(f"--- {ticker} ---\n")
-            f.write(summary_text + "\n\n")
+            f.write(f"{ticker} Executive Summary ({word_count} words):\n")
+            f.write(textwrap.fill(summary_text, width=80) + "\n")
+            f.write("-" * 40 + "\n\n")
             
-    print(f"\nDone! Results saved to {output_file}")
+    print(f"\nDone! Results saved to {output_file} in {time.time() - total_start:.2f}s")
 
 if __name__ == "__main__":
     main()

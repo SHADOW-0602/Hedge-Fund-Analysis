@@ -166,9 +166,8 @@ def fetch_news_for_ticker(ticker):
                 response = requests.get(url, timeout=5)
                 
                 if response.status_code == 429:
-                    wait = 2 ** attempt
-                    print(f"  ⚠ Polygon Rate Limit (429). Retrying in {wait}s...")
-                    time.sleep(wait)
+                    print(f"  ⚠ Polygon Rate Limit (429 - 5 calls/min limit). Sleeping 65s to reset...")
+                    time.sleep(60)
                     continue
 
                 if response.status_code == 200:
@@ -243,19 +242,23 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
             'source': article['source']
         })
     
-    prompt = f"""Analyze the following news articles about {ticker} stock and create a comprehensive summary in exactly 50-100 words for each section.
+    prompt = f"""Analyze the following news articles about {ticker} stock and create a **detailed and comprehensive** summary. Each section must be **at least 80 words** long.
 
 {news_text}
 
 Please provide a JSON response with the following structure:
 {{
-    "executive_summary": "A 50-100 word overview of the main developments",
-    "what_changed": "A 50-100 word explanation of what changed today for this stock",
-    "analyst_earnings": "A 50-100 word summary of any analyst revisions or earnings announcements (or 'No major analyst revisions or earnings announcements were reported today.' if none)",
-    "last_week_updates": "A 100-200 word summary of developments from the past week"
+    "executive_summary": "A detailed 80-120 word overview of the main developments, explaining the 'why' and 'how'.",
+    "what_changed": "A detailed 80-120 word explanation of what changed today, including specific data points and reasons.",
+    "analyst_earnings": "A detailed 80-120 word discussion of analyst revisions or earnings. If none, provide a detailed context on recent street sentiment.",
+    "last_week_updates": "A detailed 80-120 word summary of key developments from the past week."
 }}
 
-Keep each section between 50-100 words. Be concise and factual. Do not mention the word count in the output."""
+Output Requirements:
+1. **Do NOT be too concise.**
+2. Elaborate on the details, reasons, and implications.
+3. Ensure each section is substantial (minimum 3-4 sentences).
+4. Do not mention the word count in the output."""
 
     headers = {
         'Content-Type': 'application/json', 
