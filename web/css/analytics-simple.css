@@ -761,7 +761,8 @@
 /* Mobile header adjustments */
 @media (max-width: 768px) {
     header {
-        padding-left: 4rem !important;
+        padding-left: 1rem !important;
+        padding-right: 4rem !important;
     }
 
     header .flex {
@@ -799,7 +800,9 @@
     display: none;
     position: fixed;
     top: 1.25rem;
-    left: 1rem;
+    top: 1.25rem;
+    right: 1rem;
+    left: auto;
     z-index: 60;
     background: #4f46e5;
     color: white;

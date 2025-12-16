@@ -2,6 +2,7 @@ import os
 import time
 import random
 import json
+import re
 import threading
 from datetime import datetime, date, timedelta
 from flask import Blueprint, render_template, jsonify
@@ -10,6 +11,9 @@ import requests
 from supabase import create_client, Client
 import google.generativeai as genai
 import yfinance as yf
+
+# Global Lock for Database Operations
+DB_LOCK = threading.Lock()
 
 # Load environment variables
 load_dotenv()
@@ -23,63 +27,34 @@ supabase: Client = create_client(
     os.getenv('SUPABASE_ANON_KEY')
 )
 
-# Initialize Gemini AI
-# Initialize Gemini AI
-genai.configure(api_key=os.getenv('GEMINI_API_KEY_5'))
-model = genai.GenerativeModel('gemini-flash-latest')
+# Groq AI uses standard Requests, no specific client needed here
+# Model: llama-3.3-70b-versatile
 
 # Universe of popular stocks to monitor (Top US Companies by Market Cap + Popular Tech/Meme)
+# Universe of stocks to monitor (Full List)
 TICKER_UNIVERSE = [
-    # Mag 7 / Big Tech
+    # Top 7 (Priority)
     'AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA',
-    # Chips / Semi
-    'AMD', 'INTC', 'AVGO', 'QCOM', 'TXN', 'MU', 'ARM', 'TSM',
-    # Software / Cloud / AI
-    'ORCL', 'CRM', 'ADBE', 'PLTR', 'SNOW', 'SHOP', 'NOW', 'IBM', 'UBER', 'ABNB', 'PANW', 'CRWD',
-    # Financials
-    'JPM', 'BAC', 'V', 'MA', 'WFC', 'MS', 'GS', 'BLK', 'COIN', 'PYPL',
-    # Retail / Consumer
-    'WMT', 'COST', 'TGT', 'HD', 'MCD', 'SBUX', 'NKE', 'DIS', 'NFLX',
-    # Pharma / Health
-    'LLY', 'UNH', 'JNJ', 'PFE', 'MRK', 'ABBV', 'TMO',
-    # Industrial / Energy / Auto
-    'XOM', 'CVX', 'CAT', 'GE', 'BA', 'F', 'GM',
     # Others
-    'VZ', 'T', 'KO', 'PEP'
+    'LLY', 'JPM', 'NFLX', 'BRK-B', 'V', 'UNH', 'AVGO', 'AMD', 'TSM', 'PFE', 'MRK', 'JNJ', 'ORCL', 
+    'ADBE', 'CRM', 'COST', 'HD', 'WMT', 'BAC', 'GS', 'UBER', 'DELL', 'PLTR', 'ARM', 'SMCI', 'CRWD', 
+    'SNOW', 'NET', 'PDD', 'BABA', 'COIN', 'SOFI', 'TTD', 'ROKU', 'REGN', 'NBIX', 'CORT', 'CAPR', 
+    'CRSP', 'NVO', 'GILD', 'BA', 'CAT', 'SPY'
 ]
 
+# Tickers to display on the main page
+# Tickers to display on the main page
+DISPLAY_TICKERS = sorted(['AAPL', 'GOOG', 'MSFT', 'META', 'NVDA', 'TSLA', 'AMZN'])
+
 # Global variable to store current active list
-ACTIVE_TICKERS = TICKER_UNIVERSE[:30]  # Default to first 30
+# Initialize active tickers with sorted list (Priority first)
+sorted_tickers = sorted(TICKER_UNIVERSE, key=lambda x: (x not in DISPLAY_TICKERS, x))
+ACTIVE_TICKERS = sorted_tickers
+print(f"Initialized {len(ACTIVE_TICKERS)} tickers for processing (Top: {', '.join(ACTIVE_TICKERS[:7])})")
+
 IS_PROCESSING = False  # Track if news processing is running
 
-def get_dynamic_tickers():
-    """Select Top 30 tickers based on recent market volume/activity"""
-    print("Updating active ticker list based on market activity...")
-    try:
-        # Bulk download last 5 days of data for all tickers to get volume
-        # This is much faster than individual calls
-        data = yf.download(TICKER_UNIVERSE, period="5d", progress=False)['Volume']
-        
-        # Calculate average volume for each ticker
-        avg_volumes = data.mean()
-        
-        # Sort headers (tickers) by average volume descending
-        sorted_tickers = avg_volumes.sort_values(ascending=False)
-        
-        # Get top 30
-        top_30 = sorted_tickers.head(30).index.tolist()
-        
-        print(f"  ✓ Selected top 30 tickers by volume: {', '.join(top_30[:5])}...")
-        return top_30
-        
-    except Exception as e:
-        print(f"Error updating tickers: {e}")
-        # Fallback to default static list
-        return TICKER_UNIVERSE[:30]
 
-# Initialize active tickers with default list first
-ACTIVE_TICKERS = TICKER_UNIVERSE[:30]
-ACTIVE_TICKERS.sort()
 
 # We will let the background thread or first request update this
 # ACTIVE_TICKERS = get_dynamic_tickers()
@@ -118,72 +93,99 @@ def fetch_news_for_ticker(ticker):
     all_news = []
     
     # Primary 1: Try NewsAPI first
-    try:
-        newsapi_key = os.getenv('NEWSAPI_KEY')
-        if newsapi_key:
-            url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={newsapi_key}&pageSize=5&sortBy=publishedAt"
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                for article in data.get('articles', []):
-                    all_news.append({
-                        'title': article.get('title', ''),
-                        'url': article.get('url', ''),
-                        'source': article.get('source', {}).get('name', 'NewsAPI'),
-                        'published_at': article.get('publishedAt', ''),
-                        'description': article.get('description', '')
-                    })
-                print(f"  ✓ NewsAPI: {len(data.get('articles', []))} articles")
-    except requests.exceptions.RequestException:
-        pass  # Silently skip if network issues
-    except Exception as e:
-        print(f"  ✗ NewsAPI: {e}")
+    # Primary 1: Try NewsAPI first
+    for attempt in range(3):
+        try:
+            newsapi_key = os.getenv('NEWSAPI_KEY')
+            if newsapi_key:
+                url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={newsapi_key}&pageSize=5&sortBy=publishedAt"
+                response = requests.get(url, timeout=5)
+                
+                if response.status_code == 429:
+                    wait = 2 ** attempt
+                    print(f"  ⚠ NewsAPI Rate Limit (429). Retrying in {wait}s...")
+                    time.sleep(wait)
+                    continue
+                    
+                if response.status_code == 200:
+                    data = response.json()
+                    for article in data.get('articles', []):
+                        all_news.append({
+                            'title': article.get('title', ''),
+                            'url': article.get('url', ''),
+                            'source': article.get('source', {}).get('name', 'NewsAPI'),
+                            'published_at': article.get('publishedAt', ''),
+                            'description': article.get('description', '')
+                        })
+                    print(f"  ✓ NewsAPI: {len(data.get('articles', []))} articles")
+                    break # Success
+        except Exception as e:
+            print(f"  ✗ NewsAPI Attempt {attempt+1} Failed: {e}")
+            if attempt < 2: time.sleep(1)
     
     # Primary 2: Try Finnhub
-    try:
-        finnhub_key = os.getenv('FINNHUB_API_KEY')
-        if finnhub_key:
-            today = date.today()
-            week_ago = today - timedelta(days=7)
-            url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={week_ago}&to={today}&token={finnhub_key}"
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                for article in data[:5]:
-                    all_news.append({
-                        'title': article.get('headline', ''),
-                        'url': article.get('url', ''),
-                        'source': article.get('source', 'Finnhub'),
-                        'published_at': datetime.fromtimestamp(article.get('datetime', 0)).isoformat(),
-                        'description': article.get('summary', '')
-                    })
-                print(f"  ✓ Finnhub: {len(data[:5])} articles")
-    except requests.exceptions.RequestException:
-        pass  # Silently skip if network issues
-    except Exception as e:
-        print(f"  ✗ Finnhub: {e}")
+    # Primary 2: Try Finnhub
+    for attempt in range(3):
+        try:
+            finnhub_key = os.getenv('FINNHUB_API_KEY')
+            if finnhub_key:
+                today = date.today()
+                week_ago = today - timedelta(days=7)
+                url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={week_ago}&to={today}&token={finnhub_key}"
+                response = requests.get(url, timeout=5)
+                
+                if response.status_code == 429:
+                    wait = 2 ** attempt
+                    print(f"  ⚠ Finnhub Rate Limit (429). Retrying in {wait}s...")
+                    time.sleep(wait)
+                    continue
+
+                if response.status_code == 200:
+                    data = response.json()
+                    for article in data[:5]:
+                        all_news.append({
+                            'title': article.get('headline', ''),
+                            'url': article.get('url', ''),
+                            'source': article.get('source', 'Finnhub'),
+                            'published_at': datetime.fromtimestamp(article.get('datetime', 0)).isoformat(),
+                            'description': article.get('summary', '')
+                        })
+                    print(f"  ✓ Finnhub: {len(data[:5])} articles")
+                    break # Success
+        except Exception as e:
+            print(f"  ✗ Finnhub Attempt {attempt+1} Failed: {e}")
+            if attempt < 2: time.sleep(1)
     
     # Fallback 1: Try Polygon
-    try:
-        polygon_key = os.getenv('POLYGON_API_KEY')
-        if polygon_key:
-            url = f"https://api.polygon.io/v2/reference/news?ticker={ticker}&limit=5&apiKey={polygon_key}"
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                for article in data.get('results', []):
-                    all_news.append({
-                        'title': article.get('title', ''),
-                        'url': article.get('article_url', ''),
-                        'source': article.get('publisher', {}).get('name', 'Polygon'),
-                        'published_at': article.get('published_utc', ''),
-                        'description': article.get('description', '')
-                    })
-                print(f"  ✓ Polygon: {len(data.get('results', []))} articles")
-    except requests.exceptions.RequestException:
-        pass  # Silently skip if network issues
-    except Exception as e:
-        print(f"  ✗ Polygon: {e}")
+    # Fallback 1: Try Polygon
+    for attempt in range(3):
+        try:
+            polygon_key = os.getenv('POLYGON_API_KEY')
+            if polygon_key:
+                url = f"https://api.polygon.io/v2/reference/news?ticker={ticker}&limit=5&apiKey={polygon_key}"
+                response = requests.get(url, timeout=5)
+                
+                if response.status_code == 429:
+                    wait = 2 ** attempt
+                    print(f"  ⚠ Polygon Rate Limit (429). Retrying in {wait}s...")
+                    time.sleep(wait)
+                    continue
+
+                if response.status_code == 200:
+                    data = response.json()
+                    for article in data.get('results', []):
+                        all_news.append({
+                            'title': article.get('title', ''),
+                            'url': article.get('article_url', ''),
+                            'source': article.get('publisher', {}).get('name', 'Polygon'),
+                            'published_at': article.get('published_utc', ''),
+                            'description': article.get('description', '')
+                        })
+                    print(f"  ✓ Polygon: {len(data.get('results', []))} articles")
+                    break # Success
+        except Exception as e:
+            print(f"  ✗ Polygon Attempt {attempt+1} Failed: {e}")
+            if attempt < 2: time.sleep(1)
     
     # Fallback 2: Yahoo Finance (no API key needed, reliable fallback)
     try:
@@ -250,19 +252,24 @@ Please provide a JSON response with the following structure:
     "executive_summary": "A 50-100 word overview of the main developments",
     "what_changed": "A 50-100 word explanation of what changed today for this stock",
     "analyst_earnings": "A 50-100 word summary of any analyst revisions or earnings announcements (or 'No major analyst revisions or earnings announcements were reported today.' if none)",
-    "last_week_updates": "A 50-100 word summary of developments from the past week"
+    "last_week_updates": "A 100-200 word summary of developments from the past week"
 }}
 
 Keep each section between 50-100 words. Be concise and factual. Do not mention the word count in the output."""
 
-    headers = {'Content-Type': 'application/json'}
+    headers = {
+        'Content-Type': 'application/json', 
+        'Authorization': '' # Set in loop
+    }
+    
     payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }],
-        "generationConfig": {
-            "responseMimeType": "application/json"
-        }
+        "messages": [
+            {"role": "system", "content": "You are a financial analyst AI. You summarize stock news concisely in JSON format."},
+            {"role": "user", "content": prompt}
+        ],
+        "model": "llama-3.3-70b-versatile",
+        "response_format": {"type": "json_object"},
+        "temperature": 0.3
     }
     
     # Smart Key Rotation Implementation
@@ -272,7 +279,8 @@ Keep each section between 50-100 words. Be concise and factual. Do not mention t
     random.shuffle(available_keys)
     
     for attempt, (api_key, key_name) in enumerate(available_keys):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers['Authorization'] = f"Bearer {api_key}"
         
         try:
             # Short timeout to fail fast and rotate
@@ -281,20 +289,27 @@ Keep each section between 50-100 words. Be concise and factual. Do not mention t
             # If rate limited (too many requests), wait and retry
             if response.status_code == 429:
                 print(f"  ⚠ Rate limited (429) on {key_name}. Rotating to next key...")
+                time.sleep(1) 
+                continue
+                
+            # If model is overloaded (503), wait and retry
+            if response.status_code == 503:
+                print(f"  ⚠ Model overloaded (503) on {key_name}. Sleeping 2s and rotating...")
+                time.sleep(2)
                 continue
                 
             if response.status_code != 200:
-                print(f"  ✗ Gemini API Error ({response.status_code}) on {key_name}: {response.text[:100]}")
+                print(f"  ✗ Groq API Error ({response.status_code}) on {key_name}: {response.text[:100]}")
                 continue # Try next key on other errors too
                 
             data = response.json()
-            if 'candidates' not in data or not data['candidates']:
-                 print(f"  ✗ No candidates returned for {ticker} using {key_name}")
+            if 'choices' not in data or not data['choices']:
+                 print(f"  ✗ No choices returned for {ticker} using {key_name}")
                  continue
 
-            response_text = data['candidates'][0]['content']['parts'][0]['text']
+            response_text = data['choices'][0]['message']['content']
             
-            # Clean markdown
+            # Clean markdown if present (Groq usually returns pure JSON with json_object mode, but good to be safe)
             if response_text.startswith('```json'):
                 response_text = response_text[7:]
             if response_text.startswith('```'):
@@ -413,8 +428,12 @@ def process_single_ticker(ticker, all_keys_data):
         }
         store_news_and_summary(ticker, [], error_summary)
 
-def process_news_for_active_tickers(force=False):
-    """Process news for all active tickers in parallel"""
+def process_news_for_active_tickers(force=False, custom_tickers=None):
+    """Process news for all active tickers in parallel
+    Args:
+        force (bool): Ignore daily run check
+        custom_tickers (list): Optional list of tickers to process, overriding global ACTIVE_TICKERS
+    """
     global IS_PROCESSING, ACTIVE_TICKERS
     
     if IS_PROCESSING:
@@ -426,23 +445,31 @@ def process_news_for_active_tickers(force=False):
         return
     
     IS_PROCESSING = True
-    print(f"Starting PARALLEL news fetch cycle for {len(ACTIVE_TICKERS)} tickers...")
+    target_list = custom_tickers if custom_tickers else ACTIVE_TICKERS
+    print(f"Starting PARALLEL news fetch cycle for {len(target_list)} tickers...")
     
     try:
-        # Update tickers
-        tickers_by_volume = get_dynamic_tickers()
-        tickers_by_volume.sort()
-        ACTIVE_TICKERS = tickers_by_volume
+        if not custom_tickers:
+            # Update tickers - Prioritize DISPLAY_TICKERS first
+            # We now process ALL tickers, no longer limiting to top 30/volume
+            # Sort logic: (False if in DISPLAY_TICKERS else True, ticker_name) -> Puts DISPLAY_TICKERS first
+            
+            sorted_universe = sorted(TICKER_UNIVERSE, key=lambda x: (x not in DISPLAY_TICKERS, x))
+            ACTIVE_TICKERS = sorted_universe
+            target_list = ACTIVE_TICKERS
+        else:
+             print(f"  ✓ Using custom ticker list ({len(custom_tickers)} symbols)")
+             target_list = custom_tickers
         
         # Load balance across ALL available keys
         all_keys = []
-        key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5']
+        key_vars = ['GROQ_API_KEY', 'GROQ_API_KEY_2', 'GROQ_API_KEY_3', 'GROQ_API_KEY_4', 'GROQ_API_KEY_5', 'GROQ_API_KEY_6']
         for var in key_vars:
             k = os.getenv(var)
             if k: all_keys.append((k, var)) # Store tuple (key, name)
             
         if not all_keys:
-            print("CRITICAL: No Gemini API keys found in environment variables!")
+            print("CRITICAL: No Groq API keys found in environment variables!")
             IS_PROCESSING = False
             return
             
@@ -450,7 +477,7 @@ def process_news_for_active_tickers(force=False):
 
         tasks = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor: 
-            for ticker in ACTIVE_TICKERS:
+            for ticker in target_list:
                 # Pass ALL keys to each thread. 
                 # generate_ai_summary will shuffle them to ensure load balancing.
                 tasks.append(executor.submit(process_single_ticker, ticker, all_keys))
@@ -475,7 +502,7 @@ def run_background_refresh():
 def index():
     """Render the main page"""
     return render_template('us_news_index.html', 
-                         tickers=ACTIVE_TICKERS, 
+                         tickers=DISPLAY_TICKERS,  # Only show Mag 7 on frontend 
                          now=int(time.time()),
                          api_token=os.getenv('API_TOKEN', ''))
 
@@ -557,17 +584,18 @@ def generate_ticker_summary(ticker):
     def run_single():
         # Load balance across all available keys in .env
         raw_keys = [
-            (os.getenv('GEMINI_API_KEY'), 'GEMINI_API_KEY'),
-            (os.getenv('GEMINI_API_KEY_2'), 'GEMINI_API_KEY_2'),
-            (os.getenv('GEMINI_API_KEY_3'), 'GEMINI_API_KEY_3'),
-            (os.getenv('GEMINI_API_KEY_4'), 'GEMINI_API_KEY_4'),
-            (os.getenv('GEMINI_API_KEY_5'), 'GEMINI_API_KEY_5')
+            (os.getenv('GROQ_API_KEY'), 'GROQ_API_KEY'),
+            (os.getenv('GROQ_API_KEY_2'), 'GROQ_API_KEY_2'),
+            (os.getenv('GROQ_API_KEY_3'), 'GROQ_API_KEY_3'),
+            (os.getenv('GROQ_API_KEY_4'), 'GROQ_API_KEY_4'),
+            (os.getenv('GROQ_API_KEY_5'), 'GROQ_API_KEY_5'),
+            (os.getenv('GROQ_API_KEY_6'), 'GROQ_API_KEY_6')
         ]
         # Filter None
         keys = [k for k in raw_keys if k[0]]
         
         if not keys:
-            print("No Gemini keys available!")
+            print("No Groq keys available!")
             return
 
         # Pass ALL keys to allow rotation
@@ -623,4 +651,4 @@ def get_summary(ticker):
 @us_news_bp.route('/api/tickers')
 def get_tickers():
     """Get list of active tickers"""
-    return jsonify({'tickers': ACTIVE_TICKERS})
+    return jsonify({'tickers': DISPLAY_TICKERS})

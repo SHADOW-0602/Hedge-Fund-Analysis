@@ -294,6 +294,62 @@ body {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
+.search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    display: none;
+}
+
+.search-dropdown.show {
+    display: block;
+}
+
+.search-result-item {
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item:hover {
+    background: var(--hover-bg);
+}
+
+.result-symbol {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.result-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .ticker-item {
     padding: 12px 16px;
     border-radius: 6px;

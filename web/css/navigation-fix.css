@@ -1,9 +1,6 @@
 /* Navigation and Section Visibility Fixes */
 
-/* Ensure hidden sections are properly hidden */
-.hidden {
-    display: none !important;
-}
+
 
 /* Ensure analysis sections are properly contained */
 #analysisContainer,
@@ -25,7 +22,9 @@
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Ensure proper section clearing */
@@ -54,11 +53,11 @@
         z-index: 1000;
         transition: left 0.3s ease-in-out;
     }
-    
+
     #sidebar.mobile-open {
         left: 0;
     }
-    
+
     .mobile-overlay {
         position: fixed;
         top: 0;
@@ -69,15 +68,16 @@
         z-index: 999;
         display: none;
     }
-    
+
     .mobile-overlay.active {
         display: block;
     }
-    
+
     .mobile-menu-btn {
         position: fixed;
         top: 20px;
-        left: 20px;
+        right: 20px !important;
+        left: auto !important;
         z-index: 1001;
         background: #4f46e5;
         color: white;

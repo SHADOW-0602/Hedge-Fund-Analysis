@@ -359,7 +359,25 @@ function viewLoadedData(preferredType = null) {
         }
     });
 
-    if (dataSources.length === 0) {
+    // Check for filter (support legacy string arg)
+    const filter = (typeof preferredType === 'object') ? preferredType : { type: preferredType };
+
+    // Filter logic
+    let filteredSources = dataSources;
+    if (filter.source) {
+        filteredSources = filteredSources.filter(ds => ds.source && ds.source.toLowerCase() === filter.source.toLowerCase());
+    }
+    if (filter.connection_id) {
+        // Only filter by connection_id if the source data has it
+        filteredSources = filteredSources.filter(ds => {
+            // Check first item in data if available to match connection_id
+            const firstItem = ds.data && ds.data.length > 0 ? ds.data[0] : null;
+            return firstItem && firstItem.connection_id === filter.connection_id;
+        });
+    }
+
+    if (filteredSources.length === 0) {
+        // Fallback to "No Data" view if everything is filtered out
         dataPreviewContent.innerHTML = `
             <div class="text-center py-8">
                 <div class="text-gray-400 mb-2">
@@ -367,20 +385,22 @@ function viewLoadedData(preferredType = null) {
                         <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"></path>
                     </svg>
                 </div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">No Data Available</h3>
-                <p class="text-gray-600">Upload portfolio or transaction files to view data.</p>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No Matching Data Found</h3>
+                <p class="text-gray-600">The selected data is not available.</p>
             </div>
         `;
     } else {
         // Create data source selector and display
         let html = `
             <div class="mb-6">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Available Data Sources (${dataSources.length})</h3>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Available Data Sources (${filteredSources.length})</h3>
                 <div class="mb-4">
                     <select id="dataSourceSelector" class="w-full p-2 border rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500" onchange="switchDataView()">
         `;
 
-        dataSources.forEach((source, index) => {
+        filteredSources.forEach((source, index) => {
+            // Since we filtered the original array, we need to map the LOCAL index 0,1,2... to the GLOBAL window.availableDataSources index
+            // OR we just reset window.availableDataSources to the filtered list. Resetting is safer for consistency.
             html += `<option value="${index}">${source.type} (${source.data.length} records)</option>`;
         });
 
@@ -393,18 +413,18 @@ function viewLoadedData(preferredType = null) {
 
         dataPreviewContent.innerHTML = html;
 
-        // Store data sources globally for switching
-        window.availableDataSources = dataSources;
+        // Store filtered sources as the available ones
+        window.availableDataSources = filteredSources;
 
         // Show first data source by default
-        // Determine initial index based on preferredType
         let initialIndex = 0;
-        if (preferredType) {
-            if (preferredType === 'transactions') {
-                const txIndex = dataSources.findIndex(s => s.type.toLowerCase().includes('transaction'));
+        // Legacy preferredType (string) support
+        if (filter.type && typeof filter.type === 'string') {
+            if (filter.type === 'transactions') {
+                const txIndex = filteredSources.findIndex(s => s.type.toLowerCase().includes('transaction'));
                 if (txIndex >= 0) initialIndex = txIndex;
-            } else if (preferredType === 'portfolio') {
-                const pfIndex = dataSources.findIndex(s => s.type.toLowerCase().includes('portfolio'));
+            } else if (filter.type === 'portfolio') {
+                const pfIndex = filteredSources.findIndex(s => s.type.toLowerCase().includes('portfolio'));
                 if (pfIndex >= 0) initialIndex = pfIndex;
             }
         }
@@ -625,6 +645,7 @@ function toggleMobileSidebar() {
     const overlay = document.getElementById('mobileOverlay');
 
     if (sidebar && overlay) {
+        sidebar.classList.toggle('hidden');
         sidebar.classList.toggle('mobile-open');
         overlay.classList.toggle('active');
     }
@@ -641,7 +662,58 @@ function closeMobileSidebar() {
 }
 
 // Initialize mobile sidebar on page load
-document.addEventListener('DOMContentLoaded', initMobileSidebar);
+document.addEventListener('DOMContentLoaded', () => {
+    initMobileSidebar();
+
+    // Sync Mobile Theme Toggle
+    const desktopToggle = document.getElementById('themeToggle');
+    const mobileToggle = document.getElementById('mobileThemeToggle');
+
+    if (desktopToggle && mobileToggle) {
+        // Sync initial state
+        mobileToggle.checked = desktopToggle.checked;
+
+        // Mobile changes Desktop
+        mobileToggle.addEventListener('change', (e) => {
+            desktopToggle.checked = e.target.checked;
+            // Trigger change event on desktop toggle to fire existing logic
+            desktopToggle.dispatchEvent(new Event('change'));
+        });
+
+        // Desktop changes Mobile (if changed elsewhere)
+        desktopToggle.addEventListener('change', (e) => {
+            mobileToggle.checked = e.target.checked;
+        });
+    }
+
+    // Sync Admin Button Visibility
+    const desktopAdmin = document.getElementById('adminBtn');
+    const mobileAdmin = document.getElementById('mobileAdminBtn');
+
+    if (desktopAdmin && mobileAdmin) {
+        // Observer config
+        const config = { attributes: true, attributeFilter: ['style', 'class'] };
+
+        // Callback function to execute when mutations are observed
+        const callback = function (mutationsList, observer) {
+            for (const mutation of mutationsList) {
+                if (mutation.type === 'attributes') {
+                    // Sync display style
+                    mobileAdmin.style.display = desktopAdmin.style.display;
+                }
+            }
+        };
+
+        // Create an observer instance linked to the callback function
+        const observer = new MutationObserver(callback);
+
+        // Start observing the target node for configured mutations
+        observer.observe(desktopAdmin, config);
+
+        // Sync initial state
+        mobileAdmin.style.display = desktopAdmin.style.display;
+    }
+});
 
 // Close mobile sidebar when clicking analysis items
 document.addEventListener('click', (event) => {

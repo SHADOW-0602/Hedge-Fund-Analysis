@@ -59,6 +59,20 @@ body {
     background: rgba(26, 32, 44, 0.95);
 }
 
+.mobile-menu-btn {
+    display: none;
+}
+
+.nav-item-btn {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 0 1rem;
+    font-weight: 500;
+}
+
 .nav {
     display: flex;
     justify-content: space-between;
@@ -890,12 +904,59 @@ body {
         font-size: 2.5rem;
     }
 
+    /* Mobile Menu Buttons */
+    .mobile-menu-btn {
+        display: block;
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        cursor: pointer;
+        z-index: 1001;
+    }
+
     .nav-links {
-        gap: 0.5rem;
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        background: var(--bg-primary);
+        flex-direction: column;
+        padding: 1.5rem;
+        box-shadow: var(--shadow-lg);
+        border-top: 1px solid var(--border-color);
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .nav-links.active {
+        display: flex;
     }
 
     .nav-links a {
-        display: none;
+        display: block;
+        padding: 0.5rem 0;
+        text-align: center;
+    }
+
+    .nav-item-btn {
+        padding: 0.5rem 0;
+        width: 100%;
+        text-align: center;
+        font-size: 1.1rem;
+    }
+
+    .auth-buttons {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .btn-auth {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
     }
 
     .footer-content {

@@ -20,6 +20,10 @@ function checkAdminAccess() {
 
     currentUser = user;
     document.getElementById('adminInfo').textContent = `Welcome, ${user.username}`;
+    const mobileInfo = document.getElementById('mobileAdminInfo');
+    if (mobileInfo) {
+        mobileInfo.textContent = `Welcome, ${user.username}`;
+    }
 }
 
 async function loadUsers() {
@@ -169,4 +173,11 @@ function showNotification(message, type) {
             document.body.removeChild(notification);
         }
     }, 5000);
+}
+
+function toggleAdminMobileMenu() {
+    const menu = document.getElementById('adminMobileMenu');
+    if (menu) {
+        menu.classList.toggle('hidden');
+    }
 }

@@ -140,7 +140,7 @@ class PlaidConnectionsManager {
 
         // Then scroll to data view
         if (typeof viewLoadedData === 'function') {
-            viewLoadedData();
+            viewLoadedData({ source: 'plaid', connection_id: connectionId });
         } else {
             console.error('[PLAID] viewLoadedData function not available');
         }
@@ -149,19 +149,31 @@ class PlaidConnectionsManager {
     async loadConnectionData(connectionId) {
         console.log(`[PLAID] Loading connection data for: ${connectionId}`);
         try {
-            // Load portfolio data for specific connection
             const baseUrl = window.API_BASE || window.location.origin;
-            const response = await fetch(`${baseUrl}/api/plaid-portfolio`, {
+
+            // Load portfolio data
+            const portfolioPromise = fetch(`${baseUrl}/api/plaid-portfolio`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({ connection_id: connectionId })
             });
 
-            const result = await response.json();
+            // Load transaction data (default 90 days)
+            const transactionsPromise = fetch(`${baseUrl}/api/plaid-transactions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ connection_id: connectionId, days: 90 })
+            });
 
-            if (result.success && result.holdings) {
-                const portfolioData = result.holdings.map(holding => ({
+            const [responsePortfolio, responseTransactions] = await Promise.all([portfolioPromise, transactionsPromise]);
+            const resultPortfolio = await responsePortfolio.json();
+            const resultTransactions = await responseTransactions.json();
+
+            // Process Portfolio Data
+            if (resultPortfolio.success && resultPortfolio.holdings) {
+                const portfolioData = resultPortfolio.holdings.map(holding => ({
                     symbol: holding.symbol,
                     quantity: holding.quantity,
                     avg_cost: holding.avg_cost,
@@ -171,18 +183,40 @@ class PlaidConnectionsManager {
                     connection_id: connectionId
                 }));
 
+                // Update standard display function if available
                 if (typeof displayPortfolio === 'function') {
                     displayPortfolio(portfolioData);
                 }
-
-                if (typeof showDataActions === 'function') {
-                    showDataActions();
-                }
+                // Store global
+                window.portfolioData = portfolioData;
             } else {
-                console.error('[PLAID] Failed to load portfolio data:', result.error || 'Unknown error');
-                // Optional: Show user notification
-                // updatePlaidStatus(`Failed to load data: ${result.error}`, 'error');
+                console.error('[PLAID] Failed to load portfolio data:', resultPortfolio.error || 'Unknown error');
             }
+
+            // Process Transaction Data
+            if (resultTransactions.success && resultTransactions.transactions) {
+                console.log(`[PLAID] Loaded ${resultTransactions.count} transactions`);
+                const transactionData = resultTransactions.transactions.map(txn => ({
+                    ...txn,
+                    source: 'plaid',
+                    connection_id: connectionId,
+                    data_source: 'Plaid' // Helper for some checks
+                }));
+
+                // Store global
+                window.currentTransactions = transactionData;
+
+                // Update standard display function if available (assuming one exists or data view handles it)
+                // Note: displayTransactions might expect different format, but updating global is key for View Data
+            } else {
+                console.error('[PLAID] Failed to load transaction data:', resultTransactions.error || 'Unknown error');
+                window.currentTransactions = [];
+            }
+
+            if (typeof showDataActions === 'function') {
+                showDataActions();
+            }
+
         } catch (error) {
             console.error('[PLAID] Failed to load connection data:', error);
         }

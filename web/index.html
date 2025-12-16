@@ -46,19 +46,19 @@
             <div class="w-full px-4 sm:px-6 lg:px-8">
                 <div class="flex flex-row items-center justify-between py-3 sm:py-6">
                     <div class="flex items-center">
-                        <div class="flex items-center cursor-pointer"
+                        <div class="flex items-center cursor-pointer whitespace-nowrap"
                             onclick="if(window.showDefaultUpload) window.showDefaultUpload(); else console.log('showDefaultUpload not available');">
                             <div
                                 class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
                                 <span class="text-white font-bold text-sm sm:text-lg">SV</span>
                             </div>
                             <h1
-                                class="text-base sm:text-2xl lg:text-3xl font-bold text-gray-900 hover:text-indigo-600 transition-colors">
+                                class="text-sm sm:text-2xl lg:text-3xl font-bold text-gray-900 hover:text-indigo-600 transition-colors">
                                 SHM Ventures</h1>
                         </div>
 
                     </div>
-                    <div class="flex items-center justify-end space-x-2 sm:space-x-4">
+                    <div class="hidden md:flex items-center justify-end space-x-2 sm:space-x-4">
                         <!-- Theme Toggle -->
                         <div class="theme-toggle-wrapper">
                             <input type="checkbox" class="theme-checkbox" id="themeToggle">
@@ -80,6 +80,7 @@
                             <button onclick="logout()"
                                 class="bg-red-600 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm">Logout</button>
                         </div>
+
                     </div>
                 </div>
             </div>
@@ -88,16 +89,10 @@
         <div class="flex-1 flex w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
             <!-- Left Sidebar -->
             <div id="sidebar"
-                class="w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mr-6 h-fit max-h-screen sticky top-4 overflow-y-auto">
+                class="hidden md:block w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mr-6 h-fit max-h-screen sticky top-4 overflow-y-auto">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Analysis Menu</h3>
-                    <button id="sidebarToggle" class="lg:hidden p-1 rounded-md hover:bg-gray-100">
-                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                                clip-rule="evenodd"></path>
-                        </svg>
-                    </button>
+
                 </div>
 
                 <!-- Portfolio Analysis Section -->
@@ -167,6 +162,29 @@
                             Analysis</button>
                         <button data-analysis="return-attribution" class="nav-item">Return
                             Attribution</button>
+                    </div>
+
+                    <!-- Mobile Sidebar Footer (Controls) -->
+                    <div
+                        class="mt-auto border-t border-gray-200 dark:border-gray-700 pt-4 mobile-menu-footer md:hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</span>
+                            <div class="theme-toggle-wrapper">
+                                <input type="checkbox" class="theme-checkbox" id="mobileThemeToggle">
+                                <label for="mobileThemeToggle" class="theme-label">
+                                    <span class="moon">🌙</span>
+                                    <span class="sun">☀️</span>
+                                    <span class="ball"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="flex flex-col space-y-2">
+                            <button onclick="showAdminPanel()" id="mobileAdminBtn"
+                                class="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                                style="display: none;">Admin Panel</button>
+                            <button onclick="logout()"
+                                class="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm">Logout</button>
+                        </div>
                     </div>
                 </div>
 

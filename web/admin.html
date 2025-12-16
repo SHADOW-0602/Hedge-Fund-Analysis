@@ -15,35 +15,79 @@
         <!-- Header -->
         <header class="bg-white shadow-lg border-b-4 border-red-600">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center py-6">
-                    <div class="flex items-center">
+                <div class="flex justify-between items-center py-6" style="flex-direction: row !important;">
+                    <div class="flex items-center" style="flex-direction: row !important;">
                         <div
                             class="w-10 h-10 bg-gradient-to-r from-red-600 to-red-800 rounded-lg flex items-center justify-center mr-3">
                             <span class="text-white font-bold text-lg">A</span>
                         </div>
-                        <h1 class="text-3xl font-bold text-gray-900">Admin Portal</h1>
+                        <h1 class="text-xl md:text-3xl font-bold text-gray-900 truncate">Admin Portal</h1>
                     </div>
+
                     <div class="flex items-center space-x-4">
-                        <span id="adminInfo" class="text-gray-600"></span>
-                        <button onclick="goToMainApp()"
-                            class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">Main
-                            App</button>
-                        <button onclick="logout()"
-                            class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">Logout</button>
+                        <!-- Mobile Menu Button -->
+                        <div class="md:hidden">
+                            <button id="adminMobileMenuBtn" onclick="toggleAdminMobileMenu()"
+                                class="text-gray-600 hover:text-gray-900 focus:outline-none p-2 rounded-md">
+                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 6h16M4 12h16M4 18h16" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Desktop Menu -->
+                        <div class="hidden md:flex items-center space-x-4">
+                            <span id="adminInfo" class="text-gray-600"></span>
+                            <button onclick="goToMainApp()"
+                                class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">Home</button>
+                            <button onclick="logout()"
+                                class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">Logout</button>
+                        </div>
                     </div>
                 </div>
-            </div>
+
+                <!-- Mobile Menu Dropdown -->
+                <div id="adminMobileMenu" class="hidden md:hidden pb-4 transition-all duration-300 ease-in-out">
+                    <div class="flex flex-col space-y-3 pt-2 border-t border-gray-200">
+                        <div class="px-2 py-1">
+                            <span id="mobileAdminInfo" class="text-gray-600 font-medium block mb-2"></span>
+                        </div>
+                        <button onclick="goToMainApp()"
+                            class="w-full text-left bg-indigo-50 text-indigo-700 font-semibold px-4 py-3 rounded-lg hover:bg-indigo-100 transition-colors flex items-center">
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-9v10a1 1 0 00-1 1h3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
+                                </path>
+                            </svg>
+                            Home
+                        </button>
+                        <button onclick="logout()"
+                            class="w-full text-left bg-red-50 text-red-700 font-semibold px-4 py-3 rounded-lg hover:bg-red-100 transition-colors flex items-center">
+                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                                </path>
+                            </svg>
+                            Logout
+                        </button>
+                    </div>
+                </div>
         </header>
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <!-- Users Management -->
             <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                <div class="flex justify-between items-center mb-6">
+                <div class="flex justify-between items-center mb-6" style="flex-direction: row !important;">
                     <h2 class="text-2xl font-bold text-gray-900">User Management</h2>
                     <div class="space-x-2">
-                        <button onclick="refreshUsers()"
-                            class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
-                            Refresh Users
+                        <button onclick="refreshUsers()" title="Refresh Users"
+                            class="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                </path>
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -137,7 +181,21 @@
                 </div>
             </div>
         </div>
+
+        <!-- Footer -->
+        <footer class="app-footer glass-footer mt-auto">
+            <div class="app-footer-content">
+                <div class="footer-left">
+                    <span>&copy; 2025 SHM Ventures. All rights reserved.</span>
+                </div>
+                <div class="footer-links">
+                    <a href="privacy-policy.html">Privacy Policy</a>
+                    <a href="terms-of-service.html">Terms of Service</a>
+                </div>
+            </div>
+        </footer>
     </div>
+
 
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay" style="display: none;">

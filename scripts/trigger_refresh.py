@@ -1,51 +1,46 @@
 import os
 import sys
-import requests
 import time
+
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    # dotenv is not installed, assuming environment variables are set explicitly
     pass
 
-def trigger_refresh():
-    token = os.environ.get('API_TOKEN')
-    if not token:
-        print("Error: API_TOKEN not found in environment")
-        sys.exit(1)
+try:
+    print("Initializing US News system...")
+    from US_News.app_US import process_news_for_active_tickers
+except ImportError as e:
+    print(f"Error importing US_News app: {e}")
+    sys.exit(1)
 
-    url = "https://shmventures.org/us-news/api/refresh"
+def run_direct_refresh():
+    print("Starting direct news refresh execution...")
+    start_time = time.time()
     
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Origin": "https://shmventures.org",
-        "Referer": "https://shmventures.org/us-news/",
-        "Content-Type": "application/json"
-    }
-
-    print(f"Triggering refresh at {url}...")
+    # Full Custom List of 50 Tickers
+    custom_tickers = [
+        'AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA',
+        'LLY', 'JPM', 'NFLX', 'BRK-B', 'V', 'UNH', 'AVGO', 'AMD', 'TSM', 'PFE', 'MRK', 'JNJ', 'ORCL',
+        'ADBE', 'CRM', 'COST', 'HD', 'WMT', 'BAC', 'GS', 'UBER', 'DELL', 'PLTR', 'ARM', 'SMCI', 'CRWD',
+        'SNOW', 'NET', 'PDD', 'BABA', 'COIN', 'SOFI', 'TTD', 'ROKU', 'REGN', 'NBIX', 'CORT', 'CAPR',
+        'CRSP', 'NVO', 'GILD', 'BA', 'CAT', 'SPY'
+    ]
     
     try:
-        response = requests.post(url, headers=headers, timeout=30)
+        print(f"Triggering refresh for {len(custom_tickers)} symbols...")
+        process_news_for_active_tickers(force=True, custom_tickers=custom_tickers)
         
-        print(f"Status Code: {response.status_code}")
+        duration = time.time() - start_time
+        print(f"\nRefresh completed in {duration:.2f} seconds.")
         
-        if response.status_code == 200:
-            print("Success! Refresh triggered.")
-            print("Response:", response.json())
-        else:
-            print("Failed to trigger refresh.")
-            print("Response Body (First 500 chars):")
-            print(response.text[:500])
-            sys.exit(1)
-            
     except Exception as e:
-        print(f"Exception occurred: {e}")
+        print(f"\nCRITICAL ERROR during refresh: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    trigger_refresh()
+    run_direct_refresh()
