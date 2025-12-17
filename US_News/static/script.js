@@ -381,7 +381,16 @@ window.generateTickerSummary = async function (ticker, event) {
     }
 }
 
+// Polling interval tracking
+let quotePollInterval = null;
+
 async function selectTicker(ticker) {
+    // Clear existing interval if any
+    if (quotePollInterval) {
+        clearInterval(quotePollInterval);
+        quotePollInterval = null;
+    }
+
     // Save state
     localStorage.setItem('selectedTicker', ticker);
 
@@ -402,6 +411,13 @@ async function selectTicker(ticker) {
 
         if (response.ok && data.status === 'found') {
             displaySummary(data);
+
+            // Start polling for this ticker (every 2 seconds)
+            fetchAndDisplayQuote(ticker); // Initial immediate fetch
+            quotePollInterval = setInterval(() => {
+                fetchAndDisplayQuote(ticker);
+            }, 2000);
+
         } else {
             throw new Error('Summary not available');
         }
@@ -482,7 +498,10 @@ function displaySummary(data) {
         <div class="summary-display">
             <h2 style="display: flex; align-items: center; gap: 12px;">
                 ${data.ticker}
-                <span id="ticker-quote-${data.ticker}" class="ticker-quote-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1);">...</span>
+                <div style="display:flex; gap:8px;">
+                    <span id="ticker-price-${data.ticker}" class="header-badge price-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1); color: var(--text-primary); font-family:monospace;">...</span>
+                    <span id="ticker-change-${data.ticker}" class="header-badge change-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1); font-family:monospace;">...</span>
+                </div>
                 <button onclick="window.generateTickerSummary('${data.ticker}', event)" class="ticker-refresh-btn" title="Force Refresh Analysis">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M23 4v6h-6"></path>
@@ -532,35 +551,48 @@ async function fetchAndDisplayQuote(ticker) {
     try {
         const qRes = await fetch(`api/quote/${ticker}`);
         const qData = await qRes.json();
-        const badge = document.getElementById(`ticker-quote-${ticker}`);
 
-        // Only update if the badge for this ticker still exists (user hasn't switched away)
-        if (badge && qData.change_percent !== undefined) {
+        const priceBadge = document.getElementById(`ticker-price-${ticker}`);
+        const changeBadge = document.getElementById(`ticker-change-${ticker}`);
+
+        // Only update if badges exist (user hasn't switched away)
+        if (priceBadge && changeBadge && qData.change_percent !== undefined) {
             const isPos = qData.change_percent >= 0;
             const sign = isPos ? '+' : '';
-            const newText = `${sign}${qData.change_percent}%`;
 
-            // If text changed, animate
-            if (badge.textContent !== newText) {
+            // Format Price (Use Current Price for dynamic updates)
+            const rawPrice = qData.price || qData.previous_close;
+            const displayPrice = Number(rawPrice).toFixed(2);
+            const priceText = `$${displayPrice}`;
+
+            // Format Change
+            const chgPct = Number(qData.change_percent).toFixed(2);
+            const changeText = `${sign}${chgPct}%`;
+
+            // Update Price Badge
+            if (priceBadge.textContent !== priceText) {
+                priceBadge.textContent = priceText;
+            }
+
+            // Update Change Badge
+            if (changeBadge.textContent !== changeText) {
                 const color = isPos ? '#4ade80' : '#f87171';
                 const bg = isPos ? 'rgba(74, 222, 128, 0.1)' : 'rgba(248, 113, 113, 0.1)';
 
-                // 1. Slide Out
-                badge.classList.remove('anim-slide-in');
-                badge.classList.add('anim-slide-out');
+                changeBadge.classList.remove('anim-slide-in');
 
-                // Wait for animation
-                setTimeout(() => {
-                    // 2. Update Content
-                    badge.textContent = newText;
-                    badge.style.color = color;
-                    badge.style.background = bg;
-                    badge.style.border = `1px solid ${color}`;
+                // Direct update for now, animation on 2s poll can be distracting if full slide
+                // keeping it simple or reusing slide if desired.
+                // Creating a subtle pulse or just text update.
 
-                    // 3. Slide In
-                    badge.classList.remove('anim-slide-out');
-                    badge.classList.add('anim-slide-in');
-                }, 300);
+                changeBadge.textContent = changeText;
+                changeBadge.style.color = color;
+                changeBadge.style.background = bg;
+                changeBadge.style.border = `1px solid ${color}`;
+
+                // Re-add slide in for effect
+                changeBadge.classList.remove('anim-slide-out');
+                changeBadge.classList.add('anim-slide-in');
             }
         }
     } catch (e) {

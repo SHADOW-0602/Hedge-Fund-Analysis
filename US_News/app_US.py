@@ -54,7 +54,28 @@ print(f"Initialized {len(ACTIVE_TICKERS)} tickers for processing (Top: {', '.joi
 
 IS_PROCESSING = False  # Track if news processing is running
 
-
+def fetch_quote_data(ticker):
+    """Helper to fetch real-time quote data using yfinance"""
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.fast_info
+        
+        last_price = info.last_price
+        prev_close = info.previous_close
+        
+        if prev_close and prev_close > 0:
+            change = last_price - prev_close
+            change_percent = (change / prev_close) * 100
+            return {
+                'ticker': ticker,
+                'price': round(last_price, 2),
+                'previous_close': round(prev_close, 2) if prev_close else None,
+                'change': round(change, 2),
+                'change_percent': round(change_percent, 2)
+            }
+    except Exception as e:
+        print(f"Error fetching quote for {ticker}: {e}")
+    return None
 
 # We will let the background thread or first request update this
 # ACTIVE_TICKERS = get_dynamic_tickers()
@@ -166,7 +187,7 @@ def fetch_news_for_ticker(ticker):
                 response = requests.get(url, timeout=5)
                 
                 if response.status_code == 429:
-                    print(f"  ⚠ Polygon Rate Limit (429 - 5 calls/min limit). Sleeping 65s to reset...")
+                    print(f"  ⚠ Polygon Rate Limit (429 - 5 calls/min limit). Sleeping 60s to reset...")
                     time.sleep(60)
                     continue
 
@@ -242,7 +263,28 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
             'source': article['source']
         })
     
-    prompt = f"""Analyze the following news articles about {ticker} stock and create a **detailed and comprehensive** summary. 
+    # A/B Testing Strategies
+    strategies = ["Detailed", "Crisp", "PriceContext"]
+    selected_strategy = random.choice(strategies)
+    print(f"  🎲 Selected Prompt Strategy: {selected_strategy}")
+
+    if selected_strategy == "PriceContext":
+        # Fetch price data for context
+        quote_data = fetch_quote_data(ticker)
+        change_str = "N/A"
+        if quote_data:
+            sign = "+" if quote_data['change_percent'] >= 0 else ""
+            change_str = f"{sign}{quote_data['change_percent']}%"
+        
+        content_instruction = f"Today's Price change of {ticker} is {change_str}. Prioritize the most recent news articles and give a crisp, relevant accurate summary that can partly explain the price changes."
+        
+    elif selected_strategy == "Crisp":
+        content_instruction = f"Give a crisp, relevant and accurate summary of the latest developments for {ticker} with a clear what, why and how."
+        
+    else: # Detailed (Original)
+        content_instruction = f"Analyze the following news articles about {ticker} stock and create a **detailed and comprehensive** summary."
+
+    prompt = f"""{content_instruction}
     
     IMPORTANT: Format each section as a **list of bullet points** using HTML <ul> and <li> tags. Do not use plain paragraphs.
 
@@ -264,19 +306,19 @@ Output Requirements:
 5. Elaborate on the details, but keep the language accessible and easy to read.
 6. Total length per section should still be substantial (80-120 words)."""
 
-    headers = {
-        'Content-Type': 'application/json', 
-        'Authorization': '' # Set in loop
-    }
-    
+    # Gemini REST API Payload
+    # Using gemini-2.5-flash which supports system_instruction and JSON mode
     payload = {
-        "messages": [
-            {"role": "system", "content": "You are a financial analyst AI. You provide detailed stock news summaries in structured JSON format with HTML content."},
-            {"role": "user", "content": prompt}
+        "system_instruction": {
+            "parts": [{"text": "You are a financial analyst AI. You provide detailed stock news summaries in structured JSON format with HTML content."}]
+        },
+        "contents": [
+            {"role": "user", "parts": [{"text": prompt}]}
         ],
-        "model": "llama-3.3-70b-versatile",
-        "response_format": {"type": "json_object"},
-        "temperature": 0.3
+        "generationConfig": {
+            "response_mime_type": "application/json",
+            "temperature": 0.3
+        }
     }
     
     # Smart Key Rotation Implementation
@@ -286,63 +328,73 @@ Output Requirements:
     random.shuffle(available_keys)
     
     for attempt, (api_key, key_name) in enumerate(available_keys):
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers['Authorization'] = f"Bearer {api_key}"
+        # Gemini REST URL
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        headers = {'Content-Type': 'application/json'}
         
         try:
             # Short timeout to fail fast and rotate
             response = requests.post(url, headers=headers, json=payload, timeout=25)
             
             # If rate limited (too many requests), wait and retry
+            # Gemini Free Tier is 15 RPM (1 req every 4s). If we hit this, wait 5s to clear bucket.
             if response.status_code == 429:
-                print(f"  ⚠ Rate limited (429) on {key_name}. Rotating to next key...")
-                time.sleep(1) 
+                print(f"  ⚠ Rate limited (429) on {key_name}. Waiting 5s before rotating...")
+                time.sleep(5) 
                 continue
                 
             # If model is overloaded (503), wait and retry
             if response.status_code == 503:
-                print(f"  ⚠ Model overloaded (503) on {key_name}. Sleeping 2s and rotating...")
-                time.sleep(2)
+                print(f"  ⚠ Model overloaded (503) on {key_name}. Waiting 5s before rotating...")
+                time.sleep(5)
                 continue
-                
-            if response.status_code != 200:
-                print(f"  ✗ Groq API Error ({response.status_code}) on {key_name}: {response.text[:100]}")
-                continue # Try next key on other errors too
-                
-            data = response.json()
-            if 'choices' not in data or not data['choices']:
-                 print(f"  ✗ No choices returned for {ticker} using {key_name}")
+            
+            # If Error (400)
+            if response.status_code == 400:
+                 print(f"  ⚠ Bad Request (400) on {key_name}: {response.text[:100]}...")
                  continue
 
-            response_text = data['choices'][0]['message']['content']
-            
-            # Robust JSON extraction using regex (handles markdown, explanatory text, etc.)
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
-                # Cleanup common Llama formatting issues (trailing commas)
-                json_str = re.sub(r',\s*([\]}])', r'\1', json_str)
+            if response.status_code == 200:
+                result = response.json()
                 try:
-                    summary_data = json.loads(json_str)
-                except json.JSONDecodeError as je:
-                    print(f"  ✗ JSON Parse Error on {key_name}: {je}")
-                    print(f"  Raw Text: {response_text[:200]}...") # Log start of text
-                    continue
-            else:
-                print(f"  ✗ No JSON found in response for {ticker} using {key_name}")
-                continue
-            summary_data['sources'] = sources_list
-            
-            return summary_data
-            
-        except Exception as e:
-            print(f"AI summary error for {ticker} using {key_name}: {e}")
-            continue # Try next key
-            
-    # If we get here, ALL keys failed
-    print(f"  ❌ All {len(available_keys)} API keys exhausted/failed for {ticker}.")
-    return None
+                    candidates = result.get('candidates', [])
+                    if not candidates:
+                        print(f"  ⚠ No candidates returned from Gemini on {key_name}.")
+                        continue
+                        
+                    content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                    
+                    if not content_text:
+                        print(f"  ⚠ Empty text from Gemini on {key_name}.")
+                        continue
 
+                    try:
+                        # Clean markdown naming if present
+                        clean_text = content_text.replace('```json', '').replace('```', '').strip()
+                        json_content = json.loads(clean_text)
+                    except json.JSONDecodeError:
+                         # Retry parsing or just log
+                         print(f"  ⚠ JSON Decode Error on {key_name}. Content: {clean_text[:50]}...")
+                         continue
+
+                    print(f"  ✓ Summary generated successfully for {ticker} using {key_name}")
+                    json_content['sources'] = sources_list
+                    return json_content
+                    
+                except Exception as e:
+                    print(f"  ⚠ Analysis Error on {key_name}: {e}")
+                    continue
+        
+        except requests.exceptions.Timeout:
+             print(f"  ⚠ Timeout on {key_name}. Rotating...")
+             continue
+        except Exception as e:
+            print(f"  ⚠ Connection Error on {key_name}: {e}")
+            continue
+
+    print(f"  ✗ FAILED to generate summary for {ticker} after trying {len(available_keys)} keys.")
+    return None
+            
 def store_news_and_summary(ticker, news_articles, summary_data):
     """Store news articles and AI summary in database"""
     today = date.today()
@@ -404,8 +456,10 @@ def process_single_ticker(ticker, all_keys_data):
     try:
         news_articles = fetch_news_for_ticker(ticker)
         if news_articles:
-            # Small random sleep to prevent synchronized API hits
-            time.sleep(random.uniform(0.5, 2.0))
+            # Random sleep to prevent synchronized API hits and respect RPM
+            # 6 keys * 15 req/min = 90 req/min total capacity. 
+            # 4 workers ~ 20-30 req/min. This delay aligns usage.
+            time.sleep(random.uniform(2.0, 4.0))
             
             summary_data = generate_ai_summary(ticker, news_articles, all_keys_data)
             if summary_data:
@@ -476,17 +530,17 @@ def process_news_for_active_tickers(force=False, custom_tickers=None):
         
         # Load balance across ALL available keys
         all_keys = []
-        key_vars = ['GROQ_API_KEY', 'GROQ_API_KEY_2', 'GROQ_API_KEY_3', 'GROQ_API_KEY_4', 'GROQ_API_KEY_5', 'GROQ_API_KEY_6']
+        key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
         for var in key_vars:
             k = os.getenv(var)
             if k: all_keys.append((k, var)) # Store tuple (key, name)
             
         if not all_keys:
-            print("CRITICAL: No Groq API keys found in environment variables!")
+            print("CRITICAL: No Gemini API keys found in environment variables!")
             IS_PROCESSING = False
             return
             
-        print(f"  ✓ Optimized Mode: Shared key pool of {len(all_keys)} keys distributed across threads.")
+        print(f"  ✓ Optimized Mode: Shared key pool of {len(all_keys)} Gemini keys distributed across threads.")
 
         tasks = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor: 
@@ -514,8 +568,25 @@ def run_background_refresh():
 @us_news_bp.route('/')
 def index():
     """Render the main page"""
+    # Fetch quotes for display tickers in parallel
+    quotes = {}
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(DISPLAY_TICKERS))) as executor:
+            future_to_ticker = {executor.submit(fetch_quote_data, t): t for t in DISPLAY_TICKERS}
+            for future in concurrent.futures.as_completed(future_to_ticker):
+                t = future_to_ticker[future]
+                try:
+                    data = future.result()
+                    if data:
+                        quotes[t] = data
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"Index Batch Quote Error: {e}")
+
     return render_template('us_news_index.html', 
                          tickers=DISPLAY_TICKERS,  # Only show Mag 7 on frontend 
+                         quotes=quotes,
                          now=int(time.time()),
                          api_token=os.getenv('API_TOKEN', ''))
 
@@ -634,30 +705,11 @@ def generate_ticker_summary(ticker):
 @us_news_bp.route('/api/quote/<ticker>', methods=['GET'])
 def get_ticker_quote(ticker):
     """Fetch real-time quote (price/change) for a ticker"""
-    try:
-        # Use yfinance fast_info for speed
-        stock = yf.Ticker(ticker)
-        info = stock.fast_info
-        
-        last_price = info.last_price
-        prev_close = info.previous_close
-        
-        if prev_close and prev_close > 0:
-            change = last_price - prev_close
-            change_percent = (change / prev_close) * 100
-            
-            return jsonify({
-                'ticker': ticker,
-                'price': round(last_price, 2),
-                'change': round(change, 2),
-                'change_percent': round(change_percent, 2)
-            })
-        else:
-            return jsonify({'error': 'No data'}), 404
-            
-    except Exception as e:
-        print(f"Quote Error {ticker}: {e}")
-        return jsonify({'error': str(e)}), 500
+    data = fetch_quote_data(ticker)
+    if data:
+        return jsonify(data)
+    else:
+        return jsonify({'error': 'No data'}), 404
 
     
     return jsonify({'status': 'started', 'message': f'Generating summary for {ticker}'})

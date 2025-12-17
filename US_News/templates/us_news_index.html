@@ -38,8 +38,11 @@
                             <path d="M1 20v-6h6"></path>
                             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
-                        <span>Refresh</span>
                     </button>
+                    <div class="auth-buttons">
+                        <button onclick="window.location.href='/app'" class="btn-auth btn-signin">Sign In</button>
+                        <button onclick="window.location.href='/app'" class="btn-auth btn-signup">Sign Up</button>
+                    </div>
                 </div>
             </nav>
         </header>
@@ -61,7 +64,18 @@
                 <div class="ticker-list" id="tickerList">
                     {% for ticker in tickers %}
                     <div class="ticker-item" data-ticker="{{ ticker }}">
-                        {{ ticker }}
+                        <div class="ticker-info-left">
+                            <span class="ticker-symbol">{{ ticker }}</span>
+                        </div>
+                        {% if quotes and quotes.get(ticker) %}
+                        {% set q = quotes.get(ticker) %}
+                        <div class="ticker-info-right">
+                            <div class="ticker-price">${{ q.price }}</div>
+                            <div class="ticker-change {{ 'positive' if q.change >= 0 else 'negative' }}">
+                                {{ '+' if q.change >= 0 else '' }}{{ q.change }} ({{ q.change_percent }}%)
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
