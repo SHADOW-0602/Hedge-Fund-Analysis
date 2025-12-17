@@ -239,7 +239,13 @@ body {
     background: var(--bg-sidebar);
     border-right: 1px solid var(--border);
     height: 100%;
-    overflow-y: auto;
+    /* overflow-y: auto;  REMOVED to prevent clipping */
+    display: flex;
+    /* Added */
+    flex-direction: column;
+    /* Added */
+    overflow: visible;
+    /* Explicitly visible */
     flex-shrink: 0;
 }
 
@@ -248,6 +254,10 @@ body {
     flex-direction: column;
     padding: 16px;
     gap: 4px;
+    flex: 1;
+    /* Take remaining height */
+    overflow-y: auto;
+    /* Scroll ONLY the list */
 }
 
 /* Search Bar */
@@ -373,13 +383,47 @@ body {
     font-weight: 700;
 }
 
+/* Animations for Real-time Numbers */
+@keyframes slideOutUp {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.anim-slide-out {
+    animation: slideOutUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.anim-slide-in {
+    animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 /* Summary Section */
 .summary-section {
     flex: 1;
     display: flex;
     flex-direction: column;
     height: 100%;
-    overflow: hidden;
+    overflow-y: auto;
+    /* Allow scrolling of the whole section */
     position: relative;
     /* More vibrant background */
     background: var(--bg-summary-gradient);
@@ -409,11 +453,32 @@ body {
     flex: 1;
     padding: 40px 60px;
     /* More breathing room */
-    overflow-y: auto;
+    overflow: visible;
+    /* Content expands, parent scrolls */
     max-width: 1200px;
     /* Limit line length for readability */
     margin: 0 auto;
     width: 100%;
+    /* Increase font size */
+    font-size: 1.1rem;
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.summary-content ul {
+    list-style-type: disc;
+    padding-left: 24px;
+    margin-top: 8px;
+    margin-bottom: 16px;
+}
+
+.summary-content li {
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+
+.summary-content li:last-child {
+    margin-bottom: 0;
 }
 
 /* Glass Empty State */
@@ -863,6 +928,8 @@ body {
         border-right: none;
         border-bottom: 1px solid var(--border);
         background: rgba(15, 23, 42, 0.95);
+        overflow: visible;
+        /* Fix dropdown clipping */
     }
 
     .ticker-list {
@@ -909,8 +976,8 @@ body {
     width: 100%;
     margin-top: 6px;
     background: #1e293b;
-    /* Fallback solid color */
-    background: var(--bg-card);
+    /* Glass effect matching header */
+    background: var(--bg-header);
     /* Keep theme aware if supported */
     border: 1px solid var(--border);
     border-radius: 8px;

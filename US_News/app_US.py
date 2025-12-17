@@ -242,23 +242,27 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
             'source': article['source']
         })
     
-    prompt = f"""Analyze the following news articles about {ticker} stock and create a **detailed and comprehensive** summary. Each section must be **at least 80 words** long.
+    prompt = f"""Analyze the following news articles about {ticker} stock and create a **detailed and comprehensive** summary. 
+    
+    IMPORTANT: Format each section as a **list of bullet points** using HTML <ul> and <li> tags. Do not use plain paragraphs.
 
 {news_text}
 
 Please provide a JSON response with the following structure:
 {{
-    "executive_summary": "A detailed 80-120 word overview of the main developments, explaining the 'why' and 'how'.",
-    "what_changed": "A detailed 80-120 word explanation of what changed today, including specific data points and reasons.",
-    "analyst_earnings": "A detailed 80-120 word discussion of analyst revisions or earnings. If none, provide a detailed context on recent street sentiment.",
-    "last_week_updates": "A detailed 80-120 word summary of key developments from the past week."
+    "executive_summary": "<ul><li>Key point 1...</li><li>Key point 2...</li><li>Key point 3...</li></ul> (80-120 words total)",
+    "what_changed": "<ul><li>Change 1...</li><li>Change 2...</li></ul> (80-120 words total)",
+    "analyst_earnings": "<ul><li>Analyst note 1...</li><li>Earnings detail...</li></ul> (80-120 words total)",
+    "last_week_updates": "<ul><li>Update 1...</li><li>Update 2...</li></ul> (80-120 words total)"
 }}
 
 Output Requirements:
-1. **Do NOT be too concise.**
-2. Elaborate on the details, reasons, and implications.
-3. Ensure each section is substantial (minimum 3-4 sentences).
-4. Do not mention the word count in the output."""
+1. **Use HTML bullet points (<ul>, <li>)** for ALL sections.
+2. Provide at least 3-5 substantial bullet points per section.
+3. **Use SIMPLE, CLEAR English.** Explain complex financial concepts so that **anyone** can understand them.
+4. Avoid jargon. If a technical term is necessary, explain what it means in simple terms.
+5. Elaborate on the details, but keep the language accessible and easy to read.
+6. Total length per section should still be substantial (80-120 words)."""
 
     headers = {
         'Content-Type': 'application/json', 
@@ -267,7 +271,7 @@ Output Requirements:
     
     payload = {
         "messages": [
-            {"role": "system", "content": "You are a financial analyst AI. You summarize stock news concisely in JSON format."},
+            {"role": "system", "content": "You are a financial analyst AI. You provide detailed stock news summaries in structured JSON format with HTML content."},
             {"role": "user", "content": prompt}
         ],
         "model": "llama-3.3-70b-versatile",
@@ -312,15 +316,21 @@ Output Requirements:
 
             response_text = data['choices'][0]['message']['content']
             
-            # Clean markdown if present (Groq usually returns pure JSON with json_object mode, but good to be safe)
-            if response_text.startswith('```json'):
-                response_text = response_text[7:]
-            if response_text.startswith('```'):
-                response_text = response_text[3:]
-            if response_text.endswith('```'):
-                response_text = response_text[:-3]
-            
-            summary_data = json.loads(response_text.strip())
+            # Robust JSON extraction using regex (handles markdown, explanatory text, etc.)
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                # Cleanup common Llama formatting issues (trailing commas)
+                json_str = re.sub(r',\s*([\]}])', r'\1', json_str)
+                try:
+                    summary_data = json.loads(json_str)
+                except json.JSONDecodeError as je:
+                    print(f"  ✗ JSON Parse Error on {key_name}: {je}")
+                    print(f"  Raw Text: {response_text[:200]}...") # Log start of text
+                    continue
+            else:
+                print(f"  ✗ No JSON found in response for {ticker} using {key_name}")
+                continue
             summary_data['sources'] = sources_list
             
             return summary_data
@@ -404,30 +414,30 @@ def process_single_ticker(ticker, all_keys_data):
                 # Fallback
                 print(f"  ⚠ AI generation failed for {ticker} (All keys exhausted), storing fallback.")
                 fallback_summary = {
-                    'executive_summary': 'Brief analysis unavailable at this moment due to high demand. News sources are listed below.',
-                    'what_changed': 'Refer to news sources.',
-                    'analyst_earnings': 'N/A',
-                    'last_week_updates': 'N/A'
+                    'executive_summary': '<ul><li>Brief analysis unavailable at this moment due to high demand.</li><li>Please try refreshing in a few seconds.</li></ul>',
+                    'what_changed': '<ul><li>Refer to news sources below.</li></ul>',
+                    'analyst_earnings': '<ul><li>N/A</li></ul>',
+                    'last_week_updates': '<ul><li>N/A</li></ul>'
                 }
                 store_news_and_summary(ticker, news_articles, fallback_summary)
         else:
             print(f"  - No news found for {ticker}")
             # Store empty state
             empty_summary = {
-                'executive_summary': 'No significant news articles found for this ticker in the last 7 days.',
-                'what_changed': 'N/A',
-                'analyst_earnings': 'N/A',
-                'last_week_updates': 'N/A'
+                'executive_summary': '<ul><li>No significant news articles found for this ticker in the last 7 days.</li></ul>',
+                'what_changed': '<ul><li>N/A</li></ul>',
+                'analyst_earnings': '<ul><li>N/A</li></ul>',
+                'last_week_updates': '<ul><li>N/A</li></ul>'
             }
             store_news_and_summary(ticker, [], empty_summary)
     except Exception as e:
         print(f"  ✗ Error processing {ticker}: {e}")
         # Store error state so frontend knows it failed
         error_summary = {
-            'executive_summary': f"Analysis failed due to a system error: {str(e)[:100]}...",
-            'what_changed': 'N/A',
-            'analyst_earnings': 'N/A',
-            'last_week_updates': 'N/A'
+            'executive_summary': f"<ul><li>Analysis failed due to a system error.</li><li>Error details: {str(e)[:100]}...</li></ul>",
+            'what_changed': '<ul><li>N/A</li></ul>',
+            'analyst_earnings': '<ul><li>N/A</li></ul>',
+            'last_week_updates': '<ul><li>N/A</li></ul>'
         }
         store_news_and_summary(ticker, [], error_summary)
 
@@ -568,6 +578,32 @@ def search_tickers():
         print(f"Search Proxy Error: {e}")
         return jsonify({'error': str(e)}), 500
 
+def run_single(ticker, manual=False):
+    """Helper to trigger single ticker processing in background"""
+    # Load balance across all available keys in .env
+    raw_keys = [
+        (os.getenv('GROQ_API_KEY'), 'GROQ_API_KEY'),
+        (os.getenv('GROQ_API_KEY_2'), 'GROQ_API_KEY_2'),
+        (os.getenv('GROQ_API_KEY_3'), 'GROQ_API_KEY_3'),
+        (os.getenv('GROQ_API_KEY_4'), 'GROQ_API_KEY_4'),
+        (os.getenv('GROQ_API_KEY_5'), 'GROQ_API_KEY_5'),
+        (os.getenv('GROQ_API_KEY_6'), 'GROQ_API_KEY_6')
+    ]
+    # Filter None
+    keys = [k for k in raw_keys if k[0]]
+    
+    if not keys:
+        print("No Groq keys available!")
+        return "No keys"
+
+    # Run in background to avoid timeout
+    def worker():
+        process_single_ticker(ticker, keys)
+        
+    thread = threading.Thread(target=worker)
+    thread.start()
+    return "Background process started"
+
 @us_news_bp.route('/api/generate/<ticker>', methods=['POST', 'GET'], strict_slashes=False)
 def generate_ticker_summary(ticker):
     """Force generate summary for a specific ticker"""
@@ -576,36 +612,53 @@ def generate_ticker_summary(ticker):
     # Check auth
     auth_header = request.headers.get('Authorization')
     expected_token = os.getenv('API_TOKEN')
-    
     if expected_token:
         # Allow Bearer token or direct token
         token = auth_header.replace('Bearer ', '') if auth_header and auth_header.startswith('Bearer ') else auth_header
         if token != expected_token:
             return jsonify({'error': 'Unauthorized'}), 401
-         
-    # Run in background to avoid timeout
-    def run_single():
-        # Load balance across all available keys in .env
-        raw_keys = [
-            (os.getenv('GROQ_API_KEY'), 'GROQ_API_KEY'),
-            (os.getenv('GROQ_API_KEY_2'), 'GROQ_API_KEY_2'),
-            (os.getenv('GROQ_API_KEY_3'), 'GROQ_API_KEY_3'),
-            (os.getenv('GROQ_API_KEY_4'), 'GROQ_API_KEY_4'),
-            (os.getenv('GROQ_API_KEY_5'), 'GROQ_API_KEY_5'),
-            (os.getenv('GROQ_API_KEY_6'), 'GROQ_API_KEY_6')
-        ]
-        # Filter None
-        keys = [k for k in raw_keys if k[0]]
-        
-        if not keys:
-            print("No Groq keys available!")
-            return
 
-        # Pass ALL keys to allow rotation
-        process_single_ticker(ticker, keys)
+    print(f"DEBUG: Starting single run for {ticker}")
+    
+    # CLEAR EXISTING SUMMARY FOR TODAY so logic waits for new one
+    try:
+        today = date.today()
+        supabase.table('ticker_summaries').delete().eq('ticker', ticker).eq('summary_date', str(today)).execute()
+        print(f"Cleared existing summary for {ticker} to force spinner wait.")
+    except Exception as e:
+        print(f"Error clearing previous summary: {e}")
+
+    result = run_single(ticker, manual=True)
+    return jsonify({'status': 'triggered', 'result': result})
+
+@us_news_bp.route('/api/quote/<ticker>', methods=['GET'])
+def get_ticker_quote(ticker):
+    """Fetch real-time quote (price/change) for a ticker"""
+    try:
+        # Use yfinance fast_info for speed
+        stock = yf.Ticker(ticker)
+        info = stock.fast_info
         
-    thread = threading.Thread(target=run_single)
-    thread.start()
+        last_price = info.last_price
+        prev_close = info.previous_close
+        
+        if prev_close and prev_close > 0:
+            change = last_price - prev_close
+            change_percent = (change / prev_close) * 100
+            
+            return jsonify({
+                'ticker': ticker,
+                'price': round(last_price, 2),
+                'change': round(change, 2),
+                'change_percent': round(change_percent, 2)
+            })
+        else:
+            return jsonify({'error': 'No data'}), 404
+            
+    except Exception as e:
+        print(f"Quote Error {ticker}: {e}")
+        return jsonify({'error': str(e)}), 500
+
     
     return jsonify({'status': 'started', 'message': f'Generating summary for {ticker}'})
 

@@ -482,6 +482,7 @@ function displaySummary(data) {
         <div class="summary-display">
             <h2 style="display: flex; align-items: center; gap: 12px;">
                 ${data.ticker}
+                <span id="ticker-quote-${data.ticker}" class="ticker-quote-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1);">...</span>
                 <button onclick="window.generateTickerSummary('${data.ticker}', event)" class="ticker-refresh-btn" title="Force Refresh Analysis">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M23 4v6h-6"></path>
@@ -493,27 +494,78 @@ function displaySummary(data) {
             
             <div class="summary-section-block">
                 <h3>Executive Summary</h3>
-                <p>${cleanText(data.executive_summary)}</p>
+                <div class="summary-content">${cleanText(data.executive_summary)}</div>
             </div>
             
             <div class="summary-section-block">
                 <h3>What changed today?</h3>
-                <p>${cleanText(data.what_changed)}</p>
+                <div class="summary-content">${cleanText(data.what_changed)}</div>
             </div>
             
             <div class="summary-section-block">
                 <h3>Analyst/Earnings Updates</h3>
-                <p>${cleanText(data.analyst_earnings)}</p>
+                <div class="summary-content">${cleanText(data.analyst_earnings)}</div>
             </div>
             
             <div class="summary-section-block">
                 <h3>Last week updates</h3>
-                <p>${cleanText(data.last_week_updates)}</p>
+                <div class="summary-content">${cleanText(data.last_week_updates)}</div>
             </div>
             
             ${sourcesHTML}
         </div>
     `;
+
+    // Initial fetch
+    fetchAndDisplayQuote(data.ticker);
+
+    // Clear existing interval if any
+    if (window.quoteInterval) clearInterval(window.quoteInterval);
+
+    // Start 2-second polling
+    window.quoteInterval = setInterval(() => {
+        fetchAndDisplayQuote(data.ticker);
+    }, 2000);
+}
+
+async function fetchAndDisplayQuote(ticker) {
+    try {
+        const qRes = await fetch(`api/quote/${ticker}`);
+        const qData = await qRes.json();
+        const badge = document.getElementById(`ticker-quote-${ticker}`);
+
+        // Only update if the badge for this ticker still exists (user hasn't switched away)
+        if (badge && qData.change_percent !== undefined) {
+            const isPos = qData.change_percent >= 0;
+            const sign = isPos ? '+' : '';
+            const newText = `${sign}${qData.change_percent}%`;
+
+            // If text changed, animate
+            if (badge.textContent !== newText) {
+                const color = isPos ? '#4ade80' : '#f87171';
+                const bg = isPos ? 'rgba(74, 222, 128, 0.1)' : 'rgba(248, 113, 113, 0.1)';
+
+                // 1. Slide Out
+                badge.classList.remove('anim-slide-in');
+                badge.classList.add('anim-slide-out');
+
+                // Wait for animation
+                setTimeout(() => {
+                    // 2. Update Content
+                    badge.textContent = newText;
+                    badge.style.color = color;
+                    badge.style.background = bg;
+                    badge.style.border = `1px solid ${color}`;
+
+                    // 3. Slide In
+                    badge.classList.remove('anim-slide-out');
+                    badge.classList.add('anim-slide-in');
+                }, 300);
+            }
+        }
+    } catch (e) {
+        console.error('Quote fetch failed', e);
+    }
 }
 
 function navigatePrev() {
