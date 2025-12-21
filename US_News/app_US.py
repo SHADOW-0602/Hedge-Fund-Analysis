@@ -4,8 +4,11 @@ import random
 import json
 import re
 import threading
+import pandas as pd
+import numpy as np
 from datetime import datetime, date, timedelta
-from flask import Blueprint, render_template, jsonify
+import threading
+from flask import Blueprint, render_template, jsonify, request
 from dotenv import load_dotenv
 import requests
 from supabase import create_client, Client
@@ -55,11 +58,39 @@ print(f"Initialized {len(ACTIVE_TICKERS)} tickers for processing (Top: {', '.joi
 IS_PROCESSING = False  # Track if news processing is running
 
 def fetch_quote_data(ticker):
-    """Helper to fetch real-time quote data using yfinance"""
+    """Helper to fetch real-time quote data using yfinance (incl. Pre/Post Market)"""
     try:
         stock = yf.Ticker(ticker)
-        info = stock.fast_info
+        # fast_info often misses pre-market. Use history for latest tick.
+        # caching: yfinance might cache history calls, but creating a new Ticker usually avoids instance cache.
+        # Yahoo API itself has 1-min delay usually.
+        df = stock.history(period='1d', interval='1m', prepost=True)
         
+        if not df.empty:
+            latest = df.iloc[-1]
+            last_price = float(latest['Close'])
+            
+            # Previous Close (Regular Market)
+            # info.previous_close is reliable for yesterday's regular close
+            prev_close = stock.info.get('previousClose') or stock.fast_info.previous_close
+            
+            # Fallback if history fetch fails or returns weird data
+            if pd.isna(last_price):
+                last_price = stock.fast_info.last_price
+
+            change = last_price - prev_close if prev_close else 0
+            change_percent = (change / prev_close) * 100 if prev_close else 0
+            
+            return {
+                'ticker': ticker,
+                'price': round(last_price, 2),
+                'previous_close': round(prev_close, 2) if prev_close else None,
+                'change': round(change, 2),
+                'change_percent': round(change_percent, 2)
+            }
+        
+        # Fallback to fast_info if history is empty (e.g., weekend or no data)
+        info = stock.fast_info
         last_price = info.last_price
         prev_close = info.previous_close
         
@@ -73,6 +104,7 @@ def fetch_quote_data(ticker):
                 'change': round(change, 2),
                 'change_percent': round(change_percent, 2)
             }
+
     except Exception as e:
         print(f"Error fetching quote for {ticker}: {e}")
     return None
@@ -307,7 +339,7 @@ Output Requirements:
 6. Total length per section should still be substantial (80-120 words)."""
 
     # Gemini REST API Payload
-    # Using gemini-2.5-flash which supports system_instruction and JSON mode
+    # Using gemini-flash-latest which is the stable high-speed model
     payload = {
         "system_instruction": {
             "parts": [{"text": "You are a financial analyst AI. You provide detailed stock news summaries in structured JSON format with HTML content."}]
@@ -328,8 +360,8 @@ Output Requirements:
     random.shuffle(available_keys)
     
     for attempt, (api_key, key_name) in enumerate(available_keys):
-        # Gemini REST URL
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+        # Gemini REST URL (using stable flash-latest)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
         headers = {'Content-Type': 'application/json'}
         
         try:
@@ -649,27 +681,83 @@ def search_tickers():
         print(f"Search Proxy Error: {e}")
         return jsonify({'error': str(e)}), 500
 
+@us_news_bp.route('/api/ta/<ticker>', methods=['GET'])
+def get_technical_analysis(ticker):
+    """Calculate and return technical analysis data"""
+    try:
+        # Fetch 1 year of daily data
+        stock = yf.Ticker(ticker)
+        df = stock.history(period="1y")
+        
+        if df.empty:
+            return jsonify({'error': 'No data found'}), 404
+            
+        # --- Calculations ---
+        
+        # --- Calculations ---
+        from .ta_utils import calculate_technical_indicators, get_fibonacci_levels, get_support_resistance, get_ta_summary
+        
+        # 1. Base Indicators
+        df = calculate_technical_indicators(df)
+
+        # 2. Fibonacci Retracement
+        fib_levels = get_fibonacci_levels(df)
+
+        # 3. Support & Resistance
+        sr_data = get_support_resistance(df)
+        supports = sr_data['supports']
+        resistances = sr_data['resistances']
+
+        # --- Prepare Response ---
+        # Data for Charting (Last 200 days approx to keep payload small)
+        chart_data = df.tail(200).reset_index()
+        chart_json = []
+        for _, row in chart_data.iterrows():
+            chart_json.append({
+                'date': row['Date'].strftime('%Y-%m-%d'),
+                'open': row['Open'],
+                'high': row['High'],
+                'low': row['Low'],
+                'close': row['Close'],
+                'volume': row['Volume'],
+                'sma50': row['SMA_50'] if not pd.isna(row['SMA_50']) else None,
+                'sma200': row['SMA_200'] if not pd.isna(row['SMA_200']) else None,
+                'macd': row['MACD'] if not pd.isna(row['MACD']) else None,
+                'signal': row['MACD_Signal'] if not pd.isna(row['MACD_Signal']) else None,
+                'hist': row['MACD_Hist'] if not pd.isna(row['MACD_Hist']) else None,
+            })
+            
+        latest = df.iloc[-1]
+        summary = get_ta_summary(df)
+
+        return jsonify({
+            'chart_data': chart_json,
+            'fibonacci': fib_levels,
+            'supports': sorted(list(set([round(x, 2) for x in supports]))),
+            'resistances': sorted(list(set([round(x, 2) for x in resistances])), reverse=True),
+            'summary': summary
+        })
+
+    except Exception as e:
+        print(f"TA Error for {ticker}: {e}")
+        return jsonify({'error': str(e)}), 500
+
 def run_single(ticker, manual=False):
     """Helper to trigger single ticker processing in background"""
-    # Load balance across all available keys in .env
-    raw_keys = [
-        (os.getenv('GROQ_API_KEY'), 'GROQ_API_KEY'),
-        (os.getenv('GROQ_API_KEY_2'), 'GROQ_API_KEY_2'),
-        (os.getenv('GROQ_API_KEY_3'), 'GROQ_API_KEY_3'),
-        (os.getenv('GROQ_API_KEY_4'), 'GROQ_API_KEY_4'),
-        (os.getenv('GROQ_API_KEY_5'), 'GROQ_API_KEY_5'),
-        (os.getenv('GROQ_API_KEY_6'), 'GROQ_API_KEY_6')
-    ]
-    # Filter None
-    keys = [k for k in raw_keys if k[0]]
-    
-    if not keys:
-        print("No Groq keys available!")
+    # Load balance across ALL available Gemini keys
+    all_keys = []
+    key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
+    for var in key_vars:
+        k = os.getenv(var)
+        if k: all_keys.append((k, var))
+        
+    if not all_keys:
+        print("CRITICAL: No Gemini API keys found!")
         return "No keys"
 
     # Run in background to avoid timeout
     def worker():
-        process_single_ticker(ticker, keys)
+        process_single_ticker(ticker, all_keys)
         
     thread = threading.Thread(target=worker)
     thread.start()
@@ -680,27 +768,268 @@ def generate_ticker_summary(ticker):
     """Force generate summary for a specific ticker"""
     from flask import request
     print(f"DEBUG: Hit generate_ticker_summary for {ticker} with method {request.method}")
-    # Check auth
-    auth_header = request.headers.get('Authorization')
-    expected_token = os.getenv('API_TOKEN')
-    if expected_token:
-        # Allow Bearer token or direct token
-        token = auth_header.replace('Bearer ', '') if auth_header and auth_header.startswith('Bearer ') else auth_header
-        if token != expected_token:
-            return jsonify({'error': 'Unauthorized'}), 401
 
-    print(f"DEBUG: Starting single run for {ticker}")
+    # For POST requests (like the refresh button), use the main processing logic
+    if request.method == 'POST':
+        # Reuse existing logic via run_single or process_single_ticker logic
+        # But here we want a direct response, so we call process_single_ticker synchronously
+        # or we just trigger background and return "Processing"
+        
+        # Load Keys
+        all_keys = []
+        key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
+        for var in key_vars:
+            k = os.getenv(var)
+            if k: all_keys.append((k, var))
+            
+        success = process_single_ticker(ticker, all_keys)
+        if success:
+            # Fetch updated data from DB
+            try:
+                result = supabase.table('ticker_summaries').select('*').eq('ticker', ticker).execute()
+                if result.data:
+                    return jsonify(result.data[0])
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        else:
+             return jsonify({'error': 'Failed to generate summary'}), 500
     
-    # CLEAR EXISTING SUMMARY FOR TODAY so logic waits for new one
-    try:
-        today = date.today()
-        supabase.table('ticker_summaries').delete().eq('ticker', ticker).eq('summary_date', str(today)).execute()
-        print(f"Cleared existing summary for {ticker} to force spinner wait.")
-    except Exception as e:
-        print(f"Error clearing previous summary: {e}")
+    # Support GET for simple triggering (used by frontend)
+    if request.method == 'GET':
+        # Check auth
+        auth_header = request.headers.get('Authorization')
+        expected_token = os.getenv('API_TOKEN')
+        if expected_token:
+            token = auth_header.replace('Bearer ', '') if auth_header and auth_header.startswith('Bearer ') else auth_header
+            if token != expected_token:
+                return jsonify({'error': 'Unauthorized'}), 401
 
-    result = run_single(ticker, manual=True)
-    return jsonify({'status': 'triggered', 'result': result})
+        print(f"DEBUG: Starting background run for {ticker} (GET)")
+        
+        # Clear existing summary to force frontend poll
+        try:
+            today = date.today()
+            supabase.table('ticker_summaries').delete().eq('ticker', ticker).eq('summary_date', str(today)).execute()
+        except Exception:
+            pass
+
+        msg = run_single(ticker)
+        return jsonify({'status': 'triggered', 'message': msg})
+
+    return jsonify({'status': 'method_not_allowed'}), 405
+
+@us_news_bp.route('/api/financials/<ticker>', methods=['GET'])
+def get_financial_analysis(ticker):
+    """
+    Fetch fundamental data + Generate AI Recommendation (Gemini).
+    """
+    print(f"DEBUG: Analyzing Financials for {ticker}")
+    try:
+        # 1. Fetch Fundamentals (yfinance)
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        fundamentals = {
+            'market_cap': info.get('marketCap'),
+            'pe_ratio': info.get('trailingPE'),
+            'peg_ratio': info.get('pegRatio'),
+            'revenue_ttm': info.get('totalRevenue'),
+            'net_income_ttm': info.get('netIncomeToCommon'),
+            'eps': info.get('trailingEps'),
+            'beta': info.get('beta'),
+            'dividend_yield': info.get('dividendYield'),
+            'profit_margins': info.get('profitMargins'),
+            'operating_margins': info.get('operatingMargins'),
+            # Extended Fundamentals
+            'book_value': info.get('bookValue'),
+            'price_to_book': info.get('priceToBook'),
+            'debt_to_equity': info.get('debtToEquity'),
+            'current_ratio': info.get('currentRatio'),
+            'return_on_equity': info.get('returnOnEquity'),
+            'ticker': ticker
+        }
+
+        # --- Professional Fair Value Calculation (Graham Number) ---
+        # Graham Number = Sqrt(22.5 * EPS * Book Value Per Share)
+        try:
+            eps = fundamentals.get('eps')
+            bvps = fundamentals.get('book_value')
+            if eps and bvps and eps > 0 and bvps > 0:
+                graham_number = (22.5 * eps * bvps) ** 0.5
+                fundamentals['fair_value'] = round(graham_number, 2)
+            else:
+                fundamentals['fair_value'] = None
+        except Exception as e:
+            print(f"Fair Value Calc Error: {e}")
+            fundamentals['fair_value'] = None
+
+        # --- Manual Checks & Fallbacks ---
+        
+        # 1. PEG Ratio Fallback
+        if fundamentals['peg_ratio'] is None and fundamentals['pe_ratio']:
+            try:
+                # Fetch Annual Financials to calculate EPS Growth
+                fin = stock.financials
+                if not fin.empty and 'Basic EPS' in fin.index:
+                    eps_series = fin.loc['Basic EPS']
+                    if len(eps_series) >= 2:
+                        eps_cur = eps_series.iloc[0]
+                        eps_prev = eps_series.iloc[1]
+                        if eps_prev and eps_prev != 0:
+                            growth_rate = ((eps_cur - eps_prev) / abs(eps_prev)) * 100
+                            if growth_rate > 0:
+                                fundamentals['peg_ratio'] = round(fundamentals['pe_ratio'] / growth_rate, 2)
+            except Exception as e:
+                print(f"Manual PEG Error: {e}")
+
+        # 2. Dividend Yield Sanity Check
+        # User reported anomaly (e.g. 38%). Calculate from Rate/Price if possible to verify.
+        try:
+            div_rate = info.get('dividendRate')
+            price = info.get('currentPrice') or info.get('previousClose')
+            if div_rate and price and price > 0:
+                calc_yield = div_rate / price
+                raw_yield = fundamentals['dividend_yield']
+                
+                # If raw yield is missing, or huge discrepancy (e.g. > 10% diff), use calculated
+                # Example: If raw is 0.38 (38%) but calc is 0.0038 (0.38%), use calc.
+                if raw_yield is None or abs(raw_yield - calc_yield) > 0.05:
+                    print(f"DEBUG: Replacing suspicious yield {raw_yield} with calculated {calc_yield}")
+                    fundamentals['dividend_yield'] = calc_yield
+        except Exception as e:
+            print(f"Yield Check Error: {e}")
+        
+        # Upsert Fundamentals to Supabase (financial_data)
+        try:
+            supabase.table('financial_data').upsert(fundamentals).execute()
+        except Exception as db_err:
+            print(f"DB Error (Financials): {db_err}")
+            # Continue even if DB fails, return live data
+
+        # 2. Fetch Technicals (Internal Helper)
+        # We need historical data for TA
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=400) # Need ~200 candles + buffer
+        df = stock.history(start=start_date, end=end_date)
+        
+        if df.empty:
+            return jsonify({'error': 'No price data found'}), 404
+            
+        from US_News.ta_utils import calculate_technical_indicators, get_ta_summary
+        df = calculate_technical_indicators(df)
+        ta_summary = get_ta_summary(df) # {price, rsi, macd_action, sma_trend}
+
+        # 3. Generate AI Recommendation (Gemini) with Robust Key Rotation
+        # Load all available keys
+        all_keys = []
+        key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
+        for var in key_vars:
+            k = os.getenv(var)
+            if k: all_keys.append((k, var))
+            
+        ai_recommendation = "AI Analysis Unavailable"
+        recommendation_signal = "UNKNOWN"
+        
+        if all_keys:
+            # Shuffle for load balancing
+            random.shuffle(all_keys)
+            
+            prompt = f"""
+            You are a Senior Financial Analyst. Analyze {ticker} based on this data:
+            
+            FUNDAMENTALS:
+            - Market Cap: {fundamentals['market_cap']}
+            - P/E Ratio: {fundamentals['pe_ratio']}
+            - PEG Ratio: {fundamentals['peg_ratio']}
+            - Revenue (TTM): {fundamentals['revenue_ttm']}
+            - Profit Margin: {fundamentals['profit_margins']}
+            
+            TECHNICALS:
+            - Price: {ta_summary['price']}
+            - RSI (14): {ta_summary['rsi']}
+            - MACD Action: {ta_summary['macd_action']}
+            - Trend (vs SMA200): {ta_summary['sma_trend']}
+            
+            TASK:
+            1. Provide a clear "BUY", "SELL", or "HOLD" signal.
+            2. Write a concise 3-4 sentence paragraph explaining WHY. Focus on the synthesis of fundamental valuation vs technical momentum.
+            
+            FORMAT:
+            Signal: [BUY/SELL/HOLD]
+            Reasoning: [Paragraph]
+            """
+
+            # Gemini REST API Payload
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.3
+                }
+            }
+            
+            # Retry Loop
+            for attempt, (api_key, key_name) in enumerate(all_keys):
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
+                headers = {'Content-Type': 'application/json'}
+                
+                try:
+                    # Short timeout for fast failover
+                    response = requests.post(url, headers=headers, json=payload, timeout=10)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        candidates = result.get('candidates', [])
+                        if candidates:
+                            content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                            if content_text:
+                                ai_recommendation = content_text
+                                # Parse Signal
+                                signal_match = re.search(r'Signal:\s*(BUY|SELL|HOLD)', content_text, re.IGNORECASE)
+                                recommendation_signal = signal_match.group(1).upper() if signal_match else "NEUTRAL"
+                                print(f"  ✓ Valid AI analysis generated for {ticker} using {key_name}")
+                                break # Success
+                    
+                    elif response.status_code == 429:
+                        print(f"  ⚠ Rate Limit (429) on {key_name}. Rotating...")
+                        time.sleep(1)
+                        continue
+                    else:
+                        print(f"  ⚠ AI Error {response.status_code} on {key_name}: {response.text[:100]}")
+                        continue
+                        
+                except Exception as e:
+                    print(f"  ⚠ Connection Error on {key_name}: {e}")
+                    continue
+            else:
+                 print(f"  ✗ Failed to generate AI analysis for {ticker} after trying all keys.")
+        
+        # Upsert Signals to Supabase (technical_signals) even if AI failed (keep old or set error)
+        if ai_recommendation != "AI Analysis Unavailable":
+             signal_data = {
+                'ticker': ticker,
+                'recommendation': recommendation_signal,
+                'reasoning': ai_recommendation,
+                'rsi': ta_summary['rsi'],
+                'macd_signal': ta_summary['macd_action'],
+                'last_updated': datetime.now().isoformat()
+            }
+             try:
+                supabase.table('technical_signals').upsert(signal_data).execute()
+             except Exception as e:
+                print(f"DB Error (Signals): {e}")
+
+        return jsonify({
+            'fundamentals': fundamentals,
+            'technicals': ta_summary,
+            'ai_analysis': ai_recommendation
+        })
+
+    except Exception as e:
+         print(f"Financials Error: {e}")
+         return jsonify({'error': str(e)}), 500
+    # Check auth
+
+
 
 @us_news_bp.route('/api/quote/<ticker>', methods=['GET'])
 def get_ticker_quote(ticker):
@@ -716,18 +1045,18 @@ def get_ticker_quote(ticker):
 
 @us_news_bp.route('/api/summary/<ticker>')
 def get_summary(ticker):
-    """Get AI summary for a specific ticker"""
-    today = date.today()
-    
+    """Get AI summary for a specific ticker (Latest available)"""
     try:
-        print(f"DEBUG: get_summary checking for {ticker} on date {today}")
-        result = supabase.table('ticker_summaries').select('*').eq('ticker', ticker).eq('summary_date', str(today)).execute()
+        # Fetch the MOST RECENT summary, regardless of date
+        print(f"DEBUG: get_summary fetching latest for {ticker}")
+        result = supabase.table('ticker_summaries').select('*').eq('ticker', ticker).order('summary_date', desc=True).limit(1).execute()
         
         if result.data:
-            print(f"DEBUG: Found summary for {ticker}")
             summary = result.data[0]
+            print(f"DEBUG: Found summary for {ticker} from {summary['summary_date']}")
             
-            # Get sources from news table
+            # Get sources from news table linked to this summary date (or just latest)
+            # Logic: just get latest news for content context
             news_result = supabase.table('news').select('title, original_url, source').eq('ticker', ticker).order('published_at', desc=True).limit(10).execute()
             
             # Dedup sources by URL
@@ -749,9 +1078,9 @@ def get_summary(ticker):
                 'date': summary['summary_date']
             })
         else:
-            print(f"DEBUG: No summary found for {ticker} on date {today}")
+            print(f"DEBUG: No summary found for {ticker} (history is empty)")
             # Return 200 with status=not_found to avoid console errors during polling
-            return jsonify({'status': 'not_found', 'message': 'No summary available for today'})
+            return jsonify({'status': 'not_found', 'message': 'No summary available'})
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -760,3 +1089,88 @@ def get_summary(ticker):
 def get_tickers():
     """Get list of active tickers"""
     return jsonify({'tickers': DISPLAY_TICKERS})
+
+@us_news_bp.route('/api/history/<ticker>', methods=['GET'])
+def get_history(ticker):
+    """Fetch historical data for the interactive chart"""
+    from flask import request
+    period = request.args.get('period', '1y')
+    interval = request.args.get('interval', '1d')
+    
+    try:
+        stock = yf.Ticker(ticker)
+        df = stock.history(period=period, interval=interval)
+        
+        if df.empty:
+             return jsonify({'error': 'No history found'}), 404
+             
+        # Format for Lightweight Charts
+        data = []
+        df = df.reset_index()
+        
+        for _, row in df.iterrows():
+            # Handle timestamps vs date strings
+            col_name = 'Datetime' if 'Datetime' in df.columns else 'Date'
+            d = row[col_name]
+            
+            # For daily data, Lightweight Charts expects 'YYYY-MM-DD' string format
+            # For intraday, it expects Unix timestamp (seconds)
+            if interval in ['1m', '2m', '5m', '15m', '30m', '60m', '1h']:
+                # Intraday: Unix timestamp
+                time_val = int(d.timestamp())
+            else:
+                # Daily: Convert to YYYY-MM-DD string
+                # Handle timezone-aware datetime - convert to date only (no time component)
+                if hasattr(d, 'date'):
+                    # Get just the date part, ignoring timezone
+                    time_val = d.date().strftime('%Y-%m-%d')
+                elif hasattr(d, 'strftime'):
+                    # Pandas Timestamp - extract date
+                    time_val = d.strftime('%Y-%m-%d')
+                else:
+                    # Fallback for string dates
+                    time_val = str(d)[:10]
+
+            data.append({
+                'time': time_val,
+                'open': float(row['Open']),
+                'high': float(row['High']),
+                'low': float(row['Low']),
+                'close': float(row['Close']),
+                'volume': int(row['Volume'])
+            })
+            
+        return jsonify({'data': data})
+
+    except Exception as e:
+        print(f"History Error for {ticker}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@us_news_bp.route('/api/latest-price/<ticker>', methods=['GET'])
+def get_latest_price(ticker):
+    """Fetch latest price for real-time chart updates"""
+    try:
+        stock = yf.Ticker(ticker)
+        # Get today's 1-minute data for most recent price
+        df = stock.history(period='1d', interval='1m')
+        
+        if df.empty:
+            return jsonify({'error': 'No data available'}), 404
+            
+        # Get the last row (most recent candle)
+        df = df.reset_index()
+        latest = df.iloc[-1]
+        d = latest['Datetime'] if 'Datetime' in df.columns else latest['Date']
+        
+        return jsonify({
+            'time': int(d.timestamp()),  # Unix timestamp for intraday
+            'open': float(latest['Open']),
+            'high': float(latest['High']),
+            'low': float(latest['Low']),
+            'close': float(latest['Close']),
+            'volume': int(latest['Volume'])
+        })
+        
+    except Exception as e:
+        print(f"Latest Price Error for {ticker}: {e}")
+        return jsonify({'error': str(e)}), 500

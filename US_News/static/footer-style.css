@@ -7,7 +7,6 @@
     background: var(--bg-header);
     /* Use header variable */
     border-top: 1px solid var(--border);
-    width: 100%;
     margin-top: auto;
     z-index: 10;
 }
@@ -58,5 +57,15 @@
 
     .footer-links a {
         margin: 0 0.75rem;
+    }
+
+    /* Force footer to span full width despite parent padding */
+    .app-footer {
+        margin-left: -10px;
+        margin-right: -10px;
+        width: calc(100% + 20px);
+        padding-left: 10px;
+        /* Internal padding to keep content aligned */
+        padding-right: 10px;
     }
 }

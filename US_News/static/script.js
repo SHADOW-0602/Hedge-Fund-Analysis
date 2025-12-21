@@ -1,5 +1,6 @@
 let currentTickers = [];
 let currentIndex = 0;
+let cachedTAData = null;
 
 // Touch/swipe handling variables
 let touchStartX = 0;
@@ -26,17 +27,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const newTheme = themeToggle.checked ? 'dark' : 'light';
                 document.documentElement.setAttribute('data-theme', newTheme);
                 localStorage.setItem('theme', newTheme);
+                // Re-render chart if data exists
+                if (cachedTAData) {
+                    renderTA(cachedTAData);
+                }
             });
         }
 
-        // Add click handlers to ticker items
+        // --- sidebar click handling ---
         const tickerItems = document.querySelectorAll('.ticker-item');
-        tickerItems.forEach((item, index) => {
+        tickerItems.forEach(item => {
             item.addEventListener('click', () => {
-                currentIndex = index;
-                selectTicker(item.dataset.ticker);
+                const ticker = item.dataset.ticker;
+                currentTicker = ticker; // Update global state
+                selectTicker(ticker);
             });
         });
+
+        // Cleanup formats once on load
+        cleanupTickerFormats();
+
+        // Init Chart
+        initChart();
 
         // Add refresh button handler
         document.getElementById('refreshBtn').addEventListener('click', handleRefresh);
@@ -89,10 +101,71 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
+        // Initialize Tabs
+        initTabListeners();
+
+        // --- Mobile Menu Handling ---
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const mobileMenu = document.getElementById('mobileMenu');
+        const closeMenuBtn = document.getElementById('closeMenuBtn');
+
+        if (hamburgerBtn && mobileMenu) {
+            hamburgerBtn.addEventListener('click', () => {
+                mobileMenu.classList.add('open');
+            });
+        }
+        if (closeMenuBtn && mobileMenu) {
+            closeMenuBtn.addEventListener('click', () => {
+                mobileMenu.classList.remove('open');
+            });
+        }
+
+        // Mobile Refresh Listener
+        const refreshBtnMobile = document.getElementById('refreshBtnMobile');
+        if (refreshBtnMobile) {
+            refreshBtnMobile.addEventListener('click', handleRefresh);
+        }
+
+        // Mobile Theme Listener
+        const themeToggleMobile = document.getElementById('themeToggleMobile');
+        if (themeToggleMobile) {
+            // Sync state initially
+            themeToggleMobile.checked = document.documentElement.getAttribute('data-theme') === 'dark';
+
+            themeToggleMobile.addEventListener('change', () => {
+                const isDark = themeToggleMobile.checked;
+                const newTheme = isDark ? 'dark' : 'light'; // Checkbox checked = dark (moon) based on CSS/HTML structure
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+
+                // Sync desktop toggle if it exists
+                if (themeToggle) themeToggle.checked = isDark;
+
+                if (cachedTAData) renderTA(cachedTAData);
+            });
+        }
+
     } catch (error) {
         console.error('Error loading tickers:', error);
     }
 });
+
+// Force cleanup of ticker formats (remove percentages, add brackets) on load
+const cleanupTickerFormats = () => {
+    document.querySelectorAll('.ticker-change').forEach(el => {
+        let text = el.textContent.trim();
+        // 1. Extract purely the number with sign
+        const match = text.match(/[+\-]?\d+\.\d+/);
+        if (match) {
+            const val = match[0];
+            // 2. Enforce Bracket Format: (Value)
+            // Ensure strictly (Value) - strip anything else
+            el.textContent = `(${val})`;
+        }
+    });
+};
+cleanupTickerFormats();
+
 
 // Utility: Debounce
 function debounce(func, wait) {
@@ -208,10 +281,20 @@ function handleKeyboardNavigation(event) {
 
 // Touch/swipe handlers for mobile
 function handleTouchStart(event) {
+    // Ignore swipes on the chart, tabs, or ticker list to allow native scrolling
+    if (event.target.closest('#overviewChart') ||
+        event.target.closest('.tv-lightweight-charts') ||
+        event.target.closest('.tabs-container') ||
+        event.target.closest('.ticker-list') ||
+        event.target.closest('.chart-controls')) {
+        touchStartX = null;
+        return;
+    }
     touchStartX = event.changedTouches[0].screenX;
 }
 
 function handleTouchEnd(event) {
+    if (touchStartX === null) return;
     touchEndX = event.changedTouches[0].screenX;
     handleSwipe();
 }
@@ -231,14 +314,23 @@ function handleSwipe() {
     }
 }
 
-async function handleRefresh() {
-    const btn = document.getElementById('refreshBtn');
-    const span = btn.querySelector('span');
+async function handleRefresh(e) {
+    let btn = document.getElementById('refreshBtn');
+
+    // If triggered by event (e.g. mobile button), use that target
+    if (e && e.target) {
+        btn = e.target.closest('button');
+    }
+    // Fallback
+    if (!btn) btn = document.getElementById('refreshBtn');
+
+    const span = btn.querySelector('span'); // specific to mobile with text span? Desktop handles svg spinning via class
 
     // Disable button and show spinner
     btn.disabled = true;
     btn.classList.add('spinning');
-    span.textContent = 'Started...';
+    if (span) span.textContent = 'Started...';
+    btn.title = 'Refresh Started...';
 
     try {
         const apiToken = document.querySelector('meta[name="api-token"]')?.content;
@@ -251,7 +343,8 @@ async function handleRefresh() {
         const data = await response.json();
 
         if (response.ok) {
-            span.textContent = 'Updating...';
+            if (span) span.textContent = 'Updating...';
+            btn.title = 'Updating all news...';
 
             // Poll for completion
             const pollInterval = setInterval(async () => {
@@ -261,7 +354,8 @@ async function handleRefresh() {
 
                     if (!statusData.is_processing) {
                         clearInterval(pollInterval);
-                        span.textContent = 'Done!';
+                        if (span) span.textContent = 'Done!';
+                        btn.title = 'Refresh Complete!';
                         btn.classList.remove('spinning');
 
                         setTimeout(() => {
@@ -277,12 +371,14 @@ async function handleRefresh() {
         }
     } catch (error) {
         console.error('Refresh error:', error);
-        span.textContent = 'Error';
+        if (span) span.textContent = 'Error';
+        btn.title = 'Refresh Error';
         btn.classList.remove('spinning');
 
         setTimeout(() => {
             btn.disabled = false;
-            span.textContent = 'Refresh News';
+            if (span) span.textContent = 'Refresh News';
+            btn.title = 'Update all news';
         }, 3000);
     }
 }
@@ -382,13 +478,52 @@ window.generateTickerSummary = async function (ticker, event) {
 }
 
 // Polling interval tracking
-let quotePollInterval = null;
+let quotePollTimeout = null;
+let currentActiveTicker = null; // Track globally for Tabs
+
+function startPolling(ticker) {
+    // Clear existing
+    if (quotePollTimeout) {
+        clearTimeout(quotePollTimeout);
+        quotePollTimeout = null;
+    }
+
+    // Recursive polling function
+    const poll = async () => {
+        // Stop if ticker switched
+        if (currentActiveTicker !== ticker) return;
+
+        await fetchAndDisplayQuote(ticker);
+
+        // Schedule next poll only after completion
+        if (currentActiveTicker === ticker) {
+            quotePollTimeout = setTimeout(poll, 2000);
+        }
+    };
+
+    // Start immediately
+    poll();
+}
+
 
 async function selectTicker(ticker) {
+    currentActiveTicker = ticker; // Set global
+
+    // Show loading overlay
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.style.display = 'flex';
+
+    // Check which tab is active
+    const taTab = document.querySelector('.tab-btn[data-tab="ta"]');
+    if (taTab && taTab.classList.contains('active')) {
+        loadTAData(ticker);
+    }
+
+    // Continue with standard summary load...
     // Clear existing interval if any
-    if (quotePollInterval) {
-        clearInterval(quotePollInterval);
-        quotePollInterval = null;
+    if (quotePollTimeout) {
+        clearTimeout(quotePollTimeout);
+        quotePollTimeout = null;
     }
 
     // Save state
@@ -396,36 +531,47 @@ async function selectTicker(ticker) {
 
     // Update active state
     document.querySelectorAll('.ticker-item').forEach(item => {
-        item.classList.remove('active');
+        item.classList.toggle('active', item.dataset.ticker === ticker);
     });
-    const activeItem = document.querySelector(`[data-ticker="${ticker}"]`);
-    if (activeItem) activeItem.classList.add('active');
 
-    // Show loading state
-    const summaryContent = document.getElementById('summaryContent');
-    summaryContent.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    // Show loading state - REMOVED, now handled by loadingOverlay
+    // const summaryContent = document.getElementById('summaryContent');
+    // summaryContent.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
+    console.log(`[selectTicker] Fetching summary for ${ticker}...`);
     try {
         const response = await fetch(`api/summary/${ticker}`);
         const data = await response.json();
+        console.log(`[selectTicker] Response for ${ticker}:`, data);
 
-        if (response.ok && data.status === 'found') {
+        if (data.ticker || data.executive_summary) { // Check for actual summary data
+            console.log(`[selectTicker] Summary found, displaying...`);
             displaySummary(data);
 
-            // Start polling for this ticker (every 2 seconds)
-            fetchAndDisplayQuote(ticker); // Initial immediate fetch
-            quotePollInterval = setInterval(() => {
-                fetchAndDisplayQuote(ticker);
-            }, 2000);
+            // Start polling for this ticker
+            startPolling(ticker);
 
         } else {
+            console.warn(`[selectTicker] Summary not found (status=${data.status}), triggering generation...`);
             throw new Error('Summary not available');
         }
 
     } catch (error) {
+        console.error(`[selectTicker] Error/Autogen trigger:`, error);
         // Auto-generate if missing
         window.generateTickerSummary(ticker);
+    } finally {
+        // Hide loading overlay
+        if (loadingOverlay) {
+            setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+            }, 500); // Small delay for smooth UX
+        }
     }
+
+    // Trigger Chart Load if Overview is active OR just pre-load it
+    // Check if overview tab is effectively active (even if hidden)
+    loadChartData(ticker);
 }
 
 function cleanText(text) {
@@ -452,6 +598,15 @@ window.toggleSourcesModal = function (event) {
 
 function displaySummary(data) {
     const summaryContent = document.getElementById('summaryContent');
+    if (summaryContent) {
+        summaryContent.style.display = 'flex';
+        summaryContent.style.opacity = '1';
+    }
+
+    const tabsContainer = document.querySelector('.tabs-container');
+    if (tabsContainer) {
+        tabsContainer.style.display = 'flex';
+    }
 
     let sourcesHTML = '';
     if (data.sources && data.sources.length > 0) {
@@ -496,9 +651,9 @@ function displaySummary(data) {
 
     summaryContent.innerHTML = `
         <div class="summary-display">
-            <h2 style="display: flex; align-items: center; gap: 12px;">
+            <h2 style="display: flex; align-items: center; gap: 16px;">
                 ${data.ticker}
-                <div style="display:flex; gap:8px;">
+                <div style="display:flex; gap:12px; align-items: center;">
                     <span id="ticker-price-${data.ticker}" class="header-badge price-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1); color: var(--text-primary); font-family:monospace;">...</span>
                     <span id="ticker-change-${data.ticker}" class="header-badge change-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1); font-family:monospace;">...</span>
                 </div>
@@ -513,22 +668,22 @@ function displaySummary(data) {
             
             <div class="summary-section-block">
                 <h3>Executive Summary</h3>
-                <div class="summary-content">${cleanText(data.executive_summary)}</div>
+                <div class="summary-text">${cleanText(data.executive_summary)}</div>
             </div>
             
             <div class="summary-section-block">
                 <h3>What changed today?</h3>
-                <div class="summary-content">${cleanText(data.what_changed)}</div>
+                <div class="summary-text">${cleanText(data.what_changed)}</div>
             </div>
             
             <div class="summary-section-block">
                 <h3>Analyst/Earnings Updates</h3>
-                <div class="summary-content">${cleanText(data.analyst_earnings)}</div>
+                <div class="summary-text">${cleanText(data.analyst_earnings)}</div>
             </div>
             
             <div class="summary-section-block">
                 <h3>Last week updates</h3>
-                <div class="summary-content">${cleanText(data.last_week_updates)}</div>
+                <div class="summary-text">${cleanText(data.last_week_updates)}</div>
             </div>
             
             ${sourcesHTML}
@@ -537,64 +692,54 @@ function displaySummary(data) {
 
     // Initial fetch
     fetchAndDisplayQuote(data.ticker);
-
-    // Clear existing interval if any
-    if (window.quoteInterval) clearInterval(window.quoteInterval);
-
-    // Start 2-second polling
-    window.quoteInterval = setInterval(() => {
-        fetchAndDisplayQuote(data.ticker);
-    }, 2000);
 }
 
 async function fetchAndDisplayQuote(ticker) {
     try {
         const qRes = await fetch(`api/quote/${ticker}`);
+        if (!qRes.ok) {
+            console.warn(`Quote fetch failed for ${ticker}: ${qRes.status}`);
+            return;
+        }
         const qData = await qRes.json();
+        console.log(`[Quote Update] ${ticker}:`, qData);
 
         const priceBadge = document.getElementById(`ticker-price-${ticker}`);
         const changeBadge = document.getElementById(`ticker-change-${ticker}`);
 
-        // Only update if badges exist (user hasn't switched away)
-        if (priceBadge && changeBadge && qData.change_percent !== undefined) {
-            const isPos = qData.change_percent >= 0;
-            const sign = isPos ? '+' : '';
+        // --- 1. Header Update (Requested Change: Prev Close Only) ---
+        if (priceBadge && changeBadge && qData.previous_close !== undefined) {
+            // Format Previous Close
+            const prevPrice = Number(qData.previous_close).toFixed(2);
+            priceBadge.textContent = `Prev Close: $${prevPrice}`;
 
-            // Format Price (Use Current Price for dynamic updates)
-            const rawPrice = qData.price || qData.previous_close;
-            const displayPrice = Number(rawPrice).toFixed(2);
-            const priceText = `$${displayPrice}`;
+            // Neutral styling
+            priceBadge.style.background = 'rgba(128,128,128,0.1)';
+            priceBadge.style.color = 'var(--text-primary)';
+            priceBadge.style.border = 'none';
 
-            // Format Change
-            const chgPct = Number(qData.change_percent).toFixed(2);
-            const changeText = `${sign}${chgPct}%`;
-
-            // Update Price Badge
-            if (priceBadge.textContent !== priceText) {
-                priceBadge.textContent = priceText;
-            }
-
-            // Update Change Badge
-            if (changeBadge.textContent !== changeText) {
-                const color = isPos ? '#4ade80' : '#f87171';
-                const bg = isPos ? 'rgba(74, 222, 128, 0.1)' : 'rgba(248, 113, 113, 0.1)';
-
-                changeBadge.classList.remove('anim-slide-in');
-
-                // Direct update for now, animation on 2s poll can be distracting if full slide
-                // keeping it simple or reusing slide if desired.
-                // Creating a subtle pulse or just text update.
-
-                changeBadge.textContent = changeText;
-                changeBadge.style.color = color;
-                changeBadge.style.background = bg;
-                changeBadge.style.border = `1px solid ${color}`;
-
-                // Re-add slide in for effect
-                changeBadge.classList.remove('anim-slide-out');
-                changeBadge.classList.add('anim-slide-in');
-            }
+            // Hide Change Badge
+            changeBadge.style.display = 'none';
         }
+
+        // --- 2. Sidebar Update (Keep Live Data if available) ---
+        const sidebarPrice = document.getElementById(`sidebar-price-${ticker}`);
+        const sidebarChange = document.getElementById(`sidebar-change-${ticker}`);
+
+        if (sidebarPrice && sidebarChange && qData.price !== undefined) {
+            const isPos = qData.change >= 0;
+            const sign = isPos ? '+' : '';
+            const displayPrice = Number(qData.price).toFixed(2);
+            const displayChange = Number(qData.change).toFixed(2);
+
+            // Update Price
+            sidebarPrice.textContent = `$${displayPrice}`;
+
+            // Update Change
+            sidebarChange.textContent = `(${sign}${displayChange})`;
+            sidebarChange.className = `ticker-change ${isPos ? 'positive' : 'negative'}`;
+        }
+
     } catch (e) {
         console.error('Quote fetch failed', e);
     }
@@ -617,3 +762,695 @@ function navigateNext() {
 }
 
 
+/* --- Technical Analysis Logic --- */
+let priceChartInstance = null;
+let macdChartInstance = null;
+
+function initTabListeners() {
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Remove active class from all
+            tabs.forEach(t => t.classList.remove('active'));
+            contents.forEach(c => {
+                c.classList.remove('active');
+                c.style.display = 'none';
+            });
+
+            // Add active to clicked
+            tab.classList.add('active');
+            const targetId = tab.dataset.tab;
+
+            // Save active tab to localStorage
+            localStorage.setItem('activeTab', targetId);
+
+            // Find and show target content
+            const targetContent = document.querySelector(`[data-tab-content="${targetId}"]`) ||
+                document.getElementById(targetId + 'Content');
+            if (targetContent) {
+                targetContent.classList.add('active');
+                targetContent.style.display = 'flex';
+            }
+
+            // Tab-specific loading logic
+            if (targetId === 'overview' && currentChartTicker) {
+                loadChartData(currentChartTicker);
+                if (chartInstance) chartInstance.timeScale().fitContent();
+            } else {
+                // Stop polling when leaving Overview tab
+                stopChartPolling();
+            }
+
+            if (targetId === 'ta' && currentActiveTicker) {
+                console.log("[TA] Tab clicked, loading data...");
+                loadTAData(currentActiveTicker);
+            }
+
+            if (targetId === 'fin' && currentActiveTicker) {
+                console.log("[Fundamentals] Tab clicked, loading data...");
+                loadFundamentals(currentActiveTicker);
+            }
+        });
+    });
+
+    // Restore last active tab on page load
+    const savedTab = localStorage.getItem('activeTab');
+    if (savedTab) {
+        const tabToActivate = document.querySelector(`.tab-btn[data-tab="${savedTab}"]`);
+        if (tabToActivate) {
+            // Delay to ensure DOM is ready
+            setTimeout(() => tabToActivate.click(), 100);
+        }
+    }
+}
+
+async function loadTAData(ticker) {
+    const taContent = document.getElementById('taContent');
+    // Safety check: specific parent visibility or tab active state
+    const taTab = document.querySelector('.tab-btn[data-tab="ta"]');
+    if (!taTab.classList.contains('active')) return;
+
+    // Show loading state in stats
+    const levelsDiv = document.getElementById('levelsContent');
+    const indicatorsDiv = document.getElementById('indicatorsContent');
+    if (levelsDiv) levelsDiv.innerHTML = '<div class="spinner" style="width:20px; height:20px; border-width:2px;"></div>';
+    if (indicatorsDiv) indicatorsDiv.innerHTML = '<div class="spinner" style="width:20px; height:20px; border-width:2px;"></div>';
+
+    try {
+        console.log(`[TA] Fetching data for ${ticker}...`);
+        const response = await fetch(`api/ta/${ticker}`);
+        const data = await response.json();
+
+        if (data.error) {
+            console.error(data.error);
+            if (levelsDiv) levelsDiv.innerHTML = '<span style="color:var(--text-secondary)">Data unavailable</span>';
+            if (indicatorsDiv) indicatorsDiv.innerHTML = '<span style="color:var(--text-secondary)">Data unavailable</span>';
+            return;
+        }
+
+        cachedTAData = data;
+        renderTA(data);
+
+    } catch (e) {
+        console.error("TA Load Error", e);
+        if (levelsDiv) levelsDiv.innerHTML = '<span style="color:#ef4444">Connection Error</span>';
+        if (indicatorsDiv) indicatorsDiv.innerHTML = '<span style="color:#ef4444">Connection Error</span>';
+    }
+}
+
+function renderTA(data) {
+    // 1. Key Levels Table
+    const levelsDiv = document.getElementById('levelsContent');
+    if (levelsDiv) {
+        let html = '<div style="margin-bottom:10px; font-weight:bold; color:var(--text-primary);">Fibonacci Retracement</div>';
+        for (const [key, val] of Object.entries(data.fibonacci)) {
+            html += `<div class="level-row"><span>${key}</span><span>$${val.toFixed(2)}</span></div>`;
+        }
+        html += '<div style="margin-top:15px; margin-bottom:10px; font-weight:bold; color:var(--text-primary);">Support/Resistance (Pivot)</div>';
+        data.resistances.slice(0, 3).forEach(r => {
+            html += `<div class="level-row"><span style="color:#f87171">Res</span><span>$${r.toFixed(2)}</span></div>`;
+        });
+        data.supports.slice(0, 3).forEach(s => {
+            html += `<div class="level-row"><span style="color:#34d399">Sup</span><span>$${s.toFixed(2)}</span></div>`;
+        });
+        levelsDiv.innerHTML = html;
+    }
+
+    // 2. Indicators Summary
+    const indicatorsDiv = document.getElementById('indicatorsContent');
+    if (indicatorsDiv) {
+        const s = data.summary;
+        let html = `
+            <div class="level-row"><span>Current Price</span><span style="font-weight:bold">$${s.price.toFixed(2)}</span></div>
+            <div class="level-row"><span>RSI (14)</span><span style="${s.rsi > 70 ? 'color:#f87171' : (s.rsi < 30 ? 'color:#34d399' : '')}">${s.rsi.toFixed(1)}</span></div>
+            <div class="level-row">
+                <span>MACD Action</span>
+                <span class="indicator-badge ${s.macd_action.toLowerCase()}">${s.macd_action}</span>
+            </div>
+            <div class="level-row">
+                <span>Trend (SMA 200)</span>
+                <span class="indicator-badge ${s.sma_trend.toLowerCase()}">${s.sma_trend}</span>
+            </div>
+        `;
+        indicatorsDiv.innerHTML = html;
+    }
+
+    // 3. Charts
+    const ctxPrice = document.getElementById('priceChart').getContext('2d');
+    const ctxMacd = document.getElementById('macdChart').getContext('2d');
+
+    const labels = data.chart_data.map(d => d.date);
+    const closes = data.chart_data.map(d => d.close);
+    const sma50 = data.chart_data.map(d => d.sma50);
+    const sma200 = data.chart_data.map(d => d.sma200);
+
+    // Determines Theme Colors
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const textColor = isLight ? '#1e293b' : '#fff';
+    const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+    const labelColor = isLight ? '#64748b' : '#94a3b8';
+
+    // Destroy old instances
+    if (priceChartInstance) priceChartInstance.destroy();
+    if (macdChartInstance) macdChartInstance.destroy();
+
+    // Price Chart
+    priceChartInstance = new Chart(ctxPrice, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Price',
+                    data: closes,
+                    borderColor: '#3b82f6', // Accent Blue
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1
+                },
+                {
+                    label: 'SMA 50',
+                    data: sma50,
+                    borderColor: '#f59e0b', // Orange
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    borderDash: [5, 5]
+                },
+                {
+                    label: 'SMA 200',
+                    data: sma200,
+                    borderColor: '#ef4444', // Red
+                    borderWidth: 1,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: { labels: { color: labelColor } },
+                title: { display: true, text: 'Price History (Daily)', color: textColor }
+            },
+            scales: {
+                x: { ticks: { color: labelColor, maxTicksLimit: 10 }, grid: { color: gridColor } },
+                y: { ticks: { color: labelColor }, grid: { color: gridColor } }
+            }
+        }
+    });
+
+    // MACD Chart
+    macdChartInstance = new Chart(ctxMacd, {
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Histogram',
+                    data: data.chart_data.map(d => d.hist),
+                    backgroundColor: data.chart_data.map(d => d.hist >= 0 ? '#34d399' : '#f87171'),
+                    barPercentage: 1,
+                    categoryPercentage: 1
+                },
+                {
+                    type: 'line',
+                    label: 'MACD',
+                    data: data.chart_data.map(d => d.macd),
+                    borderColor: '#3b82f6',
+                    borderWidth: 1.5,
+                    pointRadius: 0
+                },
+                {
+                    type: 'line',
+                    label: 'Signal',
+                    data: data.chart_data.map(d => d.signal),
+                    borderColor: '#f59e0b',
+                    borderWidth: 1.5,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'MACD (12, 26, 9)', color: textColor }
+            },
+            scales: {
+                x: { display: false },
+                y: { ticks: { color: labelColor }, grid: { color: gridColor } }
+            }
+        }
+    });
+}
+
+// --- 3. Fundamentals Functions ---
+async function loadFundamentals(ticker) {
+    const finContent = document.getElementById('finContent');
+    if (!finContent) return;
+
+    finContent.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+    try {
+        console.log(`[Fundamentals] Fetching data for ${ticker}...`);
+        const response = await fetch(`api/financials/${ticker}`);
+        const data = await response.json();
+
+        if (data.error) throw new Error(data.error);
+        renderFundamentals(data);
+
+    } catch (e) {
+        console.error('[Fundamentals] Error:', e);
+        finContent.innerHTML = `
+            <div style="padding: 40px; text-align: center;">
+                <h3 style="color: #ef4444; margin-bottom: 16px;">⚠️ Unable to Load Data</h3>
+                <p style="color: var(--text-secondary);">Error: ${e.message}</p>
+            </div>
+        `;
+    }
+}
+
+function renderFundamentals(data) {
+    const finContent = document.getElementById('finContent');
+    if (!finContent) return;
+
+    const f = data.fundamentals || {};
+    const aiText = data.ai_analysis || "No analysis generated.";
+    const technicals = data.technicals || {};
+
+    // Format Helpers
+    const fmtNum = (n) => n ? new Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(n) : 'N/A';
+    const fmtPct = (n) => n ? (n * 100).toFixed(2) + '%' : 'N/A';
+    const fmtVal = (n) => n ? n.toFixed(2) : '-';
+
+    // 1. Valuation Logic
+    const currentPrice = technicals.price || 0;
+    const fairValue = f.fair_value;
+    let valuationBadge = '';
+
+    if (fairValue && currentPrice > 0) {
+        const diff = ((currentPrice - fairValue) / fairValue) * 100;
+        // Undervalued if Price < Fair Value (e.g. -20%)
+        if (diff < -15) {
+            valuationBadge = '<span class="status-badge undervalued">UNDERVALUED</span>';
+        } else if (diff > 15) {
+            valuationBadge = '<span class="status-badge overvalued">OVERVALUED</span>';
+        } else {
+            valuationBadge = '<span class="status-badge fair">FAIR VALUE</span>';
+        }
+    }
+
+    // 2. Health Logic
+    const deRatio = f.debt_to_equity;
+    const currRatio = f.current_ratio;
+
+    // Determine signal color for AI Card
+    let signalClass = 'neutral';
+    if (aiText.toUpperCase().includes('SIGNAL: BUY')) signalClass = 'buy';
+    if (aiText.toUpperCase().includes('SIGNAL: SELL')) signalClass = 'sell';
+
+    const cleanAiText = aiText
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n\n/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+
+    /* HTML Generation */
+    finContent.innerHTML = `
+        <div class="financials-layout">
+            <!-- AI Recommendation Card -->
+            <div class="ai-card ${signalClass}">
+                <div class="ai-header">
+                    <span class="ai-title">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M2 12h10"></path></svg>
+                        Analysis Results
+                    </span>
+                    <span class="ai-badge ${signalClass}">${signalClass.toUpperCase()}</span>
+                </div>
+                <div class="ai-body">
+                    ${cleanAiText}
+                </div>
+            </div>
+
+            <!-- Enhanced Fundamentals Grid -->
+            <div class="fundamentals-grid">
+                
+                <!-- 1. Valuation Card -->
+                <div class="fund-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <h4>Valuation</h4>
+                        ${valuationBadge}
+                    </div>
+                    <div class="metric-row"><span>Fair Value (Graham)</span> <strong>${fairValue ? '$' + fairValue : 'N/A'}</strong></div>
+                    <div class="metric-row"><span>Latest Price</span> <strong>$${currentPrice.toFixed(2)}</strong></div>
+                    <div class="metric-divider"></div>
+                    <div class="metric-row"><span>P/E Ratio</span> <strong>${fmtVal(f.pe_ratio)}</strong></div>
+                    <div class="metric-row"><span>PEG Ratio</span> <strong>${fmtVal(f.peg_ratio)}</strong></div>
+                    <div class="metric-row"><span>P/B Ratio</span> <strong>${fmtVal(f.price_to_book)}</strong></div>
+                </div>
+
+                <!-- 2. Profitability & Growth -->
+                <div class="fund-card">
+                    <h4>Profitability</h4>
+                    <div class="metric-row"><span>Revenue (TTM)</span> <strong>${fmtNum(f.revenue_ttm)}</strong></div>
+                    <div class="metric-row"><span>Net Income</span> <strong>${fmtNum(f.net_income_ttm)}</strong></div>
+                    <div class="metric-row"><span>EPS (TTM)</span> <strong>${fmtVal(f.eps)}</strong></div>
+                    <div class="metric-divider"></div>
+                    <div class="metric-row"><span>Profit Margin</span> <strong>${fmtPct(f.profit_margins)}</strong></div>
+                    <div class="metric-row"><span>ROE</span> <strong>${fmtPct(f.return_on_equity)}</strong></div>
+                </div>
+                
+                <!-- 3. Financial Health -->
+                 <div class="fund-card">
+                    <h4>Financial Health</h4>
+                    <div class="metric-row">
+                        <span>Debt/Equity</span> 
+                        <strong style="color: ${deRatio > 200 ? '#f87171' : ''}">${fmtVal(deRatio)}%</strong>
+                    </div>
+                    <div class="metric-row">
+                        <span>Current Ratio</span> 
+                        <strong style="color: ${currRatio < 1 ? '#f87171' : ''}">${fmtVal(currRatio)}</strong>
+                    </div>
+                    <div class="metric-divider"></div>
+                    <div class="metric-row"><span>Dividend Yield</span> <strong>${fmtPct(f.dividend_yield)}</strong></div>
+                    <div class="metric-row"><span>Beta (Vol)</span> <strong>${fmtVal(f.beta)}</strong></div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+
+
+
+
+// --- Charting Logic ---
+// Global chart variables
+let chartInstance = null;
+let candleSeries = null;
+let volumeSeries = null;
+let currentChartTicker = null;
+let resizeObserver = null;
+
+// Real-time polling variables
+let chartPollingInterval = null;
+let isChartPolling = false;
+
+
+function initChart() {
+    console.log('[Overview] initializing chart...');
+    const container = document.getElementById('overviewChart');
+    if (!container) {
+        console.error('[Overview] Container #overviewChart not found');
+        return;
+    }
+
+    try {
+        // Destroy existing if any (clean re-init)
+        if (chartInstance) {
+            chartInstance.remove();
+            chartInstance = null;
+        }
+
+        console.log('[Overview] Creating chart instance...');
+        // Create Chart
+        chartInstance = LightweightCharts.createChart(container, {
+            layout: {
+                background: { type: 'solid', color: 'transparent' },
+                textColor: '#333',
+            },
+            grid: {
+                vertLines: { color: 'rgba(197, 203, 206, 0.5)' },
+                horzLines: { color: 'rgba(197, 203, 206, 0.5)' },
+            },
+            rightPriceScale: {
+                borderColor: 'rgba(197, 203, 206, 0.8)',
+            },
+            timeScale: {
+                borderVisible: false,
+                timeVisible: false, // Hide 00:00:00 for daily bars
+                secondsVisible: false,
+                fixLeftEdge: true,
+                fixRightEdge: true,
+                rightOffset: 2,
+                minBarSpacing: 0.5, // Prevent zooming out into blank space
+            },
+        });
+
+        // Add Series
+        candleSeries = chartInstance.addCandlestickSeries({
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderVisible: false,
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+        });
+
+        volumeSeries = chartInstance.addHistogramSeries({
+            color: '#26a69a',
+            priceFormat: { type: 'volume' },
+            priceScaleId: '', // Overlay mode
+        });
+
+        volumeSeries.priceScale().applyOptions({
+            scaleMargins: { top: 0.8, bottom: 0 },
+        });
+
+        resizeObserver = new ResizeObserver(entries => {
+            if (entries.length === 0 || entries[0].target !== container) return;
+            const newRect = entries[0].contentRect;
+            if (chartInstance) {
+                // Subtract 2px to prevent sub-pixel rounding cutoffs, especially on mobile
+                const textWidthParam = window.innerWidth < 768 ? 2 : 0;
+                const newWidth = Math.max(0, newRect.width - textWidthParam);
+                const newHeight = Math.max(0, newRect.height);
+
+                if (newWidth === 0 || newHeight === 0) return;
+
+                chartInstance.applyOptions({
+                    width: newWidth,
+                    height: newHeight
+                });
+
+                // Force fit content removed to prevent snapback on mobile scroll
+
+            }
+        });
+        resizeObserver.observe(container);
+
+        // Initial Theme Sync
+        syncChartTheme();
+
+        // Timeframe Buttons - Remove old listeners if needed (using cloning or just re-adding is fine if careful)
+        const tfBtns = document.querySelectorAll('.chart-tf-btn');
+        tfBtns.forEach(btn => {
+            // Clone to strip old listeners
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+
+            newBtn.addEventListener('click', (e) => {
+                document.querySelectorAll('.chart-tf-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                if (currentChartTicker) loadChartData(currentChartTicker);
+            });
+        });
+
+        // Add window resize handler for responsiveness
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (chartInstance && container) {
+                    chartInstance.applyOptions({
+                        width: container.clientWidth,
+                        height: container.clientHeight
+                    });
+                }
+            }, 250); // Debounce resize events
+        });
+
+        // Setup Tab Switching Logic if not already handled elsewhere
+    } catch (e) {
+        console.error('[Overview] Init Failed:', e);
+    }
+}
+
+function syncChartTheme() {
+    if (!chartInstance) return;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+    chartInstance.applyOptions({
+        layout: {
+            textColor: isDark ? '#e2e8f0' : '#1e293b',
+            background: { type: 'solid', color: isDark ? '#1e293b' : '#ffffff' }
+        },
+        grid: {
+            vertLines: { color: isDark ? '#334155' : '#e2e8f0' },
+            horzLines: { color: isDark ? '#334155' : '#e2e8f0' },
+        },
+        timeScale: { borderColor: isDark ? '#475569' : '#cbd5e1' },
+        rightPriceScale: { borderColor: isDark ? '#475569' : '#cbd5e1' }
+    });
+}
+
+async function loadChartData(ticker) {
+    if (!chartInstance) return;
+    currentChartTicker = ticker;
+
+    // Update Header Display
+    const tickerDisplay = document.getElementById('chartTickerDisplay');
+    if (tickerDisplay) tickerDisplay.innerText = ticker;
+
+    // Get active TF
+    const activeBtn = document.querySelector('.chart-tf-btn.active');
+    const tf = activeBtn ? activeBtn.dataset.tf : '1y';
+
+    // Map TF to API params
+    let period = '1y';
+    let interval = '1d';
+    if (tf === '1mo') { period = '1mo'; interval = '1d'; }
+    if (tf === '6mo') { period = '6mo'; interval = '1d'; }
+    if (tf === '5y') { period = '5y'; interval = '1wk'; } // 5Y uses weekly for performance/overview
+
+    try {
+        const res = await fetch(`api/history/${ticker}?period=${period}&interval=${interval}`);
+        const data = await res.json();
+
+        if (data.error) { console.error('Chart Data Error:', data.error); return; }
+
+        const candles = data.data.map(d => ({
+            time: d.time,
+            open: d.open,
+            high: d.high,
+            low: d.low,
+            close: d.close
+        }));
+
+        const volumes = data.data.map(d => ({
+            time: d.time,
+            value: d.volume,
+            color: d.close >= d.open ? '#26a69a' : '#ef5350'
+        }));
+
+        candleSeries.setData(candles);
+        volumeSeries.setData(volumes);
+
+        // Use fitContent() with a slight delay to ensure correct sizing after render
+        const totalBars = candles.length;
+        if (totalBars > 0) {
+            setTimeout(() => {
+                if (chartInstance) {
+                    chartInstance.timeScale().fitContent();
+                }
+            }, 100);
+        }
+
+        // Start real-time updates
+        stopChartPolling(); // Stop any existing polling first
+        startChartPolling(ticker);
+
+    } catch (e) {
+        console.error('Chart Fetch Error:', e);
+    }
+}
+
+// Hook into theme toggle
+const themeToggleBtn = document.getElementById('themeToggleMobile');
+if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('change', () => setTimeout(syncChartTheme, 50));
+}
+
+const themeObserver = new MutationObserver(syncChartTheme);
+themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+// Real-time chart polling functions
+let pollingErrorCount = 0;
+const MAX_POLLING_ERRORS = 3;
+
+function startChartPolling(ticker) {
+    if (isChartPolling || !chartInstance) return;
+
+    console.log(`[Chart Polling] Starting for ${ticker}...`);
+    isChartPolling = true;
+    pollingErrorCount = 0; // Reset error counter
+
+    const liveIndicator = document.getElementById('chartLiveIndicator');
+    if (liveIndicator) liveIndicator.style.display = 'flex';
+
+    chartPollingInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`api/latest-price/${ticker}`);
+            const data = await res.json();
+
+            if (!data.error && candleSeries && volumeSeries) {
+                candleSeries.update({
+                    time: data.time,
+                    open: data.open,
+                    high: data.high,
+                    low: data.low,
+                    close: data.close
+                });
+
+                volumeSeries.update({
+                    time: data.time,
+                    value: data.volume,
+                    color: data.close >= data.open ? '#26a69a' : '#ef5350'
+                });
+
+                // Reset error count on success
+                pollingErrorCount = 0;
+                console.log(`[Chart Polling] Updated at ${new Date().toLocaleTimeString()}`);
+            } else {
+                throw new Error(data.error || 'Invalid data received');
+            }
+        } catch (e) {
+            pollingErrorCount++;
+            console.error(`[Chart Polling] Error (${pollingErrorCount}/${MAX_POLLING_ERRORS}):`, e);
+
+            // Stop polling after max errors
+            if (pollingErrorCount >= MAX_POLLING_ERRORS) {
+                console.warn('[Chart Polling] Max errors reached, stopping polling');
+                stopChartPolling();
+
+                // Show error indicator
+                if (liveIndicator) {
+                    liveIndicator.style.background = 'rgba(239, 68, 68, 0.1)';
+                    liveIndicator.style.borderColor = '#ef4444';
+                    liveIndicator.querySelector('span:first-child').style.background = '#ef4444';
+                    liveIndicator.querySelector('span:last-child').textContent = 'ERROR';
+                    liveIndicator.querySelector('span:last-child').style.color = '#ef4444';
+                    liveIndicator.style.display = 'flex';
+                }
+            }
+        }
+    }, 60000);
+}
+
+function stopChartPolling() {
+    if (!isChartPolling) return;
+
+    console.log('[Chart Polling] Stopping...');
+    if (chartPollingInterval) {
+        clearInterval(chartPollingInterval);
+        chartPollingInterval = null;
+    }
+    isChartPolling = false;
+    pollingErrorCount = 0; // Reset error counter
+
+    const liveIndicator = document.getElementById('chartLiveIndicator');
+    if (liveIndicator) {
+        liveIndicator.style.display = 'none';
+        // Reset styling in case it was in error state
+        liveIndicator.style.background = 'rgba(34, 197, 94, 0.1)';
+        liveIndicator.style.borderColor = '#22c55e';
+        liveIndicator.querySelector('span:first-child').style.background = '#22c55e';
+        liveIndicator.querySelector('span:last-child').textContent = 'LIVE';
+        liveIndicator.querySelector('span:last-child').style.color = '#22c55e';
+    }
+}
