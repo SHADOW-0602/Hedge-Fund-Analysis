@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 
 <body>
@@ -166,6 +167,14 @@
                                 <span
                                     style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite;"></span>
                                 <span style="font-size: 0.85rem; color: #22c55e; font-weight: 600;">LIVE</span>
+                            </div>
+                            <!-- Live Stats -->
+                            <div class="chart-header-stats" style="display: flex; gap: 16px; align-items: baseline;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);"
+                                    id="headerPrice">--</div>
+                                <div style="font-size: 1rem; font-weight: 500;" id="headerChange">--</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Prev Close: <span
+                                        id="headerPrevClose">--</span></div>
                             </div>
                         </div>
                         <div class="chart-controls" style="display: flex; gap: 10px;">

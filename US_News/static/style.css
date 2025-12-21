@@ -2285,6 +2285,27 @@ body {
     border-color: var(--accent);
 }
 
+#summaryContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    /* Prevent horizontal scroll just in case */
+    box-sizing: border-box;
+}
+
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    flex: 1;
+}
+
 #overviewChart {
     border: 1px solid var(--border);
     background: var(--bg-card);
@@ -2300,4 +2321,369 @@ body {
     50% {
         opacity: 0.5;
     }
+}
+
+/* Research Report Styles (Markdown) */
+/* Research Report Styles (Premium Markdown) */
+.research-report {
+    font-size: 1.05rem;
+    line-height: 1.8;
+    color: var(--text-primary);
+    max-width: 100%;
+    /* Allow full width */
+    margin: 0 auto;
+    font-family: 'Inter', sans-serif;
+}
+
+.research-report h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-top: 1em;
+    margin-bottom: 0.8em;
+    background: linear-gradient(to right, var(--text-primary), var(--text-secondary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.research-report h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-top: 2em;
+    margin-bottom: 1em;
+    padding-bottom: 0.5em;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.research-report h2::before {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 24px;
+    background: var(--accent);
+    border-radius: 4px;
+}
+
+.research-report h3 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-top: 1.5em;
+    margin-bottom: 0.8em;
+    color: var(--text-primary);
+}
+
+.research-report p {
+    margin-bottom: 1.25em;
+    color: var(--text-secondary);
+    /* Slightly softer text for reading */
+}
+
+/* Lists */
+.research-report ul,
+.research-report ol {
+    margin-bottom: 1.5em;
+    padding-left: 1.25em;
+}
+
+.research-report li {
+    margin-bottom: 0.75em;
+    position: relative;
+    color: var(--text-secondary);
+}
+
+.research-report ul li::marker {
+    color: var(--accent);
+}
+
+/* Emphasis */
+.research-report strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Blockquotes - Glassmorph Style */
+.research-report blockquote {
+    background: rgba(59, 130, 246, 0.05);
+    /* Blue tint */
+    border-left: 4px solid var(--accent);
+    padding: 1.5em;
+    border-radius: 0 12px 12px 0;
+    margin: 2em 0;
+    font-style: italic;
+    color: var(--text-primary);
+    position: relative;
+}
+
+.research-report blockquote::before {
+    content: '"';
+    position: absolute;
+    top: 0;
+    left: 10px;
+    font-size: 3rem;
+    color: var(--accent);
+    opacity: 0.2;
+    line-height: 1;
+}
+
+/* Tables */
+.research-report table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 2em 0;
+    background: var(--bg-card);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.research-report th,
+.research-report td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.research-report th {
+    background: var(--hover-bg);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.research-report tr:last-child td {
+    border-bottom: none;
+}
+
+.research-report tr:hover td {
+    background: var(--hover-bg);
+}
+
+/* Horizontal Rule */
+.research-report hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+    margin: 3em 0;
+}
+
+/* Sources Modal Styles */
+.sources-trigger-wrapper {
+    margin-top: 40px;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.sources-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.sources-trigger:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--hover-bg);
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: none;
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.open {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    width: 90%;
+    max-width: 500px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-overlay.open .modal-content {
+    transform: scale(1);
+}
+
+.modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.source-item {
+    display: block;
+    padding: 12px;
+    background: var(--hover-bg);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: background 0.2s;
+    border: 1px solid transparent;
+}
+
+.source-item:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* Mobile Optimization for Report */
+@media (max-width: 768px) {
+    .research-report {
+        font-size: 0.95rem;
+        /* Smaller text */
+        padding-left: 20px;
+        /* Left margin */
+        padding-right: 20px;
+        /* Right margin */
+        line-height: 1.6;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        /* Crucial for padding to be inside width */
+        overflow-wrap: break-word;
+        /* Prevent long words from overflowing */
+        word-wrap: break-word;
+        hyphens: auto;
+        /* optional but good for long words */
+        white-space: normal;
+        /* just in case */
+    }
+
+    .research-report h1 {
+        font-size: 1.6rem;
+        margin-top: 0.8em;
+        overflow-wrap: break-word;
+    }
+
+    .research-report h2 {
+        font-size: 1.3rem;
+        margin-top: 1.5em;
+        overflow-wrap: break-word;
+    }
+
+    /* Scrollable tables on mobile */
+    .research-report table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+        /* Prevent wrapping of cell content */
+    }
+}.summary-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 0.95em;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.summary-content thead tr {
+    background-color: rgba(59, 130, 246, 0.15);
+    /* Accent tint */
+    color: var(--accent);
+    text-align: left;
+    font-weight: bold;
+}
+
+.summary-content th,
+.summary-content td {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border);
+}
+
+.summary-content tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.summary-content tbody tr:last-of-type {
+    border-bottom: 2px solid var(--accent);
+}
+
+.summary-content tbody tr:hover {
+    background-color: var(--hover-bg);
+}
+
+/* Ensure text colors are correct in light/dark mode via vars */
+.summary-content th {
+    color: var(--accent);
+}
+
+.summary-content td {
+    color: var(--text-primary);
 }

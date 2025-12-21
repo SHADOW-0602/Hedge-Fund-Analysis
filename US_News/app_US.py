@@ -285,7 +285,7 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
     news_text = f"Stock Ticker: {ticker}\n\n"
     sources_list = []
     
-    for idx, article in enumerate(news_articles[:10], 1):
+    for idx, article in enumerate(news_articles[:15], 1):  # Increased to 15 articles for more depth
         news_text += f"{idx}. {article['title']}\n"
         news_text += f"   Source: {article['source']}\n"
         news_text += f"   {article['description']}\n\n"
@@ -294,62 +294,100 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
             'url': article['url'],
             'source': article['source']
         })
+
+    # Fetch Sector/Industry context for dynamic persona
+    try:
+        ticker_info = yf.Ticker(ticker).info
+        sector = ticker_info.get('sector', 'General Market')
+        industry = ticker_info.get('industry', 'Equities')
+        # Clean up if unknown
+        if not sector or sector == 'N/A': sector = "General Market" 
+        if not industry or industry == 'N/A': industry = "Equities"
+    except Exception:
+        sector = "General Market"
+        industry = "Equities"
+
+    print(f"  Analyst Persona: Specialized in {sector} / {industry}")
+
+    # Updated Prompt to request JSON wrapper around the Markdown
+    prompt = f"""
+    Role: You are an expert-level **{sector}** and **{industry}** research analyst with 20 years of experience at a top-tier investment bank. You are renowned for your ability to deconstruct complex business models in the **{sector}** sector, analyze competitive moats, and provide a clear, data-driven investment thesis.
+
+    Objective: Generate an exhaustive investment research report on **{ticker}**. The report should be structured, analytical, and serve as a complete guide for an investor.
+
+    Target Length: Approximately 1500-2000 words. Be concise where possible but deep where necessary.
+
+    Core Instructions:
+    1. **Format**: Use clean Markdown inside the JSON value.
+    2. **Style**: Use BULLET POINTS for every section. Do NOT write long paragraphs.
+    3. **Language**: English Only. Strictly no other languages.
+    4. **Tone**: Professional, objective, and data-driven. Adapt your language to the specific nuances of the {industry} industry.
+    5. **Tone**: Professional, objective, and data-driven. Adapt your language to the specific nuances of the {industry} industry.
+    6. **Metadata**: Do NOT include 'Sector:' or 'Analyst:' headers at the top. Use the title only.
+    7. **Citations**: Do NOT include inline citations (e.g. (Source 1)). Sources are linked separately.
+
+    Report Structure:
+
+    ## Corporate Narrative and Genesis
+    *   List origin, founders, and initial problem solved.
+    *   List key milestones in growth trajectory and "bet the company" moments.
+
+    ## Product & Technology Evolution
+    *   List evolution from MVP to current ecosystem.
+    *   List key R&D breakthroughs and velocity.
+    *   List specific technology stack advantages.
+
+    ## Business Model Deep-Dive
+    *   List each revenue stream (Subscription, Ads, Hardware) and how it works.
+    *   List unit economics drivers (CAC, LTV, margins).
+    *   List contribution of each stream to total revenue.
+
+    ## Go-to-Market & Moat
+    *   **Bullet Points Only**: List ideal customer profiles and segments. Do NOT use paragraphs.
+    *   **Bullet Points Only**: List specific competitive advantages (Network effects, Switching costs, Brand).
+
+    ## Market & Competition
+    *   List TAM/SAM/SOM market sizing trends.
+    *   **Create a Markdown Table** comparing the ticker against 3 direct competitors on: Market Cap, Revenue Growth, and Key Differentiator.
+    *   List indirect competitors.
+
+    ## Strategic Opportunities & Risks
+    *   List 3-5 high-impact growth opportunities.
+    *   List 3-5 major existential risks (Regulatory, Tech shift).
+    *   List strategic rationale of recent M&A.
+
+    ## Leadership & Governance
+    *   List key executive profiles and background.
+    *   List founder influence and capital allocation strategy.
+
+    ## Financial Performance & Valuation
+    *   **Create a Markdown Table** summarizing key metrics (Recent Year/Quarter): Revenue, Gross Margin, Operating Margin, Net Income, and Free Cash Flow.
+    *   List balance sheet strength (Cash vs Debt).
+    *   List valuation metrics (P/E, EV/EBITDA) vs history/peers.
+
+    ## Thesis & Recommendation
+    *   **Signal**: [BUY / SELL / HOLD]
+    *   **Price Target**: [12-month estimate]
+    *   List key Bull Case drivers.
+    *   List key Bear Case risks.
     
-    # A/B Testing Strategies
-    strategies = ["Detailed", "Crisp", "PriceContext"]
-    selected_strategy = random.choice(strategies)
-    print(f"  🎲 Selected Prompt Strategy: {selected_strategy}")
+    News Data for Analysis:
+    {news_text}
 
-    if selected_strategy == "PriceContext":
-        # Fetch price data for context
-        quote_data = fetch_quote_data(ticker)
-        change_str = "N/A"
-        if quote_data:
-            sign = "+" if quote_data['change_percent'] >= 0 else ""
-            change_str = f"{sign}{quote_data['change_percent']}%"
-        
-        content_instruction = f"Today's Price change of {ticker} is {change_str}. Prioritize the most recent news articles and give a crisp, relevant accurate summary that can partly explain the price changes."
-        
-    elif selected_strategy == "Crisp":
-        content_instruction = f"Give a crisp, relevant and accurate summary of the latest developments for {ticker} with a clear what, why and how."
-        
-    else: # Detailed (Original)
-        content_instruction = f"Analyze the following news articles about {ticker} stock and create a **detailed and comprehensive** summary."
-
-    prompt = f"""{content_instruction}
-    
-    IMPORTANT: Format each section as a **list of bullet points** using HTML <ul> and <li> tags. Do not use plain paragraphs.
-
-{news_text}
-
-Please provide a JSON response with the following structure:
-{{
-    "executive_summary": "<ul><li>Key point 1...</li><li>Key point 2...</li><li>Key point 3...</li></ul> (80-120 words total)",
-    "what_changed": "<ul><li>Change 1...</li><li>Change 2...</li></ul> (80-120 words total)",
-    "analyst_earnings": "<ul><li>Analyst note 1...</li><li>Earnings detail...</li></ul> (80-120 words total)",
-    "last_week_updates": "<ul><li>Update 1...</li><li>Update 2...</li></ul> (80-120 words total)"
-}}
-
-Output Requirements:
-1. **Use HTML bullet points (<ul>, <li>)** for ALL sections.
-2. Provide at least 3-5 substantial bullet points per section.
-3. **Use SIMPLE, CLEAR English.** Explain complex financial concepts so that **anyone** can understand them.
-4. Avoid jargon. If a technical term is necessary, explain what it means in simple terms.
-5. Elaborate on the details, but keep the language accessible and easy to read.
-6. Total length per section should still be substantial (80-120 words)."""
+    OUTPUT FORMAT:
+    Return the report in clean Markdown format. Do NOT wrap it in JSON.
+    """
 
     # Gemini REST API Payload
-    # Using gemini-flash-latest which is the stable high-speed model
     payload = {
         "system_instruction": {
-            "parts": [{"text": "You are a financial analyst AI. You provide detailed stock news summaries in structured JSON format with HTML content."}]
+            "parts": [{"text": "You are a top-tier investment bank research analyst. Output full report in Markdown."}]
         },
         "contents": [
             {"role": "user", "parts": [{"text": prompt}]}
         ],
         "generationConfig": {
-            "response_mime_type": "application/json",
-            "temperature": 0.3
+            "temperature": 0.4
         }
     }
     
@@ -401,13 +439,22 @@ Output Requirements:
                         continue
 
                     try:
-                        # Clean markdown naming if present
-                        clean_text = content_text.replace('```json', '').replace('```', '').strip()
-                        json_content = json.loads(clean_text)
-                    except json.JSONDecodeError:
-                         # Retry parsing or just log
-                         print(f"  ⚠ JSON Decode Error on {key_name}. Content: {clean_text[:50]}...")
-                         continue
+                        # Clean markdown naming
+                        clean_text = content_text.replace('```markdown', '').replace('```', '').strip()
+                        
+                        json_content = {
+                            'executive_summary': clean_text,
+                            'what_changed': '',
+                            'analyst_earnings': '',
+                            'last_week_updates': ''
+                        }
+                        # Success block continues below
+
+                    except Exception as e:
+                        print(f"  ⚠ Markdown processing error on {key_name}: {e}")
+                        continue
+
+
 
                     print(f"  ✓ Summary generated successfully for {ticker} using {key_name}")
                     json_content['sources'] = sources_list
@@ -1168,7 +1215,8 @@ def get_latest_price(ticker):
             'high': float(latest['High']),
             'low': float(latest['Low']),
             'close': float(latest['Close']),
-            'volume': int(latest['Volume'])
+            'volume': int(latest['Volume']),
+            'previous_close': stock.info.get('previousClose') or stock.fast_info.previous_close
         })
         
     except Exception as e:

@@ -13,7 +13,7 @@ except ImportError:
 
 try:
     print("Initializing US News system...")
-    from US_News.app_US import process_news_for_active_tickers
+    from US_News.app_US import process_news_for_active_tickers, TICKER_UNIVERSE
 except ImportError as e:
     print(f"Error importing US_News app: {e}")
     sys.exit(1)
@@ -22,14 +22,8 @@ def run_direct_refresh():
     print("Starting direct news refresh execution...")
     start_time = time.time()
     
-    # Full Custom List of 50 Tickers
-    custom_tickers = [
-        'AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA',
-        'LLY', 'JPM', 'NFLX', 'BRK-B', 'V', 'UNH', 'AVGO', 'AMD', 'TSM', 'PFE', 'MRK', 'JNJ', 'ORCL',
-        'ADBE', 'CRM', 'COST', 'HD', 'WMT', 'BAC', 'GS', 'UBER', 'DELL', 'PLTR', 'ARM', 'SMCI', 'CRWD',
-        'SNOW', 'NET', 'PDD', 'BABA', 'COIN', 'SOFI', 'TTD', 'ROKU', 'REGN', 'NBIX', 'CORT', 'CAPR',
-        'CRSP', 'NVO', 'GILD', 'BA', 'CAT', 'SPY'
-    ]
+    # Use the central definition of tickers from app_US.py
+    custom_tickers = TICKER_UNIVERSE
     
     try:
         print(f"Triggering refresh for {len(custom_tickers)} symbols...")

@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         e.target.blur();
                     } else if (e.target.value.length >= 2) {
                         // If no suggestions but user hits enter, try exact match
-                        selectTicker(e.target.value.toUpperCase());
+                        selectTicker(e.target.value.toUpperCase().trim());
                         e.target.value = '';
                         e.target.blur();
                     }
@@ -281,6 +281,12 @@ function handleKeyboardNavigation(event) {
 
 // Touch/swipe handlers for mobile
 function handleTouchStart(event) {
+    // Ignore swipes on tables (allow horizontal scroll)
+    // Ignore swipes on tables (allow horizontal scroll)
+    if (event.target.closest('table')) {
+        touchStartX = null;
+        return;
+    }
     // Ignore swipes on the chart, tabs, or ticker list to allow native scrolling
     if (event.target.closest('#overviewChart') ||
         event.target.closest('.tv-lightweight-charts') ||
@@ -460,6 +466,9 @@ window.generateTickerSummary = async function (ticker, event) {
                     }
                 }
             }, 3000);
+        } else {
+            // Handle HTTP Error from Generate Endpoint
+            throw new Error(`Generation trigger failed: ${res.status}`);
         }
     } catch (e) {
         console.error('Auto-generation failed', e);
@@ -507,6 +516,7 @@ function startPolling(ticker) {
 
 
 async function selectTicker(ticker) {
+    ticker = ticker.trim(); // Sanitize input
     currentActiveTicker = ticker; // Set global
 
     // Show loading overlay
@@ -557,7 +567,7 @@ async function selectTicker(ticker) {
         }
 
     } catch (error) {
-        console.error(`[selectTicker] Error/Autogen trigger:`, error);
+        console.log(`[selectTicker] Cache miss, triggering auto-generation...`);
         // Auto-generate if missing
         window.generateTickerSummary(ticker);
     } finally {
@@ -649,13 +659,78 @@ function displaySummary(data) {
         sourcesHTML = sourcesTrigger + modal;
     }
 
+    // Use marked.js if available, otherwise fallback to simple text
+    // Fix: Replace literal \n string with actual newlines
+    let rawText = (data.executive_summary || '').replace(/\\n/g, '\n');
+
+    // Fix: Handle "No News" state explicitly with a nice UI
+    if (rawText.includes("No significant news articles found") || rawText.includes("No specific news or recent events")) {
+        const summaryContent = document.getElementById('summaryContent');
+        if (summaryContent) {
+            summaryContent.innerHTML = `
+                <div class="research-report" style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
+                    <div style="text-align: center; color: var(--text-secondary); width: 100%; max-width: 400px; padding: 20px;">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px; opacity: 0.5; display: inline-block;">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="8" y1="13" x2="16" y2="13"></line>
+                            <line x1="8" y1="17" x2="16" y2="17"></line>
+                        </svg>
+                        <h3 style="margin-bottom: 8px; color: var(--text-primary);">No News Found</h3>
+                        <p style="font-size: 0.95rem; line-height: 1.5;">No significant news articles were found for this ticker in the last 7 days.</p>
+                    </div>
+                </div>
+            `;
+        }
+        return; // Stop further processing
+    }
+
+    // Fix: Check if we are displaying a raw JSON dump (legacy/bad data) and clean it
+    if (rawText.trim().startsWith('{') && rawText.includes('"executive_summary"')) {
+        try {
+            // Attempt to parse if valid JSON
+            const parsed = JSON.parse(rawText);
+            if (parsed.executive_summary) rawText = parsed.executive_summary;
+        } catch (e) {
+            // If invalid JSON (fallback), manually strip the wrapper
+            console.warn('Client-side cleaning of malformed JSON wrapper');
+            const startMarker = '"executive_summary":';
+            const startIdx = rawText.indexOf(startMarker);
+            if (startIdx !== -1) {
+                // Heuristic: Take content after key, strip quotes/braces
+                let content = rawText.substring(startIdx + startMarker.length).trim();
+                if (content.startsWith('"')) content = content.substring(1);
+                if (content.endsWith('}')) content = content.substring(0, content.length - 1).trim();
+                if (content.endsWith('"')) content = content.substring(0, content.length - 1);
+                rawText = content;
+            }
+        }
+    }
+
+    // Fix: Remove "Part 10: Sources" if it exists (Client-side cleanup for legacy data)
+    // Matches "## Part 10: Sources" until end of string, case insensitive
+    rawText = rawText.replace(/##\s*Part\s*10:?\s*Sources[\s\S]*$/i, '');
+
+    // Fix: Remove Sector and Analyst headers (Client-side cleanup)
+    rawText = rawText.replace(/>\s*(Sector|Analyst):.*(\n|$)/gi, '');
+    rawText = rawText.replace(/^\|\s*(Sector|Analyst):.*(\n|$)/gmi, ''); // Check for pipe just in case
+
+    // Fix: Remove "Part X:" numbering from headers
+    rawText = rawText.replace(/##\s*Part\s*\d+:\s*/gi, '## ');
+
+    // Fix: Remove inline citations like "(Source 12)"
+    rawText = rawText.replace(/\s*\(Source\s*\d+\)/gi, '');
+
+    const reportContent = window.marked
+        ? marked.parse(rawText)
+        : rawText;
+
     summaryContent.innerHTML = `
         <div class="summary-display">
-            <h2 style="display: flex; align-items: center; gap: 16px;">
+            <h2 style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px;">
                 ${data.ticker}
                 <div style="display:flex; gap:12px; align-items: center;">
                     <span id="ticker-price-${data.ticker}" class="header-badge price-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1); color: var(--text-primary); font-family:monospace;">...</span>
-                    <span id="ticker-change-${data.ticker}" class="header-badge change-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1); font-family:monospace;">...</span>
                 </div>
                 <button onclick="window.generateTickerSummary('${data.ticker}', event)" class="ticker-refresh-btn" title="Force Refresh Analysis">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -666,25 +741,9 @@ function displaySummary(data) {
                 </button>
             </h2>
             
-            <div class="summary-section-block">
-                <h3>Executive Summary</h3>
-                <div class="summary-text">${cleanText(data.executive_summary)}</div>
-            </div>
-            
-            <div class="summary-section-block">
-                <h3>What changed today?</h3>
-                <div class="summary-text">${cleanText(data.what_changed)}</div>
-            </div>
-            
-            <div class="summary-section-block">
-                <h3>Analyst/Earnings Updates</h3>
-                <div class="summary-text">${cleanText(data.analyst_earnings)}</div>
-            </div>
-            
-            <div class="summary-section-block">
-                <h3>Last week updates</h3>
-                <div class="summary-text">${cleanText(data.last_week_updates)}</div>
-            </div>
+            <article class="research-report markdown-body">
+                ${reportContent}
+            </article>
             
             ${sourcesHTML}
         </div>
@@ -708,7 +767,7 @@ async function fetchAndDisplayQuote(ticker) {
         const changeBadge = document.getElementById(`ticker-change-${ticker}`);
 
         // --- 1. Header Update (Requested Change: Prev Close Only) ---
-        if (priceBadge && changeBadge && qData.previous_close !== undefined) {
+        if (priceBadge && qData.previous_close !== undefined) {
             // Format Previous Close
             const prevPrice = Number(qData.previous_close).toFixed(2);
             priceBadge.textContent = `Prev Close: $${prevPrice}`;
@@ -718,8 +777,8 @@ async function fetchAndDisplayQuote(ticker) {
             priceBadge.style.color = 'var(--text-primary)';
             priceBadge.style.border = 'none';
 
-            // Hide Change Badge
-            changeBadge.style.display = 'none';
+            // Hide Change Badge if exists
+            if (changeBadge) changeBadge.style.display = 'none';
         }
 
         // --- 2. Sidebar Update (Keep Live Data if available) ---
@@ -889,6 +948,10 @@ function renderTA(data) {
                 <span>MACD Action</span>
                 <span class="indicator-badge ${s.macd_action.toLowerCase()}">${s.macd_action}</span>
             </div>
+            <!-- Added MACD Details -->
+            <div class="level-row" style="font-size: 0.8rem; color: var(--text-secondary); justify-content: flex-end; margin-top: -8px; margin-bottom: 8px;">
+                <span>MACD: ${data.chart_data[data.chart_data.length - 1].macd.toFixed(2)} | Sig: ${data.chart_data[data.chart_data.length - 1].signal.toFixed(2)}</span>
+            </div>
             <div class="level-row">
                 <span>Trend (SMA 200)</span>
                 <span class="indicator-badge ${s.sma_trend.toLowerCase()}">${s.sma_trend}</span>
@@ -1000,11 +1063,11 @@ function renderTA(data) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
+                legend: { display: true, labels: { color: labelColor } },
                 title: { display: true, text: 'MACD (12, 26, 9)', color: textColor }
             },
             scales: {
-                x: { display: false },
+                x: { display: true, ticks: { color: labelColor, maxTicksLimit: 10 }, grid: { color: gridColor } },
                 y: { ticks: { color: labelColor }, grid: { color: gridColor } }
             }
         }
@@ -1383,7 +1446,8 @@ function startChartPolling(ticker) {
     const liveIndicator = document.getElementById('chartLiveIndicator');
     if (liveIndicator) liveIndicator.style.display = 'flex';
 
-    chartPollingInterval = setInterval(async () => {
+    // Define poller
+    const poll = async () => {
         try {
             const res = await fetch(`api/latest-price/${ticker}`);
             const data = await res.json();
@@ -1402,6 +1466,30 @@ function startChartPolling(ticker) {
                     value: data.volume,
                     color: data.close >= data.open ? '#26a69a' : '#ef5350'
                 });
+
+                // --- Update Header Stats ---
+                const priceEl = document.getElementById('headerPrice');
+                const changeEl = document.getElementById('headerChange');
+                const prevEl = document.getElementById('headerPrevClose');
+
+                if (priceEl && changeEl && prevEl) {
+                    priceEl.innerText = '$' + data.close.toFixed(2);
+
+                    const prevClose = data.previous_close;
+                    if (prevClose) {
+                        prevEl.innerText = '$' + prevClose.toFixed(2);
+                        const diff = data.close - prevClose;
+                        const pct = (diff / prevClose) * 100;
+
+                        const sign = diff >= 0 ? '+' : '';
+                        changeEl.innerText = `${sign}${diff.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
+                        changeEl.style.color = diff >= 0 ? '#22c55e' : '#ef4444';
+                    } else {
+                        prevEl.innerText = 'N/A';
+                        changeEl.innerText = '--';
+                        changeEl.style.color = 'var(--text-secondary)';
+                    }
+                }
 
                 // Reset error count on success
                 pollingErrorCount = 0;
@@ -1429,7 +1517,11 @@ function startChartPolling(ticker) {
                 }
             }
         }
-    }, 60000);
+    };
+
+    // Run immediately then interval
+    poll();
+    chartPollingInterval = setInterval(poll, 60000);
 }
 
 function stopChartPolling() {

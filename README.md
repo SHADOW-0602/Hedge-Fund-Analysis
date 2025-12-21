@@ -22,14 +22,18 @@ Enterprise-grade portfolio risk analysis and options scanning platform with adva
 - **Monte Carlo Simulation**: Portfolio risk modeling and scenario analysis
 - **Portfolio Optimization**: Efficient frontier and risk-return optimization
 
-### 📰 **US Stock News with AI (Hybrid Architecture)**
-- **High-Performance Maker-Checker Engine**:
-  - **Selector**: `Groq Llama 3.3 70B` for instant article selection and filtering (replacing Gemini Pro).
-  - **Maker**: `Groq Llama 3.3 70B` generates high-quality initial drafts with sub-second latency.
-  - **Checker**: `gemini-2.5-flash` reviews, fact-checks, and refines the content for accuracy.
+### 📰 **US Stock News with AI (Deep Research Engine)**
+- **Advanced Analyst Persona**:
+  - **Engine**: `Gemini Flash 2.0` configured as a senior Wall St analyst with 20 years of experience.
+  - **Output**: Generates comprehensive 1,500+ word investment reports including specific Buy/Sell signals, price targets, and deep competitive analysis.
+- **Premium User Experience**:
+  - **Real-Time Data**: Instant integration of live price, change, and "Previous Close" data.
+  - **Markdown Rendering**: Client-side rendering via `marked.js` for beautiful, bulleted reports.
+  - **Dynamic Sources**: Interactive "Sources" modal to view original news links without cluttering the report.
 - **Enterprise-Grade Reliability**:
-  - **Groq 6-Key Rotation**: Supports up to 600,000 tokens/day via automatic key rotation.
-  - **Zero Rate Limits**: Eliminates "429 Too Many Requests" errors for smooth UI experience.
+  - **Key Rotation**: Automatic rotation across 6+ Gemini API keys to ensure zero downtime.
+  - **Smart Caching**: Fallback to cached reports with client-side "clean-up" for legacy data formats.
+
 - **Smart Image Loading**: Backend proxy for Pexels API to bypass ad-blockers and CORS issues (`/api/pexels-image`).
 - **Multi-Source News**: Aggregated news from NewsAPI, Finnhub, Polygon, and Yahoo Finance.
 - **Automated Refresh**: Automated daily news fetching and processing via GitHub Actions.
