@@ -1080,13 +1080,16 @@ body {
     }
 
     [data-theme="dark"] #tickerSearch {
-        background: #ffffff !important;
-        color: #000000 !important;
-        border-color: rgba(0, 0, 0, 0.1) !important;
+        background: #374151 !important;
+        /* Dark grey background */
+        color: #f3f4f6 !important;
+        /* Light text */
+        border-color: rgba(255, 255, 255, 0.1) !important;
     }
 
     [data-theme="dark"] #tickerSearch::placeholder {
-        color: #64748b !important;
+        color: #9ca3af !important;
+        /* Lighter grey placeholder */
     }
 
     /* Ticker Item Styling - Mobile Chips with Info */
@@ -2040,6 +2043,8 @@ body {
 /* Sources Trigger Button */
 .sources-trigger-wrapper {
     margin-top: 30px;
+    margin-bottom: 40px;
+    /* Gap before footer */
     padding-top: 20px;
     border-top: 1px solid var(--border);
 }
