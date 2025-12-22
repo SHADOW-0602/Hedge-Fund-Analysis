@@ -1054,40 +1054,105 @@ function renderTA(data) {
     // 1. Key Levels Table
     const levelsDiv = document.getElementById('levelsContent');
     if (levelsDiv) {
-        let html = '<div style="margin-bottom:10px; font-weight:bold; color:var(--text-primary);">Fibonacci Retracement</div>';
+        let html = `
+        <div class="key-levels-container">
+            <!-- Left Side: Fibonacci -->
+            <div class="key-levels-col">
+                <div class="key-levels-header">Fibonacci Retracement</div>
+        `;
+
         for (const [key, val] of Object.entries(data.fibonacci)) {
             html += `<div class="level-row"><span>${key}</span><span>$${val.toFixed(2)}</span></div>`;
         }
-        html += '<div style="margin-top:15px; margin-bottom:10px; font-weight:bold; color:var(--text-primary);">Support/Resistance (Pivot)</div>';
+
+        html += `
+            </div>
+            <!-- Right Side: Support/Resistance -->
+            <div class="key-levels-col">
+                <div class="key-levels-header">Support / Resistance</div>
+        `;
+
         data.resistances.slice(0, 3).forEach(r => {
             html += `<div class="level-row"><span style="color:#f87171">Res</span><span>$${r.toFixed(2)}</span></div>`;
         });
+
         data.supports.slice(0, 3).forEach(s => {
             html += `<div class="level-row"><span style="color:#34d399">Sup</span><span>$${s.toFixed(2)}</span></div>`;
         });
+
+        html += `
+            </div>
+        </div>
+        `;
         levelsDiv.innerHTML = html;
     }
 
-    // 2. Indicators Summary
+    // 2. Indicators Detailed Tables
     const indicatorsDiv = document.getElementById('indicatorsContent');
     if (indicatorsDiv) {
         const s = data.summary;
-        let html = `
-            <div class="level-row"><span>Current Price</span><span style="font-weight:bold">$${s.price.toFixed(2)}</span></div>
-            <div class="level-row"><span>RSI (14)</span><span style="${s.rsi > 70 ? 'color:#f87171' : (s.rsi < 30 ? 'color:#34d399' : '')}">${s.rsi.toFixed(1)}</span></div>
-            <div class="level-row">
-                <span>MACD Action</span>
-                <span class="indicator-badge ${s.macd_action.toLowerCase()}">${s.macd_action}</span>
-            </div>
-            <!-- Added MACD Details -->
-            <div class="level-row" style="font-size: 0.8rem; color: var(--text-secondary); justify-content: flex-end; margin-top: -8px; margin-bottom: 8px;">
-                <span>MACD: ${data.chart_data[data.chart_data.length - 1].macd.toFixed(2)} | Sig: ${data.chart_data[data.chart_data.length - 1].signal.toFixed(2)}</span>
-            </div>
-            <div class="level-row">
-                <span>Trend (SMA 200)</span>
-                <span class="indicator-badge ${s.sma_trend.toLowerCase()}">${s.sma_trend}</span>
-            </div>
-        `;
+
+        // Helper to Create Table Rows
+        const createTableRows = (items) => {
+            return items.map(item => {
+                let colorClass = '';
+                if (item.action === 'Buy') colorClass = 'text-green-500'; // user might not have tailwind, using inline or known classes
+                else if (item.action === 'Sell') colorClass = 'text-red-500';
+                else colorClass = 'text-gray-500'; // Neural/Hold
+
+                // Safe formatting for value
+                let valStr = typeof item.value === 'number' ? item.value.toFixed(2) : '-';
+
+                // Color Style for manually mimicking classes if they don't exist
+                let style = '';
+                if (item.action === 'Buy') style = 'color: #34d399; font-weight: 600;';
+                if (item.action === 'Sell') style = 'color: #f87171; font-weight: 600;';
+                if (item.action === 'Neutral') style = 'color: var(--text-secondary);';
+
+                return `
+                    <div class="ta-table-row" style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem;">
+                        <span style="color: var(--text-primary); flex: 2;">${item.name}</span>
+                        <span style="color: var(--text-primary); flex: 1; text-align: right;">${valStr}</span>
+                        <span style="${style} flex: 1; text-align: right;">${item.action || '-'}</span>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        let html = '<div class="indicators-grid">';
+
+        // Oscillators Section
+        if (s.oscillators && s.oscillators.length) {
+            html += `
+                <div class="ta-section">
+                    <h4 style="margin: 0 0 12px 0; font-size: 1rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 8px;">Oscillators</h4>
+                    <div class="ta-table-header" style="display: flex; justify-content: space-between; padding-bottom: 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                        <span style="flex: 2;">Name</span>
+                        <span style="flex: 1; text-align: right;">Value</span>
+                        <span style="flex: 1; text-align: right;">Action</span>
+                    </div>
+                    ${createTableRows(s.oscillators)}
+                </div>
+            `;
+        }
+
+        // Moving Averages Section
+        if (s.moving_averages && s.moving_averages.length) {
+            html += `
+                <div class="ta-section">
+                    <h4 style="margin: 0 0 12px 0; font-size: 1rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 8px;">Moving Averages</h4>
+                     <div class="ta-table-header" style="display: flex; justify-content: space-between; padding-bottom: 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                        <span style="flex: 2;">Name</span>
+                        <span style="flex: 1; text-align: right;">Value</span>
+                        <span style="flex: 1; text-align: right;">Action</span>
+                    </div>
+                    ${createTableRows(s.moving_averages)}
+                </div>
+            `;
+        }
+
+        html += '</div>';
+
         indicatorsDiv.innerHTML = html;
     }
 

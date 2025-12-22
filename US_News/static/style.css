@@ -2718,10 +2718,526 @@ body {
 }
 
 /* Ensure text colors are correct in light/dark mode via vars */
+
+
+.sources-trigger:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--hover-bg);
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: none;
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.open {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    width: 90%;
+    max-width: 500px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-overlay.open .modal-content {
+    transform: scale(1);
+}
+
+.modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.source-item {
+    display: block;
+    padding: 12px;
+    background: var(--hover-bg);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: background 0.2s;
+    border: 1px solid transparent;
+}
+
+.source-item:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* Mobile Optimization for Report */
+@media (max-width: 768px) {
+    .research-report {
+        font-size: 0.95rem;
+        /* Smaller text */
+        padding-left: 20px;
+        /* Left margin */
+        padding-right: 20px;
+        /* Right margin */
+        line-height: 1.6;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        /* Crucial for padding to be inside width */
+        overflow-wrap: break-word;
+        /* Prevent long words from overflowing */
+        word-wrap: break-word;
+        hyphens: auto;
+        /* optional but good for long words */
+        white-space: normal;
+        /* just in case */
+    }
+
+    .research-report h1 {
+        font-size: 1.6rem;
+        margin-top: 0.8em;
+        overflow-wrap: break-word;
+    }
+
+    .research-report h2 {
+        font-size: 1.3rem;
+        margin-top: 1.5em;
+        overflow-wrap: break-word;
+    }
+
+    /* Scrollable tables on mobile */
+    .research-report table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+        /* Prevent wrapping of cell content */
+    }
+}
+
+.summary-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 0.95em;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.summary-content thead tr {
+    background-color: rgba(59, 130, 246, 0.15);
+    /* Accent tint */
+    color: var(--accent);
+    text-align: left;
+    font-weight: bold;
+}
+
+.summary-content th,
+.summary-content td {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border);
+}
+
+.summary-content tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.summary-content tbody tr:last-of-type {
+    border-bottom: 2px solid var(--accent);
+}
+
+.summary-content tbody tr:hover {
+    background-color: var(--hover-bg);
+}
+
+/* Ensure text colors are correct in light/dark mode via vars */
 .summary-content th {
     color: var(--accent);
 }
 
 .summary-content td {
     color: var(--text-primary);
+}
+
+/* Technical Analysis Tables */
+.ta-section {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+[data-theme="light"] .ta-section {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+.ta-table-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+}
+
+.ta-table-row:last-child {
+    border-bottom: none;
+}
+
+.ta-table-row:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="light"] .ta-table-row:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.ta-table-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 8px 8px 8px;
+    font-size: 0.75rem;
+    transform: scale(1);
+}
+
+.modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.modal-close:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.source-item {
+    display: block;
+    padding: 12px;
+    background: var(--hover-bg);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: background 0.2s;
+    border: 1px solid transparent;
+}
+
+.source-item:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* Mobile Optimization for Report */
+@media (max-width: 768px) {
+    .research-report {
+        font-size: 0.95rem;
+        /* Smaller text */
+        padding-left: 20px;
+        /* Left margin */
+        padding-right: 20px;
+        /* Right margin */
+        line-height: 1.6;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        /* Crucial for padding to be inside width */
+        overflow-wrap: break-word;
+        /* Prevent long words from overflowing */
+        word-wrap: break-word;
+        hyphens: auto;
+        /* optional but good for long words */
+        white-space: normal;
+        /* just in case */
+    }
+
+    .research-report h1 {
+        font-size: 1.6rem;
+        margin-top: 0.8em;
+        overflow-wrap: break-word;
+    }
+
+    .research-report h2 {
+        font-size: 1.3rem;
+        margin-top: 1.5em;
+        overflow-wrap: break-word;
+    }
+
+    /* Scrollable tables on mobile */
+    .research-report table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+        /* Prevent wrapping of cell content */
+    }
+}
+
+.summary-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 0.95em;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.summary-content thead tr {
+    background-color: rgba(59, 130, 246, 0.15);
+    /* Accent tint */
+    color: var(--accent);
+    text-align: left;
+    font-weight: bold;
+}
+
+.summary-content th,
+.summary-content td {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border);
+}
+
+.summary-content tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.summary-content tbody tr:last-of-type {
+    border-bottom: 2px solid var(--accent);
+}
+
+.summary-content tbody tr:hover {
+    background-color: var(--hover-bg);
+}
+
+/* Ensure text colors are correct in light/dark mode via vars */
+.summary-content th {
+    color: var(--accent);
+}
+
+.summary-content td {
+    color: var(--text-primary);
+}
+
+/* Technical Analysis Tables */
+.ta-section {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+[data-theme="light"] .ta-section {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+.ta-table-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+}
+
+.ta-table-row:last-child {
+    border-bottom: none;
+}
+
+.ta-table-row:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="light"] .ta-table-row:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.ta-table-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 8px 8px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 4px;
+}
+
+/* Key Levels Split Layout */
+.key-levels-container {
+    display: flex;
+    gap: 24px;
+    width: 100%;
+}
+
+.key-levels-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.key-levels-header {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+
+/* Mobile: Stack Key Levels */
+@media (max-width: 768px) {
+    .key-levels-container {
+        flex-direction: column;
+        gap: 20px;
+    }
+}
+
+/* TA Stats Layout (Key Levels + Indicators) */
+.ta-stats-container {
+    display: flex;
+    flex-direction: column;
+    /* Stack vertically */
+    gap: 30px;
+    /* Increase gap between sections */
+    width: 100%;
+}
+
+.ta-stats-container .stats-card {
+    width: 100%;
+    /* Full width */
+}
+
+/* Mobile: Stack Main Containers */
+@media (max-width: 1024px) {
+    .ta-stats-container {
+        flex-direction: column;
+    }
+
+    .ta-stats-container .stats-card {
+        width: 100%;
+    }
+}
+
+/* Indicators Split Layout */
+.indicators-grid {
+    display: flex;
+    gap: 24px;
+    width: 100%;
+}
+
+.indicators-grid .ta-section {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0 !important;
+    /* Remove manual margin */
+}
+
+/* Mobile: Stack Indicators */
+@media (max-width: 768px) {
+    .indicators-grid {
+        flex-direction: column;
+        gap: 24px;
+    }
 }
