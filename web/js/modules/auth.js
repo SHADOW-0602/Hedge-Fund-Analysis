@@ -1,4 +1,8 @@
 // Authentication module
+function handleGoogleLogin() {
+    window.location.href = `${API_BASE}/api/auth/google/login`;
+}
+
 async function handleLogin(e) {
     e.preventDefault();
     const username = document.getElementById('loginUsername').value;
@@ -139,6 +143,7 @@ function applyRoleBasedAccess(userRole) {
 }
 
 // Export functions
+window.handleGoogleLogin = handleGoogleLogin;
 window.handleLogin = handleLogin;
 window.logout = logout;
 window.handleRegister = handleRegister;

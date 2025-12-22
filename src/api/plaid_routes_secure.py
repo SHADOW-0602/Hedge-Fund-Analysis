@@ -70,10 +70,9 @@ def get_real_user_id():
     except Exception as e:
         print(f"[PLAID] Error finding fallback user: {e}")
     
-    # Final fallback to known admin user
-    admin_user_id = '744944b4-c861-4950-9cb1-a34ded460d36'
-    print(f"[PLAID] Using admin user as final fallback: {admin_user_id}")
-    return admin_user_id
+    # Final fallback: Return None to strictly enforce authentication
+    print(f"[PLAID] No user_id found in session. Authentication required.")
+    return None
 
 def register_plaid_routes(app):
     @app.route('/api/plaid-status', methods=['GET', 'POST'])

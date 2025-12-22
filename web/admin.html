@@ -13,15 +13,19 @@
 <body class="gradient-bg min-h-screen">
     <div class="min-h-screen">
         <!-- Header -->
-        <header class="bg-white shadow-lg border-b-4 border-red-600">
+        <header class="bg-white shadow-lg border-b-4 border-indigo-600">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between items-center py-6" style="flex-direction: row !important;">
                     <div class="flex items-center" style="flex-direction: row !important;">
-                        <div
-                            class="w-10 h-10 bg-gradient-to-r from-red-600 to-red-800 rounded-lg flex items-center justify-center mr-3">
-                            <span class="text-white font-bold text-lg">A</span>
+                        <div class="flex items-center cursor-pointer whitespace-nowrap" onclick="goToMainApp()">
+                            <div
+                                class="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
+                                <span class="text-white font-bold text-lg">SV</span>
+                            </div>
+                            <h1
+                                class="text-xl md:text-3xl font-bold text-gray-900 hover:text-indigo-600 transition-colors truncate">
+                                SHM Ventures</h1>
                         </div>
-                        <h1 class="text-xl md:text-3xl font-bold text-gray-900 truncate">Admin Portal</h1>
                     </div>
 
                     <div class="flex items-center space-x-4">
@@ -38,9 +42,9 @@
 
                         <!-- Desktop Menu -->
                         <div class="hidden md:flex items-center space-x-4">
+                            <a href="landing.html"
+                                class="text-gray-600 hover:text-gray-900 font-medium transition-colors">Home</a>
                             <span id="adminInfo" class="text-gray-600"></span>
-                            <button onclick="goToMainApp()"
-                                class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">Home</button>
                             <button onclick="logout()"
                                 class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">Logout</button>
                         </div>
@@ -53,15 +57,11 @@
                         <div class="px-2 py-1">
                             <span id="mobileAdminInfo" class="text-gray-600 font-medium block mb-2"></span>
                         </div>
-                        <button onclick="goToMainApp()"
-                            class="w-full text-left bg-indigo-50 text-indigo-700 font-semibold px-4 py-3 rounded-lg hover:bg-indigo-100 transition-colors flex items-center">
-                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-9v10a1 1 0 00-1 1h3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
-                                </path>
-                            </svg>
+                        <a href="landing.html"
+                            class="block w-full text-left px-4 py-2 text-gray-700 font-semibold hover:bg-gray-50 hover:text-indigo-600 transition-colors">
                             Home
-                        </button>
+                        </a>
+
                         <button onclick="logout()"
                             class="w-full text-left bg-red-50 text-red-700 font-semibold px-4 py-3 rounded-lg hover:bg-red-100 transition-colors flex items-center">
                             <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

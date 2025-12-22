@@ -1,5 +1,5 @@
 // Authentication JavaScript
-const API_BASE = `${window.location.origin}/api`;
+const API_URL = `${window.location.origin}/api`;
 
 document.addEventListener('DOMContentLoaded', function () {
     // Check if already logged in
@@ -39,6 +39,10 @@ function showAuthTab(tabName) {
     }
 }
 
+function handleGoogleLogin() {
+    window.location.href = `${API_URL}/auth/google/login`;
+}
+
 async function handleLogin(e) {
     e.preventDefault();
     const username = document.getElementById('loginUsername').value;
@@ -47,7 +51,7 @@ async function handleLogin(e) {
     showLoading(true);
 
     try {
-        const response = await fetch(`${API_BASE}/login`, {
+        const response = await fetch(`${API_URL}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
@@ -84,7 +88,7 @@ async function handleRegister(e) {
     showLoading(true);
 
     try {
-        const response = await fetch(`${API_BASE}/register`, {
+        const response = await fetch(`${API_URL}/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, email, phone, password })
@@ -114,7 +118,7 @@ async function handleResetRequest(e) {
     showLoading(true);
 
     try {
-        const response = await fetch(`${API_BASE}/auth/reset-password-request`, {
+        const response = await fetch(`${API_URL}/auth/reset-password-request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email })
@@ -145,7 +149,7 @@ async function handleResetConfirm(e) {
     showLoading(true);
 
     try {
-        const response = await fetch(`${API_BASE}/auth/reset-password-confirm`, {
+        const response = await fetch(`${API_URL}/auth/reset-password-confirm`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, otp, new_password })

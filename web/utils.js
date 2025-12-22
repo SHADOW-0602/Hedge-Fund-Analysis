@@ -14,10 +14,36 @@ class CookieManager {
             let c = ca[i];
             while (c.charAt(0) === ' ') c = c.substring(1, c.length);
             if (c.indexOf(nameEQ) === 0) {
+                // Decode the cookie value
+                let value = c.substring(nameEQ.length, c.length);
                 try {
-                    return JSON.parse(c.substring(nameEQ.length, c.length));
+                    value = decodeURIComponent(value);
                 } catch (e) {
-                    return c.substring(nameEQ.length, c.length);
+                    // Ignore decoding errors, keep original value
+                }
+
+                // DEBUG: Log the cookie value
+                console.log(`[CookieManager] Getting '${name}':`, value);
+
+                try {
+                    let parsed = JSON.parse(value);
+
+                    // Recursively parse if the result is a string (handles double/triple encoded JSON)
+                    // Limit recursion to avoid infinite loops
+                    let depth = 0;
+                    while (typeof parsed === 'string' && depth < 3) {
+                        try {
+                            const nested = JSON.parse(parsed);
+                            parsed = nested;
+                            depth++;
+                        } catch (e) {
+                            // If parsing fails, it's a regular string, stop parsing
+                            break;
+                        }
+                    }
+                    return parsed;
+                } catch (e) {
+                    return value;
                 }
             }
         }
@@ -26,6 +52,8 @@ class CookieManager {
 
     static delete(name) {
         document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/app;`; // Try specific path too
+        console.log(`[CookieManager] Deleted '${name}'`);
     }
 }
 
@@ -153,7 +181,23 @@ class SessionManager {
     }
 
     static getSession() {
-        return CookieManager.get('currentUser');
+        let session = CookieManager.get('currentUser');
+        if (typeof session === 'string') {
+            try {
+                // Handle potential double serialization
+                let parsed = JSON.parse(session);
+                if (typeof parsed === 'string') {
+                    parsed = JSON.parse(parsed);
+                }
+                return parsed;
+            } catch (e) {
+                console.error('SessionManager: Failed to parse session string', e);
+                // Auto-heal: Clear malformed cookie
+                CookieManager.delete('currentUser');
+                return null;
+            }
+        }
+        return session;
     }
 
     static clearSession() {
@@ -165,9 +209,9 @@ class SessionManager {
         const session = this.getSession();
         if (!session) return false;
 
-        // Check if session is expired (24 hours)
+        // Check if session is expired (30 days)
         const sessionAge = Date.now() - session.loginTime;
-        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+        const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
 
         if (sessionAge > maxAge) {
             this.clearSession();
@@ -300,6 +344,9 @@ class HeaderManager {
             const container = document.createElement('div');
             container.className = 'user-info-landing';
             container.appendChild(span);
+
+
+
             container.appendChild(dashBtn);
             container.appendChild(logoutBtn);
 

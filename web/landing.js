@@ -184,13 +184,13 @@ function updateHeroButton(user = null) {
         // User is logged in - show dashboard button
         heroButtons.innerHTML = `
             <button onclick="window.location.href='/app'" class="btn-primary">Go to Dashboard</button>
-            <button onclick="scrollToSection('features')" class="btn-secondary">Learn More</button>
+            <button onclick="window.location.href='learn-more.html'" class="btn-secondary">Learn More</button>
         `;
     } else {
         // User not logged in - show start analysis button
         heroButtons.innerHTML = `
             <button onclick="window.location.href='/app'" class="btn-primary">Start Analysis</button>
-            <button onclick="scrollToSection('features')" class="btn-secondary">Learn More</button>
+            <button onclick="window.location.href='learn-more.html'" class="btn-secondary">Learn More</button>
         `;
     }
 }

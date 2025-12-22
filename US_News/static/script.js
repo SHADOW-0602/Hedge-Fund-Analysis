@@ -13,6 +13,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = await response.json();
         currentTickers = data.tickers;
 
+        // --- Auth State Check ---
+        checkAuthState();
+
         // Theme Handling (Synced with Landing Page)
         const themeToggle = document.getElementById('themeToggle');
         const savedTheme = localStorage.getItem('theme') || 'light';
@@ -514,6 +517,108 @@ function startPolling(ticker) {
     poll();
 }
 
+// --- Auth Utilities ---
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+function checkAuthState() {
+    let userCookie = getCookie('currentUser');
+    let currentUser = null;
+
+    if (userCookie) {
+        try {
+            // Robust parsing (URI decode + handle potential double-serialization)
+            let decoded = decodeURIComponent(userCookie);
+            try {
+                currentUser = JSON.parse(decoded);
+            } catch (e) {
+                currentUser = JSON.parse(userCookie); // Try raw
+            }
+
+            if (typeof currentUser === 'string') {
+                try { currentUser = JSON.parse(currentUser); } catch (e) { }
+            }
+        } catch (e) {
+            console.error('Error parsing user cookie:', e);
+            currentUser = null;
+        }
+    }
+
+    const isSignedIn = !!currentUser;
+
+    const signInBtn = document.getElementById('signInBtn');
+    const signUpBtn = document.getElementById('signUpBtn');
+    const mobileSignInBtn = document.getElementById('mobileSignInBtn');
+    const mobileSignUpBtn = document.getElementById('mobileSignUpBtn');
+
+    if (isSignedIn) {
+        // Desktop
+        if (signInBtn) {
+            signInBtn.textContent = 'Dashboard';
+            signInBtn.onclick = () => window.location.href = '../app';
+
+            // Add Welcome Message
+            const authContainer = signInBtn.parentElement;
+            if (authContainer && !authContainer.querySelector('.user-welcome-msg')) {
+                const welcomeSpan = document.createElement('span');
+                welcomeSpan.className = 'user-welcome-msg';
+                welcomeSpan.style.marginRight = '12px';
+                welcomeSpan.style.color = 'var(--text-primary)';
+                welcomeSpan.style.fontWeight = '500';
+                welcomeSpan.style.fontSize = '0.9rem';
+                welcomeSpan.textContent = `Welcome, ${currentUser.username || 'User'}`;
+
+                // Insert before the Dashboard button
+                authContainer.insertBefore(welcomeSpan, signInBtn);
+            }
+        }
+        if (signUpBtn) {
+            signUpBtn.style.display = 'none'; // Hide Sign Up if logged in
+        }
+
+        // Mobile
+        if (mobileSignInBtn) {
+            mobileSignInBtn.textContent = 'Dashboard';
+            mobileSignInBtn.onclick = () => window.location.href = '../app';
+        }
+        if (mobileSignUpBtn) {
+            mobileSignUpBtn.style.display = 'none';
+        }
+    } else {
+        // Desktop
+        if (signInBtn) {
+            signInBtn.textContent = 'Sign In';
+            signInBtn.onclick = () => window.location.href = '../auth.html';
+
+            // Remove welcome message if exists
+            const authContainer = signInBtn.parentElement;
+            const welcomeMsg = authContainer.querySelector('.user-welcome-msg');
+            if (welcomeMsg) welcomeMsg.remove();
+        }
+        if (signUpBtn) {
+            signUpBtn.style.display = 'block';
+            signUpBtn.textContent = 'Sign Up';
+            signUpBtn.onclick = () => window.location.href = '../auth.html';
+        }
+
+        // Mobile
+        if (mobileSignInBtn) {
+            mobileSignInBtn.textContent = 'Sign In';
+            mobileSignInBtn.onclick = () => window.location.href = '../auth.html';
+        }
+        if (mobileSignUpBtn) {
+            mobileSignUpBtn.style.display = 'block';
+            mobileSignUpBtn.textContent = 'Sign Up';
+            mobileSignUpBtn.onclick = () => window.location.href = '../auth.html';
+        }
+    }
+}
+
+
 
 async function selectTicker(ticker) {
     ticker = ticker.trim(); // Sanitize input
@@ -755,7 +860,7 @@ function displaySummary(data) {
 
 async function fetchAndDisplayQuote(ticker) {
     try {
-        const qRes = await fetch(`api/quote/${ticker}`);
+        const qRes = await fetch(`/us-news/api/quote/${ticker}`);
         if (!qRes.ok) {
             console.warn(`Quote fetch failed for ${ticker}: ${qRes.status}`);
             return;
@@ -766,7 +871,6 @@ async function fetchAndDisplayQuote(ticker) {
         const priceBadge = document.getElementById(`ticker-price-${ticker}`);
         const changeBadge = document.getElementById(`ticker-change-${ticker}`);
 
-        // --- 1. Header Update (Requested Change: Prev Close Only) ---
         if (priceBadge && qData.previous_close !== undefined) {
             // Format Previous Close
             const prevPrice = Number(qData.previous_close).toFixed(2);
@@ -779,6 +883,28 @@ async function fetchAndDisplayQuote(ticker) {
 
             // Hide Change Badge if exists
             if (changeBadge) changeBadge.style.display = 'none';
+        }
+
+        // --- 1.5 Sync Main Header Stats (Fix Mismatch) ---
+        const headerPriceEl = document.getElementById('headerPrice');
+        const headerChangeEl = document.getElementById('headerChange');
+        const headerPrevEl = document.getElementById('headerPrevClose');
+
+        if (headerPriceEl && headerChangeEl && headerPrevEl && qData.price !== undefined) {
+            headerPriceEl.innerText = '$' + Number(qData.price).toFixed(2);
+
+            if (qData.previous_close) {
+                headerPrevEl.innerText = '$' + Number(qData.previous_close).toFixed(2);
+                const diff = qData.change; // data from API usually is value
+                const pct = qData.change_percent;
+
+                const sign = diff >= 0 ? '+' : '';
+                const diffStr = Number(diff).toFixed(2);
+                const pctStr = Number(pct).toFixed(2);
+
+                headerChangeEl.innerText = `${sign}${diffStr} (${sign}${pctStr}%)`;
+                headerChangeEl.style.color = diff >= 0 ? '#22c55e' : '#ef4444';
+            }
         }
 
         // --- 2. Sidebar Update (Keep Live Data if available) ---
@@ -899,7 +1025,7 @@ async function loadTAData(ticker) {
 
     try {
         console.log(`[TA] Fetching data for ${ticker}...`);
-        const response = await fetch(`api/ta/${ticker}`);
+        const response = await fetch(`/us-news/api/ta/${ticker}`);
         const data = await response.json();
 
         if (data.error) {
@@ -1083,7 +1209,7 @@ async function loadFundamentals(ticker) {
 
     try {
         console.log(`[Fundamentals] Fetching data for ${ticker}...`);
-        const response = await fetch(`api/financials/${ticker}`);
+        const response = await fetch(`/us-news/api/financials/${ticker}`);
         const data = await response.json();
 
         if (data.error) throw new Error(data.error);
@@ -1382,7 +1508,7 @@ async function loadChartData(ticker) {
     if (tf === '5y') { period = '5y'; interval = '1wk'; } // 5Y uses weekly for performance/overview
 
     try {
-        const res = await fetch(`api/history/${ticker}?period=${period}&interval=${interval}`);
+        const res = await fetch(`/us-news/api/history/${ticker}?period=${period}&interval=${interval}`);
         const data = await res.json();
 
         if (data.error) { console.error('Chart Data Error:', data.error); return; }
@@ -1449,7 +1575,7 @@ function startChartPolling(ticker) {
     // Define poller
     const poll = async () => {
         try {
-            const res = await fetch(`api/latest-price/${ticker}`);
+            const res = await fetch(`/us-news/api/latest-price/${ticker}`);
             const data = await res.json();
 
             if (!data.error && candleSeries && volumeSeries) {
@@ -1467,29 +1593,7 @@ function startChartPolling(ticker) {
                     color: data.close >= data.open ? '#26a69a' : '#ef5350'
                 });
 
-                // --- Update Header Stats ---
-                const priceEl = document.getElementById('headerPrice');
-                const changeEl = document.getElementById('headerChange');
-                const prevEl = document.getElementById('headerPrevClose');
-
-                if (priceEl && changeEl && prevEl) {
-                    priceEl.innerText = '$' + data.close.toFixed(2);
-
-                    const prevClose = data.previous_close;
-                    if (prevClose) {
-                        prevEl.innerText = '$' + prevClose.toFixed(2);
-                        const diff = data.close - prevClose;
-                        const pct = (diff / prevClose) * 100;
-
-                        const sign = diff >= 0 ? '+' : '';
-                        changeEl.innerText = `${sign}${diff.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
-                        changeEl.style.color = diff >= 0 ? '#22c55e' : '#ef4444';
-                    } else {
-                        prevEl.innerText = 'N/A';
-                        changeEl.innerText = '--';
-                        changeEl.style.color = 'var(--text-secondary)';
-                    }
-                }
+                // Header Stats updated by fetchAndDisplayQuote (2s interval) instead of here (60s)
 
                 // Reset error count on success
                 pollingErrorCount = 0;

@@ -118,6 +118,43 @@ class UserManager:
         except Exception as e:
             logger.error(f"User creation failed for {username}: {e}")
             raise ValueError("Username or email already exists")
+
+    def get_or_create_oauth_user(self, email: str, username: str, provider: str = 'google') -> User:
+        """Get existing user by email or create a new one for OAuth login"""
+        logger.info(f"Getting or creating OAuth user for email: {email}")
+        
+        # 1. Try to find existing user by email
+        existing_user = self.get_user_by_email(email)
+        if existing_user:
+            logger.info(f"Found existing user for email: {email}")
+            return existing_user
+        
+        # 2. If not found, create new user
+        # Generate a random secure password (user won't know it, they use Google)
+        import secrets
+        import string
+        alphabet = string.ascii_letters + string.digits + string.punctuation
+        random_password = ''.join(secrets.choice(alphabet) for i in range(32))
+        
+        # Ensure username is unique
+        base_username = username
+        counter = 1
+        while self.username_exists(username):
+            username = f"{base_username}{counter}"
+            counter += 1
+            
+        try:
+            user_id = self.create_user(username, email, random_password, UserRole.USER)
+            logger.info(f"Created new OAuth user: {username} ({user_id})")
+            
+            # Retrieve the full user object
+            # Note: create_user returns ID, need to fetch object
+            # We can use get_user_by_email since we just created it
+            return self.get_user_by_email(email)
+            
+        except Exception as e:
+            logger.error(f"Failed to create OAuth user: {e}")
+            raise Exception(f"Failed to create user account: {str(e)}")
     
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
         logger.info(f"Authenticating user: {username}")

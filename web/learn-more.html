@@ -130,13 +130,69 @@
                 font-size: 2rem;
             }
         }
+
+        .nav-link-home {
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 500;
+            margin-right: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .nav-link-home:hover {
+            color: var(--accent-color, #4f46e5);
+        }
     </style>
 </head>
 
 <body>
     <!-- Header -->
-    <!-- Header injected by HeaderManager -->
+    <header class="header">
+        <nav class="nav">
+            <div class="nav-brand" onclick="window.location.href='landing.html'" style="cursor: pointer;">
+                <h1 style="white-space: nowrap;">SHM Ventures</h1>
+            </div>
 
+            <button id="landingMobileMenuBtn" class="mobile-menu-btn" aria-label="Open Menu">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </button>
+
+            <div class="nav-links" id="landingNavLinks">
+                <a href="landing.html" class="nav-link-home">Home</a>
+
+                <div class="theme-toggle-wrapper">
+                    <input type="checkbox" class="theme-checkbox" id="themeToggle">
+                    <label for="themeToggle" class="theme-label">
+                        <span class="moon">🌙</span>
+                        <span class="sun">☀️</span>
+                        <span class="ball"></span>
+                    </label>
+                </div>
+                <!-- US News Button -->
+                <button onclick="window.location.href='/us-news/'" class="nav-item-btn">News</button>
+
+
+                <div class="auth-buttons">
+                    <button onclick="window.location.href='/app'" class="btn-auth btn-signin">Sign In</button>
+                    <button onclick="window.location.href='/app'" class="btn-auth btn-signup">Sign Up</button>
+                </div>
+            </div>
+        </nav>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const btn = document.getElementById('landingMobileMenuBtn');
+                const menu = document.getElementById('landingNavLinks');
+                if (btn && menu) {
+                    btn.addEventListener('click', function () {
+                        menu.classList.toggle('active');
+                    });
+                }
+            });
+        </script>
+    </header>
 
     <!-- Page Title -->
     <section class="page-header">

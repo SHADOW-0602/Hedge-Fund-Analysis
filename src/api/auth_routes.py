@@ -1,4 +1,4 @@
-from flask import request, jsonify
+from flask import request, jsonify, url_for, redirect
 from datetime import datetime
 import traceback
 import sys
@@ -11,9 +11,92 @@ from clients.supabase_client import supabase_client
 from enterprise.user_management import UserManager, UserRole
 from utils.email_service import email_service
 
+from authlib.integrations.flask_client import OAuth
+
 user_manager = UserManager()
 
 def register_auth_routes(app):
+    # Initialize OAuth
+    oauth = OAuth(app)
+    # Configure Google OAuth
+    google = oauth.register(
+        name='google',
+        client_id=os.getenv('GOOGLE_CLIENT_ID'),
+        client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+        client_kwargs={'scope': 'openid email profile'}
+    )
+
+    @app.route('/api/auth/google/login')
+    def google_login():
+        redirect_uri = url_for('google_callback', _external=True)
+        # Ensure HTTPS in production if behind proxy
+        if 'localhost' not in redirect_uri and '127.0.0.1' not in redirect_uri:
+            redirect_uri = redirect_uri.replace('http:', 'https:')
+        return google.authorize_redirect(redirect_uri)
+
+    @app.route('/api/auth/google/callback')
+    def google_callback():
+        try:
+            token = google.authorize_access_token()
+            user_info = token.get('userinfo')
+            
+            if not user_info:
+                # Fallback to fetching userinfo manually if not in token
+                user_info = google.get('https://www.googleapis.com/oauth2/v3/userinfo').json()
+                
+            email = user_info.get('email')
+            name = user_info.get('name', email.split('@')[0])
+            
+            if not email:
+                return jsonify({'success': False, 'error': 'Failed to get email from Google'}), 400
+                
+            # Get or create local user
+            user = user_manager.get_or_create_oauth_user(email, name)
+            
+            # Login user (set session)
+            if user:
+                from flask import session, make_response
+                from utils.secure_id_manager import secure_id_manager
+                import json
+                
+                # Make session permanent
+                session.permanent = True
+                
+                secure_token = secure_id_manager.get_secure_token(user.user_id)
+                session['user_id'] = secure_token
+                session['username'] = user.username
+                session['real_user_id'] = user.user_id
+                
+                # Create response with redirect
+                response = make_response(redirect('/app'))
+                
+                # Set currentUser cookie for frontend SessionManager
+                user_data = {
+                    'username': user.username,
+                    'role': user.role.value,
+                    'user_id': user.user_id,
+                    'email': user.email,
+                    'phone': user.phone,
+                    'loginTime': int(datetime.now().timestamp() * 1000)
+                }
+                
+                # Set cookie manually to match frontend CookieManager.set behavior
+                import urllib.parse
+                cookie_value = urllib.parse.quote(json.dumps(user_data, separators=(',', ':')))
+                # Note: Flask's set_cookie handles quoting, but frontend might expect specific format.
+                # However, standard set_cookie should be compatible with JSON.parse on frontend.
+                # IMPORTANT: httponly=False is required for frontend JS to read it!
+                response.set_cookie('currentUser', cookie_value, max_age=30*24*60*60, path='/', httponly=False, samesite='Lax')
+                
+                return response
+            else:
+                return jsonify({'success': False, 'error': 'Failed to create user'}), 500
+                
+        except Exception as e:
+            print(f"[AUTH] Google callback error: {e}")
+            return redirect('/auth.html?error=Google login failed')
+
     @app.route('/api/login', methods=['POST'])
     def login():
         try:

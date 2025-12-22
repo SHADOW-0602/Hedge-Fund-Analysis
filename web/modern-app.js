@@ -189,6 +189,28 @@ function applyRoleBasedAccess(userRole) {
             }
         }
     });
+
+    // Show Admin Button if user is admin
+    const adminBtn = document.getElementById('adminBtn');
+    const mobileAdminBtn = document.getElementById('mobileAdminBtn');
+
+    console.log('[RoleAccess] Checking admin access for role:', userRole);
+
+    const isAdmin = ['admin', 'sub_admin', 'super_admin'].includes(userRole?.toLowerCase());
+
+    if (isAdmin) {
+        console.log('[RoleAccess] User is admin, showing buttons');
+        if (adminBtn) adminBtn.style.display = 'block';
+        if (mobileAdminBtn) mobileAdminBtn.style.display = 'block';
+    } else {
+        console.log('[RoleAccess] User is NOT admin');
+        if (adminBtn) adminBtn.style.display = 'none';
+        if (mobileAdminBtn) mobileAdminBtn.style.display = 'none';
+    }
+}
+
+function showAdminPanel() {
+    window.location.href = 'admin.html';
 }
 
 // Tab navigation with modern styling

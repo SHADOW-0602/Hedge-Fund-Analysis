@@ -155,6 +155,12 @@ async function initializeApp() {
     }
 
     currentUser = SessionManager.getSession();
+
+    // Sync to localStorage if missing (e.g. after Google Login)
+    if (currentUser && !localStorage.getItem('currentUser')) {
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    }
+
     window.currentUser = currentUser; // Make sure it's globally available
     console.log('[APP] Current user set:', currentUser);
 
@@ -197,6 +203,23 @@ function showMainApp() {
     const adminBtn = document.getElementById('adminBtn');
     if (adminBtn && currentUser?.role === 'admin') {
         adminBtn.style.display = 'inline-block';
+    }
+
+    // Add Welcome Message
+    if (currentUser?.username && userInfo) {
+        // Check if welcome message already exists to avoid duplicates
+        if (!userInfo.querySelector('.user-welcome-msg')) {
+            const welcomeSpan = document.createElement('span');
+            welcomeSpan.className = 'user-welcome-msg';
+            welcomeSpan.style.marginRight = '12px';
+            welcomeSpan.style.color = 'var(--text-primary)';
+            welcomeSpan.style.fontWeight = '500';
+            welcomeSpan.style.fontSize = '0.9rem';
+            welcomeSpan.textContent = `Welcome, ${currentUser.username}`;
+
+            // Insert at the beginning of userInfo
+            userInfo.insertBefore(welcomeSpan, userInfo.firstChild);
+        }
     }
 
     loadUserPortfolios();
