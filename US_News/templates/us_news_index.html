@@ -114,15 +114,15 @@
         <div class="content-wrapper">
             <!-- Ticker List Sidebar -->
             <div class="ticker-sidebar">
-                <div class="search-container">
+                <div class="search-container mobile-only">
                     <div class="search-input-wrapper">
                         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2">
                             <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                         </svg>
-                        <input type="text" id="tickerSearch" placeholder="Search ticker..." maxlength="20"
-                            autocomplete="off">
-                        <div id="searchDropdown" class="search-dropdown"></div>
+                        <input type="text" id="tickerSearchMobile" class="ticker-search-input"
+                            placeholder="Search ticker..." maxlength="20" autocomplete="off">
+                        <div id="searchDropdownMobile" class="search-dropdown"></div>
                     </div>
                 </div>
                 <div class="ticker-list" id="tickerList">
@@ -148,6 +148,19 @@
 
             <!-- Summary Display Area -->
             <div class="summary-section">
+                <!-- Desktop Search Bar -->
+                <div class="search-container desktop-search-container desktop-only">
+                    <div class="search-input-wrapper">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <input type="text" id="tickerSearchDesktop" class="ticker-search-input"
+                            placeholder="Search ticker..." maxlength="20" autocomplete="off">
+                        <div id="searchDropdownDesktop" class="search-dropdown"></div>
+                    </div>
+                </div>
+
                 <!-- Tabs -->
                 <!-- Tabs -->
                 <div class="tabs-container">

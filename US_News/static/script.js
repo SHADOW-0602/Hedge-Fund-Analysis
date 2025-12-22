@@ -73,36 +73,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (currentTickers.length > 0) selectTicker(currentTickers[0]);
         }
 
-        // Search Handler
-        const searchInput = document.getElementById('tickerSearch');
-        if (searchInput) {
-            searchInput.addEventListener('input', debounce(handleSearchInput, 300));
+        // Search Handler (Multiple inputs for Mobile/Desktop)
+        const searchInputs = document.querySelectorAll('.ticker-search-input');
+        searchInputs.forEach(input => {
+            input.addEventListener('input', debounce(handleSearchInput, 300));
 
             // Allow Enter key to select top result
-            searchInput.addEventListener('keydown', (e) => {
+            input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
-                    const dropdown = document.getElementById('searchDropdown');
+                    const container = e.target.closest('.search-input-wrapper');
+                    const dropdown = container.querySelector('.search-dropdown');
                     const firstItem = dropdown.querySelector('.search-result-item');
+
                     if (firstItem) {
-                        firstItem.click();
+                        const ticker = firstItem.dataset.ticker;
+                        selectSearchResult(ticker); // Use unified handler
                         e.target.blur();
                     } else if (e.target.value.length >= 2) {
-                        // If no suggestions but user hits enter, try exact match
                         selectTicker(e.target.value.toUpperCase().trim());
                         e.target.value = '';
                         e.target.blur();
+                        dropdown.classList.remove('show');
                     }
                 }
             });
+        });
 
-            // Close dropdown when clicking outside
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('.search-container')) {
-                    const dropdown = document.getElementById('searchDropdown');
-                    if (dropdown) dropdown.classList.remove('show');
-                }
-            });
-        }
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-container')) {
+                document.querySelectorAll('.search-dropdown').forEach(d => d.classList.remove('show'));
+            }
+        });
 
         // Initialize Tabs
         initTabListeners();
@@ -185,7 +187,9 @@ function debounce(func, wait) {
 
 async function handleSearchInput(e) {
     const query = e.target.value.trim();
-    const dropdown = document.getElementById('searchDropdown');
+    // Find sibling dropdown
+    const container = e.target.closest('.search-input-wrapper');
+    const dropdown = container.querySelector('.search-dropdown');
 
     if (query.length < 1) {
         dropdown.classList.remove('show');
@@ -239,7 +243,7 @@ async function handleSearchInput(e) {
 
     if (results.length > 0) {
         dropdown.innerHTML = results.map(quote => `
-            <div class="search-result-item" onclick="selectSearchResult('${quote.symbol}')">
+            <div class="search-result-item" data-ticker="${quote.symbol}" onclick="selectSearchResult('${quote.symbol}')">
                 <div style="display:flex; flex-direction:column;">
                     <span class="result-symbol">${quote.symbol}</span>
                     ${quote.type === 'LOCAL' ? '<span style="font-size:10px; color:var(--accent);">In Watchlist</span>' : ''}
@@ -255,11 +259,9 @@ async function handleSearchInput(e) {
 }
 
 function selectSearchResult(ticker) {
-    const searchInput = document.getElementById('tickerSearch');
-    const dropdown = document.getElementById('searchDropdown');
-
-    searchInput.value = ''; // Clear input
-    dropdown.classList.remove('show');
+    // Clear all search inputs and result dropdwons
+    document.querySelectorAll('.ticker-search-input').forEach(input => input.value = '');
+    document.querySelectorAll('.search-dropdown').forEach(d => d.classList.remove('show'));
 
     // Check if valid ticker via normal flow
     selectTicker(ticker);
@@ -507,9 +509,9 @@ function startPolling(ticker) {
 
         await fetchAndDisplayQuote(ticker);
 
-        // Schedule next poll only after completion
+        // Schedule next poll only after completion (5s interval to prevent rate limiting)
         if (currentActiveTicker === ticker) {
-            quotePollTimeout = setTimeout(poll, 2000);
+            quotePollTimeout = setTimeout(poll, 5000);
         }
     };
 
@@ -862,7 +864,10 @@ async function fetchAndDisplayQuote(ticker) {
     try {
         const qRes = await fetch(`/us-news/api/quote/${ticker}`);
         if (!qRes.ok) {
-            console.warn(`Quote fetch failed for ${ticker}: ${qRes.status}`);
+            // Silently ignore 404s (likely no data available yet or blocked) to avoid console spam
+            if (qRes.status !== 404) {
+                console.warn(`Quote fetch failed for ${ticker}: ${qRes.status}`);
+            }
             return;
         }
         const qData = await qRes.json();

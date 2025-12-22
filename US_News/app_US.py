@@ -60,6 +60,8 @@ IS_PROCESSING = False  # Track if news processing is running
 def fetch_quote_data(ticker):
     """Helper to fetch real-time quote data using yfinance (incl. Pre/Post Market)"""
     try:
+        # Reverted custom session: yfinance prefers handling its own session (likely curl_cffi)
+        
         stock = yf.Ticker(ticker)
         # fast_info often misses pre-market. Use history for latest tick.
         # caching: yfinance might cache history calls, but creating a new Ticker usually avoids instance cache.
@@ -318,13 +320,12 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
     Target Length: Approximately 1500-2000 words. Be concise where possible but deep where necessary.
 
     Core Instructions:
-    1. **Format**: Use clean Markdown inside the JSON value.
+    1. **Format**: **STRICT MARKDOWN ONLY**. Do NOT return JSON. Do NOT use '```markdown' code blocks. Just return the raw text.
     2. **Style**: Use BULLET POINTS for every section. Do NOT write long paragraphs.
     3. **Language**: English Only. Strictly no other languages.
     4. **Tone**: Professional, objective, and data-driven. Adapt your language to the specific nuances of the {industry} industry.
-    5. **Tone**: Professional, objective, and data-driven. Adapt your language to the specific nuances of the {industry} industry.
-    6. **Metadata**: Do NOT include 'Sector:' or 'Analyst:' headers at the top. Use the title only.
-    7. **Citations**: Do NOT include inline citations (e.g. (Source 1)). Sources are linked separately.
+    5. **Metadata**: Do NOT include 'Sector:' or 'Analyst:' headers at the top. Use the title only.
+    6. **Citations**: Do NOT include inline citations (e.g. (Source 1)). Sources are linked separately.
 
     Report Structure:
 
@@ -375,7 +376,7 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
     {news_text}
 
     OUTPUT FORMAT:
-    Return the report in clean Markdown format. Do NOT wrap it in JSON.
+    Return the report in clean Markdown format. Do NOT wrap it in JSON. Do NOT use code blocks.
     """
 
     # Gemini REST API Payload
@@ -406,6 +407,9 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
             # Short timeout to fail fast and rotate
             response = requests.post(url, headers=headers, json=payload, timeout=25)
             
+            # Debug log for response status
+            print(f"  [DEBUG] Gemini {key_name} Status: {response.status_code}")
+
             # If rate limited (too many requests), wait and retry
             # Gemini Free Tier is 15 RPM (1 req every 4s). If we hit this, wait 5s to clear bucket.
             if response.status_code == 429:
@@ -421,7 +425,7 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
             
             # If Error (400)
             if response.status_code == 400:
-                 print(f"  ⚠ Bad Request (400) on {key_name}: {response.text[:100]}...")
+                 print(f"  ⚠ Bad Request (400) on {key_name}: {response.text[:200]}...") # Increased info logging
                  continue
 
             if response.status_code == 200:
@@ -429,7 +433,7 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
                 try:
                     candidates = result.get('candidates', [])
                     if not candidates:
-                        print(f"  ⚠ No candidates returned from Gemini on {key_name}.")
+                        print(f"  ⚠ No candidates returned from Gemini on {key_name}. Raw: {str(result)[:100]}")
                         continue
                         
                     content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
@@ -437,6 +441,9 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
                     if not content_text:
                         print(f"  ⚠ Empty text from Gemini on {key_name}.")
                         continue
+
+                    # Debug log for raw content
+                    print(f"  [DEBUG] Raw Gemini Output start: {content_text[:100]}...")
 
                     try:
                         # Clean markdown naming
@@ -454,14 +461,14 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
                         print(f"  ⚠ Markdown processing error on {key_name}: {e}")
                         continue
 
-
-
                     print(f"  ✓ Summary generated successfully for {ticker} using {key_name}")
                     json_content['sources'] = sources_list
                     return json_content
                     
                 except Exception as e:
                     print(f"  ⚠ Analysis Error on {key_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
         
         except requests.exceptions.Timeout:
