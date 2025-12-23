@@ -17,8 +17,16 @@ def calculate_technical_indicators(df):
     # Stochastic %K (14, 3, 3)
     df.ta.stoch(k=14, d=3, smooth_k=3, append=True)
     
-    # CCI (20)
-    df.ta.cci(length=20, append=True)
+    # CCI (20) - Custom Implementation for Stability
+    # Standard: (TP - SMA_TP) / (0.015 * MeanDev)
+    tp = (df['High'] + df['Low'] + df['Close']) / 3
+    sma_tp = tp.rolling(window=20).mean()
+    mad = tp.rolling(window=20).apply(lambda x: np.mean(np.abs(x - x.mean())))
+    
+    # Avoid division by zero
+    mad = mad.replace(0, 1e-9) # Epsilon replacement
+    
+    df['CCI_20_0.015'] = (tp - sma_tp) / (0.015 * mad)
     
     # ADX (14)
     df.ta.adx(length=14, append=True)
@@ -305,3 +313,35 @@ def get_support_resistance(df):
         'supports': sorted(list(set([round(x, 2) for x in supports]))),
         'resistances': sorted(list(set([round(x, 2) for x in resistances])), reverse=True)
     }
+
+def prepare_df_for_llm(df, last_n=50):
+    """
+    Format the last N rows of the DataFrame into a CSV-like string for the LLM.
+    Includes Price, RSI, MACD, Bollinger/ATR (if avail), SMAs.
+    """
+    if df.empty:
+        return "No Data"
+    
+    # Select relevant columns if they exist
+    cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+    # Ensure correct column names from calculate_technical_indicators
+    indicators = [
+        # Oscillators
+        'RSI_14', 'STOCHk_14_3_3', 'CCI_20_0.015', 'ADX_14', 'AO_5_34', 'MOM_10', 
+        'MACD_12_26_9', 'MACDs_12_26_9', 'MACDh_12_26_9', 'STOCHRSIk_14_14_3_3', 
+        'WILLR_14', 'BBP', 'UO_7_14_28',
+        # Moving Averages
+        'EMA_10', 'SMA_10', 'EMA_20', 'SMA_20', 'EMA_30', 'SMA_30', 
+        'EMA_50', 'SMA_50', 'EMA_100', 'SMA_100', 'EMA_200', 'SMA_200',
+        'IKS_26', 'VWMA_20'
+    ]
+    
+    existing_cols = [c for c in cols + indicators if c in df.columns]
+    
+    subset = df[existing_cols].tail(last_n).copy()
+    
+    # Round for compactness
+    subset = subset.round(2)
+    
+    # Convert to CSV string
+    return subset.to_csv(index=True)

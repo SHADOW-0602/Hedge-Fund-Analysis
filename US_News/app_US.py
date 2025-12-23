@@ -484,7 +484,7 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
 def store_news_and_summary(ticker, news_articles, summary_data):
     """Store news articles and AI summary in database"""
     today = date.today()
-    print(f"DEBUG: store_news_and_summary called for {ticker} on date {today} with {len(news_articles)} articles")
+
     
     DB_LOCK.acquire()
     try:
@@ -523,7 +523,8 @@ def store_news_and_summary(ticker, news_articles, summary_data):
                     'what_changed': summary_data['what_changed'],
                     'analyst_earnings': summary_data['analyst_earnings'],
                     'last_week_updates': summary_data['last_week_updates'],
-                    'summary_date': str(today)
+                    'summary_date': str(today),
+                    'created_at': datetime.now().isoformat()
                 }).execute()
                 print(f"  ✓ Stored summary for {ticker}")
             except Exception as e:
@@ -960,39 +961,83 @@ def get_financial_analysis(ticker):
 
         # --- Manual Checks & Fallbacks ---
         
+        # --- Manual Checks & Fallbacks ---
+        
         # 1. PEG Ratio Fallback
+        # Logic: PEG = (P/E) / (Annual EPS Growth Rate * 100)
         if fundamentals['peg_ratio'] is None and fundamentals['pe_ratio']:
-            try:
-                # Fetch Annual Financials to calculate EPS Growth
-                fin = stock.financials
-                if not fin.empty and 'Basic EPS' in fin.index:
-                    eps_series = fin.loc['Basic EPS']
-                    if len(eps_series) >= 2:
-                        eps_cur = eps_series.iloc[0]
-                        eps_prev = eps_series.iloc[1]
-                        if eps_prev and eps_prev != 0:
-                            growth_rate = ((eps_cur - eps_prev) / abs(eps_prev)) * 100
-                            if growth_rate > 0:
-                                fundamentals['peg_ratio'] = round(fundamentals['pe_ratio'] / growth_rate, 2)
-            except Exception as e:
-                print(f"Manual PEG Error: {e}")
+            print(f"DEBUG: PEG Invalid ({fundamentals['peg_ratio']}), attempting calculation...")
+            # Try 1: Use pre-fetched earningsGrowth from info
+            if fundamentals['earnings_growth']:
+                try:
+                    g = fundamentals['earnings_growth'] * 100
+                    if g > 0:
+                        fundamentals['peg_ratio'] = round(fundamentals['pe_ratio'] / g, 2)
+                        print(f"DEBUG: Calculated PEG from earnings_growth: {fundamentals['peg_ratio']}")
+                except Exception:
+                    pass
+
+            # Try 2: Calculate from Financials (Historical) if still None
+            if fundamentals['peg_ratio'] is None:
+                try:
+                    fin = stock.financials
+                    if not fin.empty and 'Basic EPS' in fin.index:
+                        eps_series = fin.loc['Basic EPS']
+                        # Ensure we have enough data points and filter out N/A
+                        eps_valid = eps_series.dropna()
+                        if len(eps_valid) >= 2:
+                            eps_cur = eps_valid.iloc[0]
+                            eps_prev = eps_valid.iloc[1]
+                            
+                            # Valid previous EPS needed for growth calc
+                            if eps_prev and eps_prev != 0:
+                                growth_rate = ((eps_cur - eps_prev) / abs(eps_prev)) * 100
+                                print(f"DEBUG: Calculated EPS Growth: {growth_rate}% (Curr: {eps_cur}, Prev: {eps_prev})")
+                                
+                                # PEG only makes sense for positive growth
+                                if growth_rate > 0:
+                                    fundamentals['peg_ratio'] = round(fundamentals['pe_ratio'] / growth_rate, 2)
+                                    print(f"DEBUG: Calculated PEG from Hist EPS: {fundamentals['peg_ratio']}")
+                except Exception as e:
+                    print(f"Manual PEG Error: {e}")
 
         # 2. Dividend Yield Sanity Check
-        # User reported anomaly (e.g. 38%). Calculate from Rate/Price if possible to verify.
-        try:
-            div_rate = info.get('dividendRate')
-            price = info.get('currentPrice') or info.get('previousClose')
-            if div_rate and price and price > 0:
-                calc_yield = div_rate / price
-                raw_yield = fundamentals['dividend_yield']
-                
-                # If raw yield is missing, or huge discrepancy (e.g. > 10% diff), use calculated
-                # Example: If raw is 0.38 (38%) but calc is 0.0038 (0.38%), use calc.
-                if raw_yield is None or abs(raw_yield - calc_yield) > 0.05:
-                    print(f"DEBUG: Replacing suspicious yield {raw_yield} with calculated {calc_yield}")
-                    fundamentals['dividend_yield'] = calc_yield
-        except Exception as e:
-            print(f"Yield Check Error: {e}")
+        # If yield is missing, check if it's a non-dividend payer (yield=0) or just missing data
+        # Also normalize: yfinance can return 0.05 (5%) or sometimes 5.0 (5% - rare but possible in old versions)
+        
+        # Priority 1: Use provided dividend_yield if valid
+        if fundamentals['dividend_yield'] is not None:
+             # Sanity check for huge numbers (e.g. 5.1 vs 0.051)
+             # Assumption: Yield > 1 (100%) is likely an error or raw percentage. 
+             # Most div yields are 0.0-0.1.
+             dy = fundamentals['dividend_yield']
+             if dy > 0.5: # Treat > 50% as suspicious or needing validation, but strictly speaking checking > 1 is safer for "raw number vs decimal"
+                 # If > 1, assume it's a percentage (e.g. 3.5 -> 0.035)
+                 print(f"DEBUG: Normalizing Dividend Yield {dy} -> {dy/100}")
+                 fundamentals['dividend_yield'] = dy / 100
+        
+        # Priority 2: Calculate if None
+        else:
+             div_rate = info.get('dividendRate')
+             # If rate is present, calculate yield
+             if div_rate and div_rate > 0:
+                 price = info.get('currentPrice') or info.get('previousClose')
+                 if price and price > 0:
+                     fundamentals['dividend_yield'] = round(div_rate / price, 4)
+                     print(f"DEBUG: Calculated Div Yield from Rate: {fundamentals['dividend_yield']}")
+             else:
+                 # If explicit 0 or None for rate, determine if it's a non-payer
+                 # trailingAnnualDividendYield is another source
+                 tay = info.get('trailingAnnualDividendYield')
+                 if tay and tay > 0:
+                     fundamentals['dividend_yield'] = tay
+                     print(f"DEBUG: Using Trailing Div Yield: {fundamentals['dividend_yield']}")
+                 elif div_rate == 0:
+                     # Explicitly 0 means non-payer
+                     fundamentals['dividend_yield'] = 0.0
+
+        # Double check: If still None, set to 0.0 if it's a growth stock (optional, but safer to leave None for N/A)
+        # But for 'N/A' to show properly on frontend, None is fine.
         
         # Upsert Fundamentals to Supabase (financial_data)
         try:
@@ -1207,24 +1252,32 @@ def get_summary(ticker):
     """Get AI summary for a specific ticker (Latest available)"""
     try:
         # Fetch the MOST RECENT summary, regardless of date
-        print(f"DEBUG: get_summary fetching latest for {ticker}")
-        result = supabase.table('ticker_summaries').select('*').eq('ticker', ticker).order('summary_date', desc=True).limit(1).execute()
-        
+        try:
+            result = supabase.table('ticker_summaries').select('*').eq('ticker', ticker).order('summary_date', desc=True).limit(1).execute()
+        except Exception as db_err:
+            print(f"Supabase Read Error for {ticker}: {db_err}")
+            # Identify if this is a Cloudflare/Connection issue
+            if "JSON" in str(db_err) or "Expecting value" in str(db_err):
+                 print(f"  ⚠ CRITICAL: Supabase returned non-JSON response (likely Cloudflare block or 503).")
+            return jsonify({'status': 'not_found', 'message': 'Database unavailable'}), 200
+
         if result.data:
             summary = result.data[0]
-            print(f"DEBUG: Found summary for {ticker} from {summary['summary_date']}")
             
             # Get sources from news table linked to this summary date (or just latest)
-            # Logic: just get latest news for content context
-            news_result = supabase.table('news').select('title, original_url, source').eq('ticker', ticker).order('published_at', desc=True).limit(10).execute()
-            
-            # Dedup sources by URL
-            seen_urls = set()
-            sources = []
-            for n in news_result.data:
-                if n['original_url'] not in seen_urls:
-                    sources.append({'title': n['title'], 'url': n['original_url'], 'source': n['source']})
-                    seen_urls.add(n['original_url'])
+            try:
+                news_result = supabase.table('news').select('title, original_url, source').eq('ticker', ticker).order('published_at', desc=True).limit(10).execute()
+                
+                # Dedup sources by URL
+                seen_urls = set()
+                sources = []
+                for n in news_result.data:
+                    if n['original_url'] not in seen_urls:
+                        sources.append({'title': n['title'], 'url': n['original_url'], 'source': n['source']})
+                        seen_urls.add(n['original_url'])
+            except Exception as news_err:
+                print(f"News Fetch Error (Non-critical): {news_err}")
+                sources = []
             
             return jsonify({
                 'status': 'found',
@@ -1234,14 +1287,17 @@ def get_summary(ticker):
                 'analyst_earnings': summary['analyst_earnings'],
                 'last_week_updates': summary['last_week_updates'],
                 'sources': sources,
-                'date': summary['summary_date']
+                'date': summary['summary_date'],
+                'updated_at': summary.get('created_at', summary['summary_date'])
             })
         else:
-            print(f"DEBUG: No summary found for {ticker} (history is empty)")
             # Return 200 with status=not_found to avoid console errors during polling
             return jsonify({'status': 'not_found', 'message': 'No summary available'})
             
     except Exception as e:
+        print(f"Summary Endpoint Critical Error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @us_news_bp.route('/api/tickers')
@@ -1333,4 +1389,268 @@ def get_latest_price(ticker):
         
     except Exception as e:
         print(f"Latest Price Error for {ticker}: {e}")
+        return jsonify({'error': str(e)}), 500
+@us_news_bp.route('/api/quant-analysis/<ticker>', methods=['GET'])
+def get_quant_analysis(ticker):
+    """
+    Generate Expert Quant Analysis using 1h and 1d data via chained AI prompts.
+    Includes 1-hour in-memory cache.
+    """
+    # Global Cache for Quant Analysis
+    # Structure: { 'TICKER': { 'timestamp': float, 'data': dict } }
+    global QUANT_ANALYSIS_CACHE
+    if 'QUANT_ANALYSIS_CACHE' not in globals():
+        QUANT_ANALYSIS_CACHE = {}
+
+    try:
+        # --- Cache Check ---
+        force_refresh = request.args.get('force', 'false').lower() == 'true'
+        current_time = time.time()
+        
+        if not force_refresh and ticker in QUANT_ANALYSIS_CACHE:
+            cached_entry = QUANT_ANALYSIS_CACHE[ticker]
+            # Check if cache is within 1 hour (3600 seconds)
+            if (current_time - cached_entry['timestamp']) < 3600:
+                print(f"  ✓ Serving Quant Analysis for {ticker} from Cache")
+                return jsonify(cached_entry['data'])
+        
+        if force_refresh:
+            print(f"  ↻ Force Refreshing Quant Analysis for {ticker}")
+
+        from .ta_utils import calculate_technical_indicators, prepare_df_for_llm
+        
+        # 1. Fetch Data (1h and 1d)
+        stock = yf.Ticker(ticker)
+        
+        # 1h Data (Requires 2y for valid SMA-200 if possible, or at least enough for logic)
+        df_1h = stock.history(period="2y", interval="1h")
+        if df_1h.empty: return jsonify({'error': 'No 1h data found'}), 404
+        
+        # 1d Data (1y is standard)
+        df_1d = stock.history(period="2y", interval="1d")
+        if df_1d.empty: return jsonify({'error': 'No 1d data found'}), 404
+        
+        # 2. Calculate Indicators
+        df_1h = calculate_technical_indicators(df_1h)
+        df_1d = calculate_technical_indicators(df_1d)
+        
+        # 3. Serialize Data for Prompt
+        # Limit to last 100 rows to fit context window comfortably while giving trend history
+        data_1h_str = prepare_df_for_llm(df_1h, last_n=100)
+        data_1d_str = prepare_df_for_llm(df_1d, last_n=100)
+        
+        # 4. Construct Prompt 1 (The Expert Quant)
+        prompt_1 = f"""
+        Imagine you are top finance trader of a leading quant based hedge fund. You have deep expertise with algos, finance & math. 
+        
+        Here is the data for {ticker}:
+        
+        --- 1 HOUR INTERVAL DATA (Last 100 candles) ---
+        {data_1h_str}
+        
+        --- 1 DAY INTERVAL DATA (Last 100 candles) ---
+        {data_1d_str}
+        
+        Your task is to analyze the data, identify patterns, ranges, and probabilities of price movement over a week and a month. 
+        Short term prediction is for one week for which, you would give a 80% priority to the hourly price and indicator data, and 20% to the daily data. 
+        For medium term prediction you would give 80% priority to the daily data and 20% to the long term trend. 
+        Focus should be primarily on price and quant based actions while ignoring fundamentals. 
+        Clearly and explicitly state your assumptions and statistical calculations done.
+        """
+        
+        # 5. Execute Prompt 1
+        # Use load-balanced keys helper if available? 
+        # app_US.py has `run_single` but that's background. We need synchronous or async-await here.
+        # We'll stick to a simple synchronous call using one of the available keys for responsiveness.
+        # Or better, iterate keys like `process_single_ticker` does.
+        
+        # 5. Execute AI Analysis (Exclusive Keys: 6 & CHECKER, Randomized)
+        api_keys = [
+            os.getenv('GEMINI_API_KEY_6'),
+            os.getenv('GEMINI_API_CHECKER')
+        ]
+        # Filter None
+        api_keys = [k for k in api_keys if k]
+        
+        # Randomize order to load balance between the two
+        random.shuffle(api_keys)
+        
+        if not api_keys:
+             print("Error: No AI keys (6 or CHECKER) found.")
+             last_error = "No API Keys found in environment"
+        
+        # Debug: Print loaded keys count
+        print(f"DEBUG: Loaded {len(api_keys)} keys for Quant Analysis.")
+
+        analysis_raw = None
+        summary_final = None
+        last_error = "Unknown Error"
+        
+        # Combined Prompt to save 1 request cycle and reduce latency/errors
+        combined_prompt = f"""
+        Role: You are an expert financial trader at a quantitative hedge fund.
+        
+        Task: Analyze the following technical data for {ticker} (Last 100 1h and 1d candles) and provide a "Expert Quant Assessment".
+        
+        --- 1H DATA ---
+        {data_1h_str}
+        
+        --- 1D DATA ---
+        {data_1d_str}
+        
+        Instructions:
+        1. Analyze price action, moving averages (SMA 20, 50, 200), RSI, and MACD.
+        2. Determine the short-term (1 week) and medium-term (1 month) probability.
+        3. IGNORE news/fundamentals. Focus purely on the math/charts.
+        
+        Output format (Markdown):
+        ## Quant Analysis for {ticker}
+        
+        **Signal**: [BUY / SELL / NEUTRAL] (Choose one based on weight of evidence).
+        **Confidence**: [0-100]%
+        
+        **Short-Term Outlook (1 Week)**: 2-3 sentences on immediate direction, supporting levels (Support/Resistance), and key indicators (e.g. "RSI at 75 suggests overbought").
+        
+        **Medium-Term Trend**: 1-2 sentences on the broader 1D trend (e.g. "Above SMA200, Bullish").
+        
+        **Key Levels to Watch**:
+        *   Support: $...
+        *   Resistance: $...
+        
+        **Strategy**: Concise actionable advice (e.g. "Buy dips to EMA20", "Wait for breakout above $X").
+        """
+
+        # Try AI Generation
+        if api_keys:
+            # requests is imported at top level
+            
+            payload = {
+                "contents": [{"parts": [{"text": combined_prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.3
+                }
+            }
+
+            for i, key in enumerate(api_keys):
+                try:
+                    # UPDATED: Use newer 'gemini-2.5-flash' model ID
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+                    headers = {'Content-Type': 'application/json'}
+                    
+                    print(f"DEBUG: Attempting AI Call {i+1}/{len(api_keys)} with key ...{key[-4:]}")
+
+                    # Increased timeout to 45s to prevent ReadTimeout
+                    response = requests.post(url, headers=headers, json=payload, timeout=45)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        candidates = result.get('candidates', [])
+                        if candidates:
+                            content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                            if content_text:
+                                summary_final = content_text
+                                analysis_raw = "Generated via REST API (gemini-2.5-flash)"
+                                break # Success
+                        else:
+                             print(f"DEBUG: No candidates in response: {result}")
+                             last_error = "Empty AI Response"
+                             
+                    elif response.status_code == 429:
+                        print(f"  ⚠ 429 Rate Limit on key ending ...{key[-4:]}")
+                        last_error = "Rate Limit (429)"
+                        time.sleep(0.5) # Slight backoff
+                        continue
+                    else:
+                        # Log FULL error for debugging
+                        print(f"  ⚠ AI Error {response.status_code} on key ...{key[-4:]}: {response.text}")
+                        last_error = f"API Error {response.status_code}: {response.text[:50]}"
+                        continue
+
+                except Exception as e:
+                    print(f"  ⚠ Connection Error using key ...{key[-4:]}: {e}")
+                    last_error = f"Connection Error: {str(e)}"
+                    continue
+
+        # --- FALLBACK MECHANISM ---
+        if not summary_final:
+            print(f"  ⚠ All AI keys failed for {ticker} (Tried {len(api_keys)} keys). Generating Fallback Analysis.")
+            
+            # Simple algorithmic fallback using the data we already calculated
+            # 1. Determine Trend
+            last_close = df_1d['Close'].iloc[-1]
+            sma200 = df_1d['SMA_200'].iloc[-1] if 'SMA_200' in df_1d else 0
+            rsi = df_1d['RSI'].iloc[-1] if 'RSI' in df_1d else 50
+            
+            trend = "Bullish" if last_close > sma200 else "Bearish"
+            signal = "NEUTRAL"
+            
+            # Simple Confidence Logic
+            # Base confidence 50%
+            confidence = 50
+            
+            if trend == "Bullish":
+                if rsi < 30: 
+                    signal = "STRONG BUY"
+                    confidence = 85
+                elif rsi < 45: 
+                    signal = "BUY"
+                    confidence = 70
+                elif rsi > 70: 
+                    signal = "SELL (Overbought)"
+                    confidence = 65
+                else:
+                    signal = "HOLD / BULLISH"
+                    confidence = 60
+            else: # Bearish
+                if rsi > 70: 
+                    signal = "STRONG SELL"
+                    confidence = 85
+                elif rsi > 55: 
+                    signal = "SELL"
+                    confidence = 70
+                elif rsi < 30: 
+                    signal = "BUY (Oversold)"
+                    confidence = 65
+                else:
+                    signal = "HOLD / BEARISH"
+                    confidence = 60
+            
+            summary_final = f"""
+## Quant Analysis for {ticker} (Automated Fallback)
+
+> **Note**: AI Analysis unavailable. Showing algorthmic summary.
+> **Debug Error**: {last_error}
+
+**Signal**: **{signal}**
+**Confidence**: {confidence}%
+
+**Short-Term Outlook**:
+The stock is currently trading at **${last_close:.2f}**. 
+RSI is at **{rsi:.2f}**, indicating the asset is { "Overbought" if rsi>70 else "Oversold" if rsi<30 else "Neutral" }.
+
+**Medium-Term Trend**:
+The trend is **{trend}** relative to the 200-day Moving Average (${sma200:.2f}).
+
+**Strategy**:
+Monitor price action around key moving averages.
+            """
+            analysis_raw = "Fallback Generated"
+
+        response_data = {
+            'ticker': ticker,
+            'summary': summary_final,
+            'raw_analysis': analysis_raw
+        }
+
+        # --- Update Cache ---
+        QUANT_ANALYSIS_CACHE[ticker] = {
+            'timestamp': time.time(),
+            'data': response_data
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500

@@ -633,13 +633,28 @@ async function selectTicker(ticker) {
     const loadingOverlay = document.getElementById('loadingOverlay');
     if (loadingOverlay) loadingOverlay.style.display = 'flex';
 
-    // Check which tab is active
-    const taTab = document.querySelector('.tab-btn[data-tab="ta"]');
-    if (taTab && taTab.classList.contains('active')) {
+    // Check which tab is active and reload specific data
+    const activeTabBtn = document.querySelector('.tab-btn.active');
+    const activeTabId = activeTabBtn ? activeTabBtn.dataset.tab : 'overview';
+
+    console.log(`[selectTicker] Active Tab: ${activeTabId}`);
+
+    if (activeTabId === 'ta') {
         loadTAData(ticker);
+        // Also trigger Quant if needed
+        runQuantAnalysis(ticker);
+    } else if (activeTabId === 'fin') {
+        loadFundamentals(ticker);
+    } else if (activeTabId === 'news' || activeTabId === 'overview') {
+        // Overview/News are handled by the main summary fetch below, 
+        // but we might want to ensure specific news UI is reset/ready
     }
 
     // Continue with standard summary load...
+    // Trigger background analysis if valid ticker
+    if (ticker) {
+        runQuantAnalysis(ticker);
+    }
     // Clear existing interval if any
     if (quotePollTimeout) {
         clearTimeout(quotePollTimeout);
@@ -837,11 +852,17 @@ function displaySummary(data) {
 
     summaryContent.innerHTML = `
         <div class="summary-display">
-            <h2 style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px;">
+            <h2 style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
                 ${data.ticker}
                 <div style="display:flex; gap:12px; align-items: center;">
                     <span id="ticker-price-${data.ticker}" class="header-badge price-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1); color: var(--text-primary); font-family:monospace;">...</span>
                 </div>
+                
+                <span class="last-updated-badge" style="font-size: 12px; color: var(--text-secondary); font-weight: 500; background: var(--bg-card); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); margin-left: auto;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px; display:inline-block; vertical-align:text-bottom;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    Updated: ${data.updated_at ? new Date(data.updated_at).toLocaleString() : (data.date || 'N/A')}
+                </span>
+
                 <button onclick="window.generateTickerSummary('${data.ticker}', event)" class="ticker-refresh-btn" title="Force Refresh Analysis">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M23 4v6h-6"></path>
@@ -1000,6 +1021,8 @@ function initTabListeners() {
             if (targetId === 'ta' && currentActiveTicker) {
                 console.log("[TA] Tab clicked, loading data...");
                 loadTAData(currentActiveTicker);
+                // Trigger Expert Quant Analysis Automatically
+                runQuantAnalysis(currentActiveTicker);
             }
 
             if (targetId === 'fin' && currentActiveTicker) {
@@ -1283,7 +1306,7 @@ async function loadFundamentals(ticker) {
 
     try {
         console.log(`[Fundamentals] Fetching data for ${ticker}...`);
-        const response = await fetch(`/us-news/api/financials/${ticker}`);
+        const response = await fetch(`/us-news/api/financials/${ticker}?_=${Date.now()}`);
         const data = await response.json();
 
         if (data.error) throw new Error(data.error);
@@ -1310,8 +1333,16 @@ function renderFundamentals(data) {
 
     // Format Helpers
     const fmtNum = (n) => n ? new Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(n) : 'N/A';
-    const fmtPct = (n) => n ? (n * 100).toFixed(2) + '%' : 'N/A';
-    const fmtVal = (n) => n ? n.toFixed(2) : '-';
+    const fmtPct = (n) => (n !== null && n !== undefined) ? (n * 100).toFixed(2) + '%' : 'N/A';
+    const fmtVal = (n) => (n !== null && n !== undefined && !isNaN(n)) ? n.toFixed(2) : 'N/A';
+
+    // Color Helpers
+    const getGrowthClass = (n) => n > 0 ? 'text-success' : (n < 0 ? 'text-danger' : '');
+    const getHealthClass = (val, threshold, isInverse = false) => {
+        if (!val) return '';
+        if (isInverse) return val > threshold ? 'text-danger' : 'text-success'; // Lower is better
+        return val > threshold ? 'text-success' : 'text-danger'; // Higher is better
+    };
 
     // 1. Valuation Logic
     const currentPrice = technicals.price || 0;
@@ -1320,7 +1351,6 @@ function renderFundamentals(data) {
 
     if (fairValue && currentPrice > 0) {
         const diff = ((currentPrice - fairValue) / fairValue) * 100;
-        // Undervalued if Price < Fair Value (e.g. -20%)
         if (diff < -15) {
             valuationBadge = '<span class="status-badge undervalued">UNDERVALUED</span>';
         } else if (diff > 15) {
@@ -1334,10 +1364,24 @@ function renderFundamentals(data) {
     const deRatio = f.debt_to_equity;
     const currRatio = f.current_ratio;
 
-    // Determine signal color for AI Card
+    // Determine signal color and text for AI Card
     let signalClass = 'neutral';
-    if (aiText.toUpperCase().includes('SIGNAL: BUY')) signalClass = 'buy';
-    if (aiText.toUpperCase().includes('SIGNAL: SELL')) signalClass = 'sell';
+    let signalText = 'NEUTRAL';
+
+    // Regex to capture signal (e.g. Signal: BUY, Signal: STRONG SELL, Signal: HOLD)
+    const signalMatch = aiText.match(/Signal:\s*([A-Za-z\s]+?)(?:\n|<br>|$)/i);
+
+    if (signalMatch && signalMatch[1]) {
+        signalText = signalMatch[1].trim().toUpperCase();
+
+        if (signalText.includes('BUY')) {
+            signalClass = 'buy';
+        } else if (signalText.includes('SELL')) {
+            signalClass = 'sell';
+        } else {
+            signalClass = 'neutral'; // Hold, Wait, etc.
+        }
+    }
 
     const cleanAiText = aiText
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -1352,9 +1396,9 @@ function renderFundamentals(data) {
                 <div class="ai-header">
                     <span class="ai-title">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M2 12h10"></path></svg>
-                        Analysis Results
+                        ${f.ticker || 'Stock'} Analysis
                     </span>
-                    <span class="ai-badge ${signalClass}">${signalClass.toUpperCase()}</span>
+                    <span class="ai-badge ${signalClass}">${signalText}</span>
                 </div>
                 <div class="ai-body">
                     ${cleanAiText}
@@ -1367,7 +1411,10 @@ function renderFundamentals(data) {
                 <!-- 1. Valuation Card -->
                 <div class="fund-card">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                        <h4>Valuation</h4>
+                        <h4>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+                            Valuation
+                        </h4>
                         ${valuationBadge}
                     </div>
                     <div class="metric-row"><span>Fair Value (Graham)</span> <strong>${fairValue ? '$' + fairValue : 'N/A'}</strong></div>
@@ -1378,42 +1425,51 @@ function renderFundamentals(data) {
                     <div class="metric-row"><span>P/B Ratio</span> <strong>${fmtVal(f.price_to_book)}</strong></div>
                 </div>
 
-                <!-- 2. Profitability & Growth -->
+                <!-- 2. Profitability -->
                 <div class="fund-card">
-                    <h4>Profitability</h4>
+                    <h4>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+                        Profitability
+                    </h4>
                     <div class="metric-row"><span>Revenue (TTM)</span> <strong>${fmtNum(f.revenue_ttm)}</strong></div>
                     <div class="metric-row"><span>Net Income</span> <strong>${fmtNum(f.net_income_ttm)}</strong></div>
                     <div class="metric-row"><span>EPS (TTM)</span> <strong>${fmtVal(f.eps)}</strong></div>
                     <div class="metric-divider"></div>
-                    <div class="metric-row"><span>Profit Margin</span> <strong>${fmtPct(f.profit_margins)}</strong></div>
-                    <div class="metric-row"><span>ROE</span> <strong>${fmtPct(f.return_on_equity)}</strong></div>
+                    <div class="metric-row"><span>Profit Margin</span> <strong class="${getGrowthClass(f.profit_margins)}">${fmtPct(f.profit_margins)}</strong></div>
+                    <div class="metric-row"><span>ROE</span> <strong class="${getGrowthClass(f.return_on_equity)}">${fmtPct(f.return_on_equity)}</strong></div>
                 </div>
                 
                 <!-- 3. Financial Health -->
                  <div class="fund-card">
-                    <h4>Financial Health</h4>
+                    <h4>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        Financial Health
+                    </h4>
                     <div class="metric-row">
                         <span>Debt/Equity</span> 
-                        <strong style="color: ${deRatio > 200 ? '#f87171' : ''}">${fmtVal(deRatio)}%</strong>
+                        <strong class="${getHealthClass(deRatio, 200, true)}">${fmtVal(deRatio)}%</strong>
                     </div>
                     <div class="metric-row">
                         <span>Current Ratio</span> 
-                        <strong style="color: ${currRatio < 1 ? '#f87171' : ''}">${fmtVal(currRatio)}</strong>
+                        <strong class="${getHealthClass(currRatio, 1.0, false)}">${fmtVal(currRatio)}</strong>
                     </div>
                     <div class="metric-divider"></div>
-                    <div class="metric-row"><span>Dividend Yield</span> <strong>${fmtPct(f.dividend_yield)}</strong></div>
+                    <div class="metric-row"><span>Dividend Yield</span> <strong class="text-success">${fmtPct(f.dividend_yield)}</strong></div>
                     <div class="metric-row"><span>Beta (Vol)</span> <strong>${fmtVal(f.beta)}</strong></div>
                 </div>
 
                 <!-- 4. Growth & Efficiency -->
                 <div class="fund-card">
-                    <h4>Growth & Efficiency</h4>
-                    <div class="metric-row"><span>Rev Growth (YoY)</span> <strong>${fmtPct(f.revenue_growth)}</strong></div>
-                    <div class="metric-row"><span>Earnings Growth</span> <strong>${fmtPct(f.earnings_growth)}</strong></div>
+                    <h4>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                        Growth
+                    </h4>
+                    <div class="metric-row"><span>Rev Growth (YoY)</span> <strong class="${getGrowthClass(f.revenue_growth)}">${fmtPct(f.revenue_growth)}</strong></div>
+                    <div class="metric-row"><span>Earnings Growth</span> <strong class="${getGrowthClass(f.earnings_growth)}">${fmtPct(f.earnings_growth)}</strong></div>
                     <div class="metric-divider"></div>
                     <div class="metric-row"><span>Gross Margin</span> <strong>${fmtPct(f.gross_margins)}</strong></div>
                     <div class="metric-row"><span>Oper. Margin</span> <strong>${fmtPct(f.operating_margins)}</strong></div>
-                    <div class="metric-row"><span>ROA</span> <strong>${fmtPct(f.return_on_assets)}</strong></div>
+                    <div class="metric-row"><span>ROA</span> <strong class="${getGrowthClass(f.return_on_assets)}">${fmtPct(f.return_on_assets)}</strong></div>
                 </div>
             </div>
         </div>
@@ -1593,7 +1649,7 @@ async function loadChartData(ticker) {
     if (tf === '5y') { period = '5y'; interval = '1wk'; } // 5Y uses weekly for performance/overview
 
     try {
-        const res = await fetch(`/us-news/api/history/${ticker}?period=${period}&interval=${interval}`);
+        const res = await fetch(`/us-news/api/history/${ticker}?period=${period}&interval=${interval}&_=${Date.now()}`);
         const data = await res.json();
 
         if (data.error) { console.error('Chart Data Error:', data.error); return; }
@@ -1780,8 +1836,28 @@ async function loadTAData(ticker, interval = '1d') {
 
     if (activeTab !== 'ta' && !interval) return;
 
+    // Clear previous data to show loading state and prevent stale view
+    if (indicatorsDiv) indicatorsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    if (levelsDiv) levelsDiv.innerHTML = '<div class="loading-text">Updating...</div>';
+
+    // Reset Gauge to "Loading" State
+    const needle = document.getElementById('gaugeNeedle');
+    const text = document.getElementById('gaugeText');
+    const countBuy = document.getElementById('countBuy');
+    const countSell = document.getElementById('countSell');
+    const countNeutral = document.getElementById('countNeutral');
+
+    if (needle) needle.style.transform = 'translateX(-50%) rotate(-90deg)'; // Left/Empty
+    if (text) {
+        text.innerText = 'LOADING...';
+        text.style.color = 'var(--text-secondary)';
+    }
+    if (countBuy) countBuy.innerText = '-';
+    if (countSell) countSell.innerText = '-';
+    if (countNeutral) countNeutral.innerText = '-';
+
     try {
-        const response = await fetch(`/us-news/api/ta/${ticker}?interval=${interval}`);
+        const response = await fetch(`/us-news/api/ta/${ticker}?interval=${interval}&_=${Date.now()}`);
 
         if (!response.ok) throw new Error('Failed to fetch TA data');
 
@@ -2089,4 +2165,108 @@ function renderTA(data) {
             });
         }
     }
+}
+
+// --- Expert Quant Analysis ---
+function initQuantAnalysisListener() {
+    const btn = document.getElementById('runQuantAnalysisBtn');
+    if (btn) {
+        btn.addEventListener('click', () => {
+            if (currentActiveTicker) {
+                runQuantAnalysis(currentActiveTicker);
+            }
+        });
+    }
+}
+
+async function runQuantAnalysis(ticker, forceRefresh = false) {
+    console.log(`[QuantAnalysis] Triggered for ${ticker}, Force: ${forceRefresh}`);
+    const resultDiv = document.getElementById('quantAnalysisResult');
+    const refreshBtn = document.getElementById('forceRefreshQuantBtn');
+
+    if (!resultDiv) return;
+
+    // Guard: Prevent redundant loading if already showing this ticker (and not forcing)
+    if (!forceRefresh && resultDiv.dataset.ticker === ticker) {
+        console.log(`[QuantAnalysis] Already loaded/loading for ${ticker}. Skipping.`);
+        return;
+    }
+
+    // Mark as current immediately to block subsequent calls
+    resultDiv.dataset.ticker = ticker;
+
+    // Loading State
+    resultDiv.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px;">
+            <div class="spinner" style="width: 30px; height: 30px; border-width: 3px; border-color: #8b5cf6 transparent #8b5cf6 transparent;"></div>
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">${forceRefresh ? 'Force refreshing' : 'Analyzing'} 1h & 1d intervals...</span>
+        </div>
+    `;
+
+    // Rotate/Disable Refresh Button
+    if (refreshBtn) {
+        refreshBtn.disabled = true;
+        refreshBtn.classList.add('rotating'); // Ensure CSS has .rotating { animation: spin 1s linear infinite; }
+    }
+
+    try {
+        const url = `/us-news/api/quant-analysis/${ticker}${forceRefresh ? '?force=true' : ''}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) throw new Error(data.error);
+
+        // Advanced Formatting using Marked.js
+        let rawMarkdown = data.summary;
+
+        // 1. Highlight Key Terms (Before Markdown parsing or after - safer before for simple words)
+        // Wraps [BUY] [SELL] etc in spans
+        rawMarkdown = rawMarkdown.replace(/\b(STRONG BUY|BUY|BULLISH)\b/gi, '<span class="signal-buy">$1</span>');
+        rawMarkdown = rawMarkdown.replace(/\b(STRONG SELL|SELL|BEARISH)\b/gi, '<span class="signal-sell">$1</span>');
+        rawMarkdown = rawMarkdown.replace(/\b(NEUTRAL|HOLD|CONSOLIDATION)\b/gi, '<span class="signal-neutral">$1</span>');
+
+        // Highlight Prices (e.g. $123.45)
+        rawMarkdown = rawMarkdown.replace(/(\$\d{1,3}(,\d{3})*(\.\d{2})?)/g, '<span class="price-highlight">$1</span>');
+
+        // Parse Markdown
+        let formattedStr = marked.parse(rawMarkdown);
+
+        resultDiv.innerHTML = `<div class="quant-analysis-content markdown-body">${formattedStr}</div>`;
+
+    } catch (e) {
+        console.error("Quant Analysis Error:", e);
+        resultDiv.innerHTML = `<div style="color: #ef4444; padding: 10px;">Error: ${e.message}</div>`;
+    } finally {
+        if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.classList.remove('rotating');
+        }
+    }
+}
+
+function initForceRefreshListener() {
+    const btn = document.getElementById('forceRefreshQuantBtn');
+    if (btn) {
+        // Clone to remove old listeners if any, or just add
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+
+        newBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent bubbling issues
+            if (currentActiveTicker) {
+                runQuantAnalysis(currentActiveTicker, true);
+            }
+        });
+    }
+}
+
+// Ensure initQuantAnalysisListener is called
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        initQuantAnalysisListener();
+        initForceRefreshListener(); // Init the refresh button
+    });
+} else {
+    initQuantAnalysisListener();
+    initForceRefreshListener();
 }
