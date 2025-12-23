@@ -1,5 +1,7 @@
 let currentTickers = [];
 let currentIndex = 0;
+let activeTab = 'overview'; // Global tab state
+let currentTickerUS = ''; // Ensure this global is consistent
 let cachedTAData = null;
 
 // Touch/swipe handling variables
@@ -108,6 +110,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Initialize Tabs
         initTabListeners();
+        initIntervalListeners();
 
         // --- Mobile Menu Handling ---
         const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -972,6 +975,7 @@ function initTabListeners() {
             // Add active to clicked
             tab.classList.add('active');
             const targetId = tab.dataset.tab;
+            activeTab = targetId; // Update global state
 
             // Save active tab to localStorage
             localStorage.setItem('activeTab', targetId);
@@ -1016,7 +1020,7 @@ function initTabListeners() {
     }
 }
 
-async function loadTAData(ticker) {
+async function _unused_loadTAData(ticker) {
     const taContent = document.getElementById('taContent');
     // Safety check: specific parent visibility or tab active state
     const taTab = document.querySelector('.tab-btn[data-tab="ta"]');
@@ -1029,8 +1033,8 @@ async function loadTAData(ticker) {
     if (indicatorsDiv) indicatorsDiv.innerHTML = '<div class="spinner" style="width:20px; height:20px; border-width:2px;"></div>';
 
     try {
-        console.log(`[TA] Fetching data for ${ticker}...`);
-        const response = await fetch(`/us-news/api/ta/${ticker}`);
+        console.log(`[TA] Fetching data for ${ticker} (${interval})...`);
+        const response = await fetch(`/us-news/api/ta/${ticker}?interval=${interval}`);
         const data = await response.json();
 
         if (data.error) {
@@ -1050,7 +1054,7 @@ async function loadTAData(ticker) {
     }
 }
 
-function renderTA(data) {
+function _unused_renderTA(data) {
     // 1. Key Levels Table
     const levelsDiv = document.getElementById('levelsContent');
     if (levelsDiv) {
@@ -1400,6 +1404,17 @@ function renderFundamentals(data) {
                     <div class="metric-row"><span>Dividend Yield</span> <strong>${fmtPct(f.dividend_yield)}</strong></div>
                     <div class="metric-row"><span>Beta (Vol)</span> <strong>${fmtVal(f.beta)}</strong></div>
                 </div>
+
+                <!-- 4. Growth & Efficiency -->
+                <div class="fund-card">
+                    <h4>Growth & Efficiency</h4>
+                    <div class="metric-row"><span>Rev Growth (YoY)</span> <strong>${fmtPct(f.revenue_growth)}</strong></div>
+                    <div class="metric-row"><span>Earnings Growth</span> <strong>${fmtPct(f.earnings_growth)}</strong></div>
+                    <div class="metric-divider"></div>
+                    <div class="metric-row"><span>Gross Margin</span> <strong>${fmtPct(f.gross_margins)}</strong></div>
+                    <div class="metric-row"><span>Oper. Margin</span> <strong>${fmtPct(f.operating_margins)}</strong></div>
+                    <div class="metric-row"><span>ROA</span> <strong>${fmtPct(f.return_on_assets)}</strong></div>
+                </div>
             </div>
         </div>
     `;
@@ -1718,5 +1733,360 @@ function stopChartPolling() {
         liveIndicator.querySelector('span:first-child').style.background = '#22c55e';
         liveIndicator.querySelector('span:last-child').textContent = 'LIVE';
         liveIndicator.querySelector('span:last-child').style.color = '#22c55e';
+    }
+}
+
+// Global state for TA Interval
+let currentTAInterval = '1d';
+
+// Initialize TA Interval Listeners
+function initIntervalListeners() {
+    document.querySelectorAll('.ta-interval-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            // Update Active State
+            document.querySelectorAll('.ta-interval-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+
+            const interval = e.target.getAttribute('data-val');
+            currentTAInterval = interval;
+
+            // Reload Data if ticker exists
+            if (currentActiveTicker) {
+                // Show loading on gauge/tables?
+                const indicatorsDiv = document.getElementById('indicatorsContent');
+                if (indicatorsDiv) indicatorsDiv.innerHTML = '<div class="loader">Loading...</div>';
+                loadTAData(currentActiveTicker, interval);
+            }
+        });
+    });
+}
+
+// Call this on DOMContentLoaded - Assuming it's called in main init or we add listener here
+// But existing init uses initIntervalListeners() inside the main listener, so we just declare it here.
+// Wait, the main listener calls `initIntervalListeners` but it wasn't defined until now.
+// We need to make sure `initIntervalListeners` is defined when DOMContentLoaded fires.
+// Since this is appended to the end, it will be defined.
+
+// Load Technical Analysis Data with Interval Support
+async function loadTAData(ticker, interval = '1d') {
+    const indicatorsDiv = document.getElementById('indicatorsContent');
+    const levelsDiv = document.getElementById('levelsContent');
+
+    // Safety check if elements exist
+    if (!indicatorsDiv || !levelsDiv) return;
+
+    // Use current global interval if not specified
+    if (interval === undefined || interval === null) interval = currentTAInterval;
+
+    if (activeTab !== 'ta' && !interval) return;
+
+    try {
+        const response = await fetch(`/us-news/api/ta/${ticker}?interval=${interval}`);
+
+        if (!response.ok) throw new Error('Failed to fetch TA data');
+
+        const data = await response.json();
+        renderTA(data);
+
+    } catch (error) {
+        console.error('TA Load Error:', error);
+        indicatorsDiv.innerHTML = `<div class="error-msg">Failed to load Technicals: ${error.message}</div>`;
+        levelsDiv.innerHTML = '';
+
+        // Reset Gauge on error
+        const needle = document.getElementById('gaugeNeedle');
+        const text = document.getElementById('gaugeText');
+        if (needle) needle.style.transform = 'translate(-50%, 0) rotate(-90deg)';
+        if (text) text.innerText = 'ERROR';
+    }
+}
+
+function renderTA(data) {
+    if (!data || !data.summary) return;
+
+    // 1. Update Gauge
+    if (data.summary.analysis) {
+        const a = data.summary.analysis;
+        const needle = document.getElementById('gaugeNeedle');
+        const text = document.getElementById('gaugeText');
+        const countBuy = document.getElementById('countBuy');
+        const countSell = document.getElementById('countSell');
+        const countNeutral = document.getElementById('countNeutral');
+
+        // Maps
+        let deg = -90; // Default left
+        let color = 'var(--text-primary)';
+
+        switch (a.recommendation) {
+            case 'Strong Sell': deg = -75; color = '#ef4444'; break;
+            case 'Sell': deg = -35; color = '#f87171'; break;
+            case 'Neutral': deg = 0; color = 'var(--text-secondary)'; break;
+            case 'Buy': deg = 35; color = '#34d399'; break;
+            case 'Strong Buy': deg = 75; color = '#22c55e'; break;
+        }
+
+        if (needle) {
+            // needle.style.transform = `translateX(-50%) rotate(${deg}deg)`; // This overrides the base CSS transform if not careful
+            // Better to set the variable or be precise
+            needle.style.transform = `translateX(-50%) rotate(${deg}deg)`; // Based on CSS of parent/needle
+        }
+        if (text) {
+            text.innerText = a.recommendation.toUpperCase();
+            text.style.color = color;
+        }
+
+        if (countBuy) countBuy.innerText = a.buy;
+        if (countSell) countSell.innerText = a.sell;
+        if (countNeutral) countNeutral.innerText = a.neutral;
+    }
+
+    // 2. Key Levels Table
+    const levelsDiv = document.getElementById('levelsContent');
+    if (levelsDiv) {
+        let html = `
+        <div class="key-levels-container">
+            <!-- Left Side: Fibonacci -->
+            <div class="key-levels-col">
+                <div class="key-levels-header">Fibonacci Retracement</div>
+        `;
+
+        if (data.fibonacci) {
+            for (const [key, val] of Object.entries(data.fibonacci)) {
+                html += `<div class="level-row"><span>${key}</span><span>$${val.toFixed(2)}</span></div>`;
+            }
+        }
+
+        html += `
+            </div>
+            <!-- Right Side: Support/Resistance -->
+            <div class="key-levels-col">
+                <div class="key-levels-header">Pivot Points</div>
+        `;
+
+        (data.resistances || []).slice(0, 3).reverse().forEach(r => {
+            html += `<div class="level-row"><span style="color:#f87171">Res</span><span>$${r.toFixed(2)}</span></div>`;
+        });
+
+        (data.supports || []).slice(-3).reverse().forEach(s => {
+            html += `<div class="level-row"><span style="color:#34d399">Sup</span><span>$${s.toFixed(2)}</span></div>`;
+        });
+
+        html += `
+            </div>
+        </div>
+        `;
+        levelsDiv.innerHTML = html;
+    }
+
+    // 3. Indicators Detailed Tables
+    const indicatorsDiv = document.getElementById('indicatorsContent');
+    if (indicatorsDiv) {
+        const s = data.summary;
+
+        // Helper to Create Table Rows
+        const createTableRows = (items) => {
+            return items.map(item => {
+                let colorClass = '';
+                // Color Style for manually mimicking classes if they don't exist
+                let style = '';
+                if (item.action === 'Buy') style = 'color: #34d399; font-weight: 600;';
+                if (item.action === 'Sell') style = 'color: #f87171; font-weight: 600;';
+                if (item.action === 'Neutral') style = 'color: var(--text-secondary);';
+
+                // Safe formatting for value
+                let valStr = typeof item.value === 'number' ? item.value.toFixed(2) : '-';
+
+                return `
+                    <div class="ta-table-row" style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem;">
+                        <span style="color: var(--text-primary); flex: 2;">${item.name}</span>
+                        <span style="color: var(--text-primary); flex: 1; text-align: right;">${valStr}</span>
+                        <span style="${style} flex: 1; text-align: right;">${item.action || '-'}</span>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        let html = '<div class="indicators-grid">';
+
+        // Oscillators Section
+        if (s.oscillators && s.oscillators.length) {
+            html += `
+                <div class="ta-section">
+                    <h4 style="margin: 0 0 12px 0; font-size: 1rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 8px;">Oscillators</h4>
+                    <div class="ta-table-header" style="display: flex; justify-content: space-between; padding-bottom: 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                        <span style="flex: 2;">Name</span>
+                        <span style="flex: 1; text-align: right;">Value</span>
+                        <span style="flex: 1; text-align: right;">Action</span>
+                    </div>
+                    ${createTableRows(s.oscillators)}
+                </div>
+            `;
+        }
+
+        // Moving Averages Section
+        if (s.moving_averages && s.moving_averages.length) {
+            html += `
+                <div class="ta-section">
+                    <h4 style="margin: 0 0 12px 0; font-size: 1rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 8px;">Moving Averages</h4>
+                     <div class="ta-table-header" style="display: flex; justify-content: space-between; padding-bottom: 8px; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                        <span style="flex: 2;">Name</span>
+                        <span style="flex: 1; text-align: right;">Value</span>
+                        <span style="flex: 1; text-align: right;">Action</span>
+                    </div>
+                    ${createTableRows(s.moving_averages)}
+                </div>
+            `;
+        }
+
+        html += '</div>';
+
+        indicatorsDiv.innerHTML = html;
+    }
+
+    // 4. Update Charts
+    if (data.chart_data) {
+        // Destroy old
+        if (priceChartInstance) { priceChartInstance.destroy(); priceChartInstance = null; }
+        if (macdChartInstance) { macdChartInstance.destroy(); macdChartInstance = null; }
+
+        const ctxPrice = document.getElementById('priceChart');
+        const ctxMacd = document.getElementById('macdChart');
+
+        // If elements exist
+        if (ctxPrice && ctxMacd) {
+            const labels = data.chart_data.map(d => d.date);
+            const closes = data.chart_data.map(d => d.close);
+            const sma50 = data.chart_data.map(d => d.sma50);
+            const sma200 = data.chart_data.map(d => d.sma200);
+            const macd = data.chart_data.map(d => d.macd);
+            const signal = data.chart_data.map(d => d.signal);
+            const hist = data.chart_data.map(d => d.hist);
+
+            // Determine colors based on theme attribute
+            const theme = document.documentElement.getAttribute('data-theme') || 'light';
+            const isDark = theme === 'dark';
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+            const textColor = isDark ? '#9ca3af' : '#475569';
+
+            // Price Chart
+            priceChartInstance = new Chart(ctxPrice, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Price',
+                            data: closes,
+                            borderColor: '#3b82f6',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            pointRadius: 0,
+                            fill: true,
+                            backgroundColor: (context) => {
+                                const ctx = context.chart.ctx;
+                                const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                                gradient.addColorStop(0, 'rgba(59, 130, 246, 0.2)');
+                                gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+                                return gradient;
+                            }
+                        },
+                        {
+                            label: 'SMA 50',
+                            data: sma50,
+                            borderColor: '#f59e0b',
+                            borderWidth: 1.5,
+                            tension: 0.1,
+                            pointRadius: 0,
+                            borderDash: [5, 5]
+                        },
+                        {
+                            label: 'SMA 200',
+                            data: sma200,
+                            borderColor: '#ef4444',
+                            borderWidth: 1.5,
+                            tension: 0.1,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: textColor } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { maxTicksLimit: 8, color: textColor },
+                            grid: { color: gridColor }
+                        },
+                        y: {
+                            position: 'right',
+                            ticks: { color: textColor },
+                            grid: { color: gridColor },
+                            beginAtZero: false,
+                            grace: '5%'
+                        }
+                    }
+                }
+            });
+
+            // MACD Chart
+            macdChartInstance = new Chart(ctxMacd, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            type: 'line',
+                            label: 'MACD',
+                            data: macd,
+                            borderColor: '#3b82f6',
+                            borderWidth: 1.5,
+                            pointRadius: 0
+                        },
+                        {
+                            type: 'line',
+                            label: 'Signal',
+                            data: signal,
+                            borderColor: '#f59e0b',
+                            borderWidth: 1.5,
+                            pointRadius: 0
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Histogram',
+                            data: hist,
+                            backgroundColor: (ctx) => {
+                                const val = ctx.raw;
+                                return val >= 0 ? '#22c55e' : '#ef4444';
+                            }
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false }, // Hide legend for cleaner look
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { maxTicksLimit: 8, color: textColor },
+                            grid: { color: gridColor }
+                        },
+                        y: {
+                            position: 'right',
+                            ticks: { color: textColor },
+                            grid: { color: gridColor }
+                        }
+                    }
+                }
+            });
+        }
     }
 }

@@ -134,7 +134,10 @@ def get_ta_summary(df):
     
     # Helper to safe get
     def get(col, default=0):
-        return latest.get(col, default)
+        val = latest.get(col, default)
+        if pd.isna(val) or val is None:
+             return None
+        return val
 
     # --- Oscillators Data ---
     oscillators = []
@@ -178,20 +181,25 @@ def get_ta_summary(df):
     willr_val = get('WILLR_14')
     # Williams is -0 to -100. > -20 Sell, < -80 Buy.
     w_action = 'Neutral'
-    if willr_val > -20: w_action = 'Sell'
-    if willr_val < -80: w_action = 'Buy'
+    if willr_val is not None:
+        if willr_val > -20: w_action = 'Sell'
+        if willr_val < -80: w_action = 'Buy'
     oscillators.append({'name': 'Williams Percent Range (14)', 'value': willr_val, 'action': w_action})
     
     # 10. Bull Bear Power
     bbp_val = get('BBP')
-    oscillators.append({'name': 'Bull Bear Power', 'value': bbp_val, 'action': 'Buy' if bbp_val > 0 else 'Sell'})
+    bbp_action = 'Neutral'
+    if bbp_val is not None:
+        bbp_action = 'Buy' if bbp_val > 0 else 'Sell'
+    oscillators.append({'name': 'Bull Bear Power', 'value': bbp_val, 'action': bbp_action})
     
     # 11. Ultimate Oscillator
     uo_val = get('UO_7_14_28')
     # UO > 70 Sell, < 30 Buy
     uo_action = 'Neutral'
-    if uo_val > 70: uo_action = 'Sell'
-    if uo_val < 30: uo_action = 'Buy'
+    if uo_val is not None:
+        if uo_val > 70: uo_action = 'Sell'
+        if uo_val < 30: uo_action = 'Buy'
     oscillators.append({'name': 'Ultimate Oscillator (7, 14, 28)', 'value': uo_val, 'action': uo_action})
 
 
@@ -215,14 +223,49 @@ def get_ta_summary(df):
     vwma_val = get('VWMA_20')
     mas.append({'name': 'Volume Weighted Moving Average (20)', 'value': vwma_val, 'action': get_signal(vwma_val, 'MA_CROSS', price=price)})
 
+    # --- Aggregation / Rating Logic ---
+    buy_count = 0
+    sell_count = 0
+    neutral_count = 0
+    
+    all_indicators = oscillators + mas
+    for ind in all_indicators:
+        a = ind['action']
+        if a == 'Buy': buy_count += 1
+        elif a == 'Sell': sell_count += 1
+        else: neutral_count += 1
+        
+    total = buy_count + sell_count + neutral_count
+    
+    # Simple Rating Logic (similar to TV)
+    # Strong Buy: Buy > Sell & Buy ratio high
+    # Buy: Buy > Sell
+    # Neutral: Buy ~ Sell
+    
+    recommendation = "Neutral"
+    if total > 0:
+        # Check Strong conditions first
+        if buy_count > sell_count and buy_count >= (total * 0.45):
+             recommendation = "Buy"
+             if buy_count >= (total * 0.6):
+                 recommendation = "Strong Buy"
+        elif sell_count > buy_count and sell_count >= (total * 0.45):
+             recommendation = "Sell"
+             if sell_count >= (total * 0.6):
+                 recommendation = "Strong Sell"
+    
+    analysis = {
+        'recommendation': recommendation,
+        'buy': buy_count,
+        'sell': sell_count,
+        'neutral': neutral_count
+    }
 
     return {
         'price': price,
-        'rsi': rsi_val,
-        'macd_action': 'Bullish' if macd_val > macd_sig else 'Bearish',
-        'sma_trend': 'Bullish' if price > get('SMA_200') else 'Bearish',
         'oscillators': oscillators,
-        'moving_averages': mas
+        'moving_averages': mas,
+        'analysis': analysis
     }
 
 def get_fibonacci_levels(df):
@@ -243,12 +286,12 @@ def get_fibonacci_levels(df):
     diff = period_high - period_low
     
     return {
-        '0.0% (High)': period_high,
-        '23.6%': period_high - diff * 0.236,
-        '38.2%': period_high - diff * 0.382,
-        '50.0%': period_high - diff * 0.5,
-        '61.8%': period_high - diff * 0.618,
-        '100.0% (Low)': period_low
+        '0.0% (High)': period_high if not pd.isna(period_high) else None,
+        '23.6%': period_high - diff * 0.236 if not pd.isna(period_high) else None,
+        '38.2%': period_high - diff * 0.382 if not pd.isna(period_high) else None,
+        '50.0%': period_high - diff * 0.5 if not pd.isna(period_high) else None,
+        '61.8%': period_high - diff * 0.618 if not pd.isna(period_high) else None,
+        '100.0% (Low)': period_low if not pd.isna(period_low) else None
     }
 
 def get_support_resistance(df):

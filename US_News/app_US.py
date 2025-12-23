@@ -737,64 +737,99 @@ def search_tickers():
 
 @us_news_bp.route('/api/ta/<ticker>', methods=['GET'])
 def get_technical_analysis(ticker):
-    """Calculate and return technical analysis data"""
+    """Calculate and return technical analysis data with interval support"""
     try:
-        # Fetch 1 year of daily data
+        from flask import request
+        interval = request.args.get('interval', '1d')
+        
+        # Dynamic Period selection based on Interval (YF constraints)
+        period = "1y"
+        if interval in ['1m', '2m', '5m', '15m', '30m']:
+             period = "1mo" # Max 60d for <1h
+             if interval == '1m': period = '5d' # Max 7d for 1m
+        elif interval in ['60m', '1h']:
+             period = "2y" # Max 730d for 1h. Using 2y to be safe and rich.
+             
+        elif interval == '1wk' or interval == '1mo':
+             period = "5y"
+             
+        # Fetch data
         stock = yf.Ticker(ticker)
-        df = stock.history(period="1y")
+        df = stock.history(period=period, interval=interval)
         
         if df.empty:
             return jsonify({'error': 'No data found'}), 404
             
         # --- Calculations ---
-        
-        # --- Calculations ---
-        from .ta_utils import calculate_technical_indicators, get_fibonacci_levels, get_support_resistance, get_ta_summary
-        
-        # 1. Base Indicators
-        df = calculate_technical_indicators(df)
-
-        # 2. Fibonacci Retracement
-        fib_levels = get_fibonacci_levels(df)
-
-        # 3. Support & Resistance
-        sr_data = get_support_resistance(df)
-        supports = sr_data['supports']
-        resistances = sr_data['resistances']
-
-        # --- Prepare Response ---
-        # Data for Charting (Last 200 days approx to keep payload small)
-        chart_data = df.tail(200).reset_index()
-        chart_json = []
-        for _, row in chart_data.iterrows():
-            chart_json.append({
-                'date': row['Date'].strftime('%Y-%m-%d'),
-                'open': row['Open'],
-                'high': row['High'],
-                'low': row['Low'],
-                'close': row['Close'],
-                'volume': row['Volume'],
-                'sma50': row['SMA_50'] if not pd.isna(row['SMA_50']) else None,
-                'sma200': row['SMA_200'] if not pd.isna(row['SMA_200']) else None,
-                'macd': row['MACD'] if not pd.isna(row['MACD']) else None,
-                'signal': row['MACD_Signal'] if not pd.isna(row['MACD_Signal']) else None,
-                'hist': row['MACD_Hist'] if not pd.isna(row['MACD_Hist']) else None,
-            })
+        try:
+            from .ta_utils import calculate_technical_indicators, get_fibonacci_levels, get_support_resistance, get_ta_summary
             
-        latest = df.iloc[-1]
-        summary = get_ta_summary(df)
+            # 1. Base Indicators
+            df = calculate_technical_indicators(df)
 
-        return jsonify({
-            'chart_data': chart_json,
-            'fibonacci': fib_levels,
-            'supports': sorted(list(set([round(x, 2) for x in supports]))),
-            'resistances': sorted(list(set([round(x, 2) for x in resistances])), reverse=True),
-            'summary': summary
-        })
+            # 2. Fibonacci Retracement
+            fib_levels = get_fibonacci_levels(df)
+
+            # 3. Support & Resistance
+            sr_data = get_support_resistance(df)
+            supports = sr_data['supports']
+            resistances = sr_data['resistances']
+
+            # --- Prepare Response ---
+            # Data for Charting (Last 200 points)
+            chart_data = df.tail(200).reset_index()
+            chart_json = []
+            for _, row in chart_data.iterrows():
+                # Handle Interval Date/Time
+                date_val = row.get('Datetime', row.get('Date'))
+                if pd.isna(date_val): date_val = row.name # Fallback if index
+                
+                # Format
+                if interval in ['1d', '1wk', '1mo']:
+                    if hasattr(date_val, 'strftime'):
+                        date_str = date_val.strftime('%Y-%m-%d')
+                    else:
+                        date_str = str(date_val)
+                else:
+                     # Localize/Format for intraday
+                     date_str = str(date_val)
+
+                chart_json.append({
+                    'date': date_str,
+                    'open': row['Open'],
+                    'high': row['High'],
+                    'low': row['Low'],
+                    'close': row['Close'],
+                    'volume': row['Volume'],
+                    'sma50': row.get('SMA_50', None) if not pd.isna(row.get('SMA_50', np.nan)) else None,
+                    'sma200': row.get('SMA_200', None) if not pd.isna(row.get('SMA_200', np.nan)) else None,
+                    'macd': row.get('MACD', None) if not pd.isna(row.get('MACD', np.nan)) else None,
+                    'signal': row.get('MACD_Signal', None) if not pd.isna(row.get('MACD_Signal', np.nan)) else None,
+                    'hist': row.get('MACD_Hist', None) if not pd.isna(row.get('MACD_Hist', np.nan)) else None
+                })
+                
+            # 4. Summary & Analysis
+            summary = get_ta_summary(df)
+
+            return jsonify({
+                'ticker': ticker,
+                'interval': interval,
+                'fibonacci': fib_levels,
+                'supports': supports,
+                'resistances': resistances,
+                'chart_data': chart_json,
+                'summary': summary
+            })
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': f"Internal Calculation Error: {str(e)}"}), 500
 
     except Exception as e:
-        print(f"TA Error for {ticker}: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"TA Logic Error: {e}")
+        return jsonify({'error': f"Request Error: {str(e)}"}), 500
+
 
 def run_single(ticker, manual=False):
     """Helper to trigger single ticker processing in background"""
@@ -900,7 +935,13 @@ def get_financial_analysis(ticker):
             'debt_to_equity': info.get('debtToEquity'),
             'current_ratio': info.get('currentRatio'),
             'return_on_equity': info.get('returnOnEquity'),
-            'ticker': ticker
+            'ticker': ticker,
+            # Growth & Efficiency
+            'revenue_growth': info.get('revenueGrowth'),
+            'earnings_growth': info.get('earningsGrowth'),
+            'gross_margins': info.get('grossMargins'),
+            'return_on_assets': info.get('returnOnAssets'),
+            'operating_margins': info.get('operatingMargins')
         }
 
         # --- Professional Fair Value Calculation (Graham Number) ---
@@ -973,22 +1014,86 @@ def get_financial_analysis(ticker):
         df = calculate_technical_indicators(df)
         ta_summary = get_ta_summary(df) # {price, rsi, macd_action, sma_trend}
 
+        # Extract specific indicators from the new structured summary
+        oscillators = ta_summary.get('oscillators', [])
+        mas = ta_summary.get('moving_averages', [])
+        
+        # Helpers to find values
+        def find_val(lst, name_part):
+            for x in lst:
+                if name_part in x['name']: return x['value']
+            return None
+        
+        def find_action(lst, name_part):
+            for x in lst:
+                if name_part in x['name']: return x['action']
+            return "Neutral"
+
+        rsi_val = find_val(oscillators, 'Relative Strength Index')
+        macd_action = find_action(oscillators, 'MACD Level')
+        
+        # Simple Trend check: Price vs SMA 200
+        price = ta_summary.get('price', 0)
+        sma200_val = find_val(mas, 'Simple Moving Average (200)')
+        sma_trend = "Bullish" if price > (sma200_val or 0) else "Bearish"
+
         # 3. Generate AI Recommendation (Gemini) with Robust Key Rotation
-        # Load all available keys
-        all_keys = []
-        key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
-        for var in key_vars:
-            k = os.getenv(var)
-            if k: all_keys.append((k, var))
-            
+        
+        # --- CACHE CHECK START ---
         ai_recommendation = "AI Analysis Unavailable"
         recommendation_signal = "UNKNOWN"
-        
-        if all_keys:
-            # Shuffle for load balancing
-            random.shuffle(all_keys)
+        used_cache = False
+
+        try:
+            # Check for recent analysis in DB (valid for 24 hours)
+            # We use 'technical_signals' table which stores the last recommendation
+            cache_res = supabase.table('technical_signals').select('*').eq('ticker', ticker).execute()
             
-            prompt = f"""
+            if cache_res.data:
+                cached = cache_res.data[0]
+                last_updated = cached.get('last_updated')
+                
+                if last_updated:
+                    # Parse timestamp
+                    last_dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                    # Naive check: if naive, assume local/utc match or just check days. 
+                    # If timezone aware, compare distinct.
+                    # Simplest: Check if date is today or yesterday.
+                    # Let's use strict 24h window
+                    if last_dt.tzinfo is None:
+                        # If DB returns naive, assume it matches system time or is UTC
+                        pass 
+                    
+                    # Compare
+                    # To be safe against TZ issues, just check if it was updated "recently"
+                    # If separate date field exists, use it. Here we use last_updated iso string.
+                    # Let's just check if it's from today (local server time)
+                    cache_date = last_dt.date() if last_dt else None
+                    today_date = datetime.now().date()
+                    
+                    if cache_date == today_date:
+                        print(f"  ✓ Using Cached AI Analysis for {ticker} (from {last_updated})")
+                        ai_recommendation = cached.get('reasoning', "AI Analysis Unavailable")
+                        recommendation_signal = cached.get('recommendation', "UNKNOWN")
+                        used_cache = True
+        except Exception as e:
+            print(f"Cache Check Error: {e}")
+
+        # --- CACHE CHECK END ---
+
+        if not used_cache:
+            # Load all available keys
+            all_keys = []
+            key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
+            for var in key_vars:
+                k = os.getenv(var)
+                if k: all_keys.append((k, var))
+                
+            if all_keys:
+                # Shuffle for load balancing
+                random.shuffle(all_keys)
+                
+                prompt = f"""
             You are a Senior Financial Analyst. Analyze {ticker} based on this data:
             
             FUNDAMENTALS:
@@ -997,12 +1102,12 @@ def get_financial_analysis(ticker):
             - PEG Ratio: {fundamentals['peg_ratio']}
             - Revenue (TTM): {fundamentals['revenue_ttm']}
             - Profit Margin: {fundamentals['profit_margins']}
-            
+
             TECHNICALS:
-            - Price: {ta_summary['price']}
-            - RSI (14): {ta_summary['rsi']}
-            - MACD Action: {ta_summary['macd_action']}
-            - Trend (vs SMA200): {ta_summary['sma_trend']}
+            - Price: {price}
+            - RSI (14): {rsi_val}
+            - MACD Action: {macd_action}
+            - Trend (vs SMA200): {sma_trend}
             
             TASK:
             1. Provide a clear "BUY", "SELL", or "HOLD" signal.
@@ -1057,14 +1162,14 @@ def get_financial_analysis(ticker):
             else:
                  print(f"  ✗ Failed to generate AI analysis for {ticker} after trying all keys.")
         
-        # Upsert Signals to Supabase (technical_signals) even if AI failed (keep old or set error)
-        if ai_recommendation != "AI Analysis Unavailable":
+        # Upsert Signals to Supabase (technical_signals) ONLY IF generated new one
+        if not used_cache and ai_recommendation != "AI Analysis Unavailable":
              signal_data = {
                 'ticker': ticker,
                 'recommendation': recommendation_signal,
                 'reasoning': ai_recommendation,
-                'rsi': ta_summary['rsi'],
-                'macd_signal': ta_summary['macd_action'],
+                'rsi': rsi_val,
+                'macd_signal': macd_action,
                 'last_updated': datetime.now().isoformat()
             }
              try:

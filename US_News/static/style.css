@@ -3241,3 +3241,26 @@ body {
         gap: 24px;
     }
 }
+
+/* TA Interval Buttons */
+.ta-interval-btn {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ta-interval-btn:hover {
+    background: var(--hover);
+    color: var(--text-primary);
+}
+
+.ta-interval-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
