@@ -57,8 +57,23 @@ print(f"Initialized {len(ACTIVE_TICKERS)} tickers for processing (Top: {', '.joi
 
 IS_PROCESSING = False  # Track if news processing is running
 
+# Global Cache for Quotes
+# key: ticker, value: { 'data': dict, 'timestamp': float }
+QUOTE_CACHE = {}
+
 def fetch_quote_data(ticker):
-    """Helper to fetch real-time quote data using yfinance (incl. Pre/Post Market)"""
+    """Helper to fetch real-time quote data using yfinance (incl. Pre/Post Market) with Caching"""
+    global QUOTE_CACHE
+    
+    current_time = time.time()
+    
+    # 1. Check Cache (Valid for 60 seconds)
+    if ticker in QUOTE_CACHE:
+        cached = QUOTE_CACHE[ticker]
+        if current_time - cached['timestamp'] < 60:
+            # print(f"  [DEBUG] Served {ticker} from Cache")
+            return cached['data']
+
     try:
         # Reverted custom session: yfinance prefers handling its own session (likely curl_cffi)
         
@@ -67,6 +82,8 @@ def fetch_quote_data(ticker):
         # caching: yfinance might cache history calls, but creating a new Ticker usually avoids instance cache.
         # Yahoo API itself has 1-min delay usually.
         df = stock.history(period='1d', interval='1m', prepost=True)
+        
+        data = None
         
         if not df.empty:
             latest = df.iloc[-1]
@@ -83,32 +100,45 @@ def fetch_quote_data(ticker):
             change = last_price - prev_close if prev_close else 0
             change_percent = (change / prev_close) * 100 if prev_close else 0
             
-            return {
+            data = {
                 'ticker': ticker,
                 'price': round(last_price, 2),
                 'previous_close': round(prev_close, 2) if prev_close else None,
                 'change': round(change, 2),
                 'change_percent': round(change_percent, 2)
             }
-        
-        # Fallback to fast_info if history is empty (e.g., weekend or no data)
-        info = stock.fast_info
-        last_price = info.last_price
-        prev_close = info.previous_close
-        
-        if prev_close and prev_close > 0:
-            change = last_price - prev_close
-            change_percent = (change / prev_close) * 100
-            return {
-                'ticker': ticker,
-                'price': round(last_price, 2),
-                'previous_close': round(prev_close, 2) if prev_close else None,
-                'change': round(change, 2),
-                'change_percent': round(change_percent, 2)
+        else:
+            # Fallback to fast_info if history is empty (e.g., weekend or no data)
+            info = stock.fast_info
+            last_price = info.last_price
+            prev_close = info.previous_close
+            
+            if prev_close and prev_close > 0:
+                change = last_price - prev_close
+                change_percent = (change / prev_close) * 100
+                data = {
+                    'ticker': ticker,
+                    'price': round(last_price, 2),
+                    'previous_close': round(prev_close, 2) if prev_close else None,
+                    'change': round(change, 2),
+                    'change_percent': round(change_percent, 2)
+                }
+
+        if data:
+            # Update Cache
+            QUOTE_CACHE[ticker] = {
+                'data': data,
+                'timestamp': current_time
             }
+            return data
 
     except Exception as e:
-        print(f"Error fetching quote for {ticker}: {e}")
+        print(f"Error fetching quote for {ticker}: {str(e)}")
+        # Check if we have stale cache to return instead of failing
+        if ticker in QUOTE_CACHE:
+            print(f"  ⚠ Returning STALE cache for {ticker}")
+            return QUOTE_CACHE[ticker]['data']
+            
     return None
 
 # We will let the background thread or first request update this
