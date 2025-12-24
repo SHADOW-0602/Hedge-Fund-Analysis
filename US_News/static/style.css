@@ -3470,3 +3470,8 @@ body {
 .tab-content.active {
     display: flex;
 }
+
+/* Added gap for footer */
+.tab-content {
+    margin-bottom: 40px;
+}

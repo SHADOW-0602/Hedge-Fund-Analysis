@@ -1,5 +1,6 @@
 import os
 import time
+import queue # Added for AI Queue
 import random
 import json
 import re
@@ -14,9 +15,13 @@ import requests
 from supabase import create_client, Client
 import google.generativeai as genai
 import yfinance as yf
+import pickle
+import atexit
 
 # Global Lock for Database Operations
 DB_LOCK = threading.Lock()
+# AI Queue (Rate Limit Protection)
+AI_QUEUE = queue.Queue()
 
 # Load environment variables
 load_dotenv()
@@ -61,13 +66,202 @@ IS_PROCESSING = False  # Track if news processing is running
 # key: ticker, value: { 'data': dict, 'timestamp': float }
 QUOTE_CACHE = {}
 
+# Cache Persistence File
+CACHE_FILE = 'cache_data.pkl'
+
+# Global Cache for Fundamentals
+# key: ticker, value: { 'data': dict, 'timestamp': float }
+FUNDAMENTALS_CACHE = {}
+# Global Cache for History
+# key: ticker_period_interval, value: { 'data': dict, 'timestamp': float }
+HISTORY_CACHE = {}
+# Global Cache for Quant Analysis
+# key: ticker, value: { 'data': dict, 'timestamp': float }
+QUANT_ANALYSIS_CACHE = {}
+# Global Cache for Technical Analysis
+# key: ticker_interval, value: { 'data': dict, 'timestamp': float }
+TA_CACHE = {}
+
+# Redis Configuration
+REDIS_URL = os.getenv('UPSTASH_REDIS_REST_URL')
+REDIS_TOKEN = os.getenv('UPSTASH_REDIS_REST_TOKEN')
+
+def get_redis_data(key):
+    """Fetch JSON data from Upstash Redis via REST"""
+    if not REDIS_URL or not REDIS_TOKEN: return None
+    try:
+        headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
+        resp = requests.get(f"{REDIS_URL}/get/{key}", headers=headers, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            # Redis REST returns {"result": "json_string_or_obj"}
+            res = data.get('result')
+            if res:
+                # Upstash might return it as a string if it was stored as string
+                if isinstance(res, str):
+                    return json.loads(res)
+                return res
+    except Exception as e:
+        print(f"  ⚠ Redis Read Error ({key}): {e}")
+    return None
+
+def set_redis_data(key, data):
+    """Save JSON data to Upstash Redis via REST"""
+    if not REDIS_URL or not REDIS_TOKEN: return
+    try:
+        headers = {"Authorization": f"Bearer {REDIS_TOKEN}"}
+        # Serialize to ensure proper storage
+        value = json.dumps(data)
+        # REST command: SET key value
+        resp = requests.post(f"{REDIS_URL}/set/{key}", headers=headers, data=value, timeout=10) # Post body as data for raw
+        if resp.status_code != 200:
+             print(f"  ⚠ Redis Write Fail ({key}): {resp.text}")
+    except Exception as e:
+        print(f"  ⚠ Redis Write Error ({key}): {e}")
+
+def load_cache_from_disk():
+    """Load cached data from Redis (preferred) or Pickle (fallback)"""
+    global QUOTE_CACHE, FUNDAMENTALS_CACHE, HISTORY_CACHE, QUANT_ANALYSIS_CACHE, TA_CACHE
+    
+    # 1. Try Redis
+    if REDIS_URL and REDIS_TOKEN:
+        print("  Using Upstash Redis for Cache...")
+        try:
+            q = get_redis_data('hf:cache:quotes')
+            if q: QUOTE_CACHE.update(q)
+            
+            f = get_redis_data('hf:cache:fundamentals')
+            if f: FUNDAMENTALS_CACHE.update(f)
+            
+            # h = get_redis_data('hf:cache:history') # Skip heavy history? Or load it?
+            # History is huge, might skip for speed if needed, but per plan lets try
+            # h = get_redis_data('hf:cache:history')
+            # if h: HISTORY_CACHE.update(h)
+            
+            qa = get_redis_data('hf:cache:quant')
+            if qa: QUANT_ANALYSIS_CACHE.update(qa)
+            
+            ta = get_redis_data('hf:cache:ta')
+            if ta: TA_CACHE.update(ta)
+
+            print(f"  ✓ Redis Cache Loaded: {len(QUOTE_CACHE)} quotes, {len(FUNDAMENTALS_CACHE)} stats, {len(QUANT_ANALYSIS_CACHE)} quants, {len(TA_CACHE)} ta.")
+            return # Success
+        except Exception as e:
+            print(f"  ⚠ Redis Load Failed, falling back to disk: {e}")
+
+    # 2. Fallback to Disk
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'rb') as f:
+                data = pickle.load(f)
+                QUOTE_CACHE.update(data.get('quotes', {}))
+                FUNDAMENTALS_CACHE.update(data.get('fundamentals', {}))
+                HISTORY_CACHE.update(data.get('history', {}))
+                QUANT_ANALYSIS_CACHE.update(data.get('quant', {}))
+                TA_CACHE.update(data.get('ta', {}))
+                print(f"  ✓ Legacy Pickle Cache Loaded: {len(QUOTE_CACHE)} quotes.")
+        except Exception as e:
+            print(f"  ⚠ Failed to load cache file: {e}")
+
+def save_cache_to_disk():
+    """Save caches to Redis (primary) and Disk (backup)"""
+    # 1. Redis Save
+    if REDIS_URL and REDIS_TOKEN:
+        try:
+            # Threading this would be better for performance, but keeping simple for now
+            # Note: History cache might be too big for simple Redis strings without compression, skipping history to avoid errors/lag
+            set_redis_data('hf:cache:quotes', QUOTE_CACHE)
+            set_redis_data('hf:cache:fundamentals', FUNDAMENTALS_CACHE)
+            set_redis_data('hf:cache:quant', QUANT_ANALYSIS_CACHE)
+            set_redis_data('hf:cache:ta', TA_CACHE)
+            # print("  ✓ Redis Cache synced.")
+        except Exception as e:
+            print(f"  ⚠ Redis Save Error: {e}")
+
+    # 2. Disk Save (Backup)
+    try:
+        data = {
+            'quotes': QUOTE_CACHE,
+            'fundamentals': FUNDAMENTALS_CACHE,
+            'history': HISTORY_CACHE,
+            'quant': QUANT_ANALYSIS_CACHE,
+            'ta': TA_CACHE
+        }
+        with open(CACHE_FILE, 'wb') as f:
+            pickle.dump(data, f)
+    except Exception as e:
+        print(f"  ⚠ Failed to save local cache: {e}")
+
+
+# Load immediately on import
+load_cache_from_disk()
+
+# Register save on exit
+atexit.register(save_cache_to_disk)
+
+# List of modern User-Agents to rotate
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:124.0) Gecko/20100101 Firefox/124.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/123.0.0.0'
+]
+
+# Free Proxy List (HTTPS) - These change frequently, so external rotation is better, 
+# but this provides a rigorous "starter pack" for the user.
+# Supporting env var PROXIES as comma-separated list
+env_proxies = os.getenv('PROXIES')
+if env_proxies:
+    PROXIES = [p.strip() for p in env_proxies.split(',') if p.strip()]
+else:
+    # Public pool (examples)
+    PROXIES = [
+        # None (Direct) - Include 'None' so we sometimes use direct connection (it's faster)
+        None, None, None, 
+        # Add free proxies here if found, e.g. 'http://1.2.3.4:8080'
+    ]
+
+def get_yf_session():
+    """Create a requests session with a random User-Agent and Proxy to bypass blocks"""
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': random.choice(USER_AGENTS),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0',
+        'Referer': 'https://finance.yahoo.com/',
+        'Origin': 'https://finance.yahoo.com'
+    })
+    
+    # Proxy Selection
+    if PROXIES:
+        proxy = random.choice(PROXIES)
+        if proxy:
+            session.proxies = {
+                'http': proxy,
+                'https': proxy
+            }
+            # print(f"  [DEBUG] Using Proxy: {proxy}")
+            
+    return session
+
+
 def fetch_quote_data(ticker):
     """Helper to fetch real-time quote data using yfinance (incl. Pre/Post Market) with Caching"""
     global QUOTE_CACHE
     
     current_time = time.time()
     
-    # 1. Check Cache (Valid for 60 seconds)
+    # 1. Check Cache (Reverted to 60s for stability)
     if ticker in QUOTE_CACHE:
         cached = QUOTE_CACHE[ticker]
         if current_time - cached['timestamp'] < 60:
@@ -75,9 +269,10 @@ def fetch_quote_data(ticker):
             return cached['data']
 
     try:
-        # Reverted custom session: yfinance prefers handling its own session (likely curl_cffi)
+        # Use custom session to rotate User-Agent
+        session = get_yf_session()
+        stock = yf.Ticker(ticker, session=session)
         
-        stock = yf.Ticker(ticker)
         # fast_info often misses pre-market. Use history for latest tick.
         # caching: yfinance might cache history calls, but creating a new Ticker usually avoids instance cache.
         # Yahoo API itself has 1-min delay usually.
@@ -133,7 +328,102 @@ def fetch_quote_data(ticker):
             return data
 
     except Exception as e:
-        print(f"Error fetching quote for {ticker}: {str(e)}")
+        print(f"  ⚠ Yahoo Quote Error for {ticker}: {str(e)}")
+        
+        # --- FALLBACK 1: POLYGON.IO ---
+        poly_key = os.getenv('POLYGON_API_KEY')
+        if poly_key:
+            try:
+                # url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={poly_key}"
+                # Better: Last Trade for real-time
+                url = f"https://api.polygon.io/v2/last/trade/{ticker}?apiKey={poly_key}"
+                resp = requests.get(url, timeout=5)
+                if resp.status_code == 200:
+                    pdata = resp.json()
+                    # Polygon structure: {'results': {'P': price, ...}, ...}
+                    res = pdata.get('results', {})
+                    price = res.get('p') # price
+                    # To get change, we need prev close. 
+                    # For simplicity in fallback, we might skip change or fetch prev close separately.
+                    # Let's try fetching prev close agg if trade fails or to enrich
+                    
+                    if price:
+                         print(f"  ✓ Using Polygon.io Fallback for {ticker}")
+                         data = {
+                            'ticker': ticker,
+                            'price': round(float(price), 2),
+                            'change': 0, # Placeholder
+                            'change_percent': 0 # Placeholder
+                         }
+                         # Try getting prev close for change calculation
+                         try:
+                             prev_url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={poly_key}"
+                             prev_resp = requests.get(prev_url, timeout=3)
+                             if prev_resp.status_code == 200:
+                                 prev_res = prev_resp.json().get('results', [{}])[0]
+                                 prev_c = prev_res.get('c')
+                                 if prev_c:
+                                     data['previous_close'] = prev_c
+                                     data['change'] = round(price - prev_c, 2)
+                                     data['change_percent'] = round((data['change'] / prev_c) * 100, 2)
+                         except: pass
+                         
+                         QUOTE_CACHE[ticker] = {'data': data, 'timestamp': current_time}
+                         return data
+            except Exception as pe:
+                print(f"  ✗ Polygon Fallback Failed: {pe}")
+
+        # --- FALLBACK 2: FINNHUB ---
+        finn_key = os.getenv('FINNHUB_API_KEY')
+        if finn_key:
+            try:
+                url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={finn_key}"
+                resp = requests.get(url, timeout=5)
+                if resp.status_code == 200:
+                    fdata = resp.json()
+                    # Finnhub: c: Current, d: Change, dp: Percent, pc: Prev Close
+                    price = fdata.get('c')
+                    if price and price > 0:
+                        print(f"  ✓ Using Finnhub Fallback for {ticker}")
+                        data = {
+                            'ticker': ticker,
+                            'price': round(float(price), 2),
+                            'change': round(float(fdata.get('d', 0)), 2),
+                            'change_percent': round(float(fdata.get('dp', 0)), 2),
+                            'previous_close': round(float(fdata.get('pc', 0)), 2)
+                        }
+                        QUOTE_CACHE[ticker] = {'data': data, 'timestamp': current_time}
+                        return data
+            except Exception as fe:
+                 print(f"  ✗ Finnhub Fallback Failed: {fe}")
+
+        # --- FALLBACK 3: TWELVE DATA ---
+        twelve_key = os.getenv('TWELVE_DATA_API_KEY')
+        if twelve_key:
+            try:
+                url = f"https://api.twelvedata.com/quote?symbol={ticker}&apikey={twelve_key}"
+                resp = requests.get(url, timeout=5)
+                if resp.status_code == 200:
+                    tdata = resp.json()
+                    # TwelveData: close (or price), previous_close, change, percent_change
+                    if 'close' in tdata: # /quote endpoint returns close as current usually? checking docs.
+                        # Actually /quote returns real time.
+                        price = tdata.get('close') or tdata.get('price') # 'price' in /price endpoint, 'close' in /quote might be daily
+                        # Let's assume /quote
+                        if price:
+                             print(f"  ✓ Using TwelveData Fallback for {ticker}")
+                             data = {
+                                'ticker': ticker,
+                                'price': round(float(price), 2),
+                                'change': round(float(tdata.get('change', 0)), 2),
+                                'change_percent': round(float(tdata.get('percent_change', 0)), 2),
+                                'previous_close': round(float(tdata.get('previous_close', 0) or 0), 2)
+                             }
+                             QUOTE_CACHE[ticker] = {'data': data, 'timestamp': current_time}
+                             return data
+            except Exception as te:
+                 print(f"  ✗ TwelveData Fallback Failed: {te}")
+
         # Check if we have stale cache to return instead of failing
         if ticker in QUOTE_CACHE:
             print(f"  ⚠ Returning STALE cache for {ticker}")
@@ -172,6 +462,60 @@ def mark_daily_run():
             print(f"  ✓ Daily run for {today} already marked")
     except Exception as e:
         print(f"Error marking daily run: {e}")
+
+
+def fetch_av_data(ticker, interval):
+    """Fetch data from Alpha Vantage as fallback"""
+    api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
+    if not api_key: return pd.DataFrame()
+
+    function = 'TIME_SERIES_DAILY'
+    av_interval = None
+    
+    # Map interval to AV format
+    if interval in ['1m', '5m', '15m', '30m', '60m', '1h']:
+        function = 'TIME_SERIES_INTRADAY'
+        av_interval = interval if interval != '1h' else '60min'
+        if av_interval == '1m': av_interval = '1min'
+        if av_interval == '5m': av_interval = '5min'
+        if av_interval == '15m': av_interval = '15min'
+        if av_interval == '30m': av_interval = '30min'
+    
+    url = f"https://www.alphavantage.co/query?function={function}&symbol={ticker}&apikey={api_key}&outputsize=compact"
+    if av_interval:
+        url += f"&interval={av_interval}"
+        
+    print(f"  ⚠ Switching to Alpha Vantage for {ticker} ({interval})...")
+    try:
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        
+        # Parse keys
+        ts_key = next((k for k in data.keys() if "Time Series" in k), None)
+        if not ts_key:
+            print(f"  ✗ AV Error: {data.get('Note') or data.get('Error Message')}")
+            return pd.DataFrame()
+            
+        ts_data = data[ts_key]
+        df = pd.DataFrame.from_dict(ts_data, orient='index')
+        df = df.rename(columns={
+            '1. open': 'Open',
+            '2. high': 'High',
+            '3. low': 'Low',
+            '4. close': 'Close',
+            '5. volume': 'Volume'
+        })
+        df.index = pd.to_datetime(df.index)
+        df = df.sort_index()
+        
+        # Convert to float
+        for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+        return df, 'alpha_vantage'
+    except Exception as e:
+        print(f"  ✗ AV Fetch Failed: {e}")
+        return pd.DataFrame(), ''
 
 def fetch_news_for_ticker(ticker):
     """Fetch news from multiple sources for a given ticker"""
@@ -273,7 +617,8 @@ def fetch_news_for_ticker(ticker):
     
     # Fallback 2: Yahoo Finance (no API key needed, reliable fallback)
     try:
-        stock = yf.Ticker(ticker)
+        session = get_yf_session()
+        stock = yf.Ticker(ticker, session=session)
         news = stock.news
         
         if news:
@@ -317,7 +662,7 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
     news_text = f"Stock Ticker: {ticker}\n\n"
     sources_list = []
     
-    for idx, article in enumerate(news_articles[:15], 1):  # Increased to 15 articles for more depth
+    for idx, article in enumerate(news_articles[:8], 1):  # Reduced to 8 to avoid TPM limits
         news_text += f"{idx}. {article['title']}\n"
         news_text += f"   Source: {article['source']}\n"
         news_text += f"   {article['description']}\n\n"
@@ -329,7 +674,8 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
 
     # Fetch Sector/Industry context for dynamic persona
     try:
-        ticker_info = yf.Ticker(ticker).info
+        session = get_yf_session()
+        ticker_info = yf.Ticker(ticker, session=session).info
         sector = ticker_info.get('sector', 'General Market')
         industry = ticker_info.get('industry', 'Equities')
         # Clean up if unknown
@@ -422,94 +768,84 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
         }
     }
     
-    # Smart Key Rotation Implementation
-    # Shuffle keys to load balance distribution across requests
-    # But ensure we try ALL keys before failing
-    available_keys = list(all_keys_data) # Copy list
+    # Smart Key Rotation + Model Fallback Implementation
+    # 1. Shuffle keys
+    available_keys = list(all_keys_data)
     random.shuffle(available_keys)
     
-    for attempt, (api_key, key_name) in enumerate(available_keys):
-        # Gemini REST URL (using stable flash-latest)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
-        headers = {'Content-Type': 'application/json'}
-        
-        try:
-            # Short timeout to fail fast and rotate
-            response = requests.post(url, headers=headers, json=payload, timeout=25)
-            
-            # Debug log for response status
-            print(f"  [DEBUG] Gemini {key_name} Status: {response.status_code}")
+    # Models to try (Sequence: ONLY Flash 2.5)
+    models = ['gemini-2.5-flash']
 
-            # If rate limited (too many requests), wait and retry
-            # Gemini Free Tier is 15 RPM (1 req every 4s). If we hit this, wait 5s to clear bucket.
-            if response.status_code == 429:
-                print(f"  ⚠ Rate limited (429) on {key_name}. Waiting 5s before rotating...")
-                time.sleep(5) 
-                continue
+    for model_name in models:
+        # Try all keys with Model A, then all keys with Model B
+        for attempt, (api_key, key_name) in enumerate(available_keys):
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            headers = {'Content-Type': 'application/json'}
+            
+            try:
+                # Increased timeout to 45s to avoid premature failure on large reports
+                response = requests.post(url, headers=headers, json=payload, timeout=45)
                 
-            # If model is overloaded (503), wait and retry
-            if response.status_code == 503:
-                print(f"  ⚠ Model overloaded (503) on {key_name}. Waiting 5s before rotating...")
-                time.sleep(5)
-                continue
-            
-            # If Error (400)
-            if response.status_code == 400:
-                 print(f"  ⚠ Bad Request (400) on {key_name}: {response.text[:200]}...") # Increased info logging
-                 continue
+                # Debug log for response status
+                # print(f"  [DEBUG] Gemini {key_name} Status: {response.status_code}")
 
-            if response.status_code == 200:
-                result = response.json()
-                try:
-                    candidates = result.get('candidates', [])
-                    if not candidates:
-                        print(f"  ⚠ No candidates returned from Gemini on {key_name}. Raw: {str(result)[:100]}")
-                        continue
-                        
-                    content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-                    
-                    if not content_text:
-                        print(f"  ⚠ Empty text from Gemini on {key_name}.")
-                        continue
-
-                    # Debug log for raw content
-                    print(f"  [DEBUG] Raw Gemini Output start: {content_text[:100]}...")
-
-                    try:
-                        # Clean markdown naming
-                        clean_text = content_text.replace('```markdown', '').replace('```', '').strip()
-                        
-                        json_content = {
-                            'executive_summary': clean_text,
-                            'what_changed': '',
-                            'analyst_earnings': '',
-                            'last_week_updates': ''
-                        }
-                        # Success block continues below
-
-                    except Exception as e:
-                        print(f"  ⚠ Markdown processing error on {key_name}: {e}")
-                        continue
-
-                    print(f"  ✓ Summary generated successfully for {ticker} using {key_name}")
-                    json_content['sources'] = sources_list
-                    return json_content
-                    
-                except Exception as e:
-                    print(f"  ⚠ Analysis Error on {key_name}: {e}")
-                    import traceback
-                    traceback.print_exc()
+                # If rate limited (too many requests), wait and retry
+                # Gemini Free Tier is 15 RPM (1 req every 4s). If we hit this, wait 5s to clear bucket.
+                if response.status_code == 429:
+                    print(f"  ⚠ Quota (429) on {key_name}. Rotating...")
+                    time.sleep(2) 
                     continue
+                    
+                # If model is overloaded (503), wait and retry
+                if response.status_code == 503:
+                    print(f"  ⚠ Model Overloaded (503) on {key_name}. Rotating...")
+                    time.sleep(2)
+                    continue
+
+                if response.status_code == 200:
+                    result = response.json()
+                    candidates = result.get('candidates', [])
+                    if candidates:
+                        content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                        if content_text:
+                             print(f"  ✓ News Analysis Generated ({key_name})")
+                             
+                             # Simple cleaning
+                             clean_text = content_text.replace('```markdown', '').replace('```', '').strip()
+                             json_content = {
+                                'executive_summary': clean_text,
+                                'what_changed': '',
+                                'analyst_earnings': '',
+                                'last_week_updates': '',
+                                'sources': sources_list
+                             }
+                             return json_content
+                    
+                    print(f"  ⚠ Empty Response from {key_name}. Rotating...")
+                    continue
+                else:
+                    print(f"  ⚠ Error {response.status_code} on {key_name}. Rotating...")
+                    continue
+                    
+            except requests.exceptions.Timeout:
+                 print(f"  ⚠ Timeout on {key_name}. Rotating...")
+                 continue
+            except Exception as e:
+                print(f"  ⚠ Connection Error on {key_name}: {e}")
+                continue
         
-        except requests.exceptions.Timeout:
-             print(f"  ⚠ Timeout on {key_name}. Rotating...")
-             continue
-        except Exception as e:
-            print(f"  ⚠ Connection Error on {key_name}: {e}")
-            continue
+
 
     print(f"  ✗ FAILED to generate summary for {ticker} after trying {len(available_keys)} keys.")
-    return None
+    
+    # Return Fallback instead of None to prevent crashes
+    return {
+        'executive_summary': '<ul><li><strong>Analysis Unavailable</strong>: We are experiencing high traffic with our AI provider. Please try again later.</li></ul>',
+        'what_changed': 'N/A',
+        'analyst_earnings': 'N/A',
+        'last_week_updates': 'N/A',
+        'sources': []
+    }
             
 def store_news_and_summary(ticker, news_articles, summary_data):
     """Store news articles and AI summary in database"""
@@ -579,18 +915,20 @@ def process_single_ticker(ticker, all_keys_data):
             time.sleep(random.uniform(2.0, 4.0))
             
             summary_data = generate_ai_summary(ticker, news_articles, all_keys_data)
-            if summary_data:
+            if summary_data and "Unavailable" not in summary_data.get('executive_summary', ''):
                 store_news_and_summary(ticker, news_articles, summary_data)
             else:
-                # Fallback
-                print(f"  ⚠ AI generation failed for {ticker} (All keys exhausted), storing fallback.")
-                fallback_summary = {
-                    'executive_summary': '<ul><li>Brief analysis unavailable at this moment due to high demand.</li><li>Please try refreshing in a few seconds.</li></ul>',
-                    'what_changed': '<ul><li>Refer to news sources below.</li></ul>',
-                    'analyst_earnings': '<ul><li>N/A</li></ul>',
-                    'last_week_updates': '<ul><li>N/A</li></ul>'
-                }
-                store_news_and_summary(ticker, news_articles, fallback_summary)
+                 print(f"  ⚠ AI Unavailable/Failed. Saving fallback state to ensure timestamp update.")
+                 # Create fallback summary so user sees "Updated" and knows WHY it's empty
+                 fallback_summary = {
+                    'executive_summary': '<ul><li><strong>analysis unavailable</strong>: content generation failed due to high load.</li><li>news articles are listed below for your review.</li><li>please try refreshing again in a few minutes.</li></ul>',
+                    'what_changed': '<ul><li>n/a</li></ul>',
+                    'analyst_earnings': '<ul><li>n/a</li></ul>',
+                    'last_week_updates': '<ul><li>n/a</li></ul>'
+                 }
+                 store_news_and_summary(ticker, news_articles, fallback_summary)
+
+            return summary_data
         else:
             print(f"  - No news found for {ticker}")
             # Store empty state
@@ -601,16 +939,19 @@ def process_single_ticker(ticker, all_keys_data):
                 'last_week_updates': '<ul><li>N/A</li></ul>'
             }
             store_news_and_summary(ticker, [], empty_summary)
+            return empty_summary
     except Exception as e:
         print(f"  ✗ Error processing {ticker}: {e}")
-        # Store error state so frontend knows it failed
+        # Return error state AND store it so frontend stops polling
         error_summary = {
-            'executive_summary': f"<ul><li>Analysis failed due to a system error.</li><li>Error details: {str(e)[:100]}...</li></ul>",
+            'executive_summary': f"<ul><li>Analysis failed due to a system error.</li><li>Error details: {str(e)[:200]}...</li><li>Please try again later.</li></ul>",
             'what_changed': '<ul><li>N/A</li></ul>',
             'analyst_earnings': '<ul><li>N/A</li></ul>',
             'last_week_updates': '<ul><li>N/A</li></ul>'
         }
+        # Persist error to DB so polling clients see it
         store_news_and_summary(ticker, [], error_summary)
+        return error_summary
 
 def process_news_for_active_tickers(force=False, custom_tickers=None):
     """Process news for all active tickers in parallel
@@ -647,7 +988,7 @@ def process_news_for_active_tickers(force=False, custom_tickers=None):
         
         # Load balance across ALL available keys
         all_keys = []
-        key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
+        key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
         for var in key_vars:
             k = os.getenv(var)
             if k: all_keys.append((k, var)) # Store tuple (key, name)
@@ -696,10 +1037,13 @@ def index():
                     data = future.result()
                     if data:
                         quotes[t] = data
-                except Exception:
-                    pass
+                except Exception as exc:
+                    print(f"Index Future Error: {exc}")
     except Exception as e:
         print(f"Index Batch Quote Error: {e}")
+
+    # Persist the quotes we successfully fetched
+    save_cache_to_disk()
 
     return render_template('us_news_index.html', 
                          tickers=DISPLAY_TICKERS,  # Only show Mag 7 on frontend 
@@ -772,7 +1116,32 @@ def get_technical_analysis(ticker):
     try:
         from flask import request
         interval = request.args.get('interval', '1d')
+        cache_key = f"{ticker}_{interval}"
+        current_time = time.time()
         
+        # Check Cache Validity (Staleness: 4 hours for intraday, 12 hours for daily)
+        # UPDATED: If source is 'alpha_vantage', use 24h TTL to conserve limited requests (25/day)
+        is_stale = False
+        cached_item = TA_CACHE.get(cache_key)
+        
+        if cached_item:
+             age = current_time - cached_item['timestamp']
+             source = cached_item.get('source', 'yahoo')
+             
+             if source == 'alpha_vantage':
+                 ttl = 86400 # 24 Hours
+             else:
+                 ttl = 14400 if interval in ['1m','5m','15m','30m','60m','1h'] else 43200 
+                 
+             if age > ttl:
+                 is_stale = True
+        
+        # If cache exists and is fresh, return it
+        if cached_item and not is_stale:
+             src_label = cached_item.get('source', 'yahoo')
+             print(f"  ✓ Serving TA from Cache for {ticker} ({interval}) [Source: {src_label}]")
+             return jsonify(cached_item['data'])
+
         # Dynamic Period selection based on Interval (YF constraints)
         period = "1y"
         if interval in ['1m', '2m', '5m', '15m', '30m']:
@@ -784,14 +1153,55 @@ def get_technical_analysis(ticker):
         elif interval == '1wk' or interval == '1mo':
              period = "5y"
              
-        # Fetch data
-        stock = yf.Ticker(ticker)
-        df = stock.history(period=period, interval=interval)
+        # Fetch data with Retry Logic (handled here to be granular)
+        df = pd.DataFrame()
+        data_source = 'yahoo'
+        last_error = None
+        
+        for attempt in range(1, 4):
+            try:
+                session = get_yf_session()
+                stock = yf.Ticker(ticker, session=session)
+                df = stock.history(period=period, interval=interval)
+                
+                if df.empty:
+                     pass 
+                
+                break # Success
+            except Exception as e:
+                error_msg = str(e)
+                last_error = e
+                if "429" in error_msg or "Too Many Requests" in error_msg or "Rate Limit" in error_msg:
+                    wait = 2 ** attempt # 2, 4, 8
+                    print(f"  ⚠ TA Rate Limit (429) for {ticker}. Retrying in {wait}s...")
+                    time.sleep(wait)
+                    continue
+                else:
+                    # Non-retryable error?
+                    print(f"  ✗ TA Fetch Error attempt {attempt}: {e}")
+                    time.sleep(1) # small wait
         
         if df.empty:
+             print(f"  ⚠ Yahoo Finance failed/empty for {ticker}. Attempting Alpha Vantage Fallback...")
+             # fetch_av_data now returns tuple
+             df, src = fetch_av_data(ticker, interval)
+             if not df.empty:
+                 print(f"  ✓ Fallback to Alpha Vantage successful for {ticker}")
+                 data_source = src
+             elif last_error:
+                 print(f"  ✗ Alpha Vantage Fallback also failed.")
+                 raise last_error
+        
+                
+        # If fetch empty but we have stale cache, return stale
+        if df.empty:
+            if cached_item:
+                 print(f"  ⚠ Fetch empty, serving STALE TA Cache for {ticker}")
+                 return jsonify(cached_item['data'])
             return jsonify({'error': 'No data found'}), 404
             
         # --- Calculations ---
+        # Assume df is valid here
         try:
             from .ta_utils import calculate_technical_indicators, get_fibonacci_levels, get_support_resistance, get_ta_summary
             
@@ -842,7 +1252,7 @@ def get_technical_analysis(ticker):
             # 4. Summary & Analysis
             summary = get_ta_summary(df)
 
-            return jsonify({
+            result_json = {
                 'ticker': ticker,
                 'interval': interval,
                 'fibonacci': fib_levels,
@@ -850,7 +1260,18 @@ def get_technical_analysis(ticker):
                 'resistances': resistances,
                 'chart_data': chart_json,
                 'summary': summary
-            })
+            }
+
+            # Update Cache (Using dynamic data_source)
+            TA_CACHE[cache_key] = {
+                'data': result_json,
+                'timestamp': current_time,
+                'source': data_source
+            }
+            # Save to disk async or immediately? Immediate for safety against restart storms
+            save_cache_to_disk()
+
+            return jsonify(result_json)
 
         except Exception as e:
             import traceback
@@ -858,15 +1279,56 @@ def get_technical_analysis(ticker):
             return jsonify({'error': f"Internal Calculation Error: {str(e)}"}), 500
 
     except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "Rate Limit" in error_msg or "Too Many Requests" in error_msg:
+             print(f"TA Rate Limit Error: {e}")
+             # Cache Fallback
+             cache_key = f"{ticker}_{request.args.get('interval', '1d')}"
+             cached_item = TA_CACHE.get(cache_key)
+             if cached_item:
+                  print(f"  ⚠ Rate Limit hit, serving STALE TA Cache for {ticker}")
+                  return jsonify(cached_item['data'])
+                  
+             return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
+        
         print(f"TA Logic Error: {e}")
         return jsonify({'error': f"Request Error: {str(e)}"}), 500
 
 
+def ai_queue_worker():
+    """Background worker to process AI requests sequentially with rate limiting"""
+    print("AI Queue Worker Started...")
+    while True:
+        try:
+            # Get next task
+            task = AI_QUEUE.get()
+            ticker, keys = task
+            
+            print(f"  [QUEUE] Processing {ticker} (Queue Size: {AI_QUEUE.qsize()})")
+            
+            # Process
+            try:
+                process_single_ticker(ticker, keys)
+            except Exception as e:
+                print(f"  [QUEUE] Error processing {ticker}: {e}")
+            
+            # Rate Limit Delay (Prevent 429s)
+            # 5 seconds = 12 requests per minute (Safe for Gemini Free Tier limit of 15 RPM)
+            time.sleep(5) 
+            
+            AI_QUEUE.task_done()
+        except Exception as e:
+            print(f"AI Worker Error: {e}")
+            time.sleep(1)
+
+# Start Queue Worker
+threading.Thread(target=ai_queue_worker, daemon=True).start()
+
 def run_single(ticker, manual=False):
-    """Helper to trigger single ticker processing in background"""
-    # Load balance across ALL available Gemini keys
+    """Trigger background analysis via Safe Queue"""
+    # Load Keys (Dynamically to pick up environment changes if valid)
     all_keys = []
-    key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
+    key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
     for var in key_vars:
         k = os.getenv(var)
         if k: all_keys.append((k, var))
@@ -875,13 +1337,11 @@ def run_single(ticker, manual=False):
         print("CRITICAL: No Gemini API keys found!")
         return "No keys"
 
-    # Run in background to avoid timeout
-    def worker():
-        process_single_ticker(ticker, all_keys)
-        
-    thread = threading.Thread(target=worker)
-    thread.start()
-    return "Background process started"
+    # Push to Queue instead of spawning uncapped threads
+    print(f"  [QUEUE] Adding {ticker} to AI Queue")
+    AI_QUEUE.put((ticker, all_keys))
+    
+    return f"Added {ticker} to AI Queue"
 
 @us_news_bp.route('/api/generate/<ticker>', methods=['POST', 'GET'], strict_slashes=False)
 def generate_ticker_summary(ticker):
@@ -897,20 +1357,14 @@ def generate_ticker_summary(ticker):
         
         # Load Keys
         all_keys = []
-        key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
+        key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
         for var in key_vars:
             k = os.getenv(var)
             if k: all_keys.append((k, var))
             
-        success = process_single_ticker(ticker, all_keys)
-        if success:
-            # Fetch updated data from DB
-            try:
-                result = supabase.table('ticker_summaries').select('*').eq('ticker', ticker).execute()
-                if result.data:
-                    return jsonify(result.data[0])
-            except Exception as e:
-                return jsonify({'error': str(e)}), 500
+        result_data = process_single_ticker(ticker, all_keys)
+        if result_data:
+             return jsonify(result_data)
         else:
              return jsonify({'error': 'Failed to generate summary'}), 500
     
@@ -934,21 +1388,37 @@ def generate_ticker_summary(ticker):
             pass
 
         msg = run_single(ticker)
-        return jsonify({'status': 'triggered', 'message': msg})
+        # Return target date (today) so frontend knows what to wait for
+        target_date = date.today().isoformat()
+        return jsonify({'status': 'triggered', 'message': msg, 'target_date': target_date})
 
     return jsonify({'status': 'method_not_allowed'}), 405
+
+
 
 @us_news_bp.route('/api/financials/<ticker>', methods=['GET'])
 def get_financial_analysis(ticker):
     """
     Fetch fundamental data + Generate AI Recommendation (Gemini).
+    Includes Caching to prevent 429 Rate Limits.
     """
+    global FUNDAMENTALS_CACHE
+    
+    # 1. Check Cache (Valid for 1 hour)
+    current_time = time.time()
+    if ticker in FUNDAMENTALS_CACHE:
+        cached = FUNDAMENTALS_CACHE[ticker]
+        if current_time - cached['timestamp'] < 3600:
+             print(f"  [DEBUG] Served Fundamentals for {ticker} from Cache")
+             return jsonify(cached['data'])
+
     print(f"DEBUG: Analyzing Financials for {ticker}")
     try:
         # 1. Fetch Fundamentals (yfinance)
-        stock = yf.Ticker(ticker)
+        session = get_yf_session()
+        stock = yf.Ticker(ticker, session=session)
         info = stock.info
-        
+
         fundamentals = {
             'market_cap': info.get('marketCap'),
             'pe_ratio': info.get('trailingPE'),
@@ -974,6 +1444,68 @@ def get_financial_analysis(ticker):
             'return_on_assets': info.get('returnOnAssets'),
             'operating_margins': info.get('operatingMargins')
         }
+    except Exception as e:
+        print(f"  ⚠ Yahoo Fundamentals Error for {ticker}: {e}")
+        
+        # --- FINNHUB FALLBACK ---
+        finn_key = os.getenv('FINNHUB_API_KEY')
+        fundamentals = None
+        
+        if finn_key:
+            try:
+                print(f"  Attempting Finnhub Fallback for {ticker} (Fundamentals)...")
+                f_url = f"https://finnhub.io/api/v1/stock/metric?symbol={ticker}&metric=all&token={finn_key}"
+                resp = requests.get(f_url, timeout=10)
+                if resp.status_code == 200:
+                    fdata = resp.json()
+                    metric = fdata.get('metric', {})
+                    
+                    if metric:
+                        print(f"  ✓ Finnhub Fundamentals Success")
+                        # Map Finnhub metrics to our schema
+                        # Finnhub keys are weird strings like 'peBasicExclExtraTTM'
+                        
+                        fundamentals = {
+                            'market_cap': metric.get('marketCapitalization', 0) * 1000000 if metric.get('marketCapitalization') else None, # Finnhub is likely in Millions
+                            'pe_ratio': metric.get('peTTM'),
+                            'peg_ratio': None, # Need specific calc or search
+                            'revenue_ttm': metric.get('revenueTTM'), 
+                            'net_income_ttm': None, # Hard to find exact match sometimes
+                            'eps': metric.get('epsTTM'),
+                            'beta': metric.get('beta'),
+                            'dividend_yield': (metric.get('dividendYieldIndicatedAnnual', 0) or 0) / 100, # Percent -> decimal
+                            'profit_margins': (metric.get('netProfitMarginTTM', 0) or 0) / 100,
+                            'operating_margins': (metric.get('operatingMarginTTM', 0) or 0) / 100,
+                            # Extended
+                            'book_value': metric.get('bookValuePerShareAnnual'),
+                            'price_to_book': metric.get('pbAnnual'),
+                            'debt_to_equity': metric.get('totalDebt/totalEquityAnnual'),
+                            'current_ratio': metric.get('currentRatioAnnual'),
+                            'return_on_equity': (metric.get('roeTTM', 0) or 0) / 100,
+                            'ticker': ticker,
+                            # Growth
+                            'revenue_growth': (metric.get('revenueGrowthTTMYoy', 0) or 0) / 100,
+                            'earnings_growth': (metric.get('epsGrowthTTMYoy', 0) or 0) / 100,
+                            'gross_margins': (metric.get('grossMarginTTM', 0) or 0) / 100,
+                            'return_on_assets': (metric.get('roaTTM', 0) or 0) / 100
+                        }
+            except Exception as fe:
+                print(f"  ✗ Finnhub Fundamentals Failed: {fe}")
+        
+        if not fundamentals:
+            # Check for stale cache
+             if ticker in FUNDAMENTALS_CACHE:
+                 print(f"  ⚠ Returning STALE Fundamentals cache for {ticker}")
+                 return jsonify(FUNDAMENTALS_CACHE[ticker]['data'])
+             
+             # Return error if really nothing
+             err_msg = str(e)
+             if "Too Many Requests" in err_msg or "429" in err_msg:
+                 return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
+             return jsonify({'error': 'Fundamentals unavailable'}), 500
+
+    # Continue with AI Analysis...
+    try:
 
         # --- Professional Fair Value Calculation (Graham Number) ---
         # Graham Number = Sqrt(22.5 * EPS * Book Value Per Share)
@@ -1157,18 +1689,8 @@ def get_financial_analysis(ticker):
         # --- CACHE CHECK END ---
 
         if not used_cache:
-            # Load all available keys
-            all_keys = []
-            key_vars = ['GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
-            for var in key_vars:
-                k = os.getenv(var)
-                if k: all_keys.append((k, var))
-                
-            if all_keys:
-                # Shuffle for load balancing
-                random.shuffle(all_keys)
-                
-                prompt = f"""
+            # 1. Construct Prompt First (Needed for both)
+            prompt = f"""
             You are a Senior Financial Analyst. Analyze {ticker} based on this data:
             
             FUNDAMENTALS:
@@ -1193,49 +1715,101 @@ def get_financial_analysis(ticker):
             Reasoning: [Paragraph]
             """
 
-            # Gemini REST API Payload
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.3
-                }
-            }
-            
-            # Retry Loop
-            for attempt, (api_key, key_name) in enumerate(all_keys):
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
-                headers = {'Content-Type': 'application/json'}
-                
+            # 2. Try Groq (Llama 3.3) Priority
+            groq_key = os.getenv('GROQ_API_KEY')
+            groq_success = False
+
+            if groq_key:
                 try:
-                    # Short timeout for fast failover
-                    response = requests.post(url, headers=headers, json=payload, timeout=10)
+                    # print(f"DEBUG: Attempting Groq Financial Analysis for {ticker}...")
+                    groq_url = "https://api.groq.com/openai/v1/chat/completions"
+                    groq_headers = {
+                        "Authorization": f"Bearer {groq_key}",
+                        "Content-Type": "application/json"
+                    }
+                    groq_payload = {
+                        "model": "llama-3.3-70b-versatile",
+                        "messages": [
+                            {"role": "system", "content": "You are a senior financial analyst."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": 0.3
+                    }
                     
-                    if response.status_code == 200:
-                        result = response.json()
-                        candidates = result.get('candidates', [])
-                        if candidates:
-                            content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-                            if content_text:
-                                ai_recommendation = content_text
-                                # Parse Signal
-                                signal_match = re.search(r'Signal:\s*(BUY|SELL|HOLD)', content_text, re.IGNORECASE)
-                                recommendation_signal = signal_match.group(1).upper() if signal_match else "NEUTRAL"
-                                print(f"  ✓ Valid AI analysis generated for {ticker} using {key_name}")
-                                break # Success
+                    resp = requests.post(groq_url, headers=groq_headers, json=groq_payload, timeout=45)
                     
-                    elif response.status_code == 429:
-                        print(f"  ⚠ Rate Limit (429) on {key_name}. Rotating...")
-                        time.sleep(1)
-                        continue
+                    if resp.status_code == 200:
+                        g_data = resp.json()
+                        content_text = g_data['choices'][0]['message']['content']
+                        if content_text:
+                            ai_recommendation = content_text
+                            # Parse Signal
+                            signal_match = re.search(r'Signal:\s*(BUY|SELL|HOLD)', content_text, re.IGNORECASE)
+                            recommendation_signal = signal_match.group(1).upper() if signal_match else "NEUTRAL"
+                            print(f"  ✓ Valid Groq Financial Analysis for {ticker}")
+                            groq_success = True
                     else:
-                        print(f"  ⚠ AI Error {response.status_code} on {key_name}: {response.text[:100]}")
-                        continue
-                        
+                        print(f"  ⚠ Groq Financial Error: {resp.status_code}")
                 except Exception as e:
-                    print(f"  ⚠ Connection Error on {key_name}: {e}")
-                    continue
-            else:
-                 print(f"  ✗ Failed to generate AI analysis for {ticker} after trying all keys.")
+                    print(f"  ⚠ Groq Connection Error: {e}")
+
+            # 3. Gemini Fallback
+            if not groq_success:
+                # Load all available keys
+                all_keys = []
+                key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
+                for var in key_vars:
+                    k = os.getenv(var)
+                    if k: all_keys.append((k, var))
+                    
+                if all_keys:
+                    # Shuffle for load balancing
+                    random.shuffle(all_keys)
+                    
+                    # Gemini REST API Payload
+                    payload = {
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "temperature": 0.3
+                        }
+                    }
+                
+                    # Retry Loop (Only if keys exist and Groq failed)
+                    for attempt, (api_key, key_name) in enumerate(all_keys):
+                        # UPDATED: Use 'gemini-2.5-flash' for all analysis
+                        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+                        headers = {'Content-Type': 'application/json'}
+                        
+                        try:
+                            # Increased timeout to 45s to match News Analysis
+                            response = requests.post(url, headers=headers, json=payload, timeout=45)
+                            
+                            if response.status_code == 200:
+                                result = response.json()
+                                candidates = result.get('candidates', [])
+                                if candidates:
+                                    content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                                    if content_text:
+                                        ai_recommendation = content_text
+                                        # Parse Signal
+                                        signal_match = re.search(r'Signal:\s*(BUY|SELL|HOLD)', content_text, re.IGNORECASE)
+                                        recommendation_signal = signal_match.group(1).upper() if signal_match else "NEUTRAL"
+                                        print(f"  ✓ Valid AI analysis generated for {ticker} using {key_name}")
+                                        break # Success
+                            
+                            elif response.status_code == 429:
+                                print(f"  ⚠ Rate Limit (429) on {key_name}. Rotating...")
+                                time.sleep(1)
+                                continue
+                            else:
+                                print(f"  ⚠ AI Error {response.status_code} on {key_name}: {response.text[:100]}")
+                                continue
+                                
+                        except Exception as e:
+                            print(f"  ⚠ Connection Error on {key_name}: {e}")
+                            continue
+                    else:
+                         print(f"  ✗ Failed to generate AI analysis for {ticker} after trying all keys.")
         
         # Upsert Signals to Supabase (technical_signals) ONLY IF generated new one
         if not used_cache and ai_recommendation != "AI Analysis Unavailable":
@@ -1252,14 +1826,38 @@ def get_financial_analysis(ticker):
              except Exception as e:
                 print(f"DB Error (Signals): {e}")
 
-        return jsonify({
+        response_data = {
             'fundamentals': fundamentals,
             'technicals': ta_summary,
             'ai_analysis': ai_recommendation
-        })
+        }
+
+        # Update Cache
+        # Only cache if AI Analysis was successful (to prevent "Unavailable" from sticking)
+        if ai_recommendation != "AI Analysis Unavailable":
+            FUNDAMENTALS_CACHE[ticker] = {
+                'data': response_data,
+                'timestamp': current_time
+            }
+            # Persist immediately for heavy data
+            save_cache_to_disk()
+        else:
+            print(f"  ⚠ Skipping FUNDAMENTALS cache update for {ticker} (AI Analysis Unavailable)")
+
+        return jsonify(response_data)
 
     except Exception as e:
          print(f"Financials Error: {e}")
+         
+         # Fallback to Stale Cache
+         if ticker in FUNDAMENTALS_CACHE:
+             print(f"  ⚠ Returning STALE Fundamentals cache for {ticker}")
+             return jsonify(FUNDAMENTALS_CACHE[ticker]['data'])
+             
+         err_msg = str(e)
+         if "Too Many Requests" in err_msg or "429" in err_msg:
+             return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
+
          return jsonify({'error': str(e)}), 500
     # Check auth
 
@@ -1281,9 +1879,20 @@ def get_ticker_quote(ticker):
 def get_summary(ticker):
     """Get AI summary for a specific ticker (Latest available)"""
     try:
-        # Fetch the MOST RECENT summary, regardless of date
+        # Check for min_date constraint (from frontend refresh)
+        from flask import request
+        min_date_str = request.args.get('min_date')
+        
+        query = supabase.table('ticker_summaries').select('*').eq('ticker', ticker)
+        
+        if min_date_str:
+            # If min_date provided, strict filtering
+            query = query.gte('summary_date', min_date_str)
+            
         try:
-            result = supabase.table('ticker_summaries').select('*').eq('ticker', ticker).order('summary_date', desc=True).limit(1).execute()
+            # Order by created_at if possible for precision, fallback to summary_date
+            # We fetch 5 candidates to skip over recent "Unavailable" failures
+            result = query.order('created_at', desc=True).limit(5).execute()
         except Exception as db_err:
             print(f"Supabase Read Error for {ticker}: {db_err}")
             # Identify if this is a Cloudflare/Connection issue
@@ -1292,7 +1901,19 @@ def get_summary(ticker):
             return jsonify({'status': 'not_found', 'message': 'Database unavailable'}), 200
 
         if result.data:
-            summary = result.data[0]
+            # Smart Selection: Find first summary that isn't "Unavailable"
+            summary = result.data[0] # Default to latest
+            
+            for candidate in result.data:
+                exec_sum = candidate.get('executive_summary', '')
+                if "Unavailable" not in exec_sum and "Analysis failed" not in exec_sum:
+                    summary = candidate
+                    # If we found a valid one that isn't the latest, detailed logs
+                    if candidate != result.data[0]:
+                        print(f"  ✓ Skipped 'Unavailable' summary for {ticker}, showing valid one from {candidate.get('summary_date')}")
+                    break
+            
+            # If all are unavailable, we will return the latest (which is the fail state), which is correct behavior if nothing exists.
             
             # Get sources from news table linked to this summary date (or just latest)
             try:
@@ -1335,68 +1956,194 @@ def get_tickers():
     """Get list of active tickers"""
     return jsonify({'tickers': DISPLAY_TICKERS})
 
+
+
 @us_news_bp.route('/api/history/<ticker>', methods=['GET'])
 def get_history(ticker):
     """Fetch historical data for the interactive chart"""
+    global HISTORY_CACHE
     from flask import request
     period = request.args.get('period', '1y')
     interval = request.args.get('interval', '1d')
     
+    # 1. Check Cache
+    cache_key = f"{ticker}_{period}_{interval}"
+    current_time = time.time()
+    
+    # Cache duration: 1 hour for daily data, 5 mins for intraday
+    cache_duration = 3600 if interval in ['1d', '1wk', '1mo'] else 300
+    
+    if cache_key in HISTORY_CACHE:
+        cached = HISTORY_CACHE[cache_key]
+        if current_time - cached['timestamp'] < cache_duration:
+             # print(f"  [DEBUG] Served History for {ticker} from Cache")
+             data = cached['data']
+             # Format Fix: If old cache is list, wrap it
+             if isinstance(data, list):
+                 return jsonify({'data': data})
+             return jsonify(data)
+    
     try:
-        stock = yf.Ticker(ticker)
+        session = get_yf_session()
+        stock = yf.Ticker(ticker, session=session)
         df = stock.history(period=period, interval=interval)
         
+        # --- FALLBACK LOGIC START ---
         if df.empty:
-             return jsonify({'error': 'No history found'}), 404
-             
-        # Format for Lightweight Charts
-        data = []
-        df = df.reset_index()
-        
-        for _, row in df.iterrows():
-            # Handle timestamps vs date strings
-            col_name = 'Datetime' if 'Datetime' in df.columns else 'Date'
-            d = row[col_name]
-            
-            # For daily data, Lightweight Charts expects 'YYYY-MM-DD' string format
-            # For intraday, it expects Unix timestamp (seconds)
-            if interval in ['1m', '2m', '5m', '15m', '30m', '60m', '1h']:
-                # Intraday: Unix timestamp
-                time_val = int(d.timestamp())
-            else:
-                # Daily: Convert to YYYY-MM-DD string
-                # Handle timezone-aware datetime - convert to date only (no time component)
-                if hasattr(d, 'date'):
-                    # Get just the date part, ignoring timezone
-                    time_val = d.date().strftime('%Y-%m-%d')
-                elif hasattr(d, 'strftime'):
-                    # Pandas Timestamp - extract date
-                    time_val = d.strftime('%Y-%m-%d')
-                else:
-                    # Fallback for string dates
-                    time_val = str(d)[:10]
-
-            data.append({
-                'time': time_val,
-                'open': float(row['Open']),
-                'high': float(row['High']),
-                'low': float(row['Low']),
-                'close': float(row['Close']),
-                'volume': int(row['Volume'])
-            })
-            
-        return jsonify({'data': data})
+             print(f"  ⚠ Yahoo History Empty for {ticker}, trying Fallback...")
+             raise Exception("Empty Yahoo Data")
+        # --- FALLBACK LOGIC END ---
 
     except Exception as e:
-        print(f"History Error for {ticker}: {e}")
-        return jsonify({'error': str(e)}), 500
+         print(f"  ⚠ Yahoo History Error: {e}")
+         
+         # --- POLYGON FALLBACK ---
+         poly_key = os.getenv('POLYGON_API_KEY')
+         if poly_key:
+             try:
+                 print(f"  Attempting Polygon Fallback for {ticker} (History)...")
+                 # Map YF periods/intervals to Polygon query
+                 
+                 today_str = datetime.now().strftime('%Y-%m-%d')
+                 start_dt = datetime.now() - timedelta(days=365) # Default 1y
+                 
+                 # Rough mapping request.args -> dates
+                 if period == '1mo': start_dt = datetime.now() - timedelta(days=30)
+                 elif period == '3mo': start_dt = datetime.now() - timedelta(days=90)
+                 elif period == '6mo': start_dt = datetime.now() - timedelta(days=180)
+                 elif period == '1y': start_dt = datetime.now() - timedelta(days=365)
+                 elif period == '2y': start_dt = datetime.now() - timedelta(days=730)
+                 elif period == '5y': start_dt = datetime.now() - timedelta(days=1825)
+                 elif period == 'max': start_dt = datetime.now() - timedelta(days=365*10)
+                 
+                 from_date = start_dt.strftime('%Y-%m-%d')
+                 
+                 # Map interval
+                 multiplier = 1
+                 timespan = 'day'
+                 if interval == '1d': timespan = 'day'
+                 elif interval == '1wk': timespan = 'week'
+                 elif interval == '1mo': timespan = 'month'
+                 elif interval == '1h': timespan = 'hour'; multiplier = 1
+                 elif interval == '60m': timespan = 'minute'; multiplier = 60
+                 elif interval == '30m': timespan = 'minute'; multiplier = 30
+                 elif interval == '15m': timespan = 'minute'; multiplier = 15
+                 elif interval == '5m': timespan = 'minute'; multiplier = 5
+                 elif interval == '2m': timespan = 'minute'; multiplier = 2
+                 elif interval == '1m': timespan = 'minute'; multiplier = 1
+                 
+                 p_url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{from_date}/{today_str}?adjusted=true&sort=asc&limit=50000&apiKey={poly_key}"
+                 
+                 resp = requests.get(p_url, timeout=10)
+                 if resp.status_code == 200:
+                     pdata = resp.json()
+                     results = pdata.get('results', [])
+                     
+                     if results:
+                         print(f"  ✓ Polygon History Success: {len(results)} candles")
+                         formatted_data = []
+                         # Polygon: t (unix ms), o, h, l, c, v
+                         for r in results:
+                             ts_sec = r['t'] / 1000
+                             
+                             if interval in ['1d', '1wk', '1mo']:
+                                 # Convert to YYYY-MM-DD
+                                 t_val = datetime.fromtimestamp(ts_sec).strftime('%Y-%m-%d')
+                             else:
+                                 # Intraday
+                                 t_val = int(ts_sec)
+                                 
+                             formatted_data.append({
+                                 'time': t_val,
+                                 'open': r['o'],
+                                 'high': r['h'],
+                                 'low': r['l'],
+                                 'close': r['c'],
+                                 'volume': r['v']
+                             })
+                         
+                         # Update Cache (Polygon data is good)
+                         HISTORY_CACHE[cache_key] = {
+                             'data': {'data': formatted_data},
+                             'timestamp': current_time
+                         }
+                         return jsonify({'data': formatted_data})
+             except Exception as pe:
+                 print(f"  ✗ Polygon History Error: {pe}")
+
+         # If Fallback fails or no key, check Stale Cache
+         if cache_key in HISTORY_CACHE:
+             print(f"  ⚠ Returning STALE History cache for {ticker}")
+             # Cache stores {'data': {'data': [...]}} structure now to match
+             val = HISTORY_CACHE[cache_key]['data']
+             # If old cache (before fix) was list, handle it?
+             if isinstance(val, list): return jsonify({'data': val})
+             return jsonify(val)
+
+         err_msg = str(e)
+         if "Too Many Requests" in err_msg or "429" in err_msg:
+             return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
+         return jsonify({'error': 'History unavailable'}), 500
+
+    # Success Path (Yahoo)
+    if df.empty:
+         return jsonify({'error': 'No history found'}), 404
+         
+    # Format for Lightweight Charts
+    data = []
+    df = df.reset_index()
+    
+    for _, row in df.iterrows():
+        # Handle timestamps vs date strings
+        col_name = 'Datetime' if 'Datetime' in df.columns else 'Date'
+        d = row[col_name]
+        
+        # For daily data, Lightweight Charts expects 'YYYY-MM-DD' string format
+        # For intraday, it expects Unix timestamp (seconds)
+        if interval in ['1m', '2m', '5m', '15m', '30m', '60m', '1h']:
+            # Intraday: Unix timestamp
+            time_val = int(d.timestamp())
+        else:
+            # Daily: Convert to YYYY-MM-DD string
+            # Handle timezone-aware datetime - convert to date only (no time component)
+            if hasattr(d, 'date'):
+                # Get just the date part, ignoring timezone
+                time_val = d.date().strftime('%Y-%m-%d')
+            elif hasattr(d, 'strftime'):
+                # Pandas Timestamp - extract date
+                time_val = d.strftime('%Y-%m-%d')
+            else:
+                # Fallback for string dates
+                time_val = str(d)[:10]
+        
+        data.append({
+            'time': time_val,
+            'open': float(row['Open']),
+            'high': float(row['High']),
+            'low': float(row['Low']),
+            'close': float(row['Close']),
+            'volume': int(row['Volume'])
+        })
+
+    result_struct = {'data': data}
+    HISTORY_CACHE[cache_key] = {
+        'data': result_struct,
+        'timestamp': current_time
+    }
+    # Persist
+    save_cache_to_disk()
+
+    return jsonify(result_struct)
 
 @us_news_bp.route('/api/latest-price/<ticker>', methods=['GET'])
 def get_latest_price(ticker):
     """Fetch latest price for real-time chart updates"""
     try:
-        stock = yf.Ticker(ticker)
-        # Get today's 1-minute data for most recent price
+        # Use robust session with rotation/proxies
+        session = get_yf_session()
+        stock = yf.Ticker(ticker, session=session)
+        
+        # Get today's 1-minute data 
         df = stock.history(period='1d', interval='1m')
         
         if df.empty:
@@ -1407,6 +2154,13 @@ def get_latest_price(ticker):
         latest = df.iloc[-1]
         d = latest['Datetime'] if 'Datetime' in df.columns else latest['Date']
         
+        # Try to get previous close safely
+        prev_close = None
+        try:
+            prev_close = stock.fast_info.previous_close
+        except:
+            pass
+            
         return jsonify({
             'time': int(d.timestamp()),  # Unix timestamp for intraday
             'open': float(latest['Open']),
@@ -1414,10 +2168,15 @@ def get_latest_price(ticker):
             'low': float(latest['Low']),
             'close': float(latest['Close']),
             'volume': int(latest['Volume']),
-            'previous_close': stock.info.get('previousClose') or stock.fast_info.previous_close
+            'previous_close': prev_close
         })
         
     except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "Rate Limit" in error_msg or "Too Many Requests" in error_msg:
+             print(f"Price Poll Rate Limit Error for {ticker}: {e}")
+             return jsonify({'error': 'Rate limited by data provider.'}), 429
+             
         print(f"Latest Price Error for {ticker}: {e}")
         return jsonify({'error': str(e)}), 500
 @us_news_bp.route('/api/quant-analysis/<ticker>', methods=['GET'])
@@ -1441,8 +2200,10 @@ def get_quant_analysis(ticker):
             cached_entry = QUANT_ANALYSIS_CACHE[ticker]
             # Check if cache is within 1 hour (3600 seconds)
             if (current_time - cached_entry['timestamp']) < 3600:
-                print(f"  ✓ Serving Quant Analysis for {ticker} from Cache")
+                print(f"  ✓ Serving Quant Analysis for {ticker} from Cache (< 1h old)")
                 return jsonify(cached_entry['data'])
+            else:
+                print(f"  ↻ Cache expired for {ticker} (> 1h). Regenerating...")
         
         if force_refresh:
             print(f"  ↻ Force Refreshing Quant Analysis for {ticker}")
@@ -1450,7 +2211,8 @@ def get_quant_analysis(ticker):
         from .ta_utils import calculate_technical_indicators, prepare_df_for_llm
         
         # 1. Fetch Data (1h and 1d)
-        stock = yf.Ticker(ticker)
+        session = get_yf_session()
+        stock = yf.Ticker(ticker, session=session)
         
         # 1h Data (Requires 2y for valid SMA-200 if possible, or at least enough for logic)
         df_1h = stock.history(period="2y", interval="1h")
@@ -1465,9 +2227,9 @@ def get_quant_analysis(ticker):
         df_1d = calculate_technical_indicators(df_1d)
         
         # 3. Serialize Data for Prompt
-        # Limit to last 100 rows to fit context window comfortably while giving trend history
-        data_1h_str = prepare_df_for_llm(df_1h, last_n=100)
-        data_1d_str = prepare_df_for_llm(df_1d, last_n=100)
+        # Limit to last 45 rows (was 100) to avoid Groq 413 Payload Too Large / Token Limits
+        data_1h_str = prepare_df_for_llm(df_1h, last_n=45)
+        data_1d_str = prepare_df_for_llm(df_1d, last_n=45)
         
         # 4. Construct Prompt 1 (The Expert Quant)
         prompt_1 = f"""
@@ -1494,19 +2256,24 @@ def get_quant_analysis(ticker):
         # We'll stick to a simple synchronous call using one of the available keys for responsiveness.
         # Or better, iterate keys like `process_single_ticker` does.
         
-        # 5. Execute AI Analysis (Exclusive Keys: 6 & CHECKER, Randomized)
+        # 5. Execute AI Analysis (Prioritize CHECKER for 2.5-flash)
         api_keys = [
-            os.getenv('GEMINI_API_KEY_6'),
             os.getenv('GEMINI_API_CHECKER')
         ]
+        # Allow fallback to Key 6 if needed, or keep exclusive if user wants specific model behavior
+        # Adding Key 6 as backup but usually Checker is robust
+        if os.getenv('GEMINI_API_KEY_6'):
+            api_keys.append(os.getenv('GEMINI_API_KEY_6'))
+
         # Filter None
         api_keys = [k for k in api_keys if k]
         
-        # Randomize order to load balance between the two
-        random.shuffle(api_keys)
+        # Randomize order? No, user explicitly requested "use this".
+        # We will try CHECKER first (preserved order)
+        # random.shuffle(api_keys) 
         
         if not api_keys:
-             print("Error: No AI keys (6 or CHECKER) found.")
+             print("Error: No AI keys (CHECKER or 6) found.")
              last_error = "No API Keys found in environment"
         
         # Debug: Print loaded keys count
@@ -1551,7 +2318,44 @@ def get_quant_analysis(ticker):
         """
 
         # Try AI Generation
-        if api_keys:
+        # 1. Try Groq (Llama 3.3) First
+        groq_key = os.getenv('GROQ_API_KEY')
+        groq_success = False
+        
+        if groq_key:
+            try:
+                print(f"DEBUG: Attempting Groq Analysis for {ticker}...")
+                groq_url = "https://api.groq.com/openai/v1/chat/completions"
+                groq_headers = {
+                    "Authorization": f"Bearer {groq_key}",
+                    "Content-Type": "application/json"
+                }
+                groq_payload = {
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": "You are an expert quantitative trader."},
+                        {"role": "user", "content": combined_prompt}
+                    ],
+                    "temperature": 0.3
+                }
+                
+                resp = requests.post(groq_url, headers=groq_headers, json=groq_payload, timeout=45)
+                
+                if resp.status_code == 200:
+                    g_data = resp.json()
+                    content_text = g_data['choices'][0]['message']['content']
+                    if content_text:
+                        summary_final = content_text
+                        analysis_raw = "Generated via Groq (llama-3.3-70b)"
+                        groq_success = True
+                        print(f"  ✓ Groq Analysis Successful for {ticker}")
+                else:
+                    print(f"  ⚠ Groq Error: {resp.status_code} - {resp.text[:100]}")
+            except Exception as e:
+                print(f"  ⚠ Groq Connection Error: {e}")
+
+        # 2. Fallback to Gemini if Groq failed/missing
+        if not groq_success and api_keys:
             # requests is imported at top level
             
             payload = {
@@ -1563,7 +2367,7 @@ def get_quant_analysis(ticker):
 
             for i, key in enumerate(api_keys):
                 try:
-                    # UPDATED: Use newer 'gemini-2.5-flash' model ID
+                    # UPDATED: Users requested 2.5-flash
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
                     headers = {'Content-Type': 'application/json'}
                     
@@ -1602,6 +2406,7 @@ def get_quant_analysis(ticker):
                     continue
 
         # --- FALLBACK MECHANISM ---
+        # --- FALLBACK MECHANISM ---
         if not summary_final:
             print(f"  ⚠ All AI keys failed for {ticker} (Tried {len(api_keys)} keys). Generating Fallback Analysis.")
             
@@ -1613,9 +2418,6 @@ def get_quant_analysis(ticker):
             
             trend = "Bullish" if last_close > sma200 else "Bearish"
             signal = "NEUTRAL"
-            
-            # Simple Confidence Logic
-            # Base confidence 50%
             confidence = 50
             
             if trend == "Bullish":
@@ -1645,42 +2447,47 @@ def get_quant_analysis(ticker):
                     signal = "HOLD / BEARISH"
                     confidence = 60
             
-            summary_final = f"""
-## Quant Analysis for {ticker} (Automated Fallback)
-
-> **Note**: AI Analysis unavailable. Showing algorthmic summary.
-> **Debug Error**: {last_error}
-
-**Signal**: **{signal}**
+            # Construct Fallback JSON structure matching the AI output
+            summary_final = f"""## Quant Analysis for {ticker}
+**Signal**: {signal}
 **Confidence**: {confidence}%
+**Short-Term Outlook (1 Week)**: Technical indicators suggest {signal.lower()} momentum. RSI is at {rsi:.1f}.
+**Medium-Term Trend**: The broader trend is {trend} relative to the 200-day moving average.
+**Strategy**: Watch for confirmation of the current trend before entering positions.
+"""
+            analysis_raw = "Algorithmic Fallback (AI Unavailable)"
 
-**Short-Term Outlook**:
-The stock is currently trading at **${last_close:.2f}**. 
-RSI is at **{rsi:.2f}**, indicating the asset is { "Overbought" if rsi>70 else "Oversold" if rsi<30 else "Neutral" }.
-
-**Medium-Term Trend**:
-The trend is **{trend}** relative to the 200-day Moving Average (${sma200:.2f}).
-
-**Strategy**:
-Monitor price action around key moving averages.
-            """
-            analysis_raw = "Fallback Generated"
-
-        response_data = {
+        # Final Response Construction
+        response_payload = {
             'ticker': ticker,
-            'summary': summary_final,
-            'raw_analysis': analysis_raw
+            'analysis': summary_final,
+            'source': analysis_raw,
+            'timestamp': current_time
         }
-
-        # --- Update Cache ---
+        
+        # Update Cache
         QUANT_ANALYSIS_CACHE[ticker] = {
-            'timestamp': time.time(),
-            'data': response_data
+            'data': response_payload,
+            'timestamp': current_time
         }
-
-        return jsonify(response_data)
+        # Persist immediately
+        save_cache_to_disk()
+        
+        return jsonify(response_payload)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        print(f"Quant Analysis Error for {ticker}: {e}")
+        
+        # FALLBACK: Try to serve stale cache
+        if ticker in QUANT_ANALYSIS_CACHE:
+             print(f"  ⚠ Returning STALE Quant Analysis cache for {ticker}")
+             return jsonify(QUANT_ANALYSIS_CACHE[ticker]['data'])
+
+        err_msg = str(e)
+        if "Too Many Requests" in err_msg or "429" in err_msg:
+             return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
+        
         return jsonify({'error': str(e)}), 500
+
+
+

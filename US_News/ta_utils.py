@@ -83,13 +83,22 @@ def calculate_technical_indicators(df):
     # VWMA (20)
     df.ta.vwma(length=20, append=True)
 
-    # Map generic names for chart compatibility (keeping old code working)
-    df['SMA_50'] = df['SMA_50']
-    df['SMA_200'] = df['SMA_200']
-    df['MACD'] = df['MACD_12_26_9']
-    df['MACD_Signal'] = df['MACDs_12_26_9']
-    df['MACD_Hist'] = df['MACDh_12_26_9']
-    df['RSI'] = df['RSI_14']
+    # Map generic names for chart compatibility (safely)
+    # pandas_ta automatically names them SMA_50, SMA_200, etc.
+    # We only need to check if they exist (they might not if data < length)
+    
+    # Aliasing complex names to simple ones for frontend/downstream
+    if 'MACD_12_26_9' in df.columns: df['MACD'] = df['MACD_12_26_9']
+    if 'MACDs_12_26_9' in df.columns: df['MACD_Signal'] = df['MACDs_12_26_9']
+    if 'MACDh_12_26_9' in df.columns: df['MACD_Hist'] = df['MACDh_12_26_9']
+    if 'RSI_14' in df.columns: df['RSI'] = df['RSI_14']
+    
+    # Ensure standard SMA names are accessible if they exist (pandas_ta creates them, but explicit alias ensures existing refs work)
+    # Actually, pandas_ta creates columns named "SMA_50", etc. 
+    # The lines assigning df['SMA_50'] = df['SMA_50'] were likely redundant or intended to fail fast.
+    # We can safely remove the self-assignments as they serve no purpose if the name is identical, 
+    # but removing them avoids the KeyError if the column is missing.
+    pass
 
     # Support/Resistance Helpers (keep existing logic)
     df['Min_20'] = df['Low'].rolling(window=20, center=True).min()

@@ -3,6 +3,7 @@ let currentIndex = 0;
 let activeTab = 'overview'; // Global tab state
 let currentTickerUS = ''; // Ensure this global is consistent
 let cachedTAData = null;
+let isGlobalRefreshing = false; // Flag to pause polling during refresh
 
 // Touch/swipe handling variables
 let touchStartX = 0;
@@ -346,6 +347,9 @@ async function handleRefresh(e) {
     if (span) span.textContent = 'Started...';
     btn.title = 'Refresh Started...';
 
+    // Pause other background polls
+    isGlobalRefreshing = true;
+
     try {
         const apiToken = document.querySelector('meta[name="api-token"]')?.content;
         const headers = apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {};
@@ -363,17 +367,31 @@ async function handleRefresh(e) {
             // Poll for completion
             const pollInterval = setInterval(async () => {
                 try {
-                    const statusRes = await fetch('api/status');
+                    // Cache bust status check
+                    const statusRes = await fetch(`api/status?t=${Date.now()}`);
                     const statusData = await statusRes.json();
 
                     if (!statusData.is_processing) {
                         clearInterval(pollInterval);
+                        isGlobalRefreshing = false; // Resume polls
+
                         if (span) span.textContent = 'Done!';
                         btn.title = 'Refresh Complete!';
                         btn.classList.remove('spinning');
 
                         setTimeout(() => {
-                            location.reload();
+                            // Seamless update instead of reload
+                            if (typeof currentActiveTicker !== 'undefined' && currentActiveTicker) {
+                                selectTicker(currentActiveTicker);
+                                // Reset button state after a short delay so user sees "Done"
+                                setTimeout(() => {
+                                    btn.disabled = false;
+                                    if (span) span.textContent = 'Refresh News';
+                                    btn.title = 'Update all news';
+                                }, 2000);
+                            } else {
+                                location.reload(); // Fallback
+                            }
                         }, 1000);
                     }
                 } catch (e) {
@@ -385,6 +403,8 @@ async function handleRefresh(e) {
         }
     } catch (error) {
         console.error('Refresh error:', error);
+        isGlobalRefreshing = false; // Resume polls on error
+
         if (span) span.textContent = 'Error';
         btn.title = 'Refresh Error';
         btn.classList.remove('spinning');
@@ -441,12 +461,16 @@ window.generateTickerSummary = async function (ticker, event) {
         });
 
         if (res.ok) {
+            const genData = await res.json();
+            const targetDate = genData.target_date;
+
             // Poll for completion
             let attempts = 0;
             const checkInterval = setInterval(async () => {
                 attempts++;
                 try {
-                    const summaryRes = await fetch(`api/summary/${ticker}`);
+                    const pollUrl = targetDate ? `api/summary/${ticker}?min_date=${targetDate}` : `api/summary/${ticker}`;
+                    const summaryRes = await fetch(pollUrl);
                     if (summaryRes.ok) {
                         const data = await summaryRes.json();
                         if (data.status === 'found') {
@@ -509,6 +533,13 @@ function startPolling(ticker) {
     const poll = async () => {
         // Stop if ticker switched
         if (currentActiveTicker !== ticker) return;
+
+        // Pause if Global Refresh is active
+        if (isGlobalRefreshing) {
+            // Retry in 1s instead of full flow
+            quotePollTimeout = setTimeout(poll, 1000);
+            return;
+        }
 
         await fetchAndDisplayQuote(ticker);
 
@@ -675,7 +706,8 @@ async function selectTicker(ticker) {
 
     console.log(`[selectTicker] Fetching summary for ${ticker}...`);
     try {
-        const response = await fetch(`api/summary/${ticker}`);
+        // Cache busting to ensure fresh data after refresh
+        const response = await fetch(`api/summary/${ticker}?t=${Date.now()}`);
         const data = await response.json();
         console.log(`[selectTicker] Response for ${ticker}:`, data);
 
@@ -860,7 +892,7 @@ function displaySummary(data) {
                 
                 <span class="last-updated-badge" style="font-size: 12px; color: var(--text-secondary); font-weight: 500; background: var(--bg-card); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); margin-left: auto;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px; display:inline-block; vertical-align:text-bottom;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    Updated: ${data.updated_at ? new Date(data.updated_at).toLocaleString() : (data.date || 'N/A')}
+                    Updated: ${data.updated_at ? new Date(data.updated_at).toLocaleString(undefined, { timeZoneName: 'short' }) : (data.date || 'N/A')}
                 </span>
 
                 <button onclick="window.generateTickerSummary('${data.ticker}', event)" class="ticker-refresh-btn" title="Force Refresh Analysis">
@@ -1697,8 +1729,6 @@ if (themeToggleBtn) {
 }
 
 const themeObserver = new MutationObserver(syncChartTheme);
-themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-
 // Real-time chart polling functions
 let pollingErrorCount = 0;
 const MAX_POLLING_ERRORS = 3;
@@ -1715,6 +1745,12 @@ function startChartPolling(ticker) {
 
     // Define poller
     const poll = async () => {
+        // PAUSE if global refresh is active
+        if (isGlobalRefreshing) {
+            console.log('[Chart Polling] Paused due to Global Refresh...');
+            return;
+        }
+
         try {
             const res = await fetch(`/us-news/api/latest-price/${ticker}`);
             const data = await res.json();
@@ -1739,6 +1775,10 @@ function startChartPolling(ticker) {
                 // Reset error count on success
                 pollingErrorCount = 0;
                 console.log(`[Chart Polling] Updated at ${new Date().toLocaleTimeString()}`);
+            } else if (res.status === 429) {
+                console.warn('[Chart Polling] Rate Limit (429). Skipping update.');
+                // Do NOT throw error, just skip this poll cycle
+                return;
             } else {
                 throw new Error(data.error || 'Invalid data received');
             }
@@ -1858,6 +1898,13 @@ async function loadTAData(ticker, interval = '1d') {
 
     try {
         const response = await fetch(`/us-news/api/ta/${ticker}?interval=${interval}&_=${Date.now()}`);
+
+        if (response.status === 429) {
+            console.warn('TA Rate Limit hit. Showing stale/unavailable state.');
+            if (indicatorsDiv) indicatorsDiv.innerHTML = '<div class="info-msg">Real-time data busy. Retrying...</div>';
+            if (levelsDiv) levelsDiv.innerHTML = '';
+            return; // Stop without error
+        }
 
         if (!response.ok) throw new Error('Failed to fetch TA data');
 
@@ -2217,7 +2264,8 @@ async function runQuantAnalysis(ticker, forceRefresh = false) {
         if (data.error) throw new Error(data.error);
 
         // Advanced Formatting using Marked.js
-        let rawMarkdown = data.summary;
+        // Backend returns 'analysis' for quant endpoint, 'summary' for others. Handle both.
+        let rawMarkdown = data.analysis || data.summary || "No analysis available.";
 
         // 1. Highlight Key Terms (Before Markdown parsing or after - safer before for simple words)
         // Wraps [BUY] [SELL] etc in spans
