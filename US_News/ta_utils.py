@@ -1,5 +1,10 @@
 import pandas as pd
 import numpy as np
+import sys
+import os
+# Add project root to sys.path to ensure local pandas_ta is found
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pandas_ta as ta
 from datetime import timedelta
 
