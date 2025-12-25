@@ -1413,6 +1413,7 @@ def get_financial_analysis(ticker):
              return jsonify(cached['data'])
 
     print(f"DEBUG: Analyzing Financials for {ticker}")
+    stock = None
     try:
         # 1. Fetch Fundamentals (yfinance)
         session = get_yf_session()
@@ -1542,24 +1543,25 @@ def get_financial_analysis(ticker):
             # Try 2: Calculate from Financials (Historical) if still None
             if fundamentals['peg_ratio'] is None:
                 try:
-                    fin = stock.financials
-                    if not fin.empty and 'Basic EPS' in fin.index:
-                        eps_series = fin.loc['Basic EPS']
-                        # Ensure we have enough data points and filter out N/A
-                        eps_valid = eps_series.dropna()
-                        if len(eps_valid) >= 2:
-                            eps_cur = eps_valid.iloc[0]
-                            eps_prev = eps_valid.iloc[1]
-                            
-                            # Valid previous EPS needed for growth calc
-                            if eps_prev and eps_prev != 0:
-                                growth_rate = ((eps_cur - eps_prev) / abs(eps_prev)) * 100
-                                print(f"DEBUG: Calculated EPS Growth: {growth_rate}% (Curr: {eps_cur}, Prev: {eps_prev})")
+                    if stock:
+                        fin = stock.financials
+                        if not fin.empty and 'Basic EPS' in fin.index:
+                            eps_series = fin.loc['Basic EPS']
+                            # Ensure we have enough data points and filter out N/A
+                            eps_valid = eps_series.dropna()
+                            if len(eps_valid) >= 2:
+                                eps_cur = eps_valid.iloc[0]
+                                eps_prev = eps_valid.iloc[1]
                                 
-                                # PEG only makes sense for positive growth
-                                if growth_rate > 0:
-                                    fundamentals['peg_ratio'] = round(fundamentals['pe_ratio'] / growth_rate, 2)
-                                    print(f"DEBUG: Calculated PEG from Hist EPS: {fundamentals['peg_ratio']}")
+                                # Valid previous EPS needed for growth calc
+                                if eps_prev and eps_prev != 0:
+                                    growth_rate = ((eps_cur - eps_prev) / abs(eps_prev)) * 100
+                                    print(f"DEBUG: Calculated EPS Growth: {growth_rate}% (Curr: {eps_cur}, Prev: {eps_prev})")
+                                    
+                                    # PEG only makes sense for positive growth
+                                    if growth_rate > 0:
+                                        fundamentals['peg_ratio'] = round(fundamentals['pe_ratio'] / growth_rate, 2)
+                                        print(f"DEBUG: Calculated PEG from Hist EPS: {fundamentals['peg_ratio']}")
                 except Exception as e:
                     print(f"Manual PEG Error: {e}")
 
@@ -1612,6 +1614,9 @@ def get_financial_analysis(ticker):
         # We need historical data for TA
         end_date = datetime.now()
         start_date = end_date - timedelta(days=400) # Need ~200 candles + buffer
+        if not stock:
+             return jsonify({'error': 'Price data unavailable (Data Source Failed)'}), 404
+
         df = stock.history(start=start_date, end=end_date)
         
         if df.empty:
