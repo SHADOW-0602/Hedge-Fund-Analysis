@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import pandas_ta as ta
 from datetime import timedelta
 
-def calculate_technical_indicators(df):
+def calculate_technical_indicators(df, is_intraday=False):
     """
     Calculate comprehensive technical indicators using pandas_ta.
     """
