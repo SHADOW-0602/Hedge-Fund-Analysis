@@ -4,6 +4,7 @@ let activeTab = 'overview'; // Global tab state
 let currentTickerUS = ''; // Ensure this global is consistent
 let cachedTAData = null;
 let isGlobalRefreshing = false; // Flag to pause polling during refresh
+let isFetchingTA = false; // Flag to pause polling during TA fetch
 
 // Touch/swipe handling variables
 let touchStartX = 0;
@@ -1745,9 +1746,9 @@ function startChartPolling(ticker) {
 
     // Define poller
     const poll = async () => {
-        // PAUSE if global refresh is active
-        if (isGlobalRefreshing) {
-            console.log('[Chart Polling] Paused due to Global Refresh...');
+        // PAUSE if global refresh is active or TA is fetching
+        if (isGlobalRefreshing || window.isFetchingTA) {
+            console.log('[Chart Polling] Paused...');
             return;
         }
 
@@ -1896,6 +1897,9 @@ async function loadTAData(ticker, interval = '1d') {
     if (countSell) countSell.innerText = '-';
     if (countNeutral) countNeutral.innerText = '-';
 
+    // Set Fetching Flag
+    window.isFetchingTA = true;
+
     try {
         const response = await fetch(`/us-news/api/ta/${ticker}?interval=${interval}&_=${Date.now()}`);
 
@@ -1909,7 +1913,7 @@ async function loadTAData(ticker, interval = '1d') {
         if (!response.ok) throw new Error('Failed to fetch TA data');
 
         const data = await response.json();
-        renderTA(data);
+        renderTA(data, ticker);
 
     } catch (error) {
         console.error('TA Load Error:', error);
@@ -1921,10 +1925,12 @@ async function loadTAData(ticker, interval = '1d') {
         const text = document.getElementById('gaugeText');
         if (needle) needle.style.transform = 'translate(-50%, 0) rotate(-90deg)';
         if (text) text.innerText = 'ERROR';
+    } finally {
+        window.isFetchingTA = false;
     }
 }
 
-function renderTA(data) {
+function renderTA(data, ticker) {
     if (!data || !data.summary) return;
 
     // 1. Update Gauge
@@ -2138,12 +2144,24 @@ function renderTA(data) {
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { labels: { color: textColor } },
-                        tooltip: { mode: 'index', intersect: false }
+                        tooltip: { mode: 'index', intersect: false },
+                        title: {
+                            display: true,
+                            text: `${ticker || 'Unknown'} Price & SMA`,
+                            color: textColor,
+                            font: { size: 16 }
+                        }
                     },
                     scales: {
                         x: {
-                            ticks: { maxTicksLimit: 8, color: textColor },
-                            grid: { color: gridColor }
+                            ticks: {
+                                maxTicksLimit: 8,
+                                color: textColor,
+                                autoSkip: true,
+                                maxRotation: 0
+                            },
+                            grid: { color: gridColor },
+                            display: true
                         },
                         y: {
                             position: 'right',
@@ -2194,13 +2212,28 @@ function renderTA(data) {
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { display: false }, // Hide legend for cleaner look
-                        tooltip: { mode: 'index', intersect: false }
+                        legend: {
+                            display: true, // Show Legend (Colors)
+                            labels: { color: textColor }
+                        },
+                        tooltip: { mode: 'index', intersect: false },
+                        title: {
+                            display: true,
+                            text: 'MACD Momentum',
+                            color: textColor,
+                            font: { size: 14 }
+                        }
                     },
                     scales: {
                         x: {
-                            ticks: { maxTicksLimit: 8, color: textColor },
-                            grid: { color: gridColor }
+                            ticks: {
+                                maxTicksLimit: 8,
+                                color: textColor,
+                                autoSkip: true,
+                                maxRotation: 0
+                            },
+                            grid: { color: gridColor },
+                            display: true // Force Dates to Show
                         },
                         y: {
                             position: 'right',

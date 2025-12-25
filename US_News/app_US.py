@@ -1313,7 +1313,8 @@ def get_technical_analysis(ticker):
     try:
         from flask import request
         interval = request.args.get('interval', '1d')
-        cache_key = f"{ticker}_{interval}"
+        # Versioning the cache key to bust old integer-based dates (Fix 2024-12-25)
+        cache_key = f"{ticker}_{interval}_v2"
         current_time = time.time()
         
         # Check Cache Validity (Staleness: 4 hours for intraday, 12 hours for daily)
@@ -1411,34 +1412,115 @@ def get_technical_analysis(ticker):
             print(f"DEBUG TA: Columns before calc: {df.columns.tolist()}")
             quant_logger.info(f"TA CALL Columns: {df.columns.tolist()}")
             
-            df = calculate_technical_indicators(df)
+            # --- SOFT FAILURE WRAPPER START ---
+            try:
+                # is_intraday param is CRITICAL
+                is_intraday = interval in ['1m', '2m', '5m', '15m', '30m', '60m', '1h']
+                
+                df = calculate_technical_indicators(df, is_intraday=is_intraday)
 
-            # 2. Fibonacci Retracement
-            fib_levels = get_fibonacci_levels(df)
+                # 2. Fibonacci Retracement
+                fib_levels = get_fibonacci_levels(df)
 
-            # 3. Support & Resistance
-            sr_data = get_support_resistance(df)
-            supports = sr_data['supports']
-            resistances = sr_data['resistances']
+                # 3. Support & Resistance
+                sr_data = get_support_resistance(df)
+                supports = sr_data['supports']
+                resistances = sr_data['resistances']
+                
+                # 4. Summary & Analysis
+                summary = get_ta_summary(df)
 
+            except Exception as ta_calc_error:
+                print(f"  ⚠ TA Calcs Failed: {ta_calc_error} - Returning raw Price Chart only.")
+                # Fallback: Just use the raw DF for charting, no indicators
+                fib_levels = None
+                supports = []
+                resistances = []
+                summary = {
+                    'price':0, 'action': 'Neutral', 'rsi': 0, 
+                    'analysis': f"Technical Analysis Unavailable: {str(ta_calc_error)}",
+                    'oscillators': [], 'moving_averages': []
+                }
+            
             # --- Prepare Response ---
-            # Data for Charting (Last 200 points)
-            chart_data = df.tail(200).reset_index()
+            
+            # Robust Date Extraction
+            chart_data = None
+            date_col = 'Date' # Normalized name we want
+
+            # 1. Check if Index is the Date (Standard yfinance)
+            if isinstance(df.index, pd.DatetimeIndex):
+                # Reset index to make it a column
+                chart_data = df.tail(200).reset_index()
+                # Rename the index column to 'Date' if it isn't already
+                if chart_data.columns[0] == 'index': 
+                    chart_data.rename(columns={'index': 'Date'}, inplace=True)
+                elif chart_data.columns[0] == 'Datetime':
+                     chart_data.rename(columns={'Datetime': 'Date'}, inplace=True)
+                # Ensure the first column is named 'Date' if it looks like a date
+                elif pd.api.types.is_datetime64_any_dtype(chart_data[chart_data.columns[0]]):
+                     chart_data.rename(columns={chart_data.columns[0]: 'Date'}, inplace=True)
+            
+            else:
+                # 2. Check if Date is already a column
+                found_col = None
+                for c in df.columns:
+                    if str(c).lower() in ['date', 'datetime', 'time', 'timestamp']:
+                        found_col = c
+                        break
+                
+                if found_col:
+                    chart_data = df.tail(200).copy()
+                    if found_col != 'Date':
+                        chart_data.rename(columns={found_col: 'Date'}, inplace=True)
+                else:
+                    # 3. Fallback: Reset index anyway and check first column
+                    temp_reset = df.tail(200).reset_index()
+                    if pd.api.types.is_datetime64_any_dtype(temp_reset.iloc[:, 0]):
+                        chart_data = temp_reset
+                        chart_data.rename(columns={chart_data.columns[0]: 'Date'}, inplace=True)
+                    else:
+                        # 4. Critical Failure Fallback: Generate generic dates? 
+                        # Or just fail gracefully. Let's try to use what we have.
+                        print(f"  ⚠ CRITICAL: Could not find Date column/index for {ticker}. Using Index as generic x-axis.")
+                        chart_data = df.tail(200).reset_index()
+                        # Rename first col to date to satisfy frontend
+                        chart_data.rename(columns={chart_data.columns[0]: 'Date'}, inplace=True)
+
+            # Ensure 'Date' column exists now
+            if 'Date' not in chart_data.columns:
+                 # Last safety net
+                 chart_data['Date'] = chart_data.index.astype(str)
+
+            # Clean NaNs
+            chart_data = chart_data.where(pd.notnull(chart_data), None)
+            
             chart_json = []
             for _, row in chart_data.iterrows():
-                # Handle Interval Date/Time
-                date_val = row.get('Datetime', row.get('Date'))
-                if pd.isna(date_val): date_val = row.name # Fallback if index
+                # Handle Interval Date/Time Formatting
+                date_val = row['Date']
+                date_str = ""
                 
-                # Format
-                if interval in ['1d', '1wk', '1mo']:
-                    if hasattr(date_val, 'strftime'):
+                # Robust Formatting
+                if hasattr(date_val, 'strftime'):
+                    if interval in ['1d', '1wk', '1mo']:
                         date_str = date_val.strftime('%Y-%m-%d')
                     else:
-                        date_str = str(date_val)
+                        # Intraday
+                        date_str = date_val.strftime('%Y-%m-%d %H:%M')
                 else:
-                     # Localize/Format for intraday
-                     date_str = str(date_val)
+                    # String Fallback
+                    s_val = str(date_val)
+                    # Try to parse string if it looks iso-ish?
+                    if ' ' in s_val and len(s_val) > 10:
+                        if interval in ['1d', '1wk', '1mo']:
+                             date_str = s_val.split(' ')[0]
+                        else:
+                             # Try to keep up to minutes
+                             try: date_str = s_val[:16] 
+                             except: date_str = s_val
+                    else:
+                        date_str = s_val
 
                 chart_json.append({
                     'date': date_str,
@@ -1453,9 +1535,7 @@ def get_technical_analysis(ticker):
                     'signal': row.get('MACD_Signal', None) if not pd.isna(row.get('MACD_Signal', np.nan)) else None,
                     'hist': row.get('MACD_Hist', None) if not pd.isna(row.get('MACD_Hist', np.nan)) else None
                 })
-                
-            # 4. Summary & Analysis
-            summary = get_ta_summary(df)
+
 
             result_json = {
                 'ticker': ticker,

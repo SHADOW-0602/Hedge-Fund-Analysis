@@ -596,8 +596,8 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 40px 30px;
-    /* Reduced horizontal padding for more width */
+    padding: 20px 24px;
+    /* Reduced padding */
     overflow-y: auto;
     /* Enable scrolling */
     width: 100%;
@@ -776,11 +776,11 @@ body {
     background: rgba(15, 23, 42, 0.95);
     /* Opaque to hide scroll */
     z-index: 40;
-    padding: 10px 30px 0 30px;
-    /* Restored original padding */
+    padding: 4px 30px 0 30px;
+    /* Reduced padding */
     backdrop-filter: blur(10px);
-    margin-top: -10px;
-    /* compensate offset */
+    margin-top: 0;
+    /* Remove negative margin */
 }
 
 [data-theme="light"] .tabs-container {
@@ -1881,6 +1881,45 @@ body {
     margin-bottom: 20px;
 }
 
+/* Footer Styling */
+.app-footer {
+    width: 100%;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+    margin-top: auto;
+    /* Push to bottom of flex container */
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    flex-shrink: 0;
+    /* Prevent shrinking */
+}
+
+.app-footer-content {
+    max-width: 1600px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.footer-links {
+    display: flex;
+    gap: 20px;
+}
+
+.footer-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.footer-links a:hover {
+    color: var(--accent);
+}
+
 /* Mobile Menu Links */
 .mobile-nav-links {
     display: flex;
@@ -1968,37 +2007,30 @@ body {
 /* Footer Styles */
 .app-footer {
     width: 100%;
+    padding: 24px;
     border-top: 1px solid var(--border);
-    /* margin-top: auto;  REMOVED to prevent sticking behavior */
-    background: var(--bg-card);
-    z-index: 10;
-    position: relative;
-    flex-shrink: 0;
-    padding-bottom: env(safe-area-inset-bottom);
-    /* iOS Fix */
-}
-
-.glass-footer {
-    background: var(--bg-header);
-    /* Reuse header transparency */
+    margin-top: auto;
+    /* Push to bottom of flex container */
+    background: rgba(15, 23, 42, 0.8);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    flex-shrink: 0;
+    /* Prevent shrinking */
 }
 
 .app-footer-content {
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
-    padding: 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    font-size: 0.9rem;
     color: var(--text-secondary);
-    font-size: 14px;
 }
 
 .footer-links {
     display: flex;
-    gap: 24px;
+    gap: 20px;
 }
 
 .footer-links a {
@@ -3004,201 +3036,6 @@ body {
     justify-content: space-between;
     padding: 0 8px 8px 8px;
     font-size: 0.75rem;
-    transform: scale(1);
-}
-
-.modal-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.modal-header h3 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 24px;
-    cursor: pointer;
-    line-height: 1;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    transition: background 0.2s;
-}
-
-.modal-close:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
-}
-
-.modal-body {
-    padding: 16px 20px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.source-item {
-    display: block;
-    padding: 12px;
-    background: var(--hover-bg);
-    border-radius: 8px;
-    text-decoration: none;
-    color: var(--text-primary);
-    transition: background 0.2s;
-    border: 1px solid transparent;
-}
-
-.source-item:hover {
-    background: rgba(59, 130, 246, 0.1);
-    border-color: rgba(59, 130, 246, 0.3);
-}
-
-/* Mobile Optimization for Report */
-@media (max-width: 768px) {
-    .research-report {
-        font-size: 0.95rem;
-        /* Smaller text */
-        padding-left: 20px;
-        /* Left margin */
-        padding-right: 20px;
-        /* Right margin */
-        line-height: 1.6;
-        width: 100%;
-        max-width: 100%;
-        box-sizing: border-box;
-        /* Crucial for padding to be inside width */
-        overflow-wrap: break-word;
-        /* Prevent long words from overflowing */
-        word-wrap: break-word;
-        hyphens: auto;
-        /* optional but good for long words */
-        white-space: normal;
-        /* just in case */
-    }
-
-    .research-report h1 {
-        font-size: 1.6rem;
-        margin-top: 0.8em;
-        overflow-wrap: break-word;
-    }
-
-    .research-report h2 {
-        font-size: 1.3rem;
-        margin-top: 1.5em;
-        overflow-wrap: break-word;
-    }
-
-    /* Scrollable tables on mobile */
-    .research-report table {
-        display: block;
-        width: 100%;
-        overflow-x: auto;
-        white-space: nowrap;
-        /* Prevent wrapping of cell content */
-    }
-}
-
-.summary-content table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 24px 0;
-    font-size: 0.95em;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.summary-content thead tr {
-    background-color: rgba(59, 130, 246, 0.15);
-    /* Accent tint */
-    color: var(--accent);
-    text-align: left;
-    font-weight: bold;
-}
-
-.summary-content th,
-.summary-content td {
-    padding: 12px 15px;
-    border-bottom: 1px solid var(--border);
-}
-
-.summary-content tbody tr {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    transition: background 0.2s;
-}
-
-.summary-content tbody tr:last-of-type {
-    border-bottom: 2px solid var(--accent);
-}
-
-.summary-content tbody tr:hover {
-    background-color: var(--hover-bg);
-}
-
-/* Ensure text colors are correct in light/dark mode via vars */
-.summary-content th {
-    color: var(--accent);
-}
-
-.summary-content td {
-    color: var(--text-primary);
-}
-
-/* Technical Analysis Tables */
-.ta-section {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 24px;
-}
-
-[data-theme="light"] .ta-section {
-    background: #f8fafc;
-    border-color: #e2e8f0;
-}
-
-.ta-table-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px 8px;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.9rem;
-    transition: background-color 0.2s;
-}
-
-.ta-table-row:last-child {
-    border-bottom: none;
-}
-
-.ta-table-row:hover {
-    background-color: rgba(255, 255, 255, 0.03);
-}
-
-[data-theme="light"] .ta-table-row:hover {
-    background-color: rgba(0, 0, 0, 0.02);
-}
-
-.ta-table-header {
-    display: flex;
-    justify-content: space-between;
-    padding: 0 8px 8px 8px;
-    font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-secondary);
     text-transform: uppercase;
@@ -3473,5 +3310,281 @@ body {
 
 /* Added gap for footer */
 .tab-content {
-    margin-bottom: 40px;
+    margin-bottom: 20px;
+}
+
+/* ==========================================================================
+   FOOTER STYLING (Re-applied)
+   ========================================================================== */
+.app-footer {
+    width: 100%;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+    margin-top: auto;
+    /* Push to bottom of flex container */
+    background: var(--bg-header) !important;
+    /* Use themed background */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    flex-shrink: 0;
+    /* Prevent shrinking */
+    position: relative !important;
+    z-index: 10;
+}
+
+.app-footer-content {
+    max-width: 1600px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.footer-links {
+    display: flex;
+    gap: 20px;
+}
+
+.footer-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.footer-links a:hover {
+    color: var(--accent);
+}
+
+/* ==========================================================================
+   DOCUMENT-LEVEL SCROLLING OVERRIDE (Fixes "Sticky" Footer & Scroll Issues)
+   ========================================================================== */
+
+/* 1. Reset Body and HTML to allow natural scrolling */
+body,
+html {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* 2. Remove fixed-height app shell constraints */
+.app-container {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.content-wrapper {
+    height: auto !important;
+    overflow: visible !important;
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    /* Maintain sidebar layout */
+}
+
+/* 3. Reset Summary Section to flow with content */
+.summary-section {
+    height: auto !important;
+    overflow: visible !important;
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.summary-content {
+    height: auto !important;
+    overflow: visible !important;
+    flex: 1 !important;
+}
+
+/* 4. Fix Sidebar to be FIXED (User Request: RIGHT SIDE) */
+@media (min-width: 769px) {
+    .ticker-sidebar {
+        position: fixed !important;
+        top: 60px !important;
+        /* Below header */
+        bottom: 0 !important;
+        right: 0 !important;
+        /* Fixed to Right */
+        left: auto !important;
+        /* Unset left */
+        width: 280px !important;
+        /* Fixed width */
+        height: auto !important;
+        /* Let top/bottom define height */
+        overflow-y: auto !important;
+        z-index: 40 !important;
+        background: var(--bg-sidebar) !important;
+        border-left: 1px solid var(--border) !important;
+        /* Change border to left */
+        border-right: none !important;
+        padding-bottom: 20px !important;
+    }
+
+    /* Adjust Main Content to account for Fixed Sidebar on Right */
+    .summary-section {
+        margin-right: 280px !important;
+        /* Match sidebar width */
+        margin-left: 0 !important;
+        /* Reset left margin */
+        width: calc(100% - 280px) !important;
+        /* Remaining width */
+        min-height: calc(100vh - 60px) !important;
+    }
+
+    .content-wrapper {
+        display: block !important;
+        /* Allow normal block flow */
+    }
+}
+
+/* 5. Ensure Footer is at the bottom of the content flow */
+.app-footer {
+    position: relative !important;
+    margin-top: auto !important;
+    width: 100% !important;
+    z-index: 10 !important;
+}
+
+/* ==========================================================================
+   FIXED HEADER & STICKY ELEMENTS (User Request)
+   ========================================================================== */
+
+/* Fix Header to Top */
+.header-container {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    z-index: 50 !important;
+}
+
+/* Add padding to body/app-container to prevent content overlap */
+.app-container {
+    padding-top: 60px !important;
+}
+
+/* Sidebar Top Offset (Below Fixed Header) */
+@media (min-width: 769px) {
+    .ticker-sidebar {
+        top: 60px !important;
+        height: calc(100vh - 60px) !important;
+    }
+}
+
+/* Ensure Search Bar is FIXED inside the flow (Offset by Header) */
+.desktop-search-container {
+    position: fixed !important;
+    top: 60px !important;
+    /* Below fixed header */
+    left: 0 !important;
+    /* Start from left */
+    width: calc(100% - 280px) !important;
+    /* Full width minus right sidebar */
+    z-index: 35 !important;
+    background: var(--bg-header) !important;
+    /* Match header */
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border-bottom: 1px solid var(--border) !important;
+    margin: 0 !important;
+    padding: 16px 24px !important;
+    box-sizing: border-box !important;
+}
+
+/* Adjust Tab FIXED Position (Below Header + Search) */
+.tabs-container {
+    position: fixed !important;
+    top: 134px !important;
+    /* Header (60) + Search (~74) */
+    left: 0 !important;
+    width: calc(100% - 280px) !important;
+    /* Full width minus right sidebar */
+    z-index: 30 !important;
+    background: var(--bg-header) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border-bottom: 1px solid var(--border) !important;
+    margin-top: 0 !important;
+    padding-top: 10px !important;
+}
+
+/* Add padding to summary content to prevent overlap with fixed elements */
+.summary-content {
+    padding-top: 140px !important;
+    /* Search (74) + Tabs (50) approx */
+}
+
+/* ==========================================================================
+   MOBILE LAYOUT REPAIR (Ensures Main Section Visibility)
+   ========================================================================== */
+@media (max-width: 768px) {
+
+    /* 1. Reset Margins/Widths */
+    /* 1. Reset Margins/Widths */
+    .summary-section {
+        margin: 0 !important;
+        /* No side margins */
+        width: 100% !important;
+        padding-top: 20px !important;
+        /* Reduced padding, container handles header offset */
+    }
+
+    .app-container {
+        padding-top: 60px !important;
+        /* Restore top padding for fixed header */
+    }
+
+    /* 2. Restore Sidebar (User Request: Symbols/Search visible) */
+    .ticker-sidebar {
+        display: flex !important;
+        /* Show sidebar */
+        width: 100% !important;
+        height: auto !important;
+        max-height: 140px !important;
+        /* Allow space for search + list */
+        position: relative !important;
+        /* Flow naturally */
+        top: 0 !important;
+        left: 0 !important;
+        right: auto !important;
+        border-right: none !important;
+        border-bottom: 1px solid var(--border) !important;
+        flex-direction: column !important;
+        overflow-x: auto !important;
+        /* Allow horizontal scroll if needed */
+        overflow-y: hidden !important;
+    }
+
+    /* 3. Reset Header/Search for Mobile */
+    .header-container {
+        position: fixed !important;
+        top: 0 !important;
+        width: 100% !important;
+    }
+
+    /* 4. Ensure Content is Visible */
+    .content-wrapper {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    /* 5. Mobile specific sticky adjustments */
+    .tabs-container {
+        top: 60px !important;
+        /* Only header is sticky on mobile tops usually */
+    }
+
+    /* Hide Desktop Search Bar on Mobile */
+    .desktop-search-container {
+        display: none !important;
+    }
 }
