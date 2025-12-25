@@ -407,8 +407,8 @@ def fetch_quote_data(ticker):
 
     try:
         # Use custom session to rotate User-Agent
-        session = get_yf_session()
-        stock = yf.Ticker(ticker, session=session)
+        # session = get_yf_session() # Removed to compatible with latest yf / curl_cffi
+        stock = yf.Ticker(ticker)
         
         # fast_info often misses pre-market. Use history for latest tick.
         # caching: yfinance might cache history calls, but creating a new Ticker usually avoids instance cache.
@@ -1357,8 +1357,8 @@ def get_technical_analysis(ticker):
         
         for attempt in range(1, 4):
             try:
-                session = get_yf_session()
-                stock = yf.Ticker(ticker, session=session)
+                # session = get_yf_session()
+                stock = yf.Ticker(ticker)
                 df = stock.history(period=period, interval=interval)
                 
                 if df.empty:
@@ -1513,16 +1513,16 @@ def debug_technical_analysis(ticker):
         
         # --- VERSION CHECK ---
         debug_info = {
-            "version": "DEBUG_PATCH_V2", # Bumped version
+            "version": "DEBUG_PATCH_V3", # Bumped version + Session Fix
             "timestamp": time.time(),
             "attempting_ticker": ticker,
             "interval": interval
         }
         
         # 1. Fetch
-        # Using a fresh session
-        session = get_yf_session()
-        stock = yf.Ticker(ticker, session=session)
+        # FIX: Do not pass session (incompatible with new yfinance/curl_cffi)
+        stock = yf.Ticker(ticker)
+        
         period = "1y" # simplify for debug
         if interval in ['1m', '5m']: period = "5d"
         elif interval == '1h': period = "2y"
@@ -1561,7 +1561,7 @@ def debug_technical_analysis(ticker):
         return jsonify({
             'error': str(e),
             'traceback': traceback.format_exc(),
-            'version': 'DEBUG_PATCH_V2'
+            'version': 'DEBUG_PATCH_V3'
         }), 500
 
 
