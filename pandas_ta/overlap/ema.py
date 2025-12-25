@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from numpy import NaN as npNaN
+from numpy import nan as npNaN
 from pandas_ta.utils import get_offset, verify_series
 
 
@@ -51,7 +51,7 @@ Calculation:
         length=10, adjust=False, sma=True
     if sma:
         sma_nth = close[0:length].sum() / length
-        close[:length - 1] = np.NaN
+        close[:length - 1] = np.nan
         close.iloc[length - 1] = sma_nth
     EMA = close.ewm(span=length, adjust=adjust).mean()
 

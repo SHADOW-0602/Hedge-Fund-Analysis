@@ -15,6 +15,16 @@ import requests
 from supabase import create_client, Client
 import google.generativeai as genai
 import yfinance as yf
+import logging
+
+# Configure Debug Logger for Quant Analysis
+quant_logger = logging.getLogger('quant_debug')
+quant_logger.setLevel(logging.DEBUG)
+# Avoid adding multiple handlers if reloaded
+if not quant_logger.handlers:
+    fh = logging.FileHandler('debug_quant.log')
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    quant_logger.addHandler(fh)
 import pickle
 import atexit
 
@@ -250,9 +260,136 @@ def get_yf_session():
                 'http': proxy,
                 'https': proxy
             }
-            # print(f"  [DEBUG] Using Proxy: {proxy}")
             
     return session
+
+def fetch_polygon_history(ticker, period_days=400, interval='day'):
+    """
+    Fallback: Fetch historical data from Polygon/Massive.com
+    interval: 'day', 'hour', 'minute'
+    """
+    poly_key = os.getenv('POLYGON_API_KEY')
+    if not poly_key:
+        return None
+
+    try:
+        print(f"  Attempting Polygon History Fallback for {ticker} ({interval})...")
+        
+        # Calculate dates
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=period_days)
+        
+        # Format: YYYY-MM-DD
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = end_date.strftime('%Y-%m-%d')
+        
+        # Map interval to Polygon multiplier/timespan
+        multiplier = 1
+        timespan = 'day'
+        if interval == '1h' or interval == 'hour':
+            timespan = 'hour'
+        elif interval == '1m' or interval == 'minute':
+            timespan = 'minute'
+            
+        url = f"https://api.massive.com/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{start_str}/{end_str}?adjusted=true&sort=asc&limit=5000&apiKey={poly_key}"
+        
+        resp = requests.get(url, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get('resultsCount', 0) > 0 and 'results' in data:
+                # Convert to DataFrame
+                df = pd.DataFrame(data['results'])
+                
+                # Normalize Columns: v->Volume, o->Open, c->Close, h->High, l->Low, t->Date
+                df = df.rename(columns={
+                    'v': 'Volume',
+                    'o': 'Open',
+                    'c': 'Close',
+                    'h': 'High',
+                    'l': 'Low',
+                    't': 'Date'
+                })
+                
+                # Convert Date (ms timestamp) to Datetime
+                df['Date'] = pd.to_datetime(df['Date'], unit='ms')
+                
+                # Set Index
+                df.set_index('Date', inplace=True)
+                
+                # Ensure float types
+                cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+                df[cols] = df[cols].astype(float)
+                
+                print(f"  ✓ Polygon History Success: {len(df)} rows")
+                return df
+                
+    except Exception as e:
+        print(f"  ✗ Polygon History Failed: {e}")
+        
+    return None
+
+
+def fetch_twelve_data_history(ticker, interval='1day', outputsize=500):
+    """
+    Fallback 2: Fetch historical data from Twelve Data
+    interval: '1day', '1h', etc.
+    """
+    td_key = os.getenv('TWELVE_DATA_API_KEY')
+    if not td_key:
+        return None
+
+    try:
+        print(f"  Attempting Twelve Data Fallback for {ticker} ({interval})...")
+        
+        # Twelve Data Interval Mapping
+        # YF '1d' -> TD '1day'
+        # YF '1h' -> TD '1h'
+        if interval == 'day' or interval == '1d': td_interval = '1day'
+        elif interval == 'hour' or interval == '1h': td_interval = '1h'
+        else: td_interval = interval
+        
+        url = f"https://api.twelvedata.com/time_series?symbol={ticker}&interval={td_interval}&outputsize={outputsize}&apikey={td_key}"
+        
+        resp = requests.get(url, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            if 'values' in data:
+                df = pd.DataFrame(data['values'])
+                
+                # Create Date Index
+                df['datetime'] = pd.to_datetime(df['datetime'])
+                df.set_index('datetime', inplace=True)
+                df.index.name = 'Date'
+                
+                # Rename columns (lowercase from API -> Title Case)
+                df = df.rename(columns={
+                    'open': 'Open',
+                    'high': 'High',
+                    'low': 'Low',
+                    'close': 'Close',
+                    'volume': 'Volume'
+                })
+                
+                # Ensure floats
+                cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+                # Check which cols actually exist (sometimes volume missing?)
+                existing_cols = [c for c in cols if c in df.columns]
+                df[existing_cols] = df[existing_cols].apply(pd.to_numeric, errors='coerce')
+                
+                # Sort ascending (API usually returns desc)
+                df.sort_index(inplace=True)
+                
+                print(f"  ✓ Twelve Data History Success: {len(df)} rows")
+                return df
+            elif 'code' in data:
+                 print(f"  ✗ Twelve Data Error: {data.get('message')}")
+        else:
+            print(f"  ✗ Twelve Data Request Failed: {resp.status_code}")
+            
+    except Exception as e:
+        print(f"  ✗ Twelve Data Exception: {e}")
+        
+    return None
 
 
 def fetch_quote_data(ticker):
@@ -467,7 +604,7 @@ def mark_daily_run():
 def fetch_av_data(ticker, interval):
     """Fetch data from Alpha Vantage as fallback"""
     api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
-    if not api_key: return pd.DataFrame()
+    if not api_key: return pd.DataFrame(), ''
 
     function = 'TIME_SERIES_DAILY'
     av_interval = None
@@ -494,7 +631,7 @@ def fetch_av_data(ticker, interval):
         ts_key = next((k for k in data.keys() if "Time Series" in k), None)
         if not ts_key:
             print(f"  ✗ AV Error: {data.get('Note') or data.get('Error Message')}")
-            return pd.DataFrame()
+            return pd.DataFrame(), ''
             
         ts_data = data[ts_key]
         df = pd.DataFrame.from_dict(ts_data, orient='index')
@@ -1110,6 +1247,66 @@ def search_tickers():
         print(f"Search Proxy Error: {e}")
         return jsonify({'error': str(e)}), 500
 
+# Helper for Column Normalization (Global)
+def normalize_and_validate_columns(df, label="Data"):
+    if df is None or df.empty:
+        return df, False
+    
+    # 1. Flatten MultiIndex Columns
+    if isinstance(df.columns, pd.MultiIndex):
+        # Find the level that has 'Close' (case insensitive)
+        found_level = None
+        for i in range(df.columns.nlevels):
+            level_vals = df.columns.get_level_values(i)
+            # Check for 'close' presence
+            if any(str(x).strip().lower() == 'close' for x in level_vals):
+                found_level = i
+                break
+        
+        if found_level is not None:
+             df.columns = df.columns.get_level_values(found_level)
+        else:
+             # Fallback: Just take level 0
+             df.columns = df.columns.get_level_values(0)
+
+    # 2. Case Insensitive Normalization & Cleanup
+    # Map lowercase to Title Case
+    new_cols = []
+    for c in df.columns:
+        # Handle residual tuples (if MultiIndex wasn't caught/flattened upstream)
+        if isinstance(c, tuple):
+            # Take the first string equivalent found in the tuple that looks like Open/High/Low/Close
+            candidates = [str(x).strip().capitalize() for x in c]
+            match = next((x for x in candidates if x in ['Open', 'High', 'Low', 'Close', 'Volume']), None)
+            if match:
+                 new_cols.append(match)
+            else:
+                 new_cols.append("_".join(candidates)) # Fallback join
+        else:
+            c_str = str(c).strip()
+            # If it's a date or something weird, keep it string
+            if c_str.lower() in ['open', 'high', 'low', 'close', 'volume']:
+                new_cols.append(c_str.capitalize())
+            else:
+                new_cols.append(c_str) # Keep original case for others (e.g. Indicators)
+
+    df.columns = new_cols
+    
+    # Remove duplicate columns if any (keep first) to prevent ValueError/Ambiguity
+    if df.columns.duplicated().any():
+        print(f"  ⚠ {label}: Duplicate columns found: {df.columns[df.columns.duplicated()].tolist()}. Deduplicating...")
+        df = df.loc[:, ~df.columns.duplicated()]
+    
+    # 3. Check for Essentials
+    required = ['Open', 'High', 'Low', 'Close']
+    missing = [c for c in required if c not in df.columns]
+    
+    if missing:
+        print(f"  ⚠ {label} Valid but Missing Columns: {missing}. Actual: {df.columns.tolist()}")
+        return df, False
+    
+    return df, True
+
 @us_news_bp.route('/api/ta/<ticker>', methods=['GET'])
 def get_technical_analysis(ticker):
     """Calculate and return technical analysis data with interval support"""
@@ -1201,11 +1398,19 @@ def get_technical_analysis(ticker):
             return jsonify({'error': 'No data found'}), 404
             
         # --- Calculations ---
+        # Robust Normalization
+        df, is_valid = normalize_and_validate_columns(df, "TA Data")
+        if not is_valid:
+             return jsonify({'error': 'Invalid data format (missing High/Low/Close)'}), 500
+
         # Assume df is valid here
         try:
             from .ta_utils import calculate_technical_indicators, get_fibonacci_levels, get_support_resistance, get_ta_summary
             
             # 1. Base Indicators
+            print(f"DEBUG TA: Columns before calc: {df.columns.tolist()}")
+            quant_logger.info(f"TA CALL Columns: {df.columns.tolist()}")
+            
             df = calculate_technical_indicators(df)
 
             # 2. Fibonacci Retracement
@@ -1416,8 +1621,8 @@ def get_financial_analysis(ticker):
     stock = None
     try:
         # 1. Fetch Fundamentals (yfinance)
-        session = get_yf_session()
-        stock = yf.Ticker(ticker, session=session)
+        # session = get_yf_session() # Removed to let YF handle session (fixes curl_cffi error)
+        stock = yf.Ticker(ticker)
         info = stock.info
 
         fundamentals = {
@@ -1493,6 +1698,37 @@ def get_financial_analysis(ticker):
             except Exception as fe:
                 print(f"  ✗ Finnhub Fundamentals Failed: {fe}")
         
+        # --- POLYGON FALLBACK ---
+        if not fundamentals:
+            poly_key = os.getenv('POLYGON_API_KEY')
+            if poly_key:
+                try:
+                    print(f"  Attempting Massive.com (Polygon) Fallback for {ticker}...")
+                    # Massive.com (formerly Polygon) - maintaining same endpoint structure
+                    p_url = f"https://api.massive.com/v3/reference/tickers/{ticker}?apiKey={poly_key}"
+                    resp = requests.get(p_url, timeout=10)
+                    if resp.status_code == 200:
+                        pdata = resp.json().get('results', {})
+                        if pdata:
+                            print(f"  ✓ Polygon Fundamentals Success")
+                            fundamentals = {
+                                'market_cap': pdata.get('market_cap'),
+                                'pe_ratio': None, # Not directly in reference endpoint
+                                'peg_ratio': None,
+                                'revenue_ttm': None,
+                                'net_income_ttm': None,
+                                'eps': None, 
+                                'beta': None,
+                                'dividend_yield': None,
+                                'profit_margins': None,
+                                'operating_margins': None,
+                                'ticker': ticker,
+                                'description': pdata.get('description'),
+                                'currency': pdata.get('currency_name')
+                            }
+                except Exception as pe:
+                    print(f"  ✗ Polygon Fundamentals Failed: {pe}")
+
         if not fundamentals:
             # Check for stale cache
              if ticker in FUNDAMENTALS_CACHE:
@@ -1617,14 +1853,36 @@ def get_financial_analysis(ticker):
         if not stock:
              return jsonify({'error': 'Price data unavailable (Data Source Failed)'}), 404
 
-        df = stock.history(start=start_date, end=end_date)
+        try:
+            df = stock.history(start=start_date, end=end_date)
+        except:
+             df = pd.DataFrame()
         
-        if df.empty:
-            return jsonify({'error': 'No price data found'}), 404
+        # Check if YF failed or returned bad data (missing High)
+        if df.empty or 'High' not in df.columns:
+            print(f"  ⚠ Yahoo History Invalid. Trying Fallback 1 (Polygon)...")
+            df_poly = fetch_polygon_history(ticker, period_days=400, interval='day')
+            if df_poly is not None and not df_poly.empty:
+                df = df_poly
+            else:
+                 print(f"  ⚠ Polygon Failed. Trying Fallback 2 (Twelve Data)...")
+                 df_td = fetch_twelve_data_history(ticker, interval='day', outputsize=400)
+                 if df_td is not None and not df_td.empty:
+                     df = df_td
+                 else:
+                     if df.empty:
+                        return jsonify({'error': 'No price data found (All Sources Failed)'}), 404
             
         from US_News.ta_utils import calculate_technical_indicators, get_ta_summary
-        df = calculate_technical_indicators(df)
-        ta_summary = get_ta_summary(df) # {price, rsi, macd_action, sma_trend}
+        
+        try:
+            df = calculate_technical_indicators(df)
+            ta_summary = get_ta_summary(df) # {price, rsi, macd_action, sma_trend}
+        except Exception as ta_err:
+            print(f"  ✗ TA Calculation Failed: {ta_err}")
+            print(f"  DEBUG: Columns: {df.columns.tolist()}")
+            # Provide dummy summary to prevent crash
+            ta_summary = {'price': 0, 'oscillators': [], 'moving_averages': []}
 
         # Extract specific indicators from the new structured summary
         oscillators = ta_summary.get('oscillators', [])
@@ -2145,8 +2403,8 @@ def get_latest_price(ticker):
     """Fetch latest price for real-time chart updates"""
     try:
         # Use robust session with rotation/proxies
-        session = get_yf_session()
-        stock = yf.Ticker(ticker, session=session)
+        # session = get_yf_session() # Removed to let YF handle session (fixes curl_cffi error)
+        stock = yf.Ticker(ticker)
         
         # Get today's 1-minute data 
         df = stock.history(period='1d', interval='1m')
@@ -2213,23 +2471,80 @@ def get_quant_analysis(ticker):
         if force_refresh:
             print(f"  ↻ Force Refreshing Quant Analysis for {ticker}")
 
+        quant_logger.info(f"--- START Quant Analysis for {ticker} ---")
+
         from .ta_utils import calculate_technical_indicators, prepare_df_for_llm
         
+        from .ta_utils import calculate_technical_indicators, prepare_df_for_llm
+        
+        # (Global normalize_and_validate_columns used below)
+
         # 1. Fetch Data (1h and 1d)
-        session = get_yf_session()
-        stock = yf.Ticker(ticker, session=session)
+        # session = get_yf_session()
+        stock = yf.Ticker(ticker)
         
-        # 1h Data (Requires 2y for valid SMA-200 if possible, or at least enough for logic)
-        df_1h = stock.history(period="2y", interval="1h")
-        if df_1h.empty: return jsonify({'error': 'No 1h data found'}), 404
+        # 1h Data
+        try:
+             df_1h = stock.history(period="2y", interval="1h")
+        except: df_1h = pd.DataFrame()
+
+        if df_1h.empty or 'High' not in df_1h.columns:
+             print(f"  ⚠ YF 1h Failed. Trying Polygon...")
+             # 2 years ~ 730 days
+             df_poly_1h = fetch_polygon_history(ticker, period_days=730, interval='1h')
+             if df_poly_1h is not None and not df_poly_1h.empty:
+                 df_1h = df_poly_1h
+             else:
+                 print(f"  ⚠ Polygon 1h Failed. Trying Twelve Data...")
+                 df_td_1h = fetch_twelve_data_history(ticker, interval='1h', outputsize=500)
+                 if df_td_1h is not None and not df_td_1h.empty:
+                     df_1h = df_td_1h
+                 else:
+                     pass
         
-        # 1d Data (1y is standard)
-        df_1d = stock.history(period="2y", interval="1d")
-        if df_1d.empty: return jsonify({'error': 'No 1d data found'}), 404
+        # 1d Data
+        try:
+            df_1d = stock.history(period="2y", interval="1d")
+        except: df_1d = pd.DataFrame()
+
+        if df_1d.empty or 'High' not in df_1d.columns:
+             print(f"  ⚠ YF 1d Failed. Trying Polygon...")
+             df_poly_1d = fetch_polygon_history(ticker, period_days=730, interval='day')
+             if df_poly_1d is not None and not df_poly_1d.empty:
+                 df_1d = df_poly_1d
+             else:
+                 print(f"  ⚠ Polygon 1d Failed. Trying Twelve Data...")
+                 df_td_1d = fetch_twelve_data_history(ticker, interval='day', outputsize=500)
+                 if df_td_1d is not None and not df_td_1d.empty:
+                     df_1d = df_td_1d
+                 else:
+                     pass
         
-        # 2. Calculate Indicators
-        df_1h = calculate_technical_indicators(df_1h)
-        df_1d = calculate_technical_indicators(df_1d)
+        # 2. Validation & Normalization (Unconditional)
+        quant_logger.info(f"Fetching complete. Normalizing columns...")
+        df_1h, is_valid_1h = normalize_and_validate_columns(df_1h, "1H Data")
+        quant_logger.info(f"1H Normalization: Valid={is_valid_1h}, Cols={df_1h.columns.tolist() if not df_1h.empty else 'EMPTY'}")
+        
+        if not is_valid_1h: 
+             quant_logger.error("1H Data Invalid")
+             return jsonify({'error': 'No 1h data found or missing data columns'}), 404
+
+        df_1d, is_valid_1d = normalize_and_validate_columns(df_1d, "1D Data")
+        quant_logger.info(f"1D Normalization: Valid={is_valid_1d}, Cols={df_1d.columns.tolist() if not df_1d.empty else 'EMPTY'}")
+
+        if not is_valid_1d: 
+             quant_logger.error("1D Data Invalid")
+             return jsonify({'error': 'No 1d data found or missing data columns'}), 404
+
+        # 3. Calculate Indicators
+        try:
+            df_1h = calculate_technical_indicators(df_1h)
+            df_1d = calculate_technical_indicators(df_1d)
+        except Exception as q_err:
+             print(f"  ✗ Quant TA Failed: {q_err}")
+             quant_logger.error(f"Quant TA Calculation Failed: {q_err}", exc_info=True)
+             print(f"  DEBUG 1H Columns: {df_1h.columns.tolist() if not df_1h.empty else 'EMPTY'}")
+             return jsonify({'error': f'Technical Analysis Failed: {str(q_err)}'}), 500
         
         # 3. Serialize Data for Prompt
         # Limit to last 45 rows (was 100) to avoid Groq 413 Payload Too Large / Token Limits
@@ -2323,6 +2638,7 @@ def get_quant_analysis(ticker):
         """
 
         # Try AI Generation
+        quant_logger.info("Starting AI Generation...")
         # 1. Try Groq (Llama 3.3) First
         groq_key = os.getenv('GROQ_API_KEY')
         groq_success = False
@@ -2392,6 +2708,7 @@ def get_quant_analysis(ticker):
                                 break # Success
                         else:
                              print(f"DEBUG: No candidates in response: {result}")
+                             quant_logger.warning(f"Gemini No Candidates: {result}")
                              last_error = "Empty AI Response"
                              
                     elif response.status_code == 429:
@@ -2461,6 +2778,7 @@ def get_quant_analysis(ticker):
 **Strategy**: Watch for confirmation of the current trend before entering positions.
 """
             analysis_raw = "Algorithmic Fallback (AI Unavailable)"
+            quant_logger.info("Using Algorithmic Fallback")
 
         # Final Response Construction
         response_payload = {
@@ -2478,10 +2796,12 @@ def get_quant_analysis(ticker):
         # Persist immediately
         save_cache_to_disk()
         
+        quant_logger.info("Quant Analysis Complete. Returning response.")
         return jsonify(response_payload)
 
     except Exception as e:
         print(f"Quant Analysis Error for {ticker}: {e}")
+        quant_logger.error(f"CRASH: {e}", exc_info=True)
         
         # FALLBACK: Try to serve stale cache
         if ticker in QUANT_ANALYSIS_CACHE:

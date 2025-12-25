@@ -15,6 +15,81 @@ def calculate_technical_indicators(df):
     if df.empty:
         return df
 
+    # --- Defensive Normalization (In case upstream fails) ---
+    # Ensure columns are Title Case (Open, High, Low, Close)
+    # Map from common variations
+    rename_map = {}
+    for c in df.columns:
+        if isinstance(c, str):
+            lower_c = c.lower()
+            if lower_c == 'open': rename_map[c] = 'Open'
+            elif lower_c == 'high': rename_map[c] = 'High'
+            elif lower_c == 'low': rename_map[c] = 'Low'
+            elif lower_c == 'close': rename_map[c] = 'Close'
+            elif lower_c == 'volume': rename_map[c] = 'Volume'
+    
+    if rename_map:
+        df = df.rename(columns=rename_map)
+
+    # --- AGGRESSIVE DEFENSIVE CLEANUP ---
+    # Force convert to string, strip whitespace, and title case
+    # This prevents subtle KeyError due to 'High ' or non-string types
+    # Flatten MultiIndex if needed (Tuple columns to String)
+    if isinstance(df.columns, pd.MultiIndex):
+        # Flatten to level 0 or specific level? usually yfinance is MultiIndex with Ticker
+        # We just want the Price type
+        df.columns = df.columns.get_level_values(0)
+
+    # Force convert to string, strip whitespace, and title case
+    # Handle the case where columns might still be tuples (if MultiIndex wasn't caught/flattened upstream)
+    new_cols = []
+    for c in df.columns:
+        if isinstance(c, tuple):
+            # Take the first string equivalent found in the tuple that looks like Open/High/Low/Close
+            # or just join them? joining might create 'Open_AAPL'.
+            # Let's search for standard names
+            candidates = [str(x).strip().capitalize() for x in c]
+            match = next((x for x in candidates if x in ['Open', 'High', 'Low', 'Close', 'Volume']), None)
+            if match:
+                 new_cols.append(match)
+            else:
+                 new_cols.append("_".join(candidates)) # Fallback join
+        else:
+            new_cols.append(str(c).strip().capitalize())
+            
+    df.columns = new_cols
+    
+    # Debug info (will appear in console)
+    print(f"DEBUG TA_UTILS: Cleaned Columns: {repr(df.columns.tolist())}")
+    
+    # Explicitly check for 'High' to prevent 500
+    if 'High' not in df.columns:
+        print(f"CRITICAL: 'High' column missing after cleanup. Available: {df.columns.tolist()}")
+        # Emergency fallback: Try to find a column that looks like High
+        for c in df.columns:
+            if 'high' in c.lower():
+                print(f"  > Renaming '{c}' to 'High' as fallback.")
+                df.rename(columns={c: 'High'}, inplace=True)
+                break
+
+    # Validate Essentials exist
+    required = ['High', 'Low', 'Close']
+    for req in required:
+        if req not in df.columns:
+            # Try to recover if possible?
+            # If 'Close' is missing but 'Adj Close' exists?
+            if req == 'Close' and 'Adj Close' in df.columns:
+                 df['Close'] = df['Adj Close']
+            else:
+                 print(f"CRITICAL ERROR: {req} missing in calculate_technical_indicators. Columns: {df.columns.tolist()}")
+                 # Create dummy column to prevent crash? 
+                 # Or raise more descriptive error
+                 # For now, let's just make it equal to Open or 0 to suppress 500
+                 if 'Open' in df.columns:
+                     df[req] = df['Open']
+                 else:
+                     df[req] = 0.0
+
     # --- Oscillators ---
     # RSI (14)
     df.ta.rsi(length=14, append=True)
@@ -24,6 +99,28 @@ def calculate_technical_indicators(df):
     
     # CCI (20) - Custom Implementation for Stability
     # Standard: (TP - SMA_TP) / (0.015 * MeanDev)
+    
+    # --- Re-Normalize Columns (Title Case) ---
+    # pandas_ta sometimes lowercases columns (e.g. 'High' -> 'high'). 
+    # We enforce Title Case for OHLCV to prevent KeyErrors in custom calcs.
+    rename_cols = {}
+    for c in df.columns:
+        if c in ['open', 'high', 'low', 'close', 'volume']:
+             rename_cols[c] = c.capitalize()
+    if rename_cols:
+         df = df.rename(columns=rename_cols)
+
+    # Validate Essentials exist after re-normalization
+    for req in ['High', 'Low', 'Close']:
+        if req not in df.columns:
+             # Fallback to lowercase if available (shouldn't happen due to rename above, but being safe)
+             if req.lower() in df.columns:
+                 df[req] = df[req.lower()]
+             else:
+                 # If still missing, fallback to Close or Open
+                 if 'Close' in df.columns: df[req] = df['Close']
+                 elif 'Open' in df.columns: df[req] = df['Open']
+    
     tp = (df['High'] + df['Low'] + df['Close']) / 3
     sma_tp = tp.rolling(window=20).mean()
     mad = tp.rolling(window=20).apply(lambda x: np.mean(np.abs(x - x.mean())))
@@ -60,7 +157,15 @@ def calculate_technical_indicators(df):
     # Let's use custom for BBP: Close - EMA(13) is often used as "Bull/Bear Power" proxy in some lists.
     # Or simply: Bull Power = High - EMA(13), Bear Power = Low - EMA(13). Total = Bull + Bear.
     ema13 = df.ta.ema(length=13)
-    df['BBP'] = (df['High'] - ema13) + (df['Low'] - ema13)
+    # Safe access to High/Low for BBP as pandas_ta might have lowercased them again
+    h_col = 'High' if 'High' in df.columns else 'high'
+    l_col = 'Low' if 'Low' in df.columns else 'low'
+    
+    # If even lowercase missing, fallback to Close
+    if h_col not in df.columns: h_col = 'Close' if 'Close' in df.columns else 'close'
+    if l_col not in df.columns: l_col = 'Close' if 'Close' in df.columns else 'close'
+    
+    df['BBP'] = (df[h_col] - ema13) + (df[l_col] - ema13)
 
     # Ultimate Oscillator (7, 14, 28)
     df.ta.uo(flatten=True, append=True)
@@ -106,9 +211,34 @@ def calculate_technical_indicators(df):
     pass
 
     # Support/Resistance Helpers (keep existing logic)
-    df['Min_20'] = df['Low'].rolling(window=20, center=True).min()
-    df['Max_20'] = df['High'].rolling(window=20, center=True).max()
+    # Support/Resistance Helpers (keep existing logic)
+    # Safe access again (pandas_ta is relentless with lowercasing)
+    l_safe = 'Low' if 'Low' in df.columns else 'low'
+    if l_safe not in df.columns: l_safe = 'Close' if 'Close' in df.columns else 'close'
     
+    h_safe = 'High' if 'High' in df.columns else 'high'
+    if h_safe not in df.columns: h_safe = 'Close' if 'Close' in df.columns else 'close'
+
+    if l_safe in df.columns:
+        df['Min_20'] = df[l_safe].rolling(window=20, center=True).min()
+    
+    if h_safe in df.columns:
+        df['Max_20'] = df[h_safe].rolling(window=20, center=True).max()
+    
+    # --- FINAL SANITIZATION ---
+    # Ensure OHLCV are Title Case for app_US.py
+    # pandas_ta likely lowercased them. We MUST revert this for compatibility.
+    final_rename = {}
+    for c in df.columns:
+        if c.lower() == 'open': final_rename[c] = 'Open'
+        elif c.lower() == 'high': final_rename[c] = 'High'
+        elif c.lower() == 'low': final_rename[c] = 'Low'
+        elif c.lower() == 'close': final_rename[c] = 'Close'
+        elif c.lower() == 'volume': final_rename[c] = 'Volume'
+        
+    if final_rename:
+        df = df.rename(columns=final_rename)
+
     return df
 
 def get_signal(value, indicator_type, **kwargs):
