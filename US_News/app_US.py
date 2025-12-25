@@ -1500,6 +1500,71 @@ def get_technical_analysis(ticker):
         return jsonify({'error': f"Request Error: {str(e)}"}), 500
 
 
+@us_news_bp.route('/api/debug/ta/<ticker>', methods=['GET'])
+def debug_technical_analysis(ticker):
+    """
+    DEBUG ROUTE: Same as get_technical_analysis but returns full traceback on error.
+    Used to diagnose production 500 errors.
+    """
+    try:
+        import traceback
+        from flask import request
+        interval = request.args.get('interval', '1d')
+        
+        # --- VERSION CHECK ---
+        debug_info = {
+            "version": "DEBUG_PATCH_V2", # Bumped version
+            "timestamp": time.time(),
+            "attempting_ticker": ticker,
+            "interval": interval
+        }
+        
+        # 1. Fetch
+        # Using a fresh session
+        session = get_yf_session()
+        stock = yf.Ticker(ticker, session=session)
+        period = "1y" # simplify for debug
+        if interval in ['1m', '5m']: period = "5d"
+        elif interval == '1h': period = "2y"
+        
+        df = stock.history(period=period, interval=interval)
+        
+        if df.empty:
+            debug_info["step"] = "fetch_data"
+            debug_info["error"] = "Empty DataFrame from Yahoo"
+            return jsonify(debug_info), 404
+
+        debug_info["fetch_shape"] = str(df.shape)
+            
+        # 2. Normalize
+        # Explicitly call the global function
+        df, is_valid = normalize_and_validate_columns(df, "Debug Data")
+        if not is_valid:
+            debug_info["step"] = "normalization"
+            debug_info["columns"] = df.columns.tolist() if df is not None else "None"
+            return jsonify(debug_info), 500
+            
+        # 3. Calculate
+        from .ta_utils import calculate_technical_indicators
+        
+        # Explicitly Test the Fix
+        is_intraday = interval in ['1m', '2m', '5m', '15m', '30m', '60m', '1h']
+        debug_info["is_intraday_param"] = is_intraday
+        
+        result_df = calculate_technical_indicators(df, is_intraday=is_intraday)
+        
+        debug_info["status"] = "Success"
+        debug_info["columns"] = result_df.columns.tolist()[:10]
+        return jsonify(debug_info)
+        
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'version': 'DEBUG_PATCH_V2'
+        }), 500
+
+
 def ai_queue_worker():
     """Background worker to process AI requests sequentially with rate limiting"""
     print("AI Queue Worker Started...")
