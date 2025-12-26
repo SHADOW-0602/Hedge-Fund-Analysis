@@ -1544,6 +1544,7 @@ function initChart() {
         console.log('[Overview] Creating chart instance...');
         // Create Chart
         chartInstance = LightweightCharts.createChart(container, {
+            autoSize: true,
             layout: {
                 background: { type: 'solid', color: 'transparent' },
                 textColor: '#333',
@@ -1585,27 +1586,7 @@ function initChart() {
             scaleMargins: { top: 0.8, bottom: 0 },
         });
 
-        resizeObserver = new ResizeObserver(entries => {
-            if (entries.length === 0 || entries[0].target !== container) return;
-            const newRect = entries[0].contentRect;
-            if (chartInstance) {
-                // Subtract 2px to prevent sub-pixel rounding cutoffs, especially on mobile
-                const textWidthParam = window.innerWidth < 768 ? 2 : 0;
-                const newWidth = Math.max(0, newRect.width - textWidthParam);
-                const newHeight = Math.max(0, newRect.height);
 
-                if (newWidth === 0 || newHeight === 0) return;
-
-                chartInstance.applyOptions({
-                    width: newWidth,
-                    height: newHeight
-                });
-
-                // Force fit content removed to prevent snapback on mobile scroll
-
-            }
-        });
-        resizeObserver.observe(container);
 
         // Initial Theme Sync
         syncChartTheme();
@@ -1624,19 +1605,7 @@ function initChart() {
             });
         });
 
-        // Add window resize handler for responsiveness
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                if (chartInstance && container) {
-                    chartInstance.applyOptions({
-                        width: container.clientWidth,
-                        height: container.clientHeight
-                    });
-                }
-            }, 250); // Debounce resize events
-        });
+
 
         // Setup Tab Switching Logic if not already handled elsewhere
     } catch (e) {
@@ -2158,7 +2127,8 @@ function renderTA(data, ticker) {
                                 maxTicksLimit: 8,
                                 color: textColor,
                                 autoSkip: true,
-                                maxRotation: 0
+                                maxRotation: window.innerWidth < 768 ? 45 : 0,
+                                minRotation: window.innerWidth < 768 ? 45 : 0
                             },
                             grid: { color: gridColor },
                             display: true
@@ -2230,7 +2200,8 @@ function renderTA(data, ticker) {
                                 maxTicksLimit: 8,
                                 color: textColor,
                                 autoSkip: true,
-                                maxRotation: 0
+                                maxRotation: window.innerWidth < 768 ? 45 : 0,
+                                minRotation: window.innerWidth < 768 ? 45 : 0
                             },
                             grid: { color: gridColor },
                             display: true // Force Dates to Show
