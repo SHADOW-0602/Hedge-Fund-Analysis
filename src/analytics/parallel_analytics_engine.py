@@ -240,21 +240,18 @@ class ParallelAnalyticsEngine:
         return analyzer.drawdown_analysis(transactions)
     
     def _calculate_xirr_analysis(self, transactions_data: List[Dict]) -> Dict[str, Any]:
-        from XIRR.xirr_calculator import XIRRCalculator
-        xirr_calc = XIRRCalculator()
+        from analytics.xirr_analyzer import DetailedXIRRAnalyzer
+        from core.transactions import Transaction
         
-        for tx_data in transactions_data:
-            xirr_calc.add_transaction(
-                date=datetime.fromisoformat(tx_data.get('date', '').replace('Z', '+00:00')),
-                symbol=tx_data.get('symbol', ''),
-                quantity=float(tx_data.get('quantity', 0)),
-                price=float(tx_data.get('price', 0)),
-                transaction_type=tx_data.get('transaction_type', ''),
-                fees=float(tx_data.get('fees', 0))
-            )
+        # Convert to Transaction objects
+        transactions = self._convert_to_transactions(transactions_data)
+        
+        # Initialize analyzer
+        analyzer = DetailedXIRRAnalyzer()
+        analyzer.load_transactions(transactions)
         
         # Get current prices
-        symbols = list(set(tx['symbol'] for tx in transactions_data))
+        symbols = list(set(tx.symbol for tx in transactions))
         current_prices = {}
         for symbol in symbols:
             try:
@@ -262,10 +259,18 @@ class ParallelAnalyticsEngine:
             except:
                 current_prices[symbol] = 100.0
         
-        xirr_value = xirr_calc.calculate_xirr(current_prices)
-        detailed_analysis = xirr_calc.get_detailed_analysis(current_prices)
+        # Calculate XIRR using upgraded analyzer
+        detailed_metrics = analyzer.calculate_detailed_xirr(current_prices)
         
-        return {"xirr": xirr_value, "detailed_analysis": detailed_analysis}
+        return {
+            "xirr": detailed_metrics.xirr,
+            "twr": detailed_metrics.twr,
+            "total_return": detailed_metrics.total_return,
+            "annualized_return": detailed_metrics.annualized_return,
+            "volatility": detailed_metrics.volatility,
+            "sharpe_ratio": detailed_metrics.sharpe_ratio,
+            "max_drawdown": detailed_metrics.max_drawdown
+        }
     
     def _calculate_trading_operations(self, transactions_data: List[Dict]) -> Dict[str, Any]:
         from analytics.trading_operations_analyzer import TradingOperationsAnalyzer

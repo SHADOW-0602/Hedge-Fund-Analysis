@@ -96,8 +96,14 @@ def extract_valid_symbols(portfolio_data):
     
     for position in portfolio_data:
         try:
-            if isinstance(position, dict) and 'symbol' in position:
-                symbol = str(position['symbol']).strip().upper()
+            if isinstance(position, dict):
+                # Handle symbol keys
+                symbol_keys = ['symbol', 'Symbol', 'ticker', 'Ticker', 'instrument']
+                symbol = ''
+                for k in symbol_keys:
+                    if k in position:
+                        symbol = str(position[k]).strip().upper()
+                        break
                 
                 if not symbol:
                     continue
@@ -145,14 +151,32 @@ def calculate_portfolio_weights(portfolio_data):
     # Group positions by underlying symbol
     underlying_positions = {}
     
+    # Helper to get value from multiple possible keys
+    def get_val(item, keys, default=None):
+        for k in keys:
+            if k in item:
+                return item[k]
+        return default
+
     for position in portfolio_data:
         try:
-            symbol = str(position.get('symbol', '')).strip().upper()
+            # Handle symbol keys
+            symbol_keys = ['symbol', 'Symbol', 'ticker', 'Ticker', 'instrument']
+            symbol = str(get_val(position, symbol_keys, '')).strip().upper()
+            
             if not symbol:
                 continue
             
-            quantity = float(position.get('quantity', 0))
-            price = float(position.get('price', position.get('avg_cost', 100.0)))
+            # Handle quantity keys
+            qty_keys = ['quantity', 'Quantity', 'qty', 'Qty', 'shares', 'Shares']
+            qty_val = get_val(position, qty_keys, 0)
+            quantity = float(qty_val)
+            
+            # Handle price keys
+            # prioritizing 'price' over 'avg_cost' but both are acceptable fallback
+            price_keys = ['price', 'Price', 'current_price', 'last_price', 'avg_cost', 'cost_basis']
+            price_val = get_val(position, price_keys, 100.0)
+            price = float(price_val)
             
             # Handle missing or zero prices
             if price <= 0:

@@ -319,3 +319,271 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/transaction-xirr', methods=['POST'])
+    def transaction_xirr():
+        """Calculate XIRR for transaction history with stock/options breakdown"""
+        try:
+            from analytics.xirr_analyzer import DetailedXIRRAnalyzer
+            from core.transactions import Transaction
+            from utils.date_parser import UniversalDateParser
+            
+            data = request.get_json()
+            transactions_data = data.get('transactions', [])
+            portfolio_data = data.get('portfolio', [])
+            options = data.get('options', {})
+            
+            print(f"[TRANSACTION-XIRR] Received {len(transactions_data)} transactions, {len(portfolio_data)} portfolio items")
+            
+            # Helper to cleanly parse floats
+            def safe_float(val, default=0.0):
+                if val is None:
+                    return default
+                if isinstance(val, (int, float)):
+                    return float(val)
+                if isinstance(val, str):
+                    try:
+                        clean_val = val.replace('$', '').replace(',', '').strip()
+                        if clean_val == '' or clean_val.lower() == 'n/a':
+                            return default
+                        return float(clean_val)
+                    except ValueError:
+                        return default
+                return default
+
+            # Helper to parse dates
+            def safe_parse_date(date_val, default=None):
+                if not default:
+                    default = datetime.now()
+                try:
+                    return UniversalDateParser.parse_date(date_val)
+                except:
+                    return default
+
+            transactions = []
+
+            # Track which tickers we have transactions for
+            seen_tickers = set()
+
+            # CASE 1: Process Transactions if available
+            if transactions_data:
+                print(f"[TRANSACTION-XIRR] Processing {len(transactions_data)} transactions")
+                for i, tx_data in enumerate(transactions_data):
+                    try:
+                        date_obj = safe_parse_date(tx_data.get('date', ''))
+                        symbol = tx_data.get('symbol', 'Unknown')
+                        
+                        raw_qty = tx_data.get('quantity', 0)
+                        raw_price = tx_data.get('price', 0)
+                        raw_fees = tx_data.get('fees', 0)
+                        
+                        transaction = Transaction(
+                            symbol=symbol,
+                            quantity=safe_float(raw_qty),
+                            price=safe_float(raw_price),
+                            date=date_obj,
+                            transaction_type=tx_data.get('transaction_type', '').upper(),
+                            fees=safe_float(raw_fees)
+                        )
+                        transactions.append(transaction)
+                        seen_tickers.add(symbol)
+                    except Exception as e:
+                        print(f"[TRANSACTION-XIRR] Failed to parse transaction {i}: {e}")
+                        continue
+            
+            # CASE 2: Process Portfolio to fill gaps (Hybrid Mode)
+            # Smart Logic: Reconcile Transactions with Current Portfolio
+            # If we have transactions (e.g. last 90 days), we might calculate:
+            # Current_Qty = Initial_Qty + Net_Tx_Change
+            # Initial_Qty = Current_Qty - Net_Tx_Change
+            # If Initial_Qty > 0, we imply a "Starting Position" that needs a Proxy Buy
+            
+            if portfolio_data:
+                print(f"[TRANSACTION-XIRR] Checking {len(portfolio_data)} portfolio items for gap filling...")
+                
+                # Pre-calculate transaction metrics per symbol
+                tx_metrics = {}
+                for tx in transactions:
+                    sym = tx.symbol
+                    if sym not in tx_metrics:
+                        tx_metrics[sym] = {'net_qty': 0.0, 'min_date': None}
+                    
+                    # Update net quantity
+                    q = tx.quantity
+                    if tx.transaction_type == 'SELL':
+                        q = -q
+                    tx_metrics[sym]['net_qty'] += q
+                    
+                    # Update min date
+                    if tx_metrics[sym]['min_date'] is None or tx.date < tx_metrics[sym]['min_date']:
+                        tx_metrics[sym]['min_date'] = tx.date
+
+                # Default to 1 year ago if no purchase date found
+                default_purchase_date = datetime.now() - timedelta(days=365)
+                
+                for i, pos_data in enumerate(portfolio_data):
+                    try:
+                        symbol = pos_data.get('symbol', 'Unknown')
+                        current_qty = safe_float(pos_data.get('quantity', 0))
+                        
+                        # Get transaction history impact
+                        tx_metric = tx_metrics.get(symbol, {'net_qty': 0.0, 'min_date': None})
+                        tx_net_qty = tx_metric['net_qty']
+                        
+                        # Calculate hidden initial quantity (what we must have started with)
+                        # Current = Initial + Net_Change  =>  Initial = Current - Net_Change
+                        initial_qty = current_qty - tx_net_qty
+                        
+                        # If we essentially cover the whole position with transactions, skip
+                        # (allowing for small float errors)
+                        if initial_qty <= 0.0001:
+                            continue
+
+                        # Determine Proxy Date (before first transaction overlap, or default)
+                        if tx_metric['min_date']:
+                            proxy_date = tx_metric['min_date'] - timedelta(days=1)
+                        else:
+                            proxy_date = safe_parse_date(pos_data.get('purchase_date'), default=default_purchase_date)
+                            
+                        # Determine Proxy Price
+                        # Using avg_cost is the best heuristic for the "base" position
+                        avg_cost = safe_float(pos_data.get('avg_cost', 0))
+                        cost_basis = safe_float(pos_data.get('cost_basis', 0))
+                        current_price = safe_float(pos_data.get('current_price', 0))
+                        
+                        price = 0.0
+                        if avg_cost > 0:
+                            price = avg_cost
+                        elif current_qty > 0 and cost_basis > 0:
+                            price = cost_basis / current_qty
+                        elif current_price > 0:
+                            price = current_price # Fallback to current price if no cost data
+                            
+                        # Create Proxy Transaction for the "Initial Blob"
+                        if initial_qty > 0 and price > 0:
+                            proxy_tx = Transaction(
+                                symbol=symbol,
+                                quantity=initial_qty,
+                                price=price,
+                                date=proxy_date,
+                                transaction_type='BUY',
+                                fees=0.0
+                            )
+                            transactions.append(proxy_tx)
+                            # print(f"[PROXY-TX] Gap-fill buy for {symbol}: {initial_qty} @ {price} (Date: {proxy_date})")
+                            
+                    except Exception as e:
+                        print(f"[TRANSACTION-XIRR] Failed to create proxy transaction for item {i}: {e}")
+                        continue
+            
+            if not transactions:
+                return jsonify({'success': False, 'error': 'No valid transactions or portfolio data found'}), 400
+            
+            # Initialize XIRR analyzer
+            analyzer = DetailedXIRRAnalyzer(data_client)
+            analyzer.load_transactions(transactions)
+            
+            # Fetch real current prices
+            all_symbols = list(set([tx.symbol for tx in transactions]))
+            try:
+                print(f"[TRANSACTION-XIRR] Fetching prices for {len(all_symbols)} symbols...")
+                current_prices = data_client.get_current_prices(all_symbols)
+                print(f"[TRANSACTION-XIRR] Successfully fetched {len(current_prices)} prices")
+            except Exception as e:
+                print(f"[TRANSACTION-XIRR] Failed to fetch prices: {e}")
+                current_prices = {}
+
+            # Fallback: fill missing prices with last transaction price
+            for tx in reversed(transactions):
+                if tx.symbol not in current_prices or current_prices[tx.symbol] == 0:
+                    current_prices[tx.symbol] = tx.price
+            
+            # Calculate portfolio-level XIRR using detailed report
+            print(f"[TRANSACTION-XIRR] Generating detailed report...")
+            detailed_report = analyzer.generate_detailed_report(current_prices)
+            portfolio_metrics = detailed_report['metrics']
+            position_analysis = detailed_report['positions']
+            
+            # Detect base tickers (stocks) and extract underlyings from options
+            base_tickers = set()
+            import re
+            
+            for tx in transactions:
+                from analytics.xirr_analyzer import is_option_symbol
+                if not is_option_symbol(tx.symbol):
+                    base_tickers.add(tx.symbol)
+                else:
+                    # Extract underlying from option symbol (e.g., NVDA230120C... -> NVDA)
+                    # Assumes standard format where ticker is followed by date digits
+                    match = re.match(r"^([A-Z]+)\d", tx.symbol)
+                    if match:
+                        base_tickers.add(match.group(1))
+                    else:
+                        # Fallback for non-standard or just ignore
+                        pass
+            
+            # Calculate per-ticker XIRR
+            ticker_breakdown = []
+            for ticker in sorted(base_tickers):
+                ticker_metrics = analyzer.calculate_ticker_xirr(ticker, current_prices)
+                
+                # Get position data if available
+                pos_data = position_analysis.get(ticker, {})
+                
+                ticker_breakdown.append({
+                    'ticker': ticker,
+                    'stock_xirr': ticker_metrics['stock_xirr'],
+                    'combined_xirr': ticker_metrics['combined_xirr'],
+                    'options_impact': ticker_metrics['options_impact'],
+                    'has_options': abs(ticker_metrics['options_impact']) > 0.0001,
+                    # Add position metrics
+                    'quantity': pos_data.get('quantity', 0),
+                    'market_value': pos_data.get('market_value', 0),
+                    'avg_cost': pos_data.get('avg_cost', 0),
+                    'unrealized_pnl': pos_data.get('unrealized_pnl', 0),
+                    'unrealized_pnl_pct': pos_data.get('unrealized_pnl_pct', 0),
+                    'weight': pos_data.get('weight', 0)
+                })
+            
+            # Calculate metadata
+            start_date = min(tx.date for tx in transactions)
+            end_date = max(tx.date for tx in transactions)
+            
+            result = {
+                'portfolio_xirr': portfolio_metrics.xirr,
+                'portfolio_metrics': {
+                    'xirr': portfolio_metrics.xirr,
+                    'twr': portfolio_metrics.twr,
+                    'total_return': portfolio_metrics.total_return,
+                    'total_return_pct': portfolio_metrics.total_return_pct,
+                    'annualized_return': portfolio_metrics.annualized_return,
+                    'volatility': portfolio_metrics.volatility,
+                    'sharpe_ratio': portfolio_metrics.sharpe_ratio,
+                    'max_drawdown': portfolio_metrics.max_drawdown,
+                    'current_value': portfolio_metrics.current_value,
+                    'total_invested': portfolio_metrics.total_invested
+                },
+                'ticker_breakdown': ticker_breakdown,
+                'metadata': {
+                    'transaction_count': len(transactions),
+                    'ticker_count': len(base_tickers),
+                    'start_date': start_date.strftime('%Y-%m-%d'),
+                    'end_date': end_date.strftime('%Y-%m-%d'),
+                    'holding_period_days': portfolio_metrics.holding_period_days,
+                    'period': options.get('period', 'ITD'),
+                    'view': options.get('view', 'Combined')
+                }
+            }
+            
+            print(f"[TRANSACTION-XIRR] Portfolio XIRR: {portfolio_metrics.xirr:.2%}")
+            print(f"[TRANSACTION-XIRR] Analyzed {len(ticker_breakdown)} tickers")
+            
+            return jsonify({
+                'success': True,
+                'transaction_xirr': sanitize_for_json(result)
+            })
+            
+        except Exception as e:
+            print(f'Transaction XIRR failed: {e}')
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500

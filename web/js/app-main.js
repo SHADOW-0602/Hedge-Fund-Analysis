@@ -504,56 +504,15 @@ async function loadTradeTimingAnalysis(transactions) {
 // Old drawdown analysis function removed - using comprehensive version from drawdown-analysis.js
 
 async function loadXIRRAnalysis(transactions) {
-    const container = document.getElementById('xirrAnalysis');
-    if (!container) {
-        // Create XIRR container if it doesn't exist (add to HTML)
-        console.log('XIRR container not found - add xirrAnalysis div to transaction analysis HTML');
-        return;
-    }
-
-    if (!transactions || transactions.length === 0) {
-        container.innerHTML = '<div class="text-center text-gray-500 py-4">No transaction data</div>';
-        return;
-    }
-
-    container.innerHTML = '<div class="text-center py-4 text-blue-600"><div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>Calculating XIRR...</div>';
-
-    try {
-        const response = await fetch(`${API_BASE}/analyze-transactions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transactions })
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.summary) {
-                const xirr = data.summary.xirr || 0;
-                const twr = data.summary.time_weighted_return || 0;
-                const annualizedReturn = data.summary.annualized_return || 0;
-                const sharpeRatio = data.summary.sharpe_ratio || 0;
-                const volatility = data.summary.volatility || 0;
-                const holdingDays = data.summary.holding_period_days || 0;
-
-                container.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between"><span>XIRR</span><span class="font-semibold ${xirr >= 0 ? 'text-green-600' : 'text-red-600'}">${xirr >= 0 ? '+' : ''}${xirr.toFixed(1)}%</span></div>
-                    <div class="flex justify-between"><span>Time-Weighted Return</span><span class="font-semibold ${twr >= 0 ? 'text-green-600' : 'text-red-600'}">${twr >= 0 ? '+' : ''}${twr.toFixed(1)}%</span></div>
-                    <div class="flex justify-between"><span>Annualized Return</span><span class="font-semibold ${annualizedReturn >= 0 ? 'text-green-600' : 'text-red-600'}">${annualizedReturn >= 0 ? '+' : ''}${annualizedReturn.toFixed(1)}%</span></div>
-                    <div class="flex justify-between"><span>Sharpe Ratio</span><span class="font-semibold">${sharpeRatio.toFixed(2)}</span></div>
-                    <div class="flex justify-between"><span>Volatility</span><span class="font-semibold">${volatility.toFixed(1)}%</span></div>
-                    <div class="flex justify-between"><span>Holding Period</span><span class="font-semibold">${holdingDays} days</span></div>
-                </div>
-            `;
-            } else {
-                throw new Error('XIRR calculation failed');
-            }
-        } else {
-            throw new Error('API request failed');
+    // Delegates to the new unified module
+    if (window.fetchXirrAnalysis) {
+        await window.fetchXirrAnalysis('xirrAnalysis', { period: 'ITD' });
+    } else {
+        console.error('XIRR Analysis module not loaded');
+        const container = document.getElementById('xirrAnalysis');
+        if (container) {
+            container.innerHTML = '<div class="text-red-500 p-4">Error: Analysis module missing</div>';
         }
-    } catch (error) {
-        console.error('XIRR analysis error:', error);
-        container.innerHTML = '<div class="text-center text-gray-500 py-4">XIRR calculation requires server connection</div>';
     }
 }
 

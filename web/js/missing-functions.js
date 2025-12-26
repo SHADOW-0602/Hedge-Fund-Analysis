@@ -362,6 +362,19 @@ function viewLoadedData(preferredType = null) {
     // Check for filter (support legacy string arg)
     const filter = (typeof preferredType === 'object') ? preferredType : { type: preferredType };
 
+    // SPECIAL HANDLING: If looking for Plaid data, ensure we have a transaction entry even if empty
+    if (filter.source === 'plaid') {
+        const hasTransactions = dataSources.some(ds => ds.type.includes('Transaction') && ds.source === 'plaid');
+        if (!hasTransactions) {
+            dataSources.push({
+                type: 'Transaction Data (Plaid)',
+                data: [],
+                source: 'plaid'
+            });
+            addedTypes.add('transactions');
+        }
+    }
+
     // Filter logic
     let filteredSources = dataSources;
     if (filter.source) {
@@ -372,6 +385,8 @@ function viewLoadedData(preferredType = null) {
         filteredSources = filteredSources.filter(ds => {
             // Check first item in data if available to match connection_id
             const firstItem = ds.data && ds.data.length > 0 ? ds.data[0] : null;
+            // If data is empty but source matches, keep it (it's our placeholder)
+            if (!firstItem && ds.source === 'plaid') return true;
             return firstItem && firstItem.connection_id === filter.connection_id;
         });
     }

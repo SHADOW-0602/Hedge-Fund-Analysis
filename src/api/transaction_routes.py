@@ -555,9 +555,15 @@ def register_transaction_routes(app):
                 print(f"[DEBUG] Found {len(transactions)} transactions")
                 return jsonify({'success': True, 'transactions': transactions})
             except Exception as e:
-                print(f"Transaction load error: {e}")
-                import traceback
-                traceback.print_exc()
+                error_msg = str(e)
+                if "getaddrinfo failed" in error_msg or "ConnectError" in error_msg:
+                    print(f"[WARN] Supabase connection failed in load_transactions: {error_msg}")
+                    # Do not print full traceback for network connection errors
+                else:
+                    print(f"Transaction load error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                
                 return jsonify({'success': True, 'transactions': []})
             
         except Exception as e:

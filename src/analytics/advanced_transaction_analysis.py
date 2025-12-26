@@ -718,10 +718,18 @@ class AdvancedTransactionAnalyzer:
             if txn.transaction_type in ['SELL', 'Sell', 'DIVIDEND', 'Dividend', 'INTEREST', 'Interest']:
                 daily_flows[date_key]['inflows'] += amount
                 print(f"[CASH-FLOW] Added ${amount} to inflows for {date_key}")
+            elif txn.transaction_type in ['DEPOSIT', 'Deposit', 'CONTRIBUTION', 'Contribution', 'TRANSFER', 'Transfer', 'JOURNAL', 'Journal', 'WIRE', 'Wire', 'CREDIT', 'Credit', 'FUNDS RECEIVED']:
+                daily_flows[date_key]['inflows'] += amount
+                print(f"[CASH-FLOW] Added ${amount} DEPOSIT/TRANSFER to inflows for {date_key}")
             elif txn.transaction_type in ['BUY', 'Buy']:
                 daily_flows[date_key]['outflows'] += amount
                 print(f"[CASH-FLOW] Added ${amount} to outflows for {date_key}")
-            
+            elif txn.transaction_type in ['WITHDRAW', 'Withdraw', 'WITHDRAWAL', 'Withdrawal', 'DEBIT', 'Debit', 'FUNDS SENT']:
+                daily_flows[date_key]['outflows'] += amount
+                print(f"[CASH-FLOW] Added ${amount} WITHDRAWAL to outflows for {date_key}")
+            else:
+                 print(f"[CASH-FLOW] IGNORED type: {txn.transaction_type} for {txn.symbol}")
+
             # Always track fees as outflows
             if txn.fees > 0:
                 daily_flows[date_key]['outflows'] += txn.fees

@@ -335,12 +335,20 @@ function renderCashFlowChart(chartId, chartData, benchmarkData) {
     const ctx = canvas.getContext('2d');
 
     // Prepare data for Chart.js
-    const labels = chartData.map(item => {
+    // Filter out zero values to avoid empty bars and "ghost" tooltips
+    const validData = chartData.filter(item => Math.abs(item.value) > 0.01);
+
+    if (validData.length === 0 && chartData.length > 0) {
+        // If all are zero, maybe show a message or just keep empty
+        console.log('All cash flow values are zero');
+    }
+
+    const labels = validData.map(item => {
         const date = new Date(item.date);
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     });
 
-    const values = chartData.map(item => item.value);
+    const values = validData.map(item => item.value);
     console.log('Chart values:', values);
 
     if (values.some(v => v === undefined || v === null || isNaN(v))) {
@@ -361,7 +369,8 @@ function renderCashFlowChart(chartId, chartData, benchmarkData) {
                     backgroundColor: colors,
                     borderColor: borderColors,
                     borderWidth: 1,
-                    borderRadius: 4
+                    borderRadius: 4,
+                    minBarLength: 4 // Ensure small values are at least 4px tall
                 }]
             },
             options: {

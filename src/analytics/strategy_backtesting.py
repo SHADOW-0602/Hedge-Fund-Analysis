@@ -36,6 +36,12 @@ class StrategyBacktester:
             benchmark_returns = benchmark_data.pct_change().dropna()
             
             # Align data
+            # Ensure timezone consistency (convert both to naive)
+            if returns.index.tz is not None:
+                returns.index = returns.index.tz_localize(None)
+            if benchmark_returns.index.tz is not None:
+                benchmark_returns.index = benchmark_returns.index.tz_localize(None)
+
             common_dates = returns.index.intersection(benchmark_returns.index)
             returns = returns.loc[common_dates]
             benchmark_returns = benchmark_returns.loc[common_dates]
@@ -144,10 +150,18 @@ class StrategyBacktester:
         portfolio_returns = []
         current_weights = weights.copy()
         
+        print(f"DEBUG: Weights keys: {list(weights.keys())}")
+        print(f"DEBUG: Returns columns: {returns.columns.tolist()}")
+        
         for i, (date, row) in enumerate(returns.iterrows()):
             # Calculate daily return
-            daily_return = sum(current_weights.get(symbol, 0) * row.get(symbol, 0) 
-                             for symbol in current_weights.keys())
+            daily_components = [current_weights.get(symbol, 0) * row.get(symbol, 0) for symbol in current_weights.keys()]
+            daily_return = sum(daily_components)
+            
+            if i == 0:
+                print(f"DEBUG: First day components: {daily_components[:5]}...")
+                print(f"DEBUG: First day return: {daily_return}")
+
             
             # Apply transaction costs on rebalancing days
             if i > 0 and i % rebalance_freq == 0:

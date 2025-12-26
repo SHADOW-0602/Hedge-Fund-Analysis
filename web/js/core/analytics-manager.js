@@ -204,6 +204,17 @@ class AnalyticsManager {
             type: 'portfolio'
         });
 
+        // Register new unified XIRR Analysis
+        this.register('xirr-analysis', {
+            endpoint: 'transaction-xirr', // Reuses the enhanced transaction endpoint
+            containerId: 'xirrAnalysis',
+            settingsId: 'xirrSettings',
+            displayFunction: (containerId, options) => window.fetchXirrAnalysis(containerId, options),
+            type: 'transaction'
+        });
+
+
+
         // Bind events
         this.bindEvents();
         this.bindSidebarEvents();
@@ -241,7 +252,14 @@ class AnalyticsManager {
 
     // Load specific module
     async loadModule(name) {
-        console.log('[AnalyticsManager] loadModule called for', name);
+        console.log(`Loading module: ${name}`);
+
+        // Hide data requirements info when any module is loaded
+        const requirementsInfo = document.getElementById('dataRequirementsInfo');
+        if (requirementsInfo) {
+            requirementsInfo.style.display = 'none';
+        }
+
         const module = this.modules.get(name);
         if (!module) {
             console.error(`Module ${name} not found`);
@@ -315,6 +333,10 @@ class AnalyticsManager {
             window.loadPnlAttribution(transactions);
             return;
         }
+
+
+
+
 
         // Special handling for Turnover Analysis to use its own dedicated handler
         if (name === 'turnover-analysis' && window.loadTurnoverAnalysis) {
@@ -442,6 +464,34 @@ class AnalyticsManager {
 
             // Use the dedicated cost analysis handler directly
             window.loadCostAnalysis(transactions);
+            return;
+        }
+
+        // Special handling for Unified XIRR Analysis
+        if (name === 'xirr-analysis') {
+            console.log('Delegating to unified XIRR Analysis');
+            const container = document.getElementById(DEFAULT_CONTAINER_ID);
+            if (container) container.classList.remove('hidden');
+
+            const containerId = module ? module.containerId : 'xirrAnalysis';
+            let xirrContainer = document.getElementById(containerId);
+
+            if (!xirrContainer) {
+                xirrContainer = document.createElement('div');
+                xirrContainer.id = containerId;
+            }
+
+            if (container) {
+                if (container.firstElementChild !== xirrContainer || container.children.length > 1) {
+                    container.innerHTML = '';
+                    container.appendChild(xirrContainer);
+                }
+                xirrContainer.classList.remove('hidden');
+            }
+
+            if (module && module.displayFunction) {
+                module.displayFunction(containerId, {});
+            }
             return;
         }
 
@@ -713,7 +763,7 @@ class AnalyticsManager {
         const container = document.getElementById(DEFAULT_CONTAINER_ID);
         if (container && !['cost-analysis', 'accounting-analysis', 'pnl-attribution', 'turnover-analysis', 'trade-performance', 'cash-flow', 'trade-timing', 'drawdown-analysis'].includes(name)) {
             container.classList.remove('hidden');
-            container.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div><p class="mt-2 text-gray-600">Loading analysis...</p></div>';
+            container.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div><p class="mt-2 text-gray-600 dark:text-gray-400">Loading analysis...</p></div>';
         }
 
         try {
@@ -1193,7 +1243,7 @@ class AnalyticsManager {
 
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Correlation Analysis</h2>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Correlation Analysis</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="toggleCorrelationSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
@@ -1210,8 +1260,8 @@ class AnalyticsManager {
             <div id="correlationSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                        <select id="correlationPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Period</label>
+                        <select id="correlationPeriod" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" onchange="updateCorrelationAnalysis()">
                             <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
                             <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
                             <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
@@ -1220,24 +1270,24 @@ class AnalyticsManager {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                        <select id="correlationFrequency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Frequency</label>
+                        <select id="correlationFrequency" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" onchange="updateCorrelationAnalysis()">
                             <option value="Daily" ${currentFrequency === 'Daily' ? 'selected' : ''}>Daily</option>
                             <option value="Weekly" ${currentFrequency === 'Weekly' ? 'selected' : ''}>Weekly</option>
                             <option value="Monthly" ${currentFrequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                        <select id="correlationMethod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Method</label>
+                        <select id="correlationMethod" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" onchange="updateCorrelationAnalysis()">
                             <option value="pearson" ${currentMethod === 'pearson' ? 'selected' : ''}>Pearson</option>
                             <option value="spearman" ${currentMethod === 'spearman' ? 'selected' : ''}>Spearman</option>
                             <option value="kendall" ${currentMethod === 'kendall' ? 'selected' : ''}>Kendall</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Rolling Window</label>
-                        <select id="correlationRollingWindow" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rolling Window</label>
+                        <select id="correlationRollingWindow" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white" onchange="updateCorrelationAnalysis()">
                             <option value="30d" ${currentRollingWindow === '30d' ? 'selected' : ''}>30 days</option>
                             <option value="60d" ${currentRollingWindow === '60d' ? 'selected' : ''}>60 days</option>
                             <option value="90d" ${currentRollingWindow === '90d' ? 'selected' : ''}>90 days</option>
@@ -1248,58 +1298,58 @@ class AnalyticsManager {
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Average Correlation</h3>
-                    <p class="text-3xl font-bold ${(summary.average_correlation || 0) > 0.7 ? 'text-red-600' : (summary.average_correlation || 0) > 0.3 ? 'text-yellow-600' : 'text-green-600'}">
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Average Correlation</h3>
+                    <p class="text-3xl font-bold ${(summary.average_correlation || 0) > 0.7 ? 'text-red-600 dark:text-red-400' : (summary.average_correlation || 0) > 0.3 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'}">
                         ${(summary.average_correlation || 0).toFixed(3)}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">${(summary.average_correlation || 0) > 0.7 ? 'High correlation' : (summary.average_correlation || 0) > 0.3 ? 'Moderate correlation' : 'Low correlation'}</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">${(summary.average_correlation || 0) > 0.7 ? 'High correlation' : (summary.average_correlation || 0) > 0.3 ? 'Moderate correlation' : 'Low correlation'}</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Max Correlation</h3>
-                    <p class="text-3xl font-bold ${(summary.max_correlation || 0) > 0.8 ? 'text-red-600' : 'text-blue-600'}">
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Max Correlation</h3>
+                    <p class="text-3xl font-bold ${(summary.max_correlation || 0) > 0.8 ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}">
                         ${(summary.max_correlation || 0).toFixed(3)}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">Highest pair correlation</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Highest pair correlation</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Min Correlation</h3>
-                    <p class="text-3xl font-bold ${(summary.min_correlation || 0) < -0.3 ? 'text-green-600' : 'text-blue-600'}">
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Min Correlation</h3>
+                    <p class="text-3xl font-bold ${(summary.min_correlation || 0) < -0.3 ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}">
                         ${(summary.min_correlation || 0).toFixed(3)}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">Lowest pair correlation</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Lowest pair correlation</p>
                 </div>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">Data Points</h3>
-                    <p class="text-3xl font-bold text-blue-600">
+                <div class="analysis-card p-6">
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Data Points</h3>
+                    <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">
                         ${summary.data_points || 'N/A'}
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">${symbols.length} symbols analyzed</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">${symbols.length} symbols analyzed</p>
                 </div>
             </div>
             
             ${symbols.length > 0 ? `
-                <div class="bg-white rounded-lg shadow p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Correlation Matrix</h3>
+                <div class="analysis-card p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Correlation Matrix</h3>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-800">
                                 <tr>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Symbol</th>
-                                    ${symbols.map(symbol => `<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">${symbol}</th>`).join('')}
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Symbol</th>
+                                    ${symbols.map(symbol => `<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">${symbol}</th>`).join('')}
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                 ${symbols.map(symbol1 => `
                                     <tr>
-                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${symbol1}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">${symbol1}</td>
                                         ${symbols.map(symbol2 => {
             const corrValue = correlation[symbol1]?.[symbol2] || 0;
-            const colorClass = symbol1 === symbol2 ? 'bg-gray-100' :
-                corrValue > 0.7 ? 'bg-red-100 text-red-800' :
-                    corrValue > 0.3 ? 'bg-yellow-100 text-yellow-800' :
-                        corrValue < -0.3 ? 'bg-green-100 text-green-800' :
-                            'bg-blue-100 text-blue-800';
+            const colorClass = symbol1 === symbol2 ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-300' :
+                corrValue > 0.7 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100' :
+                    corrValue > 0.3 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100' :
+                        corrValue < -0.3 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' :
+                            'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100';
             return `<td class="px-4 py-2 whitespace-nowrap text-sm text-center ${colorClass}">${corrValue.toFixed(3)}</td>`;
         }).join('')}
                                     </tr>
@@ -1307,31 +1357,31 @@ class AnalyticsManager {
                             </tbody>
                         </table>
                     </div>
-                    <div class="mt-4 text-sm text-gray-600">
+                    <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
                         <div class="flex flex-wrap gap-4">
-                            <div class="flex items-center"><div class="w-4 h-4 bg-red-100 border mr-2"></div>Strong Positive (>0.7)</div>
-                            <div class="flex items-center"><div class="w-4 h-4 bg-yellow-100 border mr-2"></div>Moderate Positive (0.3-0.7)</div>
-                            <div class="flex items-center"><div class="w-4 h-4 bg-blue-100 border mr-2"></div>Weak (-0.3-0.3)</div>
-                            <div class="flex items-center"><div class="w-4 h-4 bg-green-100 border mr-2"></div>Negative (<-0.3)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-red-100 dark:bg-red-900 border border-red-200 dark:border-red-700 mr-2"></div>Strong Positive (>0.7)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-yellow-100 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 mr-2"></div>Moderate Positive (0.3-0.7)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-blue-100 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 mr-2"></div>Weak (-0.3-0.3)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 bg-green-100 dark:bg-green-900 border border-green-200 dark:border-green-700 mr-2"></div>Negative (<-0.3)</div>
                         </div>
                     </div>
                 </div>
-            ` : '<div class="bg-white rounded-lg shadow p-6 mb-6"><p class="text-gray-500 text-center">No correlation data available</p></div>'
+            ` : '<div class="analysis-card p-6 mb-6"><p class="text-gray-500 dark:text-gray-400 text-center">No correlation data available</p></div>'
             }
 
-<div class="bg-gray-50 rounded-lg p-6">
-    <h4 class="text-sm font-semibold text-gray-700 mb-3">Analysis Parameters</h4>
+<div class="analysis-card p-6">
+    <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Analysis Parameters</h4>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-        <div><span class="text-gray-600">Period:</span> <span class="font-medium text-gray-900">${currentPeriod}</span></div>
-        <div><span class="text-gray-600">Frequency:</span> <span class="font-medium text-gray-900">${currentFrequency}</span></div>
-        <div><span class="text-gray-600">Method:</span> <span class="font-medium text-gray-900">${currentMethod}</span></div>
-        <div><span class="text-gray-600">Rolling Window:</span> <span class="font-medium text-gray-900">${currentRollingWindow}</span></div>
+        <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${currentPeriod}</span></div>
+        <div><span class="text-gray-600 dark:text-gray-400">Frequency:</span> <span class="font-medium text-gray-900 dark:text-white">${currentFrequency}</span></div>
+        <div><span class="text-gray-600 dark:text-gray-400">Method:</span> <span class="font-medium text-gray-900 dark:text-white">${currentMethod}</span></div>
+        <div><span class="text-gray-600 dark:text-gray-400">Rolling Window:</span> <span class="font-medium text-gray-900 dark:text-white">${currentRollingWindow}</span></div>
     </div>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
-        <div><span class="text-gray-600">Data Points:</span> <span class="font-medium text-gray-900">${summary.data_points || 'N/A'}</span></div>
-        <div><span class="text-gray-600">Symbols:</span> <span class="font-medium text-gray-900">${symbols.length}</span></div>
-        <div><span class="text-gray-600">Data Source:</span> <span class="font-medium text-gray-900">${correlationData.data_source || 'Market Data'}</span></div>
-        <div><span class="text-gray-600">High Pairs:</span> <span class="font-medium text-gray-900">${correlationData.high_correlation_pairs?.length || 0}</span></div>
+        <div><span class="text-gray-600 dark:text-gray-400">Data Points:</span> <span class="font-medium text-gray-900 dark:text-white">${summary.data_points || 'N/A'}</span></div>
+        <div><span class="text-gray-600 dark:text-gray-400">Symbols:</span> <span class="font-medium text-gray-900 dark:text-white">${symbols.length}</span></div>
+        <div><span class="text-gray-600 dark:text-gray-400">Data Source:</span> <span class="font-medium text-gray-900 dark:text-white">${correlationData.data_source || 'Market Data'}</span></div>
+        <div><span class="text-gray-600 dark:text-gray-400">High Pairs:</span> <span class="font-medium text-gray-900 dark:text-white">${correlationData.high_correlation_pairs?.length || 0}</span></div>
     </div>
 </div>
 `;
@@ -1346,7 +1396,7 @@ class AnalyticsManager {
         container.innerHTML = `
             <div class="text-center py-8">
                 <div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div>
-                <p class="mt-2 text-gray-600">Loading news...</p>
+                <p class="mt-2 text-gray-600 dark:text-gray-400">Loading news...</p>
             </div>
         `;
 
@@ -2598,25 +2648,63 @@ class AnalyticsManager {
                 theme: {
                     mode: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
                 },
+                tooltip: {
+                    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+                    style: {
+                        fontSize: '12px',
+                        fontFamily: 'inherit'
+                    }
+                },
                 dataLabels: { enabled: false },
                 legend: {
                     position: 'right',
                     fontSize: '12px',
+                    markers: { radius: 12 },
+                    itemMargin: { horizontal: 5, vertical: 5 },
                     labels: {
                         colors: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151'
                     }
                 },
                 plotOptions: {
-                    pie: { donut: { size: '70%', labels: { show: false } } }
+                    pie: {
+                        donut: {
+                            size: '75%',
+                            labels: {
+                                show: true,
+                                name: { show: false },
+                                value: {
+                                    show: true,
+                                    fontSize: '22px',
+                                    fontWeight: 700,
+                                    color: document.documentElement.classList.contains('dark') ? '#ffffff' : '#111827',
+                                    offsetY: 6,
+                                    formatter: function (val) {
+                                        return parseInt(val) + "%";
+                                    }
+                                },
+                                total: {
+                                    show: true,
+                                    showAlways: true,
+                                    label: 'Sentiment',
+                                    fontSize: '12px',
+                                    color: '#9ca3af',
+                                    formatter: function (w) {
+                                        // Show dominant sentiment in center
+                                        const b = w.globals.seriesTotals[0]; // Bullish
+                                        const r = w.globals.seriesTotals[1]; // Bearish
+                                        return b > r ? 'Bullish' : (r > b ? 'Bearish' : 'Neutral');
+                                    }
+                                }
+                            }
+                        }
+                    }
                 },
                 tooltip: {
                     y: { formatter: (val) => val.toFixed(1) + '%' },
-                    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+                    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+                    style: { fontSize: '12px', fontFamily: 'inherit' }
                 },
-                stroke: {
-                    show: true,
-                    colors: document.documentElement.classList.contains('dark') ? ['#1f2937'] : ['#ffffff']
-                }
+                stroke: { show: false }
             };
 
             window.techSignalChart = new ApexCharts(document.querySelector("#signalDistChart"), options);
@@ -3245,6 +3333,9 @@ class AnalyticsManager {
                         try { window.backtestChartInstance.destroy(); } catch (e) { }
                     }
 
+                    // Detect current theme
+                    const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+
                     const options = {
                         series: [{
                             name: 'Portfolio Value',
@@ -3253,37 +3344,206 @@ class AnalyticsManager {
                         chart: {
                             type: 'area',
                             height: 350,
-                            toolbar: { show: false },
-                            animations: { enabled: false } // Disable animations to prevent calc errors during resize
-                        },
-                        dataLabels: { enabled: false },
-                        stroke: { curve: 'smooth', width: 2 },
-                        xaxis: {
-                            categories: dates,
-                            labels: {
-                                show: dates.length < 20, // Only show labels if few points, or let Apex handle it? Better to hide if potentially thousands
-                                rotate: -45,
-                                style: { fontSize: '10px' }
+                            toolbar: {
+                                show: true,
+                                tools: {
+                                    download: false,
+                                    selection: true,
+                                    zoom: true,
+                                    zoomin: true,
+                                    zoomout: true,
+                                    pan: true,
+                                    reset: true
+                                },
+                                autoSelected: 'zoom'
                             },
-                            tooltip: { enabled: false },
-                            tickAmount: Math.min(10, dates.length)
-                        },
-                        yaxis: {
-                            labels: {
-                                formatter: function (value) {
-                                    return "$" + (value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value.toFixed(0));
+                            animations: {
+                                enabled: true,
+                                easing: 'easeinout',
+                                speed: 800,
+                                animateGradually: {
+                                    enabled: true,
+                                    delay: 150
+                                },
+                                dynamicAnimation: {
+                                    enabled: true,
+                                    speed: 350
                                 }
+                            },
+                            background: 'transparent',
+                            foreColor: isDarkMode ? '#9CA3AF' : '#6B7280',
+                            zoom: {
+                                enabled: true,
+                                type: 'x',
+                                autoScaleYaxis: true
                             }
                         },
-                        theme: { mode: 'light' },
-                        colors: ['#4F46E5'],
+                        dataLabels: { enabled: false },
+                        markers: {
+                            size: 0,
+                            colors: undefined,
+                            strokeColors: '#fff',
+                            strokeWidth: 2,
+                            strokeOpacity: 0.9,
+                            strokeDashArray: 0,
+                            fillOpacity: 1,
+                            discrete: [],
+                            shape: "circle",
+                            radius: 2,
+                            offsetX: 0,
+                            offsetY: 0,
+                            onClick: undefined,
+                            onDblClick: undefined,
+                            showNullDataPoints: true,
+                            hover: {
+                                size: 5,
+                                sizeOffset: 3
+                            }
+                        },
+                        stroke: {
+                            curve: 'smooth',
+                            width: 2,
+                            colors: [isDarkMode ? '#818CF8' : '#4F46E5']
+                        },
+                        xaxis: {
+                            categories: dates,
+                            type: 'category', // explicitly set type
+                            crosshairs: {
+                                show: true,
+                                width: 1,
+                                position: 'back',
+                                opacity: 0.9,
+                                stroke: {
+                                    color: isDarkMode ? '#6B7280' : '#b6b6b6',
+                                    width: 1,
+                                    dashArray: 3,
+                                },
+                                fill: {
+                                    type: 'solid',
+                                    color: isDarkMode ? '#374151' : '#B1B9C4',
+                                    gradient: {
+                                        colorFrom: isDarkMode ? '#374151' : '#D8E3F0',
+                                        colorTo: isDarkMode ? '#4B5563' : '#BED1E6',
+                                        stops: [0, 100],
+                                        opacityFrom: 0.4,
+                                        opacityTo: 0.5,
+                                    },
+                                }
+                            },
+                            title: {
+                                text: 'Date',
+                                style: {
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: isDarkMode ? '#9CA3AF' : '#6B7280'
+                                }
+                            },
+                            labels: {
+                                show: true,
+                                rotate: -45,
+                                rotateAlways: false,
+                                hideOverlappingLabels: true,
+                                showDuplicates: false,
+                                trim: false,
+                                style: {
+                                    fontSize: '11px',
+                                    colors: isDarkMode ? '#9CA3AF' : '#6B7280'
+                                }
+                            },
+                            axisBorder: {
+                                show: true,
+                                color: isDarkMode ? '#4B5563' : '#E5E7EB'
+                            },
+                            axisTicks: {
+                                show: true,
+                                color: isDarkMode ? '#4B5563' : '#E5E7EB'
+                            },
+                            tooltip: { enabled: true },
+                            tickAmount: Math.min(12, Math.max(6, Math.floor(dates.length / 10)))
+                        },
+                        yaxis: {
+                            title: {
+                                text: 'Portfolio Value',
+                                style: {
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: isDarkMode ? '#9CA3AF' : '#6B7280'
+                                }
+                            },
+                            labels: {
+                                formatter: function (value) {
+                                    if (value == null || isNaN(value)) return '$0';
+                                    // Handle different value ranges
+                                    if (value >= 1000000) {
+                                        return '$' + (value / 1000000).toFixed(2) + 'M';
+                                    } else if (value >= 1000) {
+                                        return '$' + (value / 1000).toFixed(1) + 'k';
+                                    } else if (value >= 1) {
+                                        return '$' + value.toFixed(2);
+                                    } else {
+                                        // For normalized values (0-1 range)
+                                        return value.toFixed(3);
+                                    }
+                                },
+                                style: {
+                                    colors: isDarkMode ? '#9CA3AF' : '#6B7280'
+                                }
+                            },
+                            axisBorder: {
+                                show: true,
+                                color: isDarkMode ? '#4B5563' : '#E5E7EB'
+                            },
+                            axisTicks: {
+                                show: true,
+                                color: isDarkMode ? '#4B5563' : '#E5E7EB'
+                            }
+                        },
+                        grid: {
+                            borderColor: isDarkMode ? '#374151' : '#E5E7EB',
+                            strokeDashArray: 4,
+                            xaxis: {
+                                lines: { show: true }
+                            },
+                            yaxis: {
+                                lines: { show: true }
+                            }
+                        },
+                        theme: { mode: isDarkMode ? 'dark' : 'light' },
+                        colors: [isDarkMode ? '#818CF8' : '#4F46E5'],
                         fill: {
                             type: 'gradient',
                             gradient: {
                                 shadeIntensity: 1,
-                                opacityFrom: 0.7,
-                                opacityTo: 0.9,
+                                opacityFrom: isDarkMode ? 0.5 : 0.7,
+                                opacityTo: isDarkMode ? 0.7 : 0.9,
                                 stops: [0, 90, 100]
+                            }
+                        },
+                        tooltip: {
+                            theme: isDarkMode ? 'dark' : 'light',
+                            x: {
+                                format: 'dd MMM yyyy'
+                            },
+                            y: {
+                                formatter: function (value, { series, seriesIndex, dataPointIndex, w }) {
+                                    let formattedValue = '';
+                                    if (value == null || isNaN(value)) formattedValue = '$0';
+                                    else if (value >= 1000000) formattedValue = '$' + (value / 1000000).toFixed(2) + 'M';
+                                    else if (value >= 1000) formattedValue = '$' + (value / 1000).toFixed(2) + 'k';
+                                    else if (value >= 1) formattedValue = '$' + value.toFixed(2);
+                                    else formattedValue = value.toFixed(3);
+
+                                    // Calculate daily return
+                                    if (dataPointIndex > 0 && w && w.globals && w.globals.series) {
+                                        const prevValue = w.globals.series[seriesIndex][dataPointIndex - 1];
+                                        if (prevValue && prevValue !== 0) {
+                                            const change = ((value - prevValue) / prevValue) * 100;
+                                            const sign = change >= 0 ? '+' : '';
+                                            return formattedValue + ` (${sign}${change.toFixed(2)}%)`;
+                                        }
+                                    }
+                                    return formattedValue;
+                                }
                             }
                         }
                     };

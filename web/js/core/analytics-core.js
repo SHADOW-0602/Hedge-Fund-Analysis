@@ -8,24 +8,38 @@ class AnalyticsCore {
 
     // Generic API call handler
     async callAPI(endpoint, data, options = {}) {
+        const timeoutDuration = options.timeout || 60000; // Default 60 seconds
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
+
         try {
             console.log(`Making API call to ${endpoint} with data:`, data);
             console.log(`Making API call to ${endpoint} with options:`, options);
             const requestBody = { ...data, options };
             console.log(`Final request body for ${endpoint}:`, requestBody);
+
             const response = await fetch(`${this.apiBase}/api/${endpoint}?t=${Date.now()}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Cache-Control': 'no-cache'
                 },
-                body: JSON.stringify(requestBody)
+                body: JSON.stringify(requestBody),
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
             const result = await response.json();
             console.log(`API response from ${endpoint}:`, result);
             return result;
         } catch (error) {
+            clearTimeout(timeoutId);
             console.error(`API call failed for ${endpoint}:`, error);
+
+            if (error.name === 'AbortError') {
+                return { success: false, error: `Request timed out after ${timeoutDuration / 1000} seconds. The analysis might be too complex or the server is busy.` };
+            }
+
             return { success: false, error: error.message };
         }
     }

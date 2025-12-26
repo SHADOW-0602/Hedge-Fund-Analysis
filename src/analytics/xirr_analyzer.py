@@ -8,6 +8,32 @@ from datetime import datetime, timedelta
 from scipy.optimize import newton, brentq
 import streamlit as st
 from dataclasses import dataclass
+import re
+
+# Helper functions for XIRR calculation
+def xnpv(rate, cashflows):
+    """Calculate Net Present Value for irregular cash flows"""
+    if not cashflows:
+        return 0
+    d0 = cashflows[0][0]
+    return sum(cf / ((1 + rate) ** ((d - d0).days / 365.0)) for d, cf in cashflows if cf != 0)
+
+def is_option_symbol(symbol):
+    """Check if symbol is an option (contains expiry date and C/P)"""
+    if pd.isna(symbol):
+        return False
+    s = str(symbol).strip()
+    return len(s) > 10 and any(c in s for c in ['C', 'P']) and any(d.isdigit() for d in s)
+
+def is_option_for_ticker(symbol, ticker):
+    """
+    Return True if 'symbol' is an option on 'ticker' with OCC-like format:
+        TICKER + YYMMDD + C/P + strike...
+    Example: BKE251219C00040000 -> ticker BKE
+    """
+    s = str(symbol).strip()
+    pattern = rf"^{re.escape(ticker)}\d{{6}}[CP]"
+    return re.match(pattern, s) is not None
 
 @dataclass
 class XIRRMetrics:
@@ -227,59 +253,122 @@ class DetailedXIRRAnalyzer:
             current_value=clean_value(current_value)
         )
     
+    def _solve_xirr(self, cash_flows: List[Tuple[datetime, float]]) -> float:
+        """Internal robust solver for XIRR"""
+        if not cash_flows:
+            return 0.0
+            
+        # Only include significant cash flows
+        significant_flows = [(d, cf) for d, cf in cash_flows if abs(cf) > 0.01]
+        if len(significant_flows) < 2:
+            return 0.0
+            
+        # Sort by date
+        significant_flows.sort(key=lambda x: x[0])
+        
+        # Check signs
+        signs = [1 if cf > 0 else -1 for _, cf in significant_flows]
+        if len(set(signs)) == 1:
+            return 0.0
+        
+        # Try multiple starting rates
+        starting_rates = [0.1, 0.01, 0.5, -0.5, 0.2, -0.2, 1.0, -0.9]
+        
+        for start_rate in starting_rates:
+            try:
+                result = newton(lambda r: xnpv(r, significant_flows), start_rate, maxiter=1000, tol=1e-6)
+                if -0.99 <= result <= 100:
+                    return float(result)
+            except Exception:
+                continue
+                
+        # Fallback approximation
+        try:
+            current_value = significant_flows[-1][1] if significant_flows[-1][1] > 0 else 0
+            total_invested = sum(cf for _, cf in significant_flows[:-1] if cf < 0)
+            if total_invested < 0:
+                end_date = significant_flows[-1][0]
+                start_date = significant_flows[0][0]
+                total_return = (current_value + total_invested) / abs(total_invested)
+                time_period = (end_date - start_date).days / 365.25
+                result = (total_return ** (1 / time_period)) - 1 if time_period > 0 else 0
+                return float(result) if np.isfinite(result) else 0.0
+        except:
+            pass
+            
+        return 0.0
+
     def _calculate_xirr_core(self, current_prices: Dict[str, float], end_date: datetime) -> float:
-        """Core XIRR calculation with multiple methods"""
+        """Core XIRR calculation using robust solver"""
         cash_flows = []
-        dates = []
         
         # Add transaction cash flows
         for txn in self.transactions:
-            cash_flows.append(txn['cash_flow'])
-            dates.append(txn['date'])
+            cash_flows.append((txn['date'], txn['cash_flow']))
         
         # Add current portfolio value
         positions = self._calculate_current_positions()
         current_value = sum(pos['quantity'] * current_prices.get(symbol, 0) 
                           for symbol, pos in positions.items())
         
-        if current_value > 0:
-            cash_flows.append(current_value)
-            dates.append(end_date)
+        if current_value > 0.01:
+            cash_flows.append((end_date, current_value))
+            
+        return self._solve_xirr(cash_flows)
+
+    def calculate_ticker_xirr(self, ticker: str, current_prices: Dict[str, float]) -> Dict:
+        """Calculate XIRR for a specific ticker, with breakdown for Stock-Only vs Combined (Stock + Options)"""
+        end_date = datetime.now()
         
-        if len(cash_flows) < 2:
-            return 0.0
+        # 1. Provide Stock-Only Analysis
+        stock_txns = [t for t in self.transactions if t['symbol'] == ticker and not is_option_symbol(t['symbol'])]
+        stock_cash_flows = [(t['date'], t['cash_flow']) for t in stock_txns]
         
-        # Convert to years from start
-        start_date = min(dates)
-        years = [(date - start_date).days / 365.25 for date in dates]
+        # Calculate terminal value for stock
+        stock_qty = 0
+        for t in stock_txns:
+            if t['type'] == 'BUY': stock_qty += t['quantity']
+            elif t['type'] == 'SELL': stock_qty -= t['quantity']
+            
+        if abs(stock_qty) > 0.0001:
+            curr_price = current_prices.get(ticker, 0)
+            stock_cash_flows.append((end_date, stock_qty * curr_price))
+            
+        stock_xirr = self._solve_xirr(stock_cash_flows)
         
-        def npv(rate):
-            return sum(cf / (1 + rate) ** year for cf, year in zip(cash_flows, years))
+        # 2. Provide Combined Analysis (Stock + Options)
+        combined_txns = [t for t in self.transactions if t['symbol'] == ticker or 
+                        (is_option_symbol(t['symbol']) and is_option_for_ticker(t['symbol'], ticker))]
         
-        try:
-            # Try Newton's method first
-            xirr = newton(npv, 0.1, maxiter=100)
-            # Ensure result is real and finite
-            if np.iscomplex(xirr) or not np.isfinite(xirr):
-                raise ValueError("Invalid XIRR result")
-            return float(xirr.real) if np.iscomplex(xirr) else float(xirr)
-        except:
-            try:
-                # Fallback to Brent's method
-                xirr = brentq(npv, -0.99, 10.0, maxiter=100)
-                # Ensure result is real and finite
-                if np.iscomplex(xirr) or not np.isfinite(xirr):
-                    raise ValueError("Invalid XIRR result")
-                return float(xirr.real) if np.iscomplex(xirr) else float(xirr)
-            except:
-                # Simple approximation
-                total_invested = sum(cf for cf in cash_flows[:-1] if cf < 0)
-                if total_invested < 0:
-                    total_return = (current_value + total_invested) / abs(total_invested)
-                    time_period = (end_date - start_date).days / 365.25
-                    result = (total_return ** (1 / time_period)) - 1 if time_period > 0 else 0
-                    return float(result) if np.isfinite(result) else 0.0
-                return 0.0
+        combined_cash_flows = [(t['date'], t['cash_flow']) for t in combined_txns]
+        
+        # Calculate terminal value for stock + options
+        combined_open_positions = {}
+        for t in combined_txns:
+            sym = t['symbol']
+            if sym not in combined_open_positions:
+                combined_open_positions[sym] = 0
+            
+            if t['type'] == 'BUY': combined_open_positions[sym] += t['quantity']
+            elif t['type'] == 'SELL': combined_open_positions[sym] -= t['quantity']
+
+        terminal_value = 0
+        for sym, qty in combined_open_positions.items():
+            if abs(qty) > 0.0001:
+                price = current_prices.get(sym, 0)
+                terminal_value += qty * price
+
+        if abs(terminal_value) > 0.01:
+            combined_cash_flows.append((end_date, terminal_value))
+            
+        combined_xirr = self._solve_xirr(combined_cash_flows)
+        
+        return {
+            'ticker': ticker,
+            'stock_xirr': stock_xirr,
+            'combined_xirr': combined_xirr,
+            'options_impact': combined_xirr - stock_xirr
+        }
     
     def _calculate_time_weighted_return(self, current_prices: Dict[str, float]) -> float:
         """Calculate time-weighted return"""

@@ -122,15 +122,12 @@ class PlaidConnectionsManager {
         this.activeConnection = connectionId;
         this.updateConnectionsUI();
 
-        // Load data for selected connection
-        await this.loadConnectionData(connectionId);
-
-        // Update status
+        // Update status - DO NOT load data automatically
         const statusDiv = document.getElementById('plaidStatus');
         if (statusDiv) {
             const conn = this.connections.find(c => c.connection_id === connectionId);
-            statusDiv.textContent = `Active: ${conn?.institution_name || 'Unknown'}`;
-            statusDiv.className = 'mt-2 text-xs text-green-600';
+            statusDiv.textContent = `Selected: ${conn?.institution_name || 'Unknown'}. Click "Reload Data" to fetch.`;
+            statusDiv.className = 'mt-2 text-xs text-blue-600 font-medium';
         }
     }
 
@@ -189,6 +186,7 @@ class PlaidConnectionsManager {
                 }
                 // Store global
                 window.portfolioData = portfolioData;
+                window.currentPortfolio = portfolioData;
             } else {
                 console.error('[PLAID] Failed to load portfolio data:', resultPortfolio.error || 'Unknown error');
             }
