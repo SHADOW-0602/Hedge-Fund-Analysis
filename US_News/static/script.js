@@ -34,6 +34,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const newTheme = themeToggle.checked ? 'dark' : 'light';
                 document.documentElement.setAttribute('data-theme', newTheme);
                 localStorage.setItem('theme', newTheme);
+
+                // Sync Overview Chart Theme
+                if (typeof syncChartTheme === 'function') syncChartTheme();
+
                 // Re-render chart if data exists
                 if (cachedTAData) {
                     renderTA(cachedTAData);
@@ -872,8 +876,8 @@ async function selectTicker(ticker) {
         }
     }
 
-    // Trigger Chart Load if Overview is active OR just pre-load it
-    // Check if overview tab is effectively active (even if hidden)
+
+    // Trigger Chart Load (Overview chart is now in TA tab)
     loadChartData(ticker);
 }
 
@@ -1214,17 +1218,30 @@ function initTabListeners() {
                 targetContent.style.display = 'flex';
             }
 
-            // Tab-specific loading logic
-            if (targetId === 'overview' && currentChartTicker) {
-                loadChartData(currentChartTicker);
-                if (chartInstance) chartInstance.timeScale().fitContent();
-            } else {
-                // Stop polling when leaving Overview tab
-                stopChartPolling();
-            }
 
+            // Tab-specific loading logic
             if (targetId === 'ta' && currentActiveTicker) {
                 console.log(`[TA] Tab clicked, loading data for ${currentActiveTicker}...`);
+
+                // CRITICAL: Resize chart after tab becomes visible
+                // The chart was initialized when hidden, so it needs to recalculate dimensions
+                setTimeout(() => {
+                    if (chartInstance) {
+                        const container = document.getElementById('overviewChart');
+                        if (container) {
+                            chartInstance.applyOptions({
+                                width: container.clientWidth,
+                                height: 450
+                            });
+                            chartInstance.timeScale().fitContent();
+                        }
+                    }
+                }, 50); // Small delay to ensure tab is fully visible
+
+                // Load Overview Chart (now in TA tab)
+                if (currentChartTicker) {
+                    loadChartData(currentChartTicker);
+                }
                 // Always load TA data when switching to TA tab
                 loadTAData(currentActiveTicker);
                 // Trigger Expert Quant Analysis Automatically
@@ -1233,10 +1250,16 @@ function initTabListeners() {
                 console.warn('[TA] Tab clicked but no currentActiveTicker set');
             }
 
+            // Stop chart polling when leaving TA tab (since chart is now in TA)
+            if (targetId !== 'ta') {
+                stopChartPolling();
+            }
+
             if (targetId === 'fin' && currentActiveTicker) {
                 console.log("[Fundamentals] Tab clicked, loading data...");
                 loadFundamentals(currentActiveTicker);
             }
+
         });
     });
 
@@ -1618,9 +1641,10 @@ function initChart() {
         }
 
         console.log('[Overview] Creating chart instance...');
-        // Create Chart
+        // Create Chart with explicit height to ensure timeScale is visible
         chartInstance = LightweightCharts.createChart(container, {
-            autoSize: true,
+            width: container.clientWidth,
+            height: 450,
             layout: {
                 background: { type: 'solid', color: 'transparent' },
                 textColor: '#333',
@@ -1631,15 +1655,37 @@ function initChart() {
             },
             rightPriceScale: {
                 borderColor: 'rgba(197, 203, 206, 0.8)',
+                visible: true,
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine: {
+                    labelVisible: true,
+                    labelBackgroundColor: '#2563eb', // Force blue background for visibility
+                },
+                horzLine: {
+                    labelVisible: true,
+                    labelBackgroundColor: '#2563eb',
+                },
             },
             timeScale: {
-                borderVisible: false,
-                timeVisible: false, // Hide 00:00:00 for daily bars
+                visible: true,
+                borderVisible: true, // Force border visible
+                borderColor: 'rgba(197, 203, 206, 0.8)',
+                timeVisible: true,
                 secondsVisible: false,
                 fixLeftEdge: true,
                 fixRightEdge: true,
                 rightOffset: 2,
-                minBarSpacing: 0.5, // Prevent zooming out into blank space
+                minBarSpacing: 0.5,
+            },
+            handleScale: {
+                axisPressedMouseMove: true,
+                pinch: true,
+            },
+            handleScroll: {
+                vertTouchDrag: false, // Allow vertical page scroll
+                horzTouchDrag: true,  // Allow horizontal chart pan
             },
         });
 
@@ -1664,6 +1710,73 @@ function initChart() {
 
 
 
+        // Add Crosshair Move Handler for Dynamic Legend
+        chartInstance.subscribeCrosshairMove(param => {
+            const legend = document.getElementById('chartDynamicLegend');
+            if (!legend) return;
+
+            if (
+                param.point === undefined ||
+                !param.time ||
+                param.point.x < 0 ||
+                param.point.x > container.clientWidth ||
+                param.point.y < 0 ||
+                param.point.y > container.clientHeight
+            ) {
+                // Clear or reset when out of chart
+                legend.innerHTML = '';
+                return;
+            }
+
+            // Get data for the specific series
+            const data = param.seriesData.get(candleSeries);
+            const volumeData = param.seriesData.get(volumeSeries);
+
+            if (data) {
+                // Format Date
+                let dateStr;
+                if (typeof param.time === 'string') {
+                    // Daily data: "YYYY-MM-DD"
+                    const [y, m, d] = param.time.split('-').map(Number);
+                    // Create date in local timezone to prevent shifts
+                    dateStr = new Date(y, m - 1, d).toLocaleDateString('en-US', {
+                        year: 'numeric', month: 'short', day: 'numeric'
+                    });
+                } else {
+                    // Intraday: Unix timestamp (seconds)
+                    dateStr = new Date(param.time * 1000).toLocaleDateString('en-US', {
+                        year: 'numeric', month: 'short', day: 'numeric',
+                        hour: 'numeric', minute: 'numeric' // Add time for intraday
+                    });
+                }
+
+                // Format OHLC
+                const open = data.open.toFixed(2);
+                const high = data.high.toFixed(2);
+                const low = data.low.toFixed(2);
+                const close = data.close.toFixed(2);
+                const vol = volumeData && volumeData.value ? (volumeData.value / 1000000).toFixed(2) + 'M' : '';
+
+                // Color for Change
+                const change = (data.close - data.open).toFixed(2);
+                const color = change >= 0 ? '#22c55e' : '#ef5350';
+
+                legend.innerHTML = `
+                    <div class="chart-legend-flex-container">
+                        <span class="legend-date">${dateStr}</span>
+                        <div class="legend-data-group">
+                            <span class="legend-item">O: ${open}</span>
+                            <span class="legend-item">H: ${high}</span>
+                            <span class="legend-item">L: ${low}</span>
+                            <span class="legend-item">C: ${close}</span>
+                            <span class="legend-item" style="color: ${color}">(${change})</span>
+                            ${vol ? `<span class="legend-item">V: ${vol}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
         // Initial Theme Sync
         syncChartTheme();
 
@@ -1682,6 +1795,16 @@ function initChart() {
         });
 
 
+        // Add resize handler to maintain chart dimensions and timeScale visibility
+        const resizeObserver = new ResizeObserver(() => {
+            if (chartInstance && container) {
+                chartInstance.applyOptions({
+                    width: container.clientWidth,
+                    height: 450
+                });
+            }
+        });
+        resizeObserver.observe(container);
 
         // Setup Tab Switching Logic if not already handled elsewhere
     } catch (e) {
@@ -1695,15 +1818,15 @@ function syncChartTheme() {
 
     chartInstance.applyOptions({
         layout: {
-            textColor: isDark ? '#e2e8f0' : '#1e293b',
-            background: { type: 'solid', color: isDark ? '#1e293b' : '#ffffff' }
+            textColor: isDark ? '#ffffff' : '#000000', // Pure White for dark, Pure Black for light
+            background: { type: 'solid', color: 'transparent' }
         },
         grid: {
-            vertLines: { color: isDark ? '#334155' : '#e2e8f0' },
-            horzLines: { color: isDark ? '#334155' : '#e2e8f0' },
+            vertLines: { color: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' },
+            horzLines: { color: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' },
         },
-        timeScale: { borderColor: isDark ? '#475569' : '#cbd5e1' },
-        rightPriceScale: { borderColor: isDark ? '#475569' : '#cbd5e1' }
+        timeScale: { borderColor: isDark ? 'rgba(148, 163, 184, 0.4)' : 'rgba(0, 0, 0, 0.2)' },
+        rightPriceScale: { borderColor: isDark ? 'rgba(148, 163, 184, 0.4)' : 'rgba(0, 0, 0, 0.2)' }
     });
 }
 

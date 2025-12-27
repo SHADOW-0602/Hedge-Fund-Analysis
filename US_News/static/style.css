@@ -2538,10 +2538,10 @@ body {
     flex: 1;
 }
 
-#overviewChart {
+/* #overviewChart {
     border: 1px solid var(--border);
     background: var(--bg-card);
-}
+} */
 
 @media (min-width: 769px) {
     #overviewChart {
@@ -2572,6 +2572,92 @@ body {
         margin-bottom: 5px !important;
     }
 }
+
+/* Overview Chart Section in TA Tab - Unified Card Container */
+.overview-chart-section {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-bottom: 24px;
+
+    /* Card Styling moved here to include Header */
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    padding-top: 16px;
+    /* Ensure space for header inside the card */
+}
+
+/* Dynamic Chart Legend Responsive Styles */
+#chartDynamicLegend {
+    min-height: 20px;
+    /* Prevent jump when empty */
+    margin-bottom: 8px;
+    /* Space between legend and chart */
+}
+
+.chart-legend-flex-container {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--text-primary);
+    flex-wrap: wrap;
+    /* Prevent overflow */
+}
+
+.legend-date {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.legend-data-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    /* Wrap values if needed */
+}
+
+.legend-item {
+    white-space: nowrap;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 600px) {
+    .chart-legend-flex-container {
+        flex-direction: column;
+        /* Stack Date on top */
+        align-items: flex-start;
+        /* Left align */
+        gap: 4px;
+        font-size: 11px;
+        /* Smaller font for mobile */
+    }
+
+    .legend-data-group {
+        gap: 8px;
+        /* Closer spacing */
+    }
+}
+
+#overviewChart {
+    overflow: visible !important;
+    min-height: 450px;
+}
+
+/* Ensure TA tab content uses flex layout for proper chart display ONLY when active */
+#taContent.tab-content.active {
+    display: flex !important;
+    flex-direction: column;
+}
+
+/* Ensure TA tab is hidden when not active */
+#taContent.tab-content:not(.active) {
+    display: none !important;
+}
+
 
 @keyframes pulse {
 

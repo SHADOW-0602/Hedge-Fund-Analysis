@@ -469,6 +469,7 @@ def prepare_df_for_llm(df, last_n=50):
     # Select relevant columns if they exist
     cols = ['Open', 'High', 'Low', 'Close', 'Volume']
     # Ensure correct column names from calculate_technical_indicators
+    # Ensure correct column names from calculate_technical_indicators
     indicators = [
         # Oscillators
         'RSI_14', 'STOCHk_14_3_3', 'CCI_20_0.015', 'ADX_14', 'AO_5_34', 'MOM_10', 
