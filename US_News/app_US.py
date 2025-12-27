@@ -80,8 +80,7 @@ QUOTE_CACHE = {}
 CACHE_FILE = 'cache_data.pkl'
 
 # Global Cache for Fundamentals
-# key: ticker, value: { 'data': dict, 'timestamp': float }
-FUNDAMENTALS_CACHE = {}
+# REMOVED
 # Global Cache for History
 # key: ticker_period_interval, value: { 'data': dict, 'timestamp': float }
 HISTORY_CACHE = {}
@@ -131,7 +130,7 @@ def set_redis_data(key, data):
 
 def load_cache_from_disk():
     """Load cached data from Redis (preferred) or Pickle (fallback)"""
-    global QUOTE_CACHE, FUNDAMENTALS_CACHE, HISTORY_CACHE, QUANT_ANALYSIS_CACHE, TA_CACHE
+    global QUOTE_CACHE, HISTORY_CACHE, QUANT_ANALYSIS_CACHE, TA_CACHE
     
     # 1. Try Redis
     if REDIS_URL and REDIS_TOKEN:
@@ -140,8 +139,9 @@ def load_cache_from_disk():
             q = get_redis_data('hf:cache:quotes')
             if q: QUOTE_CACHE.update(q)
             
-            f = get_redis_data('hf:cache:fundamentals')
-            if f: FUNDAMENTALS_CACHE.update(f)
+            
+            # f = get_redis_data('hf:cache:fundamentals')
+            # if f: FUNDAMENTALS_CACHE.update(f)
             
             # h = get_redis_data('hf:cache:history') # Skip heavy history? Or load it?
             # History is huge, might skip for speed if needed, but per plan lets try
@@ -154,7 +154,7 @@ def load_cache_from_disk():
             ta = get_redis_data('hf:cache:ta')
             if ta: TA_CACHE.update(ta)
 
-            print(f"  ✓ Redis Cache Loaded: {len(QUOTE_CACHE)} quotes, {len(FUNDAMENTALS_CACHE)} stats, {len(QUANT_ANALYSIS_CACHE)} quants, {len(TA_CACHE)} ta.")
+            print(f"  ✓ Redis Cache Loaded: {len(QUOTE_CACHE)} quotes, {len(QUANT_ANALYSIS_CACHE)} quants, {len(TA_CACHE)} ta.")
             return # Success
         except Exception as e:
             print(f"  ⚠ Redis Load Failed, falling back to disk: {e}")
@@ -165,7 +165,7 @@ def load_cache_from_disk():
             with open(CACHE_FILE, 'rb') as f:
                 data = pickle.load(f)
                 QUOTE_CACHE.update(data.get('quotes', {}))
-                FUNDAMENTALS_CACHE.update(data.get('fundamentals', {}))
+                # FUNDAMENTALS_CACHE.update(data.get('fundamentals', {}))
                 HISTORY_CACHE.update(data.get('history', {}))
                 QUANT_ANALYSIS_CACHE.update(data.get('quant', {}))
                 TA_CACHE.update(data.get('ta', {}))
@@ -181,7 +181,7 @@ def save_cache_to_disk():
             # Threading this would be better for performance, but keeping simple for now
             # Note: History cache might be too big for simple Redis strings without compression, skipping history to avoid errors/lag
             set_redis_data('hf:cache:quotes', QUOTE_CACHE)
-            set_redis_data('hf:cache:fundamentals', FUNDAMENTALS_CACHE)
+            # set_redis_data('hf:cache:fundamentals', FUNDAMENTALS_CACHE)
             set_redis_data('hf:cache:quant', QUANT_ANALYSIS_CACHE)
             set_redis_data('hf:cache:ta', TA_CACHE)
             # print("  ✓ Redis Cache synced.")
@@ -192,7 +192,7 @@ def save_cache_to_disk():
     try:
         data = {
             'quotes': QUOTE_CACHE,
-            'fundamentals': FUNDAMENTALS_CACHE,
+            # 'fundamentals': FUNDAMENTALS_CACHE,
             'history': HISTORY_CACHE,
             'quant': QUANT_ANALYSIS_CACHE,
             'ta': TA_CACHE
@@ -789,14 +789,13 @@ def fetch_news_for_ticker(ticker):
 
 import concurrent.futures
 
-def generate_ai_summary(ticker, news_articles, all_keys_data):
-    """Generate AI summary using Gemini REST API with Smart Key Rotation"""
-    if not news_articles or not all_keys_data:
-        return None
+def generate_ai_report(ticker, news_articles, all_keys_data, report_type='news'):
+    """Generate Summary using Gemini Flash 2.5
+    report_type: 'news' (A/B Tested Updates) or 'fundamental' (Corporate Profile)
+    """
     
-    # ... (code omitted for brevity, logic same until request) ...
-    # Prepare news content for AI
-    news_text = f"Stock Ticker: {ticker}\n\n"
+    # Prepare News Text
+    news_text = ""
     sources_list = []
     
     for idx, article in enumerate(news_articles[:8], 1):  # Reduced to 8 to avoid TPM limits
@@ -809,93 +808,194 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
             'source': article['source']
         })
 
-    # Fetch Sector/Industry context for dynamic persona
-    try:
-        session = get_yf_session()
-        ticker_info = yf.Ticker(ticker, session=session).info
-        sector = ticker_info.get('sector', 'General Market')
-        industry = ticker_info.get('industry', 'Equities')
-        # Clean up if unknown
-        if not sector or sector == 'N/A': sector = "General Market" 
-        if not industry or industry == 'N/A': industry = "Equities"
-    except Exception:
-        sector = "General Market"
-        industry = "Equities"
+    prompt = ""
+    is_json = False
 
-    print(f"  Analyst Persona: Specialized in {sector} / {industry}")
+    if report_type == 'news':
+        # Select Strategy for A/B Testing
+        strategies = ["Detailed", "Crisp", "PriceContext"]
+        strategy = random.choice(strategies)
+        print(f"  [A/B Testing] Using Strategy: {strategy} for {ticker}")
 
-    # Updated Prompt to request JSON wrapper around the Markdown
-    prompt = f"""
-    Role: You are an expert-level **{sector}** and **{industry}** research analyst with 20 years of experience at a top-tier investment bank. You are renowned for your ability to deconstruct complex business models in the **{sector}** sector, analyze competitive moats, and provide a clear, data-driven investment thesis.
+        exec_sum_instruction = "Detailed bullet points (totaling 150-250 words) providing a comprehensive summary of developments. Use **bold** to highlight key entities."
+        if strategy == "PriceContext":
+            # Fetch quote for context
+            change_str = "N/A"
+            try:
+                if ticker in QUOTE_CACHE:
+                    q = QUOTE_CACHE[ticker]['data']
+                    if q.get('change_percent') is not None:
+                        sign = "+" if q['change_percent'] >= 0 else ""
+                        change_str = f"{sign}{q['change_percent']}%"
+            except:
+                pass
+            exec_sum_instruction = f"Detailed bullet points (150-250 words) explaining today's price change ({change_str}). **Bold** the specific correlation between news and price action."
+            
+        elif strategy == "Crisp":
+            exec_sum_instruction = "Detailed bullet points (150-250 words) focusing on material events. **Bold** the most critical facts."
+            
+        else: # Detailed
+            exec_sum_instruction = "Comprehensive bullet points (150-250 words) covering all facets of the recent news in depth. **Bold** key details."
 
-    Objective: Generate an exhaustive investment research report on **{ticker}**. The report should be structured, analytical, and serve as a complete guide for an investor.
-
-    Target Length: Approximately 1500-2000 words. Be concise where possible but deep where necessary.
-
-    Core Instructions:
-    1. **Format**: **STRICT MARKDOWN ONLY**. Do NOT return JSON. Do NOT use '```markdown' code blocks. Just return the raw text.
-    2. **Style**: Use BULLET POINTS for every section. Do NOT write long paragraphs.
-    3. **Language**: English Only. Strictly no other languages.
-    4. **Tone**: Professional, objective, and data-driven. Adapt your language to the specific nuances of the {industry} industry.
-    5. **Metadata**: Do NOT include 'Sector:' or 'Analyst:' headers at the top. Use the title only.
-    6. **Citations**: Do NOT include inline citations (e.g. (Source 1)). Sources are linked separately.
-
-    Report Structure:
-
-    ## Corporate Narrative and Genesis
-    *   List origin, founders, and initial problem solved.
-    *   List key milestones in growth trajectory and "bet the company" moments.
-
-    ## Product & Technology Evolution
-    *   List evolution from MVP to current ecosystem.
-    *   List key R&D breakthroughs and velocity.
-    *   List specific technology stack advantages.
-
-    ## Business Model Deep-Dive
-    *   List each revenue stream (Subscription, Ads, Hardware) and how it works.
-    *   List unit economics drivers (CAC, LTV, margins).
-    *   List contribution of each stream to total revenue.
-
-    ## Go-to-Market & Moat
-    *   **Bullet Points Only**: List ideal customer profiles and segments. Do NOT use paragraphs.
-    *   **Bullet Points Only**: List specific competitive advantages (Network effects, Switching costs, Brand).
-
-    ## Market & Competition
-    *   List TAM/SAM/SOM market sizing trends.
-    *   **Create a Markdown Table** comparing the ticker against 3 direct competitors on: Market Cap, Revenue Growth, and Key Differentiator.
-    *   List indirect competitors.
-
-    ## Strategic Opportunities & Risks
-    *   List 3-5 high-impact growth opportunities.
-    *   List 3-5 major existential risks (Regulatory, Tech shift).
-    *   List strategic rationale of recent M&A.
-
-    ## Leadership & Governance
-    *   List key executive profiles and background.
-    *   List founder influence and capital allocation strategy.
-
-    ## Financial Performance & Valuation
-    *   **Create a Markdown Table** summarizing key metrics (Recent Year/Quarter): Revenue, Gross Margin, Operating Margin, Net Income, and Free Cash Flow.
-    *   List balance sheet strength (Cash vs Debt).
-    *   List valuation metrics (P/E, EV/EBITDA) vs history/peers.
-
-    ## Thesis & Recommendation
-    *   **Signal**: [BUY / SELL / HOLD]
-    *   **Price Target**: [12-month estimate]
-    *   List key Bull Case drivers.
-    *   List key Bear Case risks.
+        # News Prompt (JSON)
+        prompt = f"""
+        Role: You are an expert financial analyst.
+        Task: Analyze the provided news articles for {ticker} and generate a structured report.
+        Title: {ticker} News Analysis
+        
+        Data:
+        {news_text}
+        
+        OUTPUT FORMAT:
+        Please provide a JSON response with the following structure. 
+        
+        CRITICAL FORMATTING INSTRUCTIONS:
+        1. **Bullet Points**: All values MUST be formatted as Markdown bullet points (starting with '* ' or '- ').
+        2. **Line Breaks**: You MUST use the literal newline character '\\n' inside the JSON string to separate each bullet point. Do not put everything on one line.
+        3. **No Paragraphs**: Do not write long paragraphs. Break text into points.
+        
+        {{
+            "executive_summary": "{exec_sum_instruction}",
+            "what_changed": "Bullet points explaining specific catalysts today. **Bold** the catalyst name and impact.",
+            "analyst_earnings": "Bullet points for analyst actions (Upgrades/Downgrades) or earnings data. **Bold** firm names, ratings, and price targets.",
+            "last_week_updates": "Bullet points summarizing key narrative shifts over the past week. **Bold** major events."
+        }}
+        
+        IMPORTANT: Return ONLY valid JSON.
+        """
+        is_json = True
     
-    News Data for Analysis:
-    {news_text}
+    else:
+        # Fundamental Prompt (Optimized Sector-Adaptive Analysis)
+        prompt = f"""
+        Role: Expert equity research analyst. Provide concise, data-driven investment analysis.
 
-    OUTPUT FORMAT:
-    Return the report in clean Markdown format. Do NOT wrap it in JSON. Do NOT use code blocks.
-    """
+        Task: Generate a focused investment research report on {ticker} (target: 3,000-4,000 words).
+
+        Company: {ticker}
+        Data: {news_text}
+
+        STEP 1: Identify {ticker}'s sector (Tech, Healthcare, Finance, Consumer, Energy, etc.) and use sector-specific metrics throughout.
+
+        REPORT STRUCTURE:
+
+        # Investment Research Report: {ticker}
+
+        ## Part 1: Sector & Company Overview
+        * **Sector**: Primary sector and sub-sector
+        * **Industry Context**: Current dynamics (growth, disruption, maturity)
+        * **Company Origin**: Founders, vision, key pivots
+        * **Growth Milestones**: Funding, traction, strategic decisions
+
+        ## Part 2: Business Model & Revenue
+        
+        ### Revenue Breakdown Table
+        Create a table showing revenue streams:
+        
+        | Revenue Stream | Type | FY Growth | % of Total | Key Metrics |
+        |---------------|------|-----------|------------|-------------|
+        | [Stream 1] | [Subscription/Product/etc] | [X%] | [Y%] | [CAC, LTV, etc] |
+        | [Stream 2] | [Type] | [X%] | [Y%] | [Metrics] |
+        
+        For each revenue stream, analyze:
+        * **Type & Mechanics**: How it works
+        * **Unit Economics** (sector-specific):
+          - Tech: CAC, LTV, Churn, ARR
+          - Retail: Same-store sales, inventory turnover
+          - Banking: NIM, ROE, efficiency ratio
+          - Insurance: Combined ratio
+          - Manufacturing: Capacity utilization
+
+        ## Part 3: Competitive Position
+        * **Customers**: Key segments
+        * **Go-to-Market**: Channels and acquisition
+        * **Moat** (sector-relevant):
+          - Network effects, switching costs, brand/IP, scale, regulatory barriers
+        
+        ### Competitive Comparison Table
+        
+        | Company | Market Share | Key Strength | Weakness | Valuation (P/E or P/S) |
+        |---------|-------------|--------------|----------|------------------------|
+        | {ticker} | [X%] | [Strength] | [Weakness] | [Multiple] |
+        | Competitor 1 | [X%] | [Strength] | [Weakness] | [Multiple] |
+        | Competitor 2 | [X%] | [Strength] | [Weakness] | [Multiple] |
+
+        ## Part 4: Market & Strategy
+        * **Market Size**: TAM, SAM, SOM with growth
+        * **Macro Drivers**: Sector-specific trends
+        * **Growth Opportunities** (3-4): Tailored to sector
+        * **Key Risks** (3-4): Sector-specific threats
+
+        ## Part 5: Leadership & Capital
+        
+        ### Executive Team Table
+        
+        | Role | Name | Background | Tenure |
+        |------|------|------------|--------|
+        | CEO | [Name] | [Previous roles] | [Years] |
+        | CFO | [Name] | [Previous roles] | [Years] |
+        | [Sector Role] | [Name] | [Previous roles] | [Years] |
+        
+        * **Capital Allocation**: R&D, growth, M&A, returns
+
+        ## Part 6: Financials & Valuation
+        
+        ### Financial Metrics Table (Last 3 Years)
+        
+        | Metric | FY-2 | FY-1 | FY Current | Trend |
+        |--------|------|------|------------|-------|
+        | Revenue ($M) | [X] | [Y] | [Z] | [↑/↓] |
+        | Revenue Growth (%) | [X] | [Y] | [Z] | [↑/↓] |
+        | Gross Margin (%) | [X] | [Y] | [Z] | [↑/↓] |
+        | Operating Margin (%) | [X] | [Y] | [Z] | [↑/↓] |
+        | Free Cash Flow ($M) | [X] | [Y] | [Z] | [↑/↓] |
+        | [Sector KPI] | [X] | [Y] | [Z] | [↑/↓] |
+        
+        **Sector-Specific KPIs**:
+        - Tech: Rule of 40, CAC payback, net retention
+        - Banking: NIM, ROE, CET1, NPL
+        - Retail: Comp sales, EBITDA margin
+        - Healthcare: R&D %
+        - Energy: Production growth, breakeven
+        
+        ### Valuation Multiples Table
+        
+        | Multiple | {ticker} (Current) | {ticker} (Avg 3Y) | Peer Avg | Premium/Discount |
+        |----------|-------------------|-------------------|----------|------------------|
+        | P/E (NTM) | [X] | [Y] | [Z] | [+/-X%] |
+        | EV/EBITDA | [X] | [Y] | [Z] | [+/-X%] |
+        | P/S | [X] | [Y] | [Z] | [+/-X%] |
+        | [Sector Multiple] | [X] | [Y] | [Z] | [+/-X%] |
+        
+        **Sector-Appropriate Multiples**:
+        - Tech: EV/ARR, P/S
+        - Banking: P/B, P/TBV
+        - REITs: FFO, NAV
+        - Energy: EV/production, P/CF
+        
+        * **Shareholder Returns**: SBC, buybacks, dividends
+
+        ## Part 7: Investment Thesis
+        * **Recommendation**: Strong Buy / Buy / Hold / Sell / Strong Sell
+        * **Price Target**: 12-month with methodology
+        * **Bull Case** (3-4 points)
+        * **Bear Case** (3-4 points)
+
+        CRITICAL INSTRUCTIONS:
+        1. Target 3,000-4,000 words total
+        2. Use sector-specific terminology
+        3. **Include ALL tables with actual data where available**
+        4. Use markdown table format (| Column | Column |)
+        5. Be concise and data-driven
+        6. Format in markdown (##, *, **bold**)
+        7. NO JSON format
+        """
+        is_json = False
 
     # Gemini REST API Payload
     payload = {
         "system_instruction": {
-            "parts": [{"text": "You are a top-tier investment bank research analyst. Output full report in Markdown."}]
+            "parts": [{"text": "You are a top-tier investment bank research analyst."}]
         },
         "contents": [
             {"role": "user", "parts": [{"text": prompt}]}
@@ -904,6 +1004,9 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
             "temperature": 0.4
         }
     }
+    
+    if is_json:
+        payload["generationConfig"]["responseMimeType"] = "application/json"
     
     # Smart Key Rotation + Model Fallback Implementation
     # 1. Shuffle keys
@@ -920,14 +1023,10 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
             headers = {'Content-Type': 'application/json'}
             
             try:
-                # Increased timeout to 45s to avoid premature failure on large reports
-                response = requests.post(url, headers=headers, json=payload, timeout=45)
+                # Increased timeout to 90s for comprehensive fundamental reports
+                response = requests.post(url, headers=headers, json=payload, timeout=90)
                 
-                # Debug log for response status
-                # print(f"  [DEBUG] Gemini {key_name} Status: {response.status_code}")
-
                 # If rate limited (too many requests), wait and retry
-                # Gemini Free Tier is 15 RPM (1 req every 4s). If we hit this, wait 5s to clear bucket.
                 if response.status_code == 429:
                     print(f"  ⚠ Quota (429) on {key_name}. Rotating...")
                     time.sleep(2) 
@@ -945,18 +1044,58 @@ def generate_ai_summary(ticker, news_articles, all_keys_data):
                     if candidates:
                         content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
                         if content_text:
-                             print(f"  ✓ News Analysis Generated ({key_name})")
+                             print(f"  ✓ Report Generated ({key_name} - {report_type})")
                              
-                             # Simple cleaning
-                             clean_text = content_text.replace('```markdown', '').replace('```', '').strip()
-                             json_content = {
-                                'executive_summary': clean_text,
-                                'what_changed': '',
-                                'analyst_earnings': '',
-                                'last_week_updates': '',
-                                'sources': sources_list
-                             }
-                             return json_content
+                             if is_json:
+                                 # Parse JSON
+                                 try:
+                                     # Clean potential markdown wrappers
+                                     clean_json = content_text.replace('```json', '').replace('```', '').strip()
+                                     data = json.loads(clean_json)
+                                     
+                                     # Construct Full Markdown Report for Frontend
+                                     # We combine fields so the frontend 'executive_summary' display shows everything
+                                     full_report = f"""
+## Executive Summary
+{data.get('executive_summary', '')}
+
+## What Changed Today
+{data.get('what_changed', '')}
+
+## Analyst & Earnings Context
+{data.get('analyst_earnings', '')}
+
+## Key Updates (Last Week)
+{data.get('last_week_updates', '')}
+""".strip()
+                                     
+                                     json_content = {
+                                        'executive_summary': full_report,
+                                        'what_changed': data.get('what_changed', ''),
+                                        'analyst_earnings': data.get('analyst_earnings', ''),
+                                        'last_week_updates': data.get('last_week_updates', ''),
+                                        'sources': sources_list
+                                     }
+                                     return json_content
+                                 except json.JSONDecodeError:
+                                     print("  ⚠ JSON Parsing Failed. Falling back to raw text.")
+                                     # Fallback: treat whole text as summary
+                                     return {
+                                        'executive_changed': content_text,
+                                        'what_changed': '',
+                                        'analyst_earnings': '',
+                                        'last_week_updates': '',
+                                        'sources': sources_list
+                                     }
+                             else:
+                                 # Return Markdown Directly (Fundamental)
+                                 return {
+                                    'executive_summary': content_text,
+                                    'what_changed': '', # Not applicable for fundamental
+                                    'analyst_earnings': '', # Not applicable for fundamental
+                                    'last_week_updates': '', # Not applicable for fundamental
+                                    'sources': sources_list
+                                 }
                     
                     print(f"  ⚠ Empty Response from {key_name}. Rotating...")
                     continue
@@ -1038,56 +1177,53 @@ def store_news_and_summary(ticker, news_articles, summary_data):
     finally:
         DB_LOCK.release()
 
-def process_single_ticker(ticker, all_keys_data):
-    """Worker function to process a single ticker"""
-    # all_keys_data is now a list of (key, name) tuples
+def process_single_ticker(ticker, all_keys_data, report_type='fundamental'):
+    """Worker function to process a single ticker. 
+    report_type: 'fundamental' (Default, stored as {ticker}) or 'news' (Stored as NEWS_{ticker})
+    """
     
-    print(f"Processing {ticker} using {len(all_keys_data)} available keys...")
+    # Determine Storage Key
+    storage_ticker = ticker
+    if report_type == 'news':
+        storage_ticker = f"NEWS_{ticker}" # Data Separation key
+    
+    print(f"Processing {ticker} (Type: {report_type}) -> DB Key: {storage_ticker}")
     try:
         news_articles = fetch_news_for_ticker(ticker)
         if news_articles:
-            # Random sleep to prevent synchronized API hits and respect RPM
-            # 6 keys * 15 req/min = 90 req/min total capacity. 
-            # 4 workers ~ 20-30 req/min. This delay aligns usage.
+            # Random sleep
             time.sleep(random.uniform(2.0, 4.0))
             
-            summary_data = generate_ai_summary(ticker, news_articles, all_keys_data)
+            # Use separate generation logic
+            summary_data = generate_ai_report(ticker, news_articles, all_keys_data, report_type)
+            
             if summary_data and "Unavailable" not in summary_data.get('executive_summary', ''):
-                store_news_and_summary(ticker, news_articles, summary_data)
+                store_news_and_summary(storage_ticker, news_articles, summary_data)
             else:
-                 print(f"  ⚠ AI Unavailable/Failed. Saving fallback state to ensure timestamp update.")
-                 # Create fallback summary so user sees "Updated" and knows WHY it's empty
+                 print(f"  ⚠ AI Unavailable/Failed.")
                  fallback_summary = {
                     'executive_summary': '<ul><li><strong>analysis unavailable</strong>: content generation failed due to high load.</li><li>news articles are listed below for your review.</li><li>please try refreshing again in a few minutes.</li></ul>',
-                    'what_changed': '<ul><li>n/a</li></ul>',
-                    'analyst_earnings': '<ul><li>n/a</li></ul>',
-                    'last_week_updates': '<ul><li>n/a</li></ul>'
+                    'what_changed': '',
+                    'analyst_earnings': '',
+                    'last_week_updates': ''
                  }
-                 store_news_and_summary(ticker, news_articles, fallback_summary)
-
+                 store_news_and_summary(storage_ticker, news_articles, fallback_summary)
             return summary_data
         else:
             print(f"  - No news found for {ticker}")
-            # Store empty state
             empty_summary = {
-                'executive_summary': '<ul><li>No significant news articles found for this ticker in the last 7 days.</li></ul>',
-                'what_changed': '<ul><li>N/A</li></ul>',
-                'analyst_earnings': '<ul><li>N/A</li></ul>',
-                'last_week_updates': '<ul><li>N/A</li></ul>'
+                'executive_summary': f"<ul><li>No significant news articles found for {ticker} in the last 7 days.</li></ul>",
+                'what_changed': '', 'analyst_earnings': '', 'last_week_updates': ''
             }
-            store_news_and_summary(ticker, [], empty_summary)
+            store_news_and_summary(storage_ticker, [], empty_summary)
             return empty_summary
     except Exception as e:
         print(f"  ✗ Error processing {ticker}: {e}")
-        # Return error state AND store it so frontend stops polling
         error_summary = {
-            'executive_summary': f"<ul><li>Analysis failed due to a system error.</li><li>Error details: {str(e)[:200]}...</li><li>Please try again later.</li></ul>",
-            'what_changed': '<ul><li>N/A</li></ul>',
-            'analyst_earnings': '<ul><li>N/A</li></ul>',
-            'last_week_updates': '<ul><li>N/A</li></ul>'
+            'executive_summary': f"<ul><li>Analysis failed due to a system error.</li><li>Error details: {str(e)[:200]}...</li></ul>",
+            'what_changed': '', 'analyst_earnings': '', 'last_week_updates': ''
         }
-        # Persist error to DB so polling clients see it
-        store_news_and_summary(ticker, [], error_summary)
+        store_news_and_summary(storage_ticker, [], error_summary)
         return error_summary
 
 def process_news_for_active_tickers(force=False, custom_tickers=None):
@@ -1188,8 +1324,8 @@ def index():
                          now=int(time.time()),
                          api_token=os.getenv('API_TOKEN', ''))
 
-@us_news_bp.route('/api/refresh', methods=['POST'])
-def refresh_news():
+@us_news_bp.route('/api/refresh_fundamentals', methods=['POST'])
+def refresh_fundamentals():
     """Trigger a manual refresh of all news"""
     # Check for authentication
     from flask import request
@@ -1693,8 +1829,8 @@ def run_single(ticker, manual=False):
     
     return f"Added {ticker} to AI Queue"
 
-@us_news_bp.route('/api/generate/<ticker>', methods=['POST', 'GET'], strict_slashes=False)
-def generate_ticker_summary(ticker):
+@us_news_bp.route('/api/generate_fundamentals/<ticker>', methods=['POST', 'GET'], strict_slashes=False)
+def generate_ticker_fundamentals(ticker):
     """Force generate summary for a specific ticker"""
     from flask import request
     print(f"DEBUG: Hit generate_ticker_summary for {ticker} with method {request.method}")
@@ -1712,7 +1848,8 @@ def generate_ticker_summary(ticker):
             k = os.getenv(var)
             if k: all_keys.append((k, var))
             
-        result_data = process_single_ticker(ticker, all_keys)
+        # Trigger with report_type='fundamental' (Default prompt)
+        result_data = process_single_ticker(ticker, all_keys, report_type='fundamental')
         if result_data:
              return jsonify(result_data)
         else:
@@ -1746,528 +1883,7 @@ def generate_ticker_summary(ticker):
 
 
 
-@us_news_bp.route('/api/financials/<ticker>', methods=['GET'])
-def get_financial_analysis(ticker):
-    """
-    Fetch fundamental data + Generate AI Recommendation (Gemini).
-    Includes Caching to prevent 429 Rate Limits.
-    """
-    global FUNDAMENTALS_CACHE
-    
-    # 1. Check Cache (Valid for 1 hour)
-    current_time = time.time()
-    if ticker in FUNDAMENTALS_CACHE:
-        cached = FUNDAMENTALS_CACHE[ticker]
-        if current_time - cached['timestamp'] < 3600:
-             print(f"  [DEBUG] Served Fundamentals for {ticker} from Cache")
-             return jsonify(cached['data'])
 
-    print(f"DEBUG: Analyzing Financials for {ticker}")
-    stock = None
-    try:
-        # 1. Fetch Fundamentals (yfinance)
-        # session = get_yf_session() # Removed to let YF handle session (fixes curl_cffi error)
-        stock = yf.Ticker(ticker)
-        info = stock.info
-
-        fundamentals = {
-            'market_cap': info.get('marketCap'),
-            'pe_ratio': info.get('trailingPE'),
-            'peg_ratio': info.get('pegRatio'),
-            'revenue_ttm': info.get('totalRevenue'),
-            'net_income_ttm': info.get('netIncomeToCommon'),
-            'eps': info.get('trailingEps'),
-            'beta': info.get('beta'),
-            'dividend_yield': info.get('dividendYield'),
-            'profit_margins': info.get('profitMargins'),
-            'operating_margins': info.get('operatingMargins'),
-            # Extended Fundamentals
-            'book_value': info.get('bookValue'),
-            'price_to_book': info.get('priceToBook'),
-            'debt_to_equity': info.get('debtToEquity'),
-            'current_ratio': info.get('currentRatio'),
-            'return_on_equity': info.get('returnOnEquity'),
-            'ticker': ticker,
-            # Growth & Efficiency
-            'revenue_growth': info.get('revenueGrowth'),
-            'earnings_growth': info.get('earningsGrowth'),
-            'gross_margins': info.get('grossMargins'),
-            'return_on_assets': info.get('returnOnAssets'),
-            'operating_margins': info.get('operatingMargins')
-        }
-    except Exception as e:
-        print(f"  ⚠ Yahoo Fundamentals Error for {ticker}: {e}")
-        
-        # --- FINNHUB FALLBACK ---
-        finn_key = os.getenv('FINNHUB_API_KEY')
-        fundamentals = None
-        
-        if finn_key:
-            try:
-                print(f"  Attempting Finnhub Fallback for {ticker} (Fundamentals)...")
-                f_url = f"https://finnhub.io/api/v1/stock/metric?symbol={ticker}&metric=all&token={finn_key}"
-                resp = requests.get(f_url, timeout=10)
-                if resp.status_code == 200:
-                    fdata = resp.json()
-                    metric = fdata.get('metric', {})
-                    
-                    if metric:
-                        print(f"  ✓ Finnhub Fundamentals Success")
-                        # Map Finnhub metrics to our schema
-                        # Finnhub keys are weird strings like 'peBasicExclExtraTTM'
-                        
-                        fundamentals = {
-                            'market_cap': metric.get('marketCapitalization', 0) * 1000000 if metric.get('marketCapitalization') else None, # Finnhub is likely in Millions
-                            'pe_ratio': metric.get('peTTM'),
-                            'peg_ratio': None, # Need specific calc or search
-                            'revenue_ttm': metric.get('revenueTTM'), 
-                            'net_income_ttm': None, # Hard to find exact match sometimes
-                            'eps': metric.get('epsTTM'),
-                            'beta': metric.get('beta'),
-                            'dividend_yield': (metric.get('dividendYieldIndicatedAnnual', 0) or 0) / 100, # Percent -> decimal
-                            'profit_margins': (metric.get('netProfitMarginTTM', 0) or 0) / 100,
-                            'operating_margins': (metric.get('operatingMarginTTM', 0) or 0) / 100,
-                            # Extended
-                            'book_value': metric.get('bookValuePerShareAnnual'),
-                            'price_to_book': metric.get('pbAnnual'),
-                            'debt_to_equity': metric.get('totalDebt/totalEquityAnnual'),
-                            'current_ratio': metric.get('currentRatioAnnual'),
-                            'return_on_equity': (metric.get('roeTTM', 0) or 0) / 100,
-                            'ticker': ticker,
-                            # Growth
-                            'revenue_growth': (metric.get('revenueGrowthTTMYoy', 0) or 0) / 100,
-                            'earnings_growth': (metric.get('epsGrowthTTMYoy', 0) or 0) / 100,
-                            'gross_margins': (metric.get('grossMarginTTM', 0) or 0) / 100,
-                            'return_on_assets': (metric.get('roaTTM', 0) or 0) / 100
-                        }
-            except Exception as fe:
-                print(f"  ✗ Finnhub Fundamentals Failed: {fe}")
-        
-        # --- POLYGON FALLBACK ---
-        if not fundamentals:
-            poly_key = os.getenv('POLYGON_API_KEY')
-            if poly_key:
-                try:
-                    print(f"  Attempting Massive.com (Polygon) Fallback for {ticker}...")
-                    # Massive.com (formerly Polygon) - maintaining same endpoint structure
-                    p_url = f"https://api.massive.com/v3/reference/tickers/{ticker}?apiKey={poly_key}"
-                    resp = requests.get(p_url, timeout=10)
-                    if resp.status_code == 200:
-                        pdata = resp.json().get('results', {})
-                        if pdata:
-                            print(f"  ✓ Polygon Fundamentals Success")
-                            fundamentals = {
-                                'market_cap': pdata.get('market_cap'),
-                                'pe_ratio': None, # Not directly in reference endpoint
-                                'peg_ratio': None,
-                                'revenue_ttm': None,
-                                'net_income_ttm': None,
-                                'eps': None, 
-                                'beta': None,
-                                'dividend_yield': None,
-                                'profit_margins': None,
-                                'operating_margins': None,
-                                'ticker': ticker,
-                                'description': pdata.get('description'),
-                                'currency': pdata.get('currency_name')
-                            }
-                except Exception as pe:
-                    print(f"  ✗ Polygon Fundamentals Failed: {pe}")
-
-        if not fundamentals:
-            # Check for stale cache
-             if ticker in FUNDAMENTALS_CACHE:
-                 print(f"  ⚠ Returning STALE Fundamentals cache for {ticker}")
-                 return jsonify(FUNDAMENTALS_CACHE[ticker]['data'])
-             
-             # Return error if really nothing
-             err_msg = str(e)
-             if "Too Many Requests" in err_msg or "429" in err_msg:
-                 return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
-             return jsonify({'error': 'Fundamentals unavailable'}), 500
-
-    # Continue with AI Analysis...
-    try:
-
-        # --- Professional Fair Value Calculation (Graham Number) ---
-        # Graham Number = Sqrt(22.5 * EPS * Book Value Per Share)
-        try:
-            eps = fundamentals.get('eps')
-            bvps = fundamentals.get('book_value')
-            if eps and bvps and eps > 0 and bvps > 0:
-                graham_number = (22.5 * eps * bvps) ** 0.5
-                fundamentals['fair_value'] = round(graham_number, 2)
-            else:
-                fundamentals['fair_value'] = None
-        except Exception as e:
-            print(f"Fair Value Calc Error: {e}")
-            fundamentals['fair_value'] = None
-
-        # --- Manual Checks & Fallbacks ---
-        
-        # --- Manual Checks & Fallbacks ---
-        
-        # 1. PEG Ratio Fallback
-        # Logic: PEG = (P/E) / (Annual EPS Growth Rate * 100)
-        if fundamentals['peg_ratio'] is None and fundamentals['pe_ratio']:
-            print(f"DEBUG: PEG Invalid ({fundamentals['peg_ratio']}), attempting calculation...")
-            # Try 1: Use pre-fetched earningsGrowth from info
-            if fundamentals['earnings_growth']:
-                try:
-                    g = fundamentals['earnings_growth'] * 100
-                    if g > 0:
-                        fundamentals['peg_ratio'] = round(fundamentals['pe_ratio'] / g, 2)
-                        print(f"DEBUG: Calculated PEG from earnings_growth: {fundamentals['peg_ratio']}")
-                except Exception:
-                    pass
-
-            # Try 2: Calculate from Financials (Historical) if still None
-            if fundamentals['peg_ratio'] is None:
-                try:
-                    if stock:
-                        fin = stock.financials
-                        if not fin.empty and 'Basic EPS' in fin.index:
-                            eps_series = fin.loc['Basic EPS']
-                            # Ensure we have enough data points and filter out N/A
-                            eps_valid = eps_series.dropna()
-                            if len(eps_valid) >= 2:
-                                eps_cur = eps_valid.iloc[0]
-                                eps_prev = eps_valid.iloc[1]
-                                
-                                # Valid previous EPS needed for growth calc
-                                if eps_prev and eps_prev != 0:
-                                    growth_rate = ((eps_cur - eps_prev) / abs(eps_prev)) * 100
-                                    print(f"DEBUG: Calculated EPS Growth: {growth_rate}% (Curr: {eps_cur}, Prev: {eps_prev})")
-                                    
-                                    # PEG only makes sense for positive growth
-                                    if growth_rate > 0:
-                                        fundamentals['peg_ratio'] = round(fundamentals['pe_ratio'] / growth_rate, 2)
-                                        print(f"DEBUG: Calculated PEG from Hist EPS: {fundamentals['peg_ratio']}")
-                except Exception as e:
-                    print(f"Manual PEG Error: {e}")
-
-        # 2. Dividend Yield Sanity Check
-        # If yield is missing, check if it's a non-dividend payer (yield=0) or just missing data
-        # Also normalize: yfinance can return 0.05 (5%) or sometimes 5.0 (5% - rare but possible in old versions)
-        
-        # Priority 1: Use provided dividend_yield if valid
-        if fundamentals['dividend_yield'] is not None:
-             # Sanity check for huge numbers (e.g. 5.1 vs 0.051)
-             # Assumption: Yield > 1 (100%) is likely an error or raw percentage. 
-             # Most div yields are 0.0-0.1.
-             dy = fundamentals['dividend_yield']
-             if dy > 0.5: # Treat > 50% as suspicious or needing validation, but strictly speaking checking > 1 is safer for "raw number vs decimal"
-                 # If > 1, assume it's a percentage (e.g. 3.5 -> 0.035)
-                 print(f"DEBUG: Normalizing Dividend Yield {dy} -> {dy/100}")
-                 fundamentals['dividend_yield'] = dy / 100
-        
-        # Priority 2: Calculate if None
-        else:
-             div_rate = info.get('dividendRate')
-             # If rate is present, calculate yield
-             if div_rate and div_rate > 0:
-                 price = info.get('currentPrice') or info.get('previousClose')
-                 if price and price > 0:
-                     fundamentals['dividend_yield'] = round(div_rate / price, 4)
-                     print(f"DEBUG: Calculated Div Yield from Rate: {fundamentals['dividend_yield']}")
-             else:
-                 # If explicit 0 or None for rate, determine if it's a non-payer
-                 # trailingAnnualDividendYield is another source
-                 tay = info.get('trailingAnnualDividendYield')
-                 if tay and tay > 0:
-                     fundamentals['dividend_yield'] = tay
-                     print(f"DEBUG: Using Trailing Div Yield: {fundamentals['dividend_yield']}")
-                 elif div_rate == 0:
-                     # Explicitly 0 means non-payer
-                     fundamentals['dividend_yield'] = 0.0
-
-        # Double check: If still None, set to 0.0 if it's a growth stock (optional, but safer to leave None for N/A)
-        # But for 'N/A' to show properly on frontend, None is fine.
-        
-        # Upsert Fundamentals to Supabase (financial_data)
-        try:
-            supabase.table('financial_data').upsert(fundamentals).execute()
-        except Exception as db_err:
-            print(f"DB Error (Financials): {db_err}")
-            # Continue even if DB fails, return live data
-
-        # 2. Fetch Technicals (Internal Helper)
-        # We need historical data for TA
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=400) # Need ~200 candles + buffer
-        if not stock:
-             return jsonify({'error': 'Price data unavailable (Data Source Failed)'}), 404
-
-        try:
-            df = stock.history(start=start_date, end=end_date)
-        except:
-             df = pd.DataFrame()
-        
-        # Check if YF failed or returned bad data (missing High)
-        if df.empty or 'High' not in df.columns:
-            print(f"  ⚠ Yahoo History Invalid. Trying Fallback 1 (Polygon)...")
-            df_poly = fetch_polygon_history(ticker, period_days=400, interval='day')
-            if df_poly is not None and not df_poly.empty:
-                df = df_poly
-            else:
-                 print(f"  ⚠ Polygon Failed. Trying Fallback 2 (Twelve Data)...")
-                 df_td = fetch_twelve_data_history(ticker, interval='day', outputsize=400)
-                 if df_td is not None and not df_td.empty:
-                     df = df_td
-                 else:
-                     if df.empty:
-                        return jsonify({'error': 'No price data found (All Sources Failed)'}), 404
-            
-        from US_News.ta_utils import calculate_technical_indicators, get_ta_summary
-        
-        try:
-            df = calculate_technical_indicators(df)
-            ta_summary = get_ta_summary(df) # {price, rsi, macd_action, sma_trend}
-        except Exception as ta_err:
-            print(f"  ✗ TA Calculation Failed: {ta_err}")
-            print(f"  DEBUG: Columns: {df.columns.tolist()}")
-            # Provide dummy summary to prevent crash
-            ta_summary = {'price': 0, 'oscillators': [], 'moving_averages': []}
-
-        # Extract specific indicators from the new structured summary
-        oscillators = ta_summary.get('oscillators', [])
-        mas = ta_summary.get('moving_averages', [])
-        
-        # Helpers to find values
-        def find_val(lst, name_part):
-            for x in lst:
-                if name_part in x['name']: return x['value']
-            return None
-        
-        def find_action(lst, name_part):
-            for x in lst:
-                if name_part in x['name']: return x['action']
-            return "Neutral"
-
-        rsi_val = find_val(oscillators, 'Relative Strength Index')
-        macd_action = find_action(oscillators, 'MACD Level')
-        
-        # Simple Trend check: Price vs SMA 200
-        price = ta_summary.get('price', 0)
-        sma200_val = find_val(mas, 'Simple Moving Average (200)')
-        sma_trend = "Bullish" if price > (sma200_val or 0) else "Bearish"
-
-        # 3. Generate AI Recommendation (Gemini) with Robust Key Rotation
-        
-        # --- CACHE CHECK START ---
-        ai_recommendation = "AI Analysis Unavailable"
-        recommendation_signal = "UNKNOWN"
-        used_cache = False
-
-        try:
-            # Check for recent analysis in DB (valid for 24 hours)
-            # We use 'technical_signals' table which stores the last recommendation
-            cache_res = supabase.table('technical_signals').select('*').eq('ticker', ticker).execute()
-            
-            if cache_res.data:
-                cached = cache_res.data[0]
-                last_updated = cached.get('last_updated')
-                
-                if last_updated:
-                    # Parse timestamp
-                    last_dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
-                    # Naive check: if naive, assume local/utc match or just check days. 
-                    # If timezone aware, compare distinct.
-                    # Simplest: Check if date is today or yesterday.
-                    # Let's use strict 24h window
-                    if last_dt.tzinfo is None:
-                        # If DB returns naive, assume it matches system time or is UTC
-                        pass 
-                    
-                    # Compare
-                    # To be safe against TZ issues, just check if it was updated "recently"
-                    # If separate date field exists, use it. Here we use last_updated iso string.
-                    # Let's just check if it's from today (local server time)
-                    cache_date = last_dt.date() if last_dt else None
-                    today_date = datetime.now().date()
-                    
-                    if cache_date == today_date:
-                        print(f"  ✓ Using Cached AI Analysis for {ticker} (from {last_updated})")
-                        ai_recommendation = cached.get('reasoning', "AI Analysis Unavailable")
-                        recommendation_signal = cached.get('recommendation', "UNKNOWN")
-                        used_cache = True
-        except Exception as e:
-            print(f"Cache Check Error: {e}")
-
-        # --- CACHE CHECK END ---
-
-        if not used_cache:
-            # 1. Construct Prompt First (Needed for both)
-            prompt = f"""
-            You are a Senior Financial Analyst. Analyze {ticker} based on this data:
-            
-            FUNDAMENTALS:
-            - Market Cap: {fundamentals['market_cap']}
-            - P/E Ratio: {fundamentals['pe_ratio']}
-            - PEG Ratio: {fundamentals['peg_ratio']}
-            - Revenue (TTM): {fundamentals['revenue_ttm']}
-            - Profit Margin: {fundamentals['profit_margins']}
-
-            TECHNICALS:
-            - Price: {price}
-            - RSI (14): {rsi_val}
-            - MACD Action: {macd_action}
-            - Trend (vs SMA200): {sma_trend}
-            
-            TASK:
-            1. Provide a clear "BUY", "SELL", or "HOLD" signal.
-            2. Write a concise 3-4 sentence paragraph explaining WHY. Focus on the synthesis of fundamental valuation vs technical momentum.
-            
-            FORMAT:
-            Signal: [BUY/SELL/HOLD]
-            Reasoning: [Paragraph]
-            """
-
-            # 2. Try Groq (Llama 3.3) Priority
-            groq_key = os.getenv('GROQ_API_KEY')
-            groq_success = False
-
-            if groq_key:
-                try:
-                    # print(f"DEBUG: Attempting Groq Financial Analysis for {ticker}...")
-                    groq_url = "https://api.groq.com/openai/v1/chat/completions"
-                    groq_headers = {
-                        "Authorization": f"Bearer {groq_key}",
-                        "Content-Type": "application/json"
-                    }
-                    groq_payload = {
-                        "model": "llama-3.3-70b-versatile",
-                        "messages": [
-                            {"role": "system", "content": "You are a senior financial analyst."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "temperature": 0.3
-                    }
-                    
-                    resp = requests.post(groq_url, headers=groq_headers, json=groq_payload, timeout=45)
-                    
-                    if resp.status_code == 200:
-                        g_data = resp.json()
-                        content_text = g_data['choices'][0]['message']['content']
-                        if content_text:
-                            ai_recommendation = content_text
-                            # Parse Signal
-                            signal_match = re.search(r'Signal:\s*(BUY|SELL|HOLD)', content_text, re.IGNORECASE)
-                            recommendation_signal = signal_match.group(1).upper() if signal_match else "NEUTRAL"
-                            print(f"  ✓ Valid Groq Financial Analysis for {ticker}")
-                            groq_success = True
-                    else:
-                        print(f"  ⚠ Groq Financial Error: {resp.status_code}")
-                except Exception as e:
-                    print(f"  ⚠ Groq Connection Error: {e}")
-
-            # 3. Gemini Fallback
-            if not groq_success:
-                # Load all available keys
-                all_keys = []
-                key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
-                for var in key_vars:
-                    k = os.getenv(var)
-                    if k: all_keys.append((k, var))
-                    
-                if all_keys:
-                    # Shuffle for load balancing
-                    random.shuffle(all_keys)
-                    
-                    # Gemini REST API Payload
-                    payload = {
-                        "contents": [{"parts": [{"text": prompt}]}],
-                        "generationConfig": {
-                            "temperature": 0.3
-                        }
-                    }
-                
-                    # Retry Loop (Only if keys exist and Groq failed)
-                    for attempt, (api_key, key_name) in enumerate(all_keys):
-                        # UPDATED: Use 'gemini-2.5-flash' for all analysis
-                        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-                        headers = {'Content-Type': 'application/json'}
-                        
-                        try:
-                            # Increased timeout to 45s to match News Analysis
-                            response = requests.post(url, headers=headers, json=payload, timeout=45)
-                            
-                            if response.status_code == 200:
-                                result = response.json()
-                                candidates = result.get('candidates', [])
-                                if candidates:
-                                    content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-                                    if content_text:
-                                        ai_recommendation = content_text
-                                        # Parse Signal
-                                        signal_match = re.search(r'Signal:\s*(BUY|SELL|HOLD)', content_text, re.IGNORECASE)
-                                        recommendation_signal = signal_match.group(1).upper() if signal_match else "NEUTRAL"
-                                        print(f"  ✓ Valid AI analysis generated for {ticker} using {key_name}")
-                                        break # Success
-                            
-                            elif response.status_code == 429:
-                                print(f"  ⚠ Rate Limit (429) on {key_name}. Rotating...")
-                                time.sleep(1)
-                                continue
-                            else:
-                                print(f"  ⚠ AI Error {response.status_code} on {key_name}: {response.text[:100]}")
-                                continue
-                                
-                        except Exception as e:
-                            print(f"  ⚠ Connection Error on {key_name}: {e}")
-                            continue
-                    else:
-                         print(f"  ✗ Failed to generate AI analysis for {ticker} after trying all keys.")
-        
-        # Upsert Signals to Supabase (technical_signals) ONLY IF generated new one
-        if not used_cache and ai_recommendation != "AI Analysis Unavailable":
-             signal_data = {
-                'ticker': ticker,
-                'recommendation': recommendation_signal,
-                'reasoning': ai_recommendation,
-                'rsi': rsi_val,
-                'macd_signal': macd_action,
-                'last_updated': datetime.now().isoformat()
-            }
-             try:
-                supabase.table('technical_signals').upsert(signal_data).execute()
-             except Exception as e:
-                print(f"DB Error (Signals): {e}")
-
-        response_data = {
-            'fundamentals': fundamentals,
-            'technicals': ta_summary,
-            'ai_analysis': ai_recommendation
-        }
-
-        # Update Cache
-        # Only cache if AI Analysis was successful (to prevent "Unavailable" from sticking)
-        if ai_recommendation != "AI Analysis Unavailable":
-            FUNDAMENTALS_CACHE[ticker] = {
-                'data': response_data,
-                'timestamp': current_time
-            }
-            # Persist immediately for heavy data
-            save_cache_to_disk()
-        else:
-            print(f"  ⚠ Skipping FUNDAMENTALS cache update for {ticker} (AI Analysis Unavailable)")
-
-        return jsonify(response_data)
-
-    except Exception as e:
-         print(f"Financials Error: {e}")
-         
-         # Fallback to Stale Cache
-         if ticker in FUNDAMENTALS_CACHE:
-             print(f"  ⚠ Returning STALE Fundamentals cache for {ticker}")
-             return jsonify(FUNDAMENTALS_CACHE[ticker]['data'])
-             
-         err_msg = str(e)
-         if "Too Many Requests" in err_msg or "429" in err_msg:
-             return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
-
-         return jsonify({'error': str(e)}), 500
-    # Check auth
 
 
 
@@ -2281,11 +1897,32 @@ def get_ticker_quote(ticker):
         return jsonify({'error': 'No data'}), 404
 
     
-    return jsonify({'status': 'started', 'message': f'Generating summary for {ticker}'})
+@us_news_bp.route('/api/generate_news/<ticker>', methods=['POST', 'GET'], strict_slashes=False)
+def generate_ticker_news(ticker):
+    """Force generate news summary for a specific ticker (Separate Route)"""
+    # Load Keys
+    all_keys = []
+    key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
+    for var in key_vars:
+        k = os.getenv(var)
+        if k: all_keys.append((k, var))
+        
+    # Trigger with report_type='news'
+    result_data = process_single_ticker(ticker, all_keys, report_type='news')
+    if result_data:
+         return jsonify(result_data)
+    else:
+         return jsonify({'error': 'Failed to generate news'}), 500
 
-@us_news_bp.route('/api/summary/<ticker>')
-def get_summary(ticker):
-    """Get AI summary for a specific ticker (Latest available)"""
+@us_news_bp.route('/api/news/<ticker>')
+def get_news_analysis(ticker):
+    """Get News Analysis report (Reads NEWS_{ticker} from DB)"""
+    # Proxy to get_fundamentals logic but with modified ticker key
+    return get_fundamentals(f"NEWS_{ticker}")
+
+@us_news_bp.route('/api/fundamentals/<ticker>')
+def get_fundamentals(ticker):
+    """Get Fundamental Analysis report for a specific ticker (Latest available)"""
     try:
         # Check for min_date constraint (from frontend refresh)
         from flask import request

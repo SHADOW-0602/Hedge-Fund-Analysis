@@ -37,6 +37,18 @@
                     </a>
                 </div>
                 <div class="nav-links">
+                    <!-- Desktop Search Bar in Header -->
+                    <div class="header-search-container desktop-only">
+                        <div class="search-input-wrapper">
+                            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                            <input type="text" id="tickerSearchDesktop" class="ticker-search-input"
+                                placeholder="Search ticker..." maxlength="20" autocomplete="off">
+                            <div id="searchDropdownDesktop" class="search-dropdown"></div>
+                        </div>
+                    </div>
                     <div class="theme-toggle-wrapper desktop-only">
                         <input type="checkbox" class="theme-checkbox" id="themeToggle">
                         <label for="themeToggle" class="theme-label">
@@ -148,19 +160,6 @@
 
             <!-- Summary Display Area -->
             <div class="summary-section">
-                <!-- Desktop Search Bar -->
-                <div class="search-container desktop-search-container desktop-only">
-                    <div class="search-input-wrapper">
-                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2">
-                            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                        </svg>
-                        <input type="text" id="tickerSearchDesktop" class="ticker-search-input"
-                            placeholder="Search ticker..." maxlength="20" autocomplete="off">
-                        <div id="searchDropdownDesktop" class="search-dropdown"></div>
-                    </div>
-                </div>
-
                 <!-- Tabs -->
                 <!-- Tabs -->
                 <div class="tabs-container">
@@ -214,9 +213,9 @@
 
                 <div id="taContent" class="summary-content tab-content" data-tab-content="ta">
                     <!-- TA Header: Intervals & Summary -->
-                    <div class="ta-summary-block glass-panel" style="margin-bottom: 24px; padding: 20px;">
+                    <div class="ta-summary-block glass-panel" style="margin-bottom: 0px; padding: 0px 10px 0px 10px;">
                         <div class="ta-intervals"
-                            style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; justify-content: center;">
+                            style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 0px; margin-top: 0px; justify-content: center;">
                             <button class="ta-interval-btn" data-val="1m">1m</button>
                             <button class="ta-interval-btn" data-val="5m">5m</button>
                             <button class="ta-interval-btn" data-val="15m">15m</button>
@@ -227,7 +226,7 @@
                         </div>
 
                         <div class="ta-gauge-container"
-                            style="position: relative; width: 320px; height: 180px; margin: 0 auto; padding-top: 30px; box-sizing: border-box;">
+                            style="position: relative; width: 320px; height: 180px; margin: 0 auto; padding-top: 5px; box-sizing: border-box;">
 
                             <!-- Labels around the arc -->
                             <div class="gauge-labels"
@@ -343,8 +342,12 @@
                 </div>
 
                 <!-- Financials Content -->
-                <div id="finContent" class="summary-content tab-content" data-tab-content="fin" style="display: none;">
-                    <!-- Loading or Content will be injected here -->
+                <!-- Financials Content -->
+                <div id="finTabContent" class="summary-content tab-content" data-tab-content="fin"
+                    style="display: none;">
+                    <div id="finContent">
+                        <!-- Loading or Content will be injected here -->
+                    </div>
                 </div>
 
                 <footer class="app-footer glass-footer mt-auto">

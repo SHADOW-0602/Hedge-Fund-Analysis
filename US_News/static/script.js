@@ -355,7 +355,7 @@ async function handleRefresh(e) {
         const apiToken = document.querySelector('meta[name="api-token"]')?.content;
         const headers = apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {};
 
-        const response = await fetch('api/refresh', {
+        const response = await fetch('api/refresh_fundamentals', {
             method: 'POST',
             headers: headers
         });
@@ -420,23 +420,23 @@ async function handleRefresh(e) {
 
 
 // Expose generation function globally for the refresh button
-window.generateTickerSummary = async function (ticker, event) {
-    const summaryContent = document.getElementById('summaryContent');
+// --- Independent Generator for Fundamentals ---
+window.generateTickerFundamentals = async function (ticker, event) {
+    const finContent = document.getElementById('finContent');
     let isInlineRefresh = false;
     let refreshBtn = null;
 
-    // Check if triggered by button click (Authentication/Event handling)
+    // Check if triggered by button click
     if (event && event.currentTarget) {
         isInlineRefresh = true;
         refreshBtn = event.currentTarget;
-        // Start spinning
         refreshBtn.querySelector('svg').classList.add('spinning');
         refreshBtn.disabled = true;
     }
 
-    // Only show full loading card if NOT an inline refresh
-    if (!isInlineRefresh) {
-        summaryContent.innerHTML = `
+    // Show loading state if not inline refresh
+    if (!isInlineRefresh && finContent) {
+        finContent.innerHTML = `
             <div class="loading">
                 <div class="glass-card">
                     <div class="glass-icon">
@@ -444,8 +444,8 @@ window.generateTickerSummary = async function (ticker, event) {
                             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
                         </svg>
                     </div>
-                    <h2 class="glass-title">Generating Intelligence</h2>
-                    <p class="glass-subtitle">Analyzing ${ticker} data strings... please wait.<br>This may take up to a minute during high load.</p>
+                    <h2 class="glass-title">Generating Fundamental Report</h2>
+                    <p class="glass-subtitle">Analyzing ${ticker} data... please wait.<br>This may take up to a minute during high load.</p>
                 </div>
             </div>
         `;
@@ -455,8 +455,8 @@ window.generateTickerSummary = async function (ticker, event) {
         const apiToken = document.querySelector('meta[name="api-token"]')?.content;
         const headers = apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {};
 
-        // Trigger generation (GET)
-        const res = await fetch(`api/generate/${ticker}`, {
+        // Trigger generation for fundamentals
+        const res = await fetch(`api/generate_fundamentals/${ticker}`, {
             method: 'GET',
             headers: headers
         });
@@ -470,46 +470,50 @@ window.generateTickerSummary = async function (ticker, event) {
             const checkInterval = setInterval(async () => {
                 attempts++;
                 try {
-                    const pollUrl = targetDate ? `api/summary/${ticker}?min_date=${targetDate}` : `api/summary/${ticker}`;
+                    const pollUrl = targetDate ? `api/fundamentals/${ticker}?min_date=${targetDate}` : `api/fundamentals/${ticker}`;
                     const summaryRes = await fetch(pollUrl);
                     if (summaryRes.ok) {
                         const data = await summaryRes.json();
                         if (data.status === 'found') {
                             clearInterval(checkInterval);
-                            displaySummary(data);
+                            displaySummary(data, 'finContent'); // Only Update FinContent
+                            if (refreshBtn) {
+                                refreshBtn.querySelector('svg').classList.remove('spinning');
+                                refreshBtn.disabled = false;
+                            }
                         }
                     }
                 } catch (e) { }
 
                 if (attempts > 60) { // Timeout after 180s (3mins)
                     clearInterval(checkInterval);
-                    if (!isInlineRefresh) {
-                        summaryContent.innerHTML = `
+                    if (!isInlineRefresh && finContent) {
+                        finContent.innerHTML = `
                             <div class="placeholder">
                                 <div class="glass-card">
                                     <h2 class="glass-title">Analysis Failed</h2>
-                                    <p class="glass-subtitle">Could not generate data for ${ticker}.<br>Please try again later.</p>
+                                    <p class="glass-subtitle">Could not generate fundamental data for ${ticker}.<br>Please try again later.</p>
                                 </div>
                             </div>
                         `;
                     } else if (refreshBtn) {
                         refreshBtn.querySelector('svg').classList.remove('spinning');
                         refreshBtn.disabled = false;
-                        alert('Analysis timed out. Please try again.');
+                        alert('Fundamental analysis timed out. Please try again.');
                     }
                 }
             }, 3000);
         } else {
             // Handle HTTP Error from Generate Endpoint
-            throw new Error(`Generation trigger failed: ${res.status}`);
+            throw new Error(`Fundamental generation trigger failed: ${res.status}`);
         }
     } catch (e) {
-        console.error('Auto-generation failed', e);
-        if (!isInlineRefresh) {
-            summaryContent.innerHTML = `
+        console.error('Fundamental auto-generation failed', e);
+        if (!isInlineRefresh && finContent) {
+            finContent.innerHTML = `
                 <div class="placeholder">
                     <h3>Connection Error</h3>
-                    <p>Could not trigger analysis.</p>
+                    <p>Could not trigger fundamental analysis.</p>
                 </div>
             `;
         } else if (refreshBtn) {
@@ -517,7 +521,114 @@ window.generateTickerSummary = async function (ticker, event) {
             refreshBtn.disabled = false;
         }
     }
-}
+};
+
+// --- Independent Generator for News ---
+window.generateTickerNews = async function (ticker, event) {
+    const newsContent = document.getElementById('summaryContent');
+    let isInlineRefresh = false;
+    let refreshBtn = null;
+
+    // Check if triggered by button click
+    if (event && event.currentTarget) {
+        isInlineRefresh = true;
+        refreshBtn = event.currentTarget;
+        refreshBtn.querySelector('svg').classList.add('spinning');
+        refreshBtn.disabled = true;
+    }
+
+    // Show loading state if not inline refresh
+    if (!isInlineRefresh && newsContent) {
+        newsContent.innerHTML = `
+            <div class="loading">
+                <div class="glass-card">
+                    <div class="glass-icon">
+                        <svg class="spinning" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                        </svg>
+                    </div>
+                    <h2 class="glass-title">Generating News Analysis</h2>
+                    <p class="glass-subtitle">Analyzing ${ticker} news... please wait.<br>This may take up to a minute during high load.</p>
+                </div>
+            </div>
+        `;
+    }
+
+    try {
+        const apiToken = document.querySelector('meta[name="api-token"]')?.content;
+        const headers = apiToken ? { 'Authorization': `Bearer ${apiToken}` } : {};
+
+        // Trigger generation for news
+        const res = await fetch(`api/generate_news/${ticker}`, { // NEW News Route
+            method: 'GET',
+            headers: headers
+        });
+
+        if (res.ok) {
+            const genData = await res.json();
+            const targetDate = genData.target_date;
+
+            // Poll for completion
+            let attempts = 0;
+            const checkInterval = setInterval(async () => {
+                attempts++;
+                try {
+                    // Poll NEW News Endpoint
+                    const pollUrl = targetDate ? `api/news/${ticker}?min_date=${targetDate}` : `api/news/${ticker}`;
+                    const summaryRes = await fetch(pollUrl);
+                    if (summaryRes.ok) {
+                        const data = await summaryRes.json();
+                        if (data.status === 'found') {
+                            clearInterval(checkInterval);
+                            displaySummary(data, 'summaryContent'); // Only Update NewsContent
+                            if (refreshBtn) {
+                                refreshBtn.querySelector('svg').classList.remove('spinning');
+                                refreshBtn.disabled = false;
+                            }
+                        }
+                    }
+                } catch (e) { }
+
+                if (attempts > 60) { // Timeout after 180s (3mins)
+                    clearInterval(checkInterval);
+                    if (!isInlineRefresh && newsContent) {
+                        newsContent.innerHTML = `
+                            <div class="placeholder">
+                                <div class="glass-card">
+                                    <h2 class="glass-title">Analysis Failed</h2>
+                                    <p class="glass-subtitle">Could not generate news analysis for ${ticker}.<br>Please try again later.</p>
+                                </div>
+                            </div>
+                        `;
+                    } else if (refreshBtn) {
+                        refreshBtn.querySelector('svg').classList.remove('spinning');
+                        refreshBtn.disabled = false;
+                        alert('News analysis timed out. Please try again.');
+                    }
+                }
+            }, 3000);
+        } else {
+            // Handle HTTP Error from Generate Endpoint
+            throw new Error(`News generation trigger failed: ${res.status}`);
+        }
+    } catch (e) {
+        console.error('News auto-generation failed', e);
+        if (!isInlineRefresh && newsContent) {
+            newsContent.innerHTML = `
+                <div class="placeholder">
+                    <h3>Connection Error</h3>
+                    <p>Could not trigger news analysis.</p>
+                </div>
+            `;
+        } else if (refreshBtn) {
+            refreshBtn.querySelector('svg').classList.remove('spinning');
+            refreshBtn.disabled = false;
+        }
+    }
+};
+
+// Legacy alias for backward compatibility if any old calls exist, points to fundamentals as it was the primary summary
+window.generateTickerSummary = window.generateTickerFundamentals;
 
 // Polling interval tracking
 let quotePollTimeout = null;
@@ -671,15 +782,20 @@ async function selectTicker(ticker) {
 
     console.log(`[selectTicker] Active Tab: ${activeTabId}`);
 
-    if (activeTabId === 'ta') {
-        loadTAData(ticker);
-        // Also trigger Quant if needed
-        runQuantAnalysis(ticker);
-    } else if (activeTabId === 'fin') {
+    // Always preload TA data in background for faster tab switching
+    console.log(`[selectTicker] Preloading TA data in background for ${ticker}...`);
+    // Load default/current interval immediately (visual)
+    loadTAData(ticker);
+    // Load ALL other intervals in background (invisible)
+    preloadAllTAIntervals(ticker);
+
+    runQuantAnalysis(ticker);
+
+    // Load tab-specific data if needed
+    if (activeTabId === 'fin') {
         loadFundamentals(ticker);
     } else if (activeTabId === 'news' || activeTabId === 'overview') {
-        // Overview/News are handled by the main summary fetch below, 
-        // but we might want to ensure specific news UI is reset/ready
+        // Overview/News are handled by the main summary fetch below
     }
 
     // Continue with standard summary load...
@@ -708,13 +824,17 @@ async function selectTicker(ticker) {
     console.log(`[selectTicker] Fetching summary for ${ticker}...`);
     try {
         // Cache busting to ensure fresh data after refresh
-        const response = await fetch(`api/summary/${ticker}?t=${Date.now()}`);
+        const response = await fetch(`api/fundamentals/${ticker}?t=${Date.now()}`);
         const data = await response.json();
         console.log(`[selectTicker] Response for ${ticker}:`, data);
 
         if (data.ticker || data.executive_summary) { // Check for actual summary data
             console.log(`[selectTicker] Summary found, displaying...`);
-            displaySummary(data);
+
+            // Separate Independent Loads
+            // Separate Independent Loads
+            loadNews(ticker);
+            loadFundamentals(ticker, data); // Pass preloaded data to fundamentals
 
             // Start polling for this ticker
             startPolling(ticker);
@@ -725,9 +845,24 @@ async function selectTicker(ticker) {
         }
 
     } catch (error) {
-        console.log(`[selectTicker] Cache miss, triggering auto-generation...`);
-        // Auto-generate if missing
-        window.generateTickerSummary(ticker);
+        console.log(`[selectTicker] Cache miss, triggering auto-generation sequence...`);
+
+        // Execute "One by One" Sequence
+        try {
+            // 1. Fundamentals (Priority)
+            await window.generateTickerFundamentals(ticker);
+
+            // 2. News (after short delay)
+            await new Promise(r => setTimeout(r, 1500));
+            await window.generateTickerNews(ticker);
+
+            // 3. Quant (after short delay)
+            await new Promise(r => setTimeout(r, 1500));
+            runQuantAnalysis(ticker);
+
+        } catch (e) {
+            console.error("Auto-generation sequence error:", e);
+        }
     } finally {
         // Hide loading overlay
         if (loadingOverlay) {
@@ -749,9 +884,9 @@ function cleanText(text) {
 }
 
 // Modal Toggle Function
-window.toggleSourcesModal = function (event) {
+window.toggleSourcesModal = function (event, modalId = 'sourcesModal') {
     if (event) event.preventDefault();
-    const modal = document.getElementById('sourcesModal');
+    const modal = document.getElementById(modalId);
     if (modal) {
         if (modal.classList.contains('open')) {
             modal.classList.remove('open');
@@ -764,11 +899,17 @@ window.toggleSourcesModal = function (event) {
     }
 }
 
-function displaySummary(data) {
-    const summaryContent = document.getElementById('summaryContent');
+function displaySummary(data, targetId = 'summaryContent') {
+    // Redirect to specified Content Tab (News or Fundamentals)
+    const summaryContent = document.getElementById(targetId);
     if (summaryContent) {
-        summaryContent.style.display = 'flex';
-        summaryContent.style.opacity = '1';
+        summaryContent.dataset.ticker = data.ticker; // Track displayed ticker
+        // Only toggle display/opacity if it's NOT the main tab container (let tab logic handle that)
+        if (!summaryContent.classList.contains('tab-content')) {
+            summaryContent.style.display = 'flex';
+            summaryContent.style.opacity = '1';
+        }
+        // Ensure it's treated as the active view if needed, but styling handles layout
     }
 
     const tabsContainer = document.querySelector('.tabs-container');
@@ -778,10 +919,13 @@ function displaySummary(data) {
 
     let sourcesHTML = '';
     if (data.sources && data.sources.length > 0) {
+        // Create unique modal ID based on target tab
+        const modalId = `sourcesModal-${targetId.replace('Content', '')}`;
+
         // Trigger Link
         const sourcesTrigger = `
             <div class="sources-trigger-wrapper">
-                <a href="#" class="sources-trigger" onclick="toggleSourcesModal(event)">
+                <a href="#" class="sources-trigger" onclick="toggleSourcesModal(event, '${modalId}')">
                     <span>Sources</span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -801,11 +945,11 @@ function displaySummary(data) {
         `).join('');
 
         const modal = `
-            <div id="sourcesModal" class="modal-overlay" onclick="toggleSourcesModal(event)">
+            <div id="${modalId}" class="modal-overlay" onclick="toggleSourcesModal(event, '${modalId}')">
                 <div class="modal-content" onclick="event.stopPropagation()">
                     <div class="modal-header">
                         <h3>Sources Used</h3>
-                        <button class="modal-close" onclick="toggleSourcesModal(event)">×</button>
+                        <button class="modal-close" onclick="toggleSourcesModal(event, '${modalId}')">×</button>
                     </div>
                     <div class="modal-body">
                         ${sourcesList}
@@ -823,7 +967,7 @@ function displaySummary(data) {
 
     // Fix: Handle "No News" state explicitly with a nice UI
     if (rawText.includes("No significant news articles found") || rawText.includes("No specific news or recent events")) {
-        const summaryContent = document.getElementById('summaryContent');
+        const summaryContent = document.getElementById(targetId);
         if (summaryContent) {
             summaryContent.innerHTML = `
                 <div class="research-report" style="display: flex; justify-content: center; align-items: center; min-height: 200px;">
@@ -883,20 +1027,32 @@ function displaySummary(data) {
         ? marked.parse(rawText)
         : rawText;
 
+    // Only show Price Badge on Fundamentals Tab
+    let priceBadgeHTML = '';
+    if (targetId === 'finContent') {
+        priceBadgeHTML = `
+            <div style="display:flex; gap:12px; align-items: center;">
+                <span class="header-badge price-badge ticker-price-update-${data.ticker}" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1); color: var(--text-primary); font-family:monospace;">...</span>
+            </div>
+        `;
+    }
+
+    // Determine which generation function to call for the refresh button
+    const refreshFunction = targetId === 'finContent' ? 'window.generateTickerFundamentals' : 'window.generateTickerNews';
+    const displayTicker = data.ticker.replace('NEWS_', ''); // Clean display ticker
+
     summaryContent.innerHTML = `
         <div class="summary-display">
-            <h2 style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
-                ${data.ticker}
-                <div style="display:flex; gap:12px; align-items: center;">
-                    <span id="ticker-price-${data.ticker}" class="header-badge price-badge" style="font-size: 0.6em; padding: 4px 8px; border-radius: 6px; background: rgba(128,128,128,0.1); color: var(--text-primary); font-family:monospace;">...</span>
-                </div>
+            <h2 style="display: flex; align-items: center; gap: 16px; margin-bottom: 0px; flex-wrap: wrap;">
+                ${displayTicker}
+                ${priceBadgeHTML}
                 
                 <span class="last-updated-badge" style="font-size: 12px; color: var(--text-secondary); font-weight: 500; background: var(--bg-card); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); margin-left: auto;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px; display:inline-block; vertical-align:text-bottom;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                     Updated: ${data.updated_at ? new Date(data.updated_at).toLocaleString(undefined, { timeZoneName: 'short' }) : (data.date || 'N/A')}
                 </span>
 
-                <button onclick="window.generateTickerSummary('${data.ticker}', event)" class="ticker-refresh-btn" title="Force Refresh Analysis">
+                <button onclick="${refreshFunction}('${displayTicker}', event)" class="ticker-refresh-btn" title="Force Refresh Analysis">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M23 4v6h-6"></path>
                         <path d="M1 20v-6h6"></path>
@@ -912,6 +1068,19 @@ function displaySummary(data) {
             ${sourcesHTML}
         </div>
     `;
+
+    // Wrap all tables in scrollable containers for mobile
+    const tables = summaryContent.querySelectorAll('.research-report table');
+    console.log(`Found ${tables.length} tables to wrap`);
+    tables.forEach((table, index) => {
+        if (!table.parentElement.classList.contains('table-wrapper')) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'table-wrapper';
+            table.parentNode.insertBefore(wrapper, table);
+            wrapper.appendChild(table);
+            console.log(`Wrapped table ${index + 1}`);
+        }
+    });
 
     // Initial fetch
     fetchAndDisplayQuote(data.ticker);
@@ -930,21 +1099,24 @@ async function fetchAndDisplayQuote(ticker) {
         const qData = await qRes.json();
         console.log(`[Quote Update] ${ticker}:`, qData);
 
-        const priceBadge = document.getElementById(`ticker-price-${ticker}`);
-        const changeBadge = document.getElementById(`ticker-change-${ticker}`);
+        // Update all price badges for this ticker using Class Selector
+        const priceBadges = document.querySelectorAll(`.ticker-price-update-${ticker}`);
+        const changeBadges = document.querySelectorAll(`.ticker-change-update-${ticker}`);
 
-        if (priceBadge && qData.previous_close !== undefined) {
-            // Format Previous Close
-            const prevPrice = Number(qData.previous_close).toFixed(2);
-            priceBadge.textContent = `Prev Close: $${prevPrice}`;
+        if (priceBadges.length > 0 && qData.previous_close !== undefined) {
+            priceBadges.forEach(badge => {
+                // Format Previous Close
+                const prevPrice = Number(qData.previous_close).toFixed(2);
+                badge.textContent = `Prev Close: $${prevPrice}`;
 
-            // Neutral styling
-            priceBadge.style.background = 'rgba(128,128,128,0.1)';
-            priceBadge.style.color = 'var(--text-primary)';
-            priceBadge.style.border = 'none';
+                // Neutral styling
+                badge.style.background = 'rgba(128,128,128,0.1)';
+                badge.style.color = 'var(--text-primary)';
+                badge.style.border = 'none';
+            });
 
             // Hide Change Badge if exists
-            if (changeBadge) changeBadge.style.display = 'none';
+            changeBadges.forEach(b => b.style.display = 'none');
         }
 
         // --- 1.5 Sync Main Header Stats (Fix Mismatch) ---
@@ -1052,10 +1224,13 @@ function initTabListeners() {
             }
 
             if (targetId === 'ta' && currentActiveTicker) {
-                console.log("[TA] Tab clicked, loading data...");
+                console.log(`[TA] Tab clicked, loading data for ${currentActiveTicker}...`);
+                // Always load TA data when switching to TA tab
                 loadTAData(currentActiveTicker);
                 // Trigger Expert Quant Analysis Automatically
                 runQuantAnalysis(currentActiveTicker);
+            } else if (targetId === 'ta') {
+                console.warn('[TA] Tab clicked but no currentActiveTicker set');
             }
 
             if (targetId === 'fin' && currentActiveTicker) {
@@ -1071,7 +1246,19 @@ function initTabListeners() {
         const tabToActivate = document.querySelector(`.tab-btn[data-tab="${savedTab}"]`);
         if (tabToActivate) {
             // Delay to ensure DOM is ready
-            setTimeout(() => tabToActivate.click(), 100);
+            setTimeout(() => {
+                tabToActivate.click();
+
+                // After tab is restored, load the appropriate data for the current ticker
+                if (savedTab === 'ta' && currentActiveTicker) {
+                    console.log("[Init] Restoring TA tab, loading data for:", currentActiveTicker);
+                    loadTAData(currentActiveTicker);
+                    runQuantAnalysis(currentActiveTicker);
+                } else if (savedTab === 'fin' && currentActiveTicker) {
+                    console.log("[Init] Restoring Fundamentals tab, loading data for:", currentActiveTicker);
+                    loadFundamentals(currentActiveTicker);
+                }
+            }, 100);
         }
     }
 }
@@ -1331,182 +1518,71 @@ function _unused_renderTA(data) {
 }
 
 // --- 3. Fundamentals Functions ---
-async function loadFundamentals(ticker) {
+// --- 3. Fundamentals Functions ---
+async function loadNews(ticker) {
+    const summaryContent = document.getElementById('summaryContent');
+    if (!summaryContent) return;
+
+    // News uses NEWS_ prefix for caching, so we expect data.ticker to be NEWS_TSLA
+    const expectedTicker = `NEWS_${ticker}`;
+    const isNewTicker = summaryContent.dataset.ticker !== expectedTicker;
+
+    if (isNewTicker || summaryContent.innerHTML.trim() === '') {
+        summaryContent.innerHTML = '<div class="loading"><div class="glass-card"><h2 class="glass-title">Loading News Analysis...</h2></div></div>';
+        summaryContent.dataset.ticker = expectedTicker;
+
+        try {
+            const response = await fetch(`api/news/${ticker}?t=${Date.now()}`);
+            const data = await response.json();
+
+            if (data.ticker || data.executive_summary) {
+                displaySummary(data, 'summaryContent');
+            } else {
+                window.generateTickerNews(ticker);
+            }
+        } catch (error) {
+            console.error('[News] Error loading news:', error);
+            summaryContent.innerHTML = '<div class="error-msg">Failed to load news.</div>';
+        }
+    }
+}
+
+async function loadFundamentals(ticker, preloadedData = null) {
     const finContent = document.getElementById('finContent');
     if (!finContent) return;
 
-    finContent.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    // Check if we need to load (different ticker or empty)
+    // Note: Fundamentals ticker is just the symbol (e.g. TSLA)
+    const isNewTicker = finContent.dataset.ticker !== ticker;
 
-    try {
-        console.log(`[Fundamentals] Fetching data for ${ticker}...`);
-        const response = await fetch(`/us-news/api/financials/${ticker}?_=${Date.now()}`);
-        const data = await response.json();
+    if (isNewTicker || finContent.innerHTML.trim() === '') {
+        finContent.innerHTML = '<div class="loading"><div class="glass-card"><h2 class="glass-title">Loading Analysis...</h2></div></div>';
+        finContent.dataset.ticker = ticker; // Set immediately to prevent weird race conditions
 
-        if (data.error) throw new Error(data.error);
-        renderFundamentals(data);
+        if (preloadedData && (preloadedData.ticker === ticker)) {
+            displaySummary(preloadedData, 'finContent');
+            return;
+        }
 
-    } catch (e) {
-        console.error('[Fundamentals] Error:', e);
-        finContent.innerHTML = `
-            <div style="padding: 40px; text-align: center;">
-                <h3 style="color: #ef4444; margin-bottom: 16px;">⚠️ Unable to Load Data</h3>
-                <p style="color: var(--text-secondary);">Error: ${e.message}</p>
-            </div>
-        `;
+        try {
+            // Use Fundamentals Endpoint
+            const response = await fetch(`api/fundamentals/${ticker}?t=${Date.now()}`);
+            const data = await response.json();
+
+            if (data.ticker || data.executive_summary) {
+                displaySummary(data, 'finContent');
+            } else {
+                window.generateTickerFundamentals(ticker);
+            }
+        } catch (error) {
+            console.error('[Fundamentals] Error loading summary:', error);
+            finContent.innerHTML = '<div class="error-msg">Failed to load analysis.</div>';
+        }
     }
 }
 
 function renderFundamentals(data) {
-    const finContent = document.getElementById('finContent');
-    if (!finContent) return;
-
-    const f = data.fundamentals || {};
-    const aiText = data.ai_analysis || "No analysis generated.";
-    const technicals = data.technicals || {};
-
-    // Format Helpers
-    const fmtNum = (n) => n ? new Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(n) : 'N/A';
-    const fmtPct = (n) => (n !== null && n !== undefined) ? (n * 100).toFixed(2) + '%' : 'N/A';
-    const fmtVal = (n) => (n !== null && n !== undefined && !isNaN(n)) ? n.toFixed(2) : 'N/A';
-
-    // Color Helpers
-    const getGrowthClass = (n) => n > 0 ? 'text-success' : (n < 0 ? 'text-danger' : '');
-    const getHealthClass = (val, threshold, isInverse = false) => {
-        if (!val) return '';
-        if (isInverse) return val > threshold ? 'text-danger' : 'text-success'; // Lower is better
-        return val > threshold ? 'text-success' : 'text-danger'; // Higher is better
-    };
-
-    // 1. Valuation Logic
-    const currentPrice = technicals.price || 0;
-    const fairValue = f.fair_value;
-    let valuationBadge = '';
-
-    if (fairValue && currentPrice > 0) {
-        const diff = ((currentPrice - fairValue) / fairValue) * 100;
-        if (diff < -15) {
-            valuationBadge = '<span class="status-badge undervalued">UNDERVALUED</span>';
-        } else if (diff > 15) {
-            valuationBadge = '<span class="status-badge overvalued">OVERVALUED</span>';
-        } else {
-            valuationBadge = '<span class="status-badge fair">FAIR VALUE</span>';
-        }
-    }
-
-    // 2. Health Logic
-    const deRatio = f.debt_to_equity;
-    const currRatio = f.current_ratio;
-
-    // Determine signal color and text for AI Card
-    let signalClass = 'neutral';
-    let signalText = 'NEUTRAL';
-
-    // Regex to capture signal (e.g. Signal: BUY, Signal: STRONG SELL, Signal: HOLD)
-    const signalMatch = aiText.match(/Signal:\s*([A-Za-z\s]+?)(?:\n|<br>|$)/i);
-
-    if (signalMatch && signalMatch[1]) {
-        signalText = signalMatch[1].trim().toUpperCase();
-
-        if (signalText.includes('BUY')) {
-            signalClass = 'buy';
-        } else if (signalText.includes('SELL')) {
-            signalClass = 'sell';
-        } else {
-            signalClass = 'neutral'; // Hold, Wait, etc.
-        }
-    }
-
-    const cleanAiText = aiText
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\n\n/g, '<br><br>')
-        .replace(/\n/g, '<br>');
-
-    /* HTML Generation */
-    finContent.innerHTML = `
-        <div class="financials-layout">
-            <!-- AI Recommendation Card -->
-            <div class="ai-card ${signalClass}">
-                <div class="ai-header">
-                    <span class="ai-title">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M2 12h10"></path></svg>
-                        ${f.ticker || 'Stock'} Analysis
-                    </span>
-                    <span class="ai-badge ${signalClass}">${signalText}</span>
-                </div>
-                <div class="ai-body">
-                    ${cleanAiText}
-                </div>
-            </div>
-
-            <!-- Enhanced Fundamentals Grid -->
-            <div class="fundamentals-grid">
-                
-                <!-- 1. Valuation Card -->
-                <div class="fund-card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                        <h4>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
-                            Valuation
-                        </h4>
-                        ${valuationBadge}
-                    </div>
-                    <div class="metric-row"><span>Fair Value (Graham)</span> <strong>${fairValue ? '$' + fairValue : 'N/A'}</strong></div>
-                    <div class="metric-row"><span>Latest Price</span> <strong>$${currentPrice.toFixed(2)}</strong></div>
-                    <div class="metric-divider"></div>
-                    <div class="metric-row"><span>P/E Ratio</span> <strong>${fmtVal(f.pe_ratio)}</strong></div>
-                    <div class="metric-row"><span>PEG Ratio</span> <strong>${fmtVal(f.peg_ratio)}</strong></div>
-                    <div class="metric-row"><span>P/B Ratio</span> <strong>${fmtVal(f.price_to_book)}</strong></div>
-                </div>
-
-                <!-- 2. Profitability -->
-                <div class="fund-card">
-                    <h4>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
-                        Profitability
-                    </h4>
-                    <div class="metric-row"><span>Revenue (TTM)</span> <strong>${fmtNum(f.revenue_ttm)}</strong></div>
-                    <div class="metric-row"><span>Net Income</span> <strong>${fmtNum(f.net_income_ttm)}</strong></div>
-                    <div class="metric-row"><span>EPS (TTM)</span> <strong>${fmtVal(f.eps)}</strong></div>
-                    <div class="metric-divider"></div>
-                    <div class="metric-row"><span>Profit Margin</span> <strong class="${getGrowthClass(f.profit_margins)}">${fmtPct(f.profit_margins)}</strong></div>
-                    <div class="metric-row"><span>ROE</span> <strong class="${getGrowthClass(f.return_on_equity)}">${fmtPct(f.return_on_equity)}</strong></div>
-                </div>
-                
-                <!-- 3. Financial Health -->
-                 <div class="fund-card">
-                    <h4>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                        Financial Health
-                    </h4>
-                    <div class="metric-row">
-                        <span>Debt/Equity</span> 
-                        <strong class="${getHealthClass(deRatio, 200, true)}">${fmtVal(deRatio)}%</strong>
-                    </div>
-                    <div class="metric-row">
-                        <span>Current Ratio</span> 
-                        <strong class="${getHealthClass(currRatio, 1.0, false)}">${fmtVal(currRatio)}</strong>
-                    </div>
-                    <div class="metric-divider"></div>
-                    <div class="metric-row"><span>Dividend Yield</span> <strong class="text-success">${fmtPct(f.dividend_yield)}</strong></div>
-                    <div class="metric-row"><span>Beta (Vol)</span> <strong>${fmtVal(f.beta)}</strong></div>
-                </div>
-
-                <!-- 4. Growth & Efficiency -->
-                <div class="fund-card">
-                    <h4>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                        Growth
-                    </h4>
-                    <div class="metric-row"><span>Rev Growth (YoY)</span> <strong class="${getGrowthClass(f.revenue_growth)}">${fmtPct(f.revenue_growth)}</strong></div>
-                    <div class="metric-row"><span>Earnings Growth</span> <strong class="${getGrowthClass(f.earnings_growth)}">${fmtPct(f.earnings_growth)}</strong></div>
-                    <div class="metric-divider"></div>
-                    <div class="metric-row"><span>Gross Margin</span> <strong>${fmtPct(f.gross_margins)}</strong></div>
-                    <div class="metric-row"><span>Oper. Margin</span> <strong>${fmtPct(f.operating_margins)}</strong></div>
-                    <div class="metric-row"><span>ROA</span> <strong class="${getGrowthClass(f.return_on_assets)}">${fmtPct(f.return_on_assets)}</strong></div>
-                </div>
-            </div>
-        </div>
-    `;
+    // Content removed
 }
 
 
@@ -1834,6 +1910,68 @@ function initIntervalListeners() {
 // Since this is appended to the end, it will be defined.
 
 // Load Technical Analysis Data with Interval Support
+// --- Global TA Caching ---
+const taCache = {}; // Key: "TICKER_INTERVAL", Value: ResponseData
+const taPromises = {}; // Key: "TICKER_INTERVAL", Value: Promise
+
+// Helper: Fetch TA Data with Caching & Deduplication
+async function fetchTAData(ticker, interval) {
+    const key = `${ticker}_${interval}`;
+
+    // 1. Return Cached Data if available
+    if (taCache[key]) {
+        console.log(`[TA-Cache] Returning cached data for ${key}`);
+        return taCache[key];
+    }
+
+    // 2. Return In-Flight Promise if already fetching
+    if (taPromises[key]) {
+        console.log(`[TA-Cache] Joining in-flight request for ${key}`);
+        return taPromises[key];
+    }
+
+    // 3. Fetch New Data
+    console.log(`[TA-Fetch] Fetching new data for ${key}...`);
+    const promise = fetch(`/us-news/api/ta/${ticker}?interval=${interval}&_=${Date.now()}`)
+        .then(async (response) => {
+            if (response.status === 429) {
+                console.warn(`[TA] Rate Limit hit for ${key}`);
+                throw new Error('Rate limit exceeded. Please wait.');
+            }
+            if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+
+            const data = await response.json();
+
+            // Validate data structure before caching
+            if (data && (data.summary || data.chart_data)) {
+                taCache[key] = data; // Cache successful result
+            }
+            return data;
+        })
+        .finally(() => {
+            delete taPromises[key]; // Remove promise when done (success or fail)
+        });
+
+    taPromises[key] = promise;
+    return promise;
+}
+
+// Helper: Preload ALL Intervals in Background
+function preloadAllTAIntervals(ticker) {
+    const intervals = ['1m', '5m', '15m', '30m', '1h', '1d', '1wk'];
+    console.log(`[TA-Preload] Triggering background fetch for all intervals of ${ticker}`);
+
+    intervals.forEach(interval => {
+        // Fetch each interval. The caching logic in fetchTAData prevents duplicates.
+        // We catch errors here to ensure background tasks don't crash main thread.
+        fetchTAData(ticker, interval).catch(err => {
+            // Suppress errors for background preloads to avoid console noise
+            // console.warn(`[TA-Preload] Bg load failed for ${interval}:`, err);
+        });
+    });
+}
+
+// Load Technical Analysis Data with Interval Support
 async function loadTAData(ticker, interval = '1d') {
     const indicatorsDiv = document.getElementById('indicatorsContent');
     const levelsDiv = document.getElementById('levelsContent');
@@ -1846,42 +1984,38 @@ async function loadTAData(ticker, interval = '1d') {
 
     if (activeTab !== 'ta' && !interval) return;
 
-    // Clear previous data to show loading state and prevent stale view
-    if (indicatorsDiv) indicatorsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-    if (levelsDiv) levelsDiv.innerHTML = '<div class="loading-text">Updating...</div>';
+    // Check cache first to avoid flashing "Loading" if data is ready
+    const key = `${ticker}_${interval}`;
+    const isCached = !!taCache[key];
 
-    // Reset Gauge to "Loading" State
-    const needle = document.getElementById('gaugeNeedle');
-    const text = document.getElementById('gaugeText');
-    const countBuy = document.getElementById('countBuy');
-    const countSell = document.getElementById('countSell');
-    const countNeutral = document.getElementById('countNeutral');
+    // Only clear previous data if NOT cached (instant render if cached)
+    if (!isCached) {
+        if (indicatorsDiv) indicatorsDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+        if (levelsDiv) levelsDiv.innerHTML = '<div class="loading-text">Updating...</div>';
 
-    if (needle) needle.style.transform = 'translateX(-50%) rotate(-90deg)'; // Left/Empty
-    if (text) {
-        text.innerText = 'LOADING...';
-        text.style.color = 'var(--text-secondary)';
+        // Reset Gauge to "Loading" State
+        const needle = document.getElementById('gaugeNeedle');
+        const text = document.getElementById('gaugeText');
+        const countBuy = document.getElementById('countBuy');
+        const countSell = document.getElementById('countSell');
+        const countNeutral = document.getElementById('countNeutral');
+
+        if (needle) needle.style.transform = 'translateX(-50%) rotate(-90deg)'; // Left/Empty
+        if (text) {
+            text.innerText = 'LOADING...';
+            text.style.color = 'var(--text-secondary)';
+        }
+        if (countBuy) countBuy.innerText = '-';
+        if (countSell) countSell.innerText = '-';
+        if (countNeutral) countNeutral.innerText = '-';
     }
-    if (countBuy) countBuy.innerText = '-';
-    if (countSell) countSell.innerText = '-';
-    if (countNeutral) countNeutral.innerText = '-';
 
     // Set Fetching Flag
     window.isFetchingTA = true;
 
     try {
-        const response = await fetch(`/us-news/api/ta/${ticker}?interval=${interval}&_=${Date.now()}`);
-
-        if (response.status === 429) {
-            console.warn('TA Rate Limit hit. Showing stale/unavailable state.');
-            if (indicatorsDiv) indicatorsDiv.innerHTML = '<div class="info-msg">Real-time data busy. Retrying...</div>';
-            if (levelsDiv) levelsDiv.innerHTML = '';
-            return; // Stop without error
-        }
-
-        if (!response.ok) throw new Error('Failed to fetch TA data');
-
-        const data = await response.json();
+        // Use our new Helper with Caching
+        const data = await fetchTAData(ticker, interval);
         renderTA(data, ticker);
 
     } catch (error) {

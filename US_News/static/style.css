@@ -4,6 +4,27 @@
     box-sizing: border-box;
 }
 
+/* Responsive Utility Classes */
+.desktop-only {
+    display: none;
+}
+
+@media (min-width: 769px) {
+    .desktop-only {
+        display: initial;
+    }
+
+    .mobile-only {
+        display: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .mobile-only {
+        display: block;
+    }
+}
+
 :root {
     --bg-primary: #0a0e27;
     --bg-card: rgba(15, 23, 42, 0.95);
@@ -86,7 +107,7 @@ body {
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
-    position: sticky;
+    position: relative;
     top: 0;
     z-index: 50;
     width: 100%;
@@ -115,7 +136,8 @@ body {
 .nav-links {
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 16px;
+    flex-wrap: nowrap;
 }
 
 .nav-links a {
@@ -340,21 +362,105 @@ body {
     }
 }
 
+/* Header Search Container */
+.header-search-container {
+    display: none;
+    align-items: center;
+    max-width: 200px;
+    min-width: 180px;
+}
+
+/* Search Input Wrapper */
+.search-input-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
 /* Search Bar - Desktop Styling */
 @media (min-width: 769px) {
-    .desktop-search-container {
-        padding: 0px 30px 20px 30px;
-        margin-bottom: 0;
-        max-width: 800px;
-        width: 100%;
-        margin-top: 11px;
+    .header-search-container {
+        display: flex !important;
     }
 
-    .desktop-search-container .search-input-wrapper {
+    /* Specific overrides for header search elements */
+    .header-search-container.desktop-only {
+        display: flex !important;
+        align-items: center;
+    }
+
+    .header-search-container .search-input-wrapper {
         position: relative;
+        width: 200px;
         display: flex;
         align-items: center;
+    }
+
+    .header-search-container .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-secondary);
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    .header-search-container .ticker-search-input {
         width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 12px 8px 38px;
+        color: var(--text-primary);
+        font-size: 13px;
+        outline: none;
+        transition: all 0.2s;
+        font-family: inherit;
+        text-transform: uppercase;
+        height: 36px;
+    }
+
+    .header-search-container .ticker-search-input:focus {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    [data-theme="light"] .header-search-container .ticker-search-input {
+        background: white;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    [data-theme="light"] .header-search-container .ticker-search-input:focus {
+        background: white;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .header-search-container .search-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-top: 4px;
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        display: none;
+    }
+
+    .header-search-container .search-dropdown.show {
+        display: block;
+    }
+
+    [data-theme="dark"] .header-search-container .search-dropdown {
+        background: #0f172a;
+        border-color: rgba(255, 255, 255, 0.1);
     }
 }
 
@@ -371,16 +477,14 @@ body {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 12px 12px 12px 42px;
-    /* Increased padding for icon */
+    padding: 8px 12px 8px 38px;
     color: var(--text-primary);
-    font-size: 14px;
+    font-size: 13px;
     outline: none;
     transition: all 0.2s;
     font-family: inherit;
     text-transform: uppercase;
-    height: 44px;
-    /* Explicit height */
+    height: 36px;
 }
 
 .ticker-search-input:focus {
@@ -596,7 +700,7 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 20px 24px;
+    padding: 0px 24px;
     /* Reduced padding */
     overflow-y: auto;
     /* Enable scrolling */
@@ -612,7 +716,7 @@ body {
 .summary-content ul {
     list-style-type: disc;
     padding-left: 24px;
-    margin-top: 8px;
+    margin-top: 2px;
     margin-bottom: 16px;
 }
 
@@ -635,7 +739,7 @@ body {
 .summary-text ul {
     list-style-type: disc;
     padding-left: 24px;
-    margin-top: 8px;
+    margin-top: 2px;
     margin-bottom: 16px;
 }
 
@@ -741,19 +845,19 @@ body {
 .summary-display h2 {
     font-size: 36px;
     font-weight: 800;
-    margin-bottom: 40px;
+    margin-bottom: 24px;
     color: var(--text-primary);
     letter-spacing: -0.5px;
 }
 
 .summary-section-block {
-    margin-bottom: 40px;
+    margin-bottom: 24px;
 }
 
 .summary-section-block h3 {
     font-size: 18px;
     font-weight: 600;
-    margin-bottom: 16px;
+    margin-bottom: 10px;
     color: var(--accent);
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -770,17 +874,14 @@ body {
     display: flex;
     gap: 32px;
     border-bottom: 1px solid var(--border);
-    margin-bottom: 32px;
-    position: sticky;
-    top: 0;
+    margin-bottom: 4px;
+    position: relative;
     background: rgba(15, 23, 42, 0.95);
-    /* Opaque to hide scroll */
     z-index: 40;
-    padding: 4px 30px 0 30px;
-    /* Reduced padding */
+    padding: 4px 0 0 30px;
     backdrop-filter: blur(10px);
     margin-top: 0;
-    /* Remove negative margin */
+    width: 100%;
 }
 
 [data-theme="light"] .tabs-container {
@@ -823,7 +924,7 @@ body {
     display: none;
     padding-left: 30px;
     padding-right: 30px;
-    padding-top: 20px;
+    padding-top: 0px;
 }
 
 .tab-content.active {
@@ -1199,33 +1300,37 @@ body {
 
     /* Ensure summary section has proper top margin */
     .summary-section {
-        margin-top: 5px !important;
+        margin-top: 10px !important;
         padding: 5px !important;
         max-width: 100% !important;
     }
 
     /* Tabs container mobile adjustments */
     .tabs-container {
-        position: relative !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        margin-top: 0 !important;
-        z-index: 20 !important;
-        gap: 25px !important;
-        padding: 5px 5px 10px 5px !important;
-        /* Reduced top padding */
-        overflow-x: auto;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        flex-wrap: nowrap !important;
+        padding-left: 16px !important;
+        /* Add some padding for better touch target start */
+        padding-right: 16px !important;
         -webkit-overflow-scrolling: touch;
-        white-space: nowrap;
-        min-height: 50px !important;
-        margin-bottom: 15px !important;
+        touch-action: pan-x;
+        /* Hide scrollbar */
+        scrollbar-width: none;
+        gap: 20px !important;
+        margin-bottom: 10px !important;
+        /* Slightly reduce gap for mobile */
+    }
+
+    .tabs-container::-webkit-scrollbar {
+        display: none;
     }
 
     .tab-btn {
         font-size: 14px !important;
         padding: 10px 0 !important;
-        flex-shrink: 0;
+        flex-shrink: 0 !important;
+        /* Prevent shrinking */
         min-height: 36px !important;
     }
 
@@ -1245,8 +1350,8 @@ body {
 
     /* Optimize Tab Content for Mobile */
     .tab-content {
-        padding-left: 10px !important;
-        padding-right: 10px !important;
+        padding-left: 8px !important;
+        padding-right: 8px !important;
         width: 100% !important;
         box-sizing: border-box !important;
     }
@@ -2365,15 +2470,7 @@ body {
     }
 
     /* 6. Tabs Visibility Fix */
-    .tabs-container {
-        position: relative;
-        top: auto;
-        z-index: 1;
-        background: transparent;
-        margin-top: 0;
-        padding-top: 10px;
-        margin-bottom: 20px !important;
-    }
+
 
     /* 7. Chart Header Mobile Fix */
     .chart-header,
@@ -2448,15 +2545,31 @@ body {
 
 @media (min-width: 769px) {
     #overviewChart {
-        margin-top: 30px;
+        margin-top: 0px;
     }
 
     .chart-header {
-        margin-top: 130px;
+        margin-top: 10px;
+        /* Also reduce bottom margin */
     }
 
     #newsContent {
-        margin-top: 120px;
+        margin-top: 10px;
+    }
+
+    #taContent {
+        margin-top: -100px;
+    }
+
+    #finContent {
+        margin-top: -100px;
+    }
+
+    /* Override inline styles for TA block to reduce gap */
+    .ta-summary-block.glass-panel {
+        padding-top: 0px !important;
+        padding-bottom: 5px !important;
+        margin-bottom: 5px !important;
     }
 }
 
@@ -2499,9 +2612,9 @@ body {
 .research-report h2 {
     font-size: 1.6rem;
     font-weight: 700;
-    margin-top: 2em;
-    margin-bottom: 1em;
-    padding-bottom: 0.5em;
+    margin-top: 1.2em;
+    margin-bottom: 0.6em;
+    padding-bottom: 0.4em;
     border-bottom: 1px solid var(--border);
     color: var(--text-primary);
     display: flex;
@@ -2521,13 +2634,13 @@ body {
 .research-report h3 {
     font-size: 1.3rem;
     font-weight: 600;
-    margin-top: 1.5em;
-    margin-bottom: 0.8em;
+    margin-top: 1em;
+    margin-bottom: 0.5em;
     color: var(--text-primary);
 }
 
 .research-report p {
-    margin-bottom: 1.25em;
+    margin-bottom: 0.8em;
     color: var(--text-secondary);
     /* Slightly softer text for reading */
 }
@@ -2535,12 +2648,12 @@ body {
 /* Lists */
 .research-report ul,
 .research-report ol {
-    margin-bottom: 1.5em;
+    margin-bottom: 1em;
     padding-left: 1.25em;
 }
 
 .research-report li {
-    margin-bottom: 0.75em;
+    margin-bottom: 0.4em;
     position: relative;
     color: var(--text-secondary);
 }
@@ -2618,6 +2731,74 @@ body {
     background: linear-gradient(to right, transparent, var(--border), transparent);
     margin: 3em 0;
 }
+
+
+/* Table Wrapper for Horizontal Scrolling */
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    margin: 2em 0;
+    border-radius: 12px;
+    position: relative;
+    /* Smooth scrolling */
+    -webkit-overflow-scrolling: touch;
+    /* Show scrollbar on webkit browsers */
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) var(--bg-card);
+}
+
+/* Webkit scrollbar styling for table wrapper */
+.table-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+    background: var(--bg-card);
+    border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--text-primary);
+}
+
+/* Scroll shadow indicators - fixed at wrapper edges */
+.table-wrapper::before,
+.table-wrapper::after {
+    content: '';
+    position: sticky;
+    display: block;
+    width: 30px;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+    float: left;
+}
+
+.table-wrapper::before {
+    left: 0;
+    margin-right: -30px;
+    background: linear-gradient(to right, rgba(20, 24, 38, 0.95), transparent);
+}
+
+.table-wrapper::after {
+    right: 0;
+    margin-left: -30px;
+    float: right;
+    background: linear-gradient(to left, rgba(20, 24, 38, 0.95), transparent);
+}
+
+.table-wrapper table {
+    margin: 0;
+    position: relative;
+    z-index: 0;
+}
+
 
 /* Sources Modal Styles */
 .sources-trigger-wrapper {
@@ -2753,10 +2934,10 @@ body {
     .research-report {
         font-size: 0.95rem;
         /* Smaller text */
-        padding-left: 20px;
-        /* Left margin */
-        padding-right: 20px;
-        /* Right margin */
+        padding-left: 8px;
+        /* Minimal left padding */
+        padding-right: 8px;
+        /* Minimal right padding */
         line-height: 1.6;
         width: 100%;
         max-width: 100%;
@@ -2783,10 +2964,53 @@ body {
         overflow-wrap: break-word;
     }
 
-    /* Scrollable tables on mobile */
-    .research-report table {
-        display: block;
+    /* Table wrapper for horizontal scrolling on mobile */
+    .table-wrapper {
         width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        /* Smooth scrolling on iOS */
+        margin: 1.5em 0;
+        /* Stop propagation to prevent swipe gesture conflicts */
+        touch-action: pan-x;
+        /* Only allow horizontal panning */
+        /* Force scrollbar to always show on mobile */
+        scrollbar-width: thin;
+        scrollbar-color: var(--accent) var(--bg-card);
+    }
+
+    .table-wrapper::-webkit-scrollbar {
+        height: 10px;
+        /* Larger for mobile */
+    }
+
+    .table-wrapper::-webkit-scrollbar-track {
+        background: var(--bg-card);
+    }
+
+    .table-wrapper::-webkit-scrollbar-thumb {
+        background: var(--accent);
+        border-radius: 5px;
+    }
+
+    .table-wrapper table {
+        display: table !important;
+        /* Force table display */
+        width: auto !important;
+        /* Allow table to be wider than container */
+        min-width: 600px;
+        /* Minimum width to ensure scrolling */
+        white-space: nowrap;
+        /* Prevent wrapping of cell content */
+        margin: 0;
+        /* Remove margin since wrapper has it */
+    }
+
+    /* Fallback for unwrapped tables */
+    .research-report table {
+        display: table;
+        width: auto;
+        min-width: 600px;
         overflow-x: auto;
         white-space: nowrap;
         /* Prevent wrapping of cell content */
@@ -2945,9 +3169,9 @@ body {
     .research-report {
         font-size: 0.95rem;
         /* Smaller text */
-        padding-left: 20px;
+        padding-left: 8px;
         /* Left margin */
-        padding-right: 20px;
+        padding-right: 8px;
         /* Right margin */
         line-height: 1.6;
         width: 100%;
@@ -3037,7 +3261,7 @@ body {
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 16px;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
 }
 
 [data-theme="light"] .ta-section {
@@ -3296,57 +3520,8 @@ body {
 }
 
 /* --- Sticky Search Bar & Tabs Implementation (Desktop) --- */
-@media (min-width: 769px) {
 
-    /* 1. Make Desktop Search Bar Sticky & Glassy */
-    .summary-section .search-container.desktop-search-container {
-        position: sticky;
-        top: 0;
-        z-index: 40;
-        background: var(--bg-header);
-        /* Use header variable for consistency */
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-bottom: 1px solid var(--border);
-        padding: 16px 24px;
-        margin: 0;
-        width: 100%;
-        max-width: none;
-        /* Override base max-width: 800px */
-    }
 
-    /* 2. Make Tabs Container Sticky (Below Search Bar) */
-    /* Search Bar Height approx: 42px input + 32px padding = 74px */
-    .tabs-container {
-        position: sticky;
-        top: 73px;
-        /* Offset to sit below search bar */
-        z-index: 39;
-        background: var(--bg-header);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-bottom: 1px solid var(--border);
-        margin-top: 0;
-        padding-top: 10px;
-        width: 100%;
-    }
-}
-
-.tab-content {
-    display: none;
-    flex-direction: column;
-    width: 100%;
-    animation: fadeIn 0.3s ease;
-}
-
-.tab-content.active {
-    display: flex;
-}
-
-/* Added gap for footer */
-.tab-content {
-    margin-bottom: 20px;
-}
 
 /* ==========================================================================
    FOOTER STYLING (Re-applied)
@@ -3488,7 +3663,7 @@ html {
 }
 
 /* ==========================================================================
-   FIXED HEADER & STICKY ELEMENTS (User Request)
+   RELATIVE HEADER & STICKY ELEMENTS (User Request)
    ========================================================================== */
 
 /* Fix Header to Top */
@@ -3514,41 +3689,9 @@ html {
 }
 
 /* Ensure Search Bar is FIXED inside the flow (Offset by Header) */
-.desktop-search-container {
-    position: fixed !important;
-    top: 60px !important;
-    /* Below fixed header */
-    left: 0 !important;
-    /* Start from left */
-    width: calc(100% - 280px) !important;
-    /* Full width minus right sidebar */
-    z-index: 35 !important;
-    background: var(--bg-header) !important;
-    /* Match header */
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border-bottom: 1px solid var(--border) !important;
-    margin: 0 !important;
-    padding: 16px 24px !important;
-    box-sizing: border-box !important;
-}
 
-/* Adjust Tab FIXED Position (Below Header + Search) */
-.tabs-container {
-    position: fixed !important;
-    top: 134px !important;
-    /* Header (60) + Search (~74) */
-    left: 0 !important;
-    width: calc(100% - 280px) !important;
-    /* Full width minus right sidebar */
-    z-index: 30 !important;
-    background: var(--bg-header) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border-bottom: 1px solid var(--border) !important;
-    margin-top: 0 !important;
-    padding-top: 10px !important;
-}
+/* Adjust Tab RELATIVE Position (Below Header + Search) */
+
 
 /* Add padding to summary content to prevent overlap with fixed elements */
 .summary-content {
@@ -3561,7 +3704,6 @@ html {
    ========================================================================== */
 @media (max-width: 768px) {
 
-    /* 1. Reset Margins/Widths */
     /* 1. Reset Margins/Widths */
     .summary-section {
         margin: 0 !important;
@@ -3620,19 +3762,24 @@ html {
     }
 
     /* 5. Mobile specific sticky adjustments */
-    .tabs-container {
-        position: relative !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        margin-top: 0 !important;
-        z-index: 20 !important;
-        /* Lower than header */
-        /* Only header is sticky on mobile tops usually */
-    }
+
 
     /* Hide Desktop Search Bar on Mobile */
-    .desktop-search-container {
-        display: none !important;
-    }
+}
+
+
+/* FORCE SCROLLABLE DESKTOP OVERRIDE */
+.sticky-header-group {
+    position: static !important;
+    top: auto !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    border-bottom: none !important;
+    margin-bottom: 0 !important;
+}
+
+/* Ensure Tabs are relative */
+.tabs-container {
+    position: relative !important;
+    top: auto !important;
 }
