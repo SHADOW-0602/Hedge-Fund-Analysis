@@ -155,7 +155,9 @@ class QuantitativeScreener:
             # Quality metrics
             avg_return = symbol_returns.mean() * 252
             volatility = symbol_returns.std() * np.sqrt(252)
-            sharpe = avg_return / volatility if volatility > 0 else 0
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate()
+            sharpe = (avg_return - risk_free_rate) / volatility if volatility > 0 else 0
             
             # Consistency metrics
             positive_days = (symbol_returns > 0).sum() / len(symbol_returns)

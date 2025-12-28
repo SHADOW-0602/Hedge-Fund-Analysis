@@ -184,8 +184,9 @@ class DetailedXIRRAnalyzer:
             returns = portfolio_history['daily_return'].dropna()
             volatility = returns.std() * np.sqrt(252) if len(returns) > 1 else 0
             
-            # Sharpe ratio (assuming 2% risk-free rate)
-            risk_free_rate = 0.02
+            # Sharpe ratio (using real Fed rate)
+            from utils.fed_rate import get_risk_free_rate
+            risk_free_rate = get_risk_free_rate()
             sharpe_ratio = (annualized_return - risk_free_rate) / volatility if volatility > 0 else 0
             
             # Maximum drawdown

@@ -63,7 +63,7 @@ window.renderOptimizationResults = (apiResponse) => {
             <!-- Left: Efficient Frontier Chart -->
             <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <h3 class="text-lg font-medium text-gray-900 mb-4">Efficient Frontier</h3>
-                <div class="h-80 w-full relative">
+                <div class="h-80 w-full relative overflow-hidden">
                     <canvas id="frontierChart"></canvas>
                 </div>
                 <div class="mt-4 text-xs text-gray-500 text-center">

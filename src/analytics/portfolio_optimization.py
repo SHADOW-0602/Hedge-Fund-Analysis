@@ -11,7 +11,8 @@ class PortfolioOptimizer:
     def optimize_portfolio(self, symbols: List[str], period: str = "1y", 
                           objective: str = "max_sharpe", constraint: str = "long_only",
                           rebalancing: str = "quarterly", risk_budget: str = "equal",
-                          lookback_period: str = "1Y", current_portfolio_weights: Dict[str, float] = None) -> Dict:
+                          lookback_period: str = "1Y", current_portfolio_weights: Dict[str, float] = None,
+                          risk_free_rate: float = None) -> Dict:
         """Optimize portfolio using historical market data"""
         try:
             logger.info(f"Starting optimization for {len(symbols)} symbols")
@@ -28,41 +29,23 @@ class PortfolioOptimizer:
             if len(clean_symbols) < 1:
                 raise ValueError("No valid symbols provided for optimization")
             
+            # Determine risk free rate
+            if risk_free_rate is None:
+                from utils.fed_rate import get_risk_free_rate
+                risk_free_rate = get_risk_free_rate()
+            
             # Map lookback period to yfinance period
             period_mapping = {
                 '1Y': '1y', '2Y': '2y', '3Y': '3y', '5Y': '5y'
             }
             yf_period = period_mapping.get(lookback_period, '1y')
             
-            # Get price data
-            import yfinance as yf
-            import warnings
-            
-            price_data = None
-            for period_try in [yf_period, "1y", "6mo", "3mo"]:
-                try:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        
-                    if len(clean_symbols) == 1:
-                        ticker_data = yf.download(clean_symbols[0], period=period_try, progress=False)
-                        if not ticker_data.empty and len(ticker_data) >= 5:
-                            price_col = 'Adj Close' if 'Adj Close' in ticker_data.columns else 'Close'
-                            price_data = pd.DataFrame({clean_symbols[0]: ticker_data[price_col]})
-                    else:
-                        price_data = yf.download(clean_symbols, period=period_try, progress=False, threads=False)
-                        if not price_data.empty and len(price_data) >= 5:
-                            if isinstance(price_data.columns, pd.MultiIndex):
-                                price_col = 'Adj Close' if 'Adj Close' in price_data.columns.levels[0] else 'Close'
-                                price_data = price_data[price_col]
-                    
-                    if price_data is not None and not price_data.empty:
-                        logger.info(f"Got {len(price_data)} days with {period_try}")
-                        break
-                        
-                except Exception as e:
-                    logger.warning(f"Period {period_try} failed: {e}")
-                    continue
+            # Get price data via data client
+            try:
+                price_data = self.data_client.get_price_data(clean_symbols, yf_period)
+            except Exception as e:
+                logger.warning(f"Data fetch failed: {e}")
+                price_data = pd.DataFrame()
             
             if price_data is None or price_data.empty:
                 raise ValueError("No price data found for symbols")
@@ -79,7 +62,7 @@ class PortfolioOptimizer:
             
             # Handle single asset
             if len(valid_symbols) == 1:
-                return self._create_single_asset_result(valid_symbols[0], returns, objective, constraint, rebalancing, risk_budget, lookback_period)
+                return self._create_single_asset_result(valid_symbols[0], returns, objective, constraint, rebalancing, risk_budget, lookback_period, risk_free_rate)
             
             # Multi-asset optimization
             returns = returns[valid_symbols].fillna(0)
@@ -113,13 +96,13 @@ class PortfolioOptimizer:
                 
                 # Optimize based on objective and constraints
                 if objective == "max_sharpe":
-                    optimal_weights = self._maximize_sharpe(expected_returns, cov_matrix, constraint)
+                    optimal_weights = self._maximize_sharpe(expected_returns, cov_matrix, constraint, risk_free_rate)
                 elif objective == "min_volatility":
                     optimal_weights = self._minimize_volatility(expected_returns, cov_matrix, constraint)
                 elif objective == "max_return":
                     optimal_weights = self._maximize_return(expected_returns, cov_matrix, constraint)
                 else:
-                    optimal_weights = self._maximize_sharpe(expected_returns, cov_matrix, constraint)
+                    optimal_weights = self._maximize_sharpe(expected_returns, cov_matrix, constraint, risk_free_rate)
                 
                 # Apply constraint modifications only for heuristic methods
                 if objective == "max_return":
@@ -129,17 +112,18 @@ class PortfolioOptimizer:
                 optimal_weights = self._apply_rebalancing_adjustments(optimal_weights, rebalancing, expected_returns)
                 
                 results = {
-                    'optimal_portfolio': self._calculate_portfolio_metrics(optimal_weights, expected_returns, cov_matrix, valid_symbols),
-                    'current_portfolio': self._calculate_portfolio_metrics(current_weights, expected_returns, cov_matrix, valid_symbols),
-                    'risk_parity': self._calculate_portfolio_metrics(risk_weights, expected_returns, cov_matrix, valid_symbols),
-                    'equal_weight': self._calculate_portfolio_metrics(np.ones(len(valid_symbols)) / len(valid_symbols), expected_returns, cov_matrix, valid_symbols),
-                    'efficient_frontier': self._generate_efficient_frontier(expected_returns, cov_matrix, valid_symbols),
+                    'optimal_portfolio': self._calculate_portfolio_metrics(optimal_weights, expected_returns, cov_matrix, valid_symbols, risk_free_rate),
+                    'current_portfolio': self._calculate_portfolio_metrics(current_weights, expected_returns, cov_matrix, valid_symbols, risk_free_rate),
+                    'risk_parity': self._calculate_portfolio_metrics(risk_weights, expected_returns, cov_matrix, valid_symbols, risk_free_rate),
+                    'equal_weight': self._calculate_portfolio_metrics(np.ones(len(valid_symbols)) / len(valid_symbols), expected_returns, cov_matrix, valid_symbols, risk_free_rate),
+                    'efficient_frontier': self._generate_efficient_frontier(expected_returns, cov_matrix, valid_symbols, 5, risk_free_rate),
                     'optimization_params': {
                         'objective': objective,
                         'constraint': constraint,
                         'rebalancing': rebalancing,
                         'risk_budget': risk_budget,
-                        'lookback_period': lookback_period
+                        'lookback_period': lookback_period,
+                        'risk_free_rate': risk_free_rate
                     }
                 }
                 
@@ -242,13 +226,12 @@ class PortfolioOptimizer:
             return np.ones(len(expected_returns)) / len(expected_returns)
     
     def _calculate_portfolio_metrics(self, weights: np.ndarray, expected_returns: pd.Series, 
-                                   cov_matrix: pd.DataFrame, symbols: List[str]) -> Dict:
+                                   cov_matrix: pd.DataFrame, symbols: List[str], risk_free_rate: float = 0.02) -> Dict:
         """Calculate portfolio metrics for given weights"""
         try:
             portfolio_return = np.sum(expected_returns * weights)
             portfolio_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-            from utils.fed_rate import get_risk_free_rate
-            risk_free_rate = get_risk_free_rate()
+
             sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_vol if portfolio_vol > 0 else 0
             
             # Clean values
@@ -267,7 +250,7 @@ class PortfolioOptimizer:
             raise e
     
     def _generate_efficient_frontier(self, expected_returns: pd.Series, cov_matrix: pd.DataFrame, 
-                                   symbols: List[str], num_points: int = 5) -> List[Dict]:
+                                   symbols: List[str], num_points: int = 5, risk_free_rate: float = 0.02) -> List[Dict]:
         """Generate efficient frontier points"""
         try:
             min_ret = expected_returns.min()
@@ -305,7 +288,7 @@ class PortfolioOptimizer:
                     
                     if result.success:
                         weights = result.x
-                        metrics = self._calculate_portfolio_metrics(weights, expected_returns, cov_matrix, symbols)
+                        metrics = self._calculate_portfolio_metrics(weights, expected_returns, cov_matrix, symbols, risk_free_rate)
                         frontier_points.append(metrics)
                         # Update guess for next point (tracing the curve)
                         current_guess = weights
@@ -322,13 +305,13 @@ class PortfolioOptimizer:
             logger.error(f"Efficient frontier generation failed: {e}")
             return []
     
-    def _create_single_asset_result(self, symbol: str, returns: pd.DataFrame, objective: str = "max_sharpe", constraint: str = "long_only", rebalancing: str = "quarterly", risk_budget: str = "equal", lookback_period: str = "1Y") -> Dict:
+    def _create_single_asset_result(self, symbol: str, returns: pd.DataFrame, objective: str = "max_sharpe", constraint: str = "long_only", rebalancing: str = "quarterly", risk_budget: str = "equal", lookback_period: str = "1Y", risk_free_rate: float = 0.02) -> Dict:
         """Create optimization result for single asset"""
         try:
             symbol_returns = returns[symbol].dropna()
             annual_return = symbol_returns.mean() * 252 if len(symbol_returns) > 0 else 0.08
             volatility = symbol_returns.std() * np.sqrt(252) if len(symbol_returns) > 1 else 0.15
-            sharpe = (annual_return - 0.02) / volatility if volatility > 0 else 0
+            sharpe = (annual_return - risk_free_rate) / volatility if volatility > 0 else 0
             
             def clean_val(val):
                 if np.isnan(val) or np.isinf(val):
@@ -353,7 +336,8 @@ class PortfolioOptimizer:
                     'constraint': constraint,
                     'rebalancing': rebalancing,
                     'risk_budget': risk_budget,
-                    'lookback_period': lookback_period
+                    'lookback_period': lookback_period,
+                    'risk_free_rate': risk_free_rate
                 }
             }
         except Exception as e:

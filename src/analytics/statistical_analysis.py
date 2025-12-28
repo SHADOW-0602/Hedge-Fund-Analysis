@@ -252,11 +252,16 @@ class StatisticalAnalyzer:
             var = float(symbol_returns.quantile(1 - confidence_level))
             cvar = float(symbol_returns[symbol_returns <= var].mean())
             
-            # Sharpe ratio (using real Fed rate)
+            # Annualized Sharpe ratio
             from utils.fed_rate import get_risk_free_rate
-            risk_free_rate = get_risk_free_rate() / 252  # Daily risk-free rate
-            excess_return = mean_return - risk_free_rate
-            sharpe = float(excess_return / volatility) if volatility > 0 else 0
+            risk_free_rate = get_risk_free_rate()
+            
+            # Annualize return and volatility for Sharpe calculation
+            annualized_return = mean_return * 252
+            annualized_vol = volatility * np.sqrt(252)
+            
+            excess_return = annualized_return - risk_free_rate
+            sharpe = float(excess_return / annualized_vol) if annualized_vol > 0 else 0.0
             
             # Handle NaN/inf values
             if np.isnan(sharpe) or np.isinf(sharpe):
@@ -361,7 +366,8 @@ class StatisticalAnalyzer:
             'portfolio_beta': portfolio_beta,
             'portfolio_alpha': portfolio_alpha,
             'portfolio_r_squared': portfolio_r_squared,
-            'portfolio_sharpe': float((aligned_portfolio.mean() - risk_free_rate) / aligned_portfolio.std()) if aligned_portfolio.std() > 0 else 0,
+            'portfolio_r_squared': portfolio_r_squared,
+            'portfolio_sharpe': float((aligned_portfolio.mean() * 252 - risk_free_rate * 252) / (aligned_portfolio.std() * np.sqrt(252))) if aligned_portfolio.std() > 0 else 0,
             'portfolio_volatility': float(aligned_portfolio.std()),
             'excess_return': float(aligned_portfolio.mean() - aligned_benchmark.mean())
         }

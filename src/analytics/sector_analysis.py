@@ -159,7 +159,9 @@ class SectorAnalyzer:
             if etf in returns.columns:
                 total_return = (1 + returns[etf]).prod() - 1
                 volatility = returns[etf].std() * (252**0.5)
-                sharpe = (returns[etf].mean() * 252 - 0.02) / volatility if volatility > 0 else 0
+                from utils.fed_rate import get_risk_free_rate
+                risk_free_rate = get_risk_free_rate()
+                sharpe = (returns[etf].mean() * 252 - risk_free_rate) / volatility if volatility > 0 else 0
                 
                 sector_performance[sector] = {
                     'total_return': total_return,

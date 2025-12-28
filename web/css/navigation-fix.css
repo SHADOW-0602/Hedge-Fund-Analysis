@@ -56,6 +56,11 @@
 
     #sidebar.mobile-open {
         left: 0;
+        display: block !important;
+        background-color: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+        backdrop-filter: blur(12px) !important;
+        border-right: 1px solid var(--border-card);
     }
 
     .mobile-overlay {

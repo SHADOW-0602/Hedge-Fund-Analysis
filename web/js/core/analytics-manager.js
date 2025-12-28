@@ -2012,7 +2012,7 @@ class AnalyticsManager {
             </div>
 
             <!-- 4. Analysis Parameters Footer -->
-            <div class="analysis-card mt-6 mb-8">
+            <div class="analysis-card mt-6 mb-8 p-6">
                 <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${currentPeriod}</span></div>
@@ -2127,7 +2127,7 @@ class AnalyticsManager {
             <div id="optimizationResults"></div>
 
             <!-- Analysis Parameters Footer -->
-            <div class="analysis-card mt-6 mb-8">
+            <div class="analysis-card mt-6 mb-8 p-6">
                 <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div><span class="text-gray-600 dark:text-gray-400">Objective:</span> <span class="font-medium text-gray-900 dark:text-white capitalize">${currentObjective.replace('_', ' ')}</span></div>
@@ -2202,7 +2202,7 @@ class AnalyticsManager {
                 <div class="analysis-card p-6">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Efficient Frontier</h3>
                     <div class="h-80 w-full relative">
-                        <canvas id="frontierChart"></canvas>
+                        <div id="frontierChart" class="w-full h-full"></div>
                     </div>
                     <div class="mt-4 text-xs text-gray-600 dark:text-gray-400 text-center">
                         X: Annualized Volatility (Risk) | Y: Expected Annual Return
@@ -2231,108 +2231,141 @@ class AnalyticsManager {
             </div>
         `;
 
-        // 4. Render Chart
+        // 4. Render Chart (Plotly)
         setTimeout(() => {
-            const ctx = document.getElementById('frontierChart')?.getContext('2d');
-            if (ctx) {
-                // Destroy existing chart if it exists
-                if (window.frontierChartInstance) {
-                    window.frontierChartInstance.destroy();
-                }
-
+            const chartDiv = document.getElementById('frontierChart');
+            if (chartDiv) {
+                // Determine theme
                 const isDark = document.documentElement.classList.contains('dark');
                 const themeColors = {
                     text: isDark ? '#e5e7eb' : '#374151',
-                    grid: isDark ? '#374151' : '#e5e7eb'
+                    grid: isDark ? '#374151' : '#e5e7eb',
+                    bg: 'rgba(0,0,0,0)',
+                    tooltipBg: isDark ? '#1e293b' : '#ffffff',   // Slate-800 or White
+                    tooltipBorder: isDark ? '#374151' : '#e5e7eb' // Gray-700 or Gray-200
                 };
 
-                window.frontierChartInstance = new Chart(ctx, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [
-                            {
-                                label: 'Efficient Frontier',
-                                data: frontierData,
-                                showLine: true,
-                                borderColor: '#4F46E5', // Indigo 600
-                                backgroundColor: 'rgba(79, 70, 229, 0.1)',
-                                borderWidth: 2,
-                                pointRadius: 0, // Hide points on line
-                                fill: false,
-                                tension: 0.4
-                            },
-                            {
-                                label: 'Optimal Portfolio',
-                                data: [optimalPoint],
-                                backgroundColor: '#10B981', // Emerald 500
-                                borderColor: '#059669',
-                                pointRadius: 8,
-                                pointHoverRadius: 10,
-                                pointStyle: 'star'
-                            },
-                            {
-                                label: 'Current Portfolio',
-                                data: [currentPoint],
-                                backgroundColor: '#EF4444', // Red 500
-                                borderColor: '#B91C1C',
-                                pointRadius: 6,
-                                pointHoverRadius: 8,
-                                pointStyle: 'circle'
-                            }
-                        ]
+                const traceFrontier = {
+                    x: frontierData.map(pt => pt.x),
+                    y: frontierData.map(pt => pt.y),
+                    mode: 'lines+markers', // Show points on the line
+                    name: 'Efficient Frontier',
+                    marker: { size: 4 },   // Small markers for the curve
+                    line: { shape: 'spline', color: '#4F46E5', width: 3 }, // Indigo 600
+                    hovertemplate: 'Efficient Frontier<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>'
+                };
+
+                const traceOptimal = {
+                    x: [optimalPoint.x],
+                    y: [optimalPoint.y],
+                    mode: 'markers',
+                    name: 'Optimal Portfolio',
+                    marker: { size: 14, color: '#10B981', symbol: 'star' }, // Emerald 500
+                    hovertemplate: 'Optimal<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>'
+                };
+
+                const traceCurrent = {
+                    x: [currentPoint.x],
+                    y: [currentPoint.y],
+                    mode: 'markers',
+                    name: 'Current Portfolio',
+                    marker: { size: 12, color: '#EF4444', symbol: 'circle' }, // Red 500
+                    hovertemplate: 'Current<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>'
+                };
+
+                const layout = {
+                    autosize: true,
+                    margin: { l: 60, r: 20, t: 20, b: 50 },
+                    paper_bgcolor: themeColors.bg,
+                    plot_bgcolor: themeColors.bg,
+                    showlegend: true,
+                    legend: {
+                        orientation: 'h',
+                        y: 1.1,
+                        x: 0.5,
+                        xanchor: 'center',
+                        font: { color: themeColors.text }
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                labels: {
-                                    color: themeColors.text
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Volatility (Risk)',
-                                    color: themeColors.text
-                                },
-                                ticks: {
-                                    callback: (val) => (val * 100).toFixed(1) + '%',
-                                    color: themeColors.text
-                                },
-                                grid: {
-                                    color: themeColors.grid
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Expected Return',
-                                    color: themeColors.text
-                                },
-                                ticks: {
-                                    callback: (val) => (val * 100).toFixed(1) + '%',
-                                    color: themeColors.text
-                                },
-                                grid: {
-                                    color: themeColors.grid
-                                }
-                            }
-                        },
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: (ctx) => {
-                                        const pt = ctx.raw;
-                                        return `${ctx.dataset.label}: Risk ${(pt.x * 100).toFixed(2)}%, Ret ${(pt.y * 100).toFixed(2)}% `;
-                                    }
-                                }
-                            }
-                        }
+                    xaxis: {
+                        title: { text: 'Volatility (Risk)', font: { color: themeColors.text } },
+                        tickfont: { color: themeColors.text },
+                        tickformat: '.1%',
+                        gridcolor: themeColors.grid,
+                        zerolinecolor: themeColors.grid,
+                        showspikes: false,            // Disable crosshair spikes
+                        showline: true
+                    },
+                    yaxis: {
+                        title: { text: 'Expected Return', font: { color: themeColors.text } },
+                        tickfont: { color: themeColors.text },
+                        tickformat: '.1%',
+                        gridcolor: themeColors.grid,
+                        zerolinecolor: themeColors.grid,
+                        showspikes: false,            // Disable crosshair spikes
+                        showline: true
+                    },
+                    hovermode: 'closest', // Show only the nearest point (cleaner)
+                    hoverdistance: 100,  // "Sticky" feel: finds points within 100px
+                    spikedistance: 100,  // Show spikes when within 100px
+                    dragmode: 'pan',     // Enable panning by default
+                    hoverlabel: {
+                        bgcolor: themeColors.tooltipBg,
+                        bordercolor: themeColors.tooltipBorder,
+                        font: { color: isDark ? '#ffffff' : '#1f2937' } // Removed extra styling to fix overflow
                     }
+                };
+
+                const config = {
+                    responsive: true,
+                    displayModeBar: false, // Hide control panels
+                    scrollZoom: true,      // Enable mouse/touch zoom
+                    displaylogo: false
+                };
+
+                Plotly.newPlot('frontierChart', [traceFrontier, traceOptimal, traceCurrent], layout, config);
+
+                // Handle Resize
+                window.addEventListener('resize', () => {
+                    Plotly.Plots.resize('frontierChart');
                 });
+
+                // Dynamic Theme Handling
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        if (mutation.attributeName === 'class') {
+                            const isDarkNow = document.documentElement.classList.contains('dark');
+                            const newColors = {
+                                text: isDarkNow ? '#e5e7eb' : '#374151',
+                                grid: isDarkNow ? '#374151' : '#e5e7eb',
+                                bg: 'rgba(0,0,0,0)',
+                                tooltipBg: isDarkNow ? '#1e293b' : '#ffffff',
+                                tooltipBorder: isDarkNow ? '#374151' : '#e5e7eb'
+                            };
+
+                            const update = {
+                                'font.color': newColors.text,
+                                'xaxis.title.font.color': newColors.text,
+                                'xaxis.tickfont.color': newColors.text,
+                                'xaxis.gridcolor': newColors.grid,
+                                'xaxis.zerolinecolor': newColors.grid,
+                                'yaxis.title.font.color': newColors.text,
+                                'yaxis.tickfont.color': newColors.text,
+                                'yaxis.gridcolor': newColors.grid,
+                                'yaxis.zerolinecolor': newColors.grid,
+                                'paper_bgcolor': newColors.bg,
+                                'plot_bgcolor': newColors.bg,
+                                'legend.font.color': newColors.text,
+                                'hoverlabel.bgcolor': newColors.tooltipBg,
+                                'hoverlabel.bordercolor': newColors.tooltipBorder,
+                                'hoverlabel.font.color': isDarkNow ? '#ffffff' : '#1f2937'
+                            };
+
+                            Plotly.relayout('frontierChart', update);
+                        }
+                    });
+                });
+
+                observer.observe(document.documentElement, { attributes: true });
             }
         }, 100);
 
