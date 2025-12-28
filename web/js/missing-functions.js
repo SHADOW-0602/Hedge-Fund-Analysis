@@ -222,21 +222,20 @@ function showTransactionAnalysis() {
 }
 
 function showDefaultUpload() {
-    // Start with fallback implementation (missing Navigation Manager mostly)
+    // Use navigation manager if available, otherwise fallback to direct implementation
+    if (window.navigationManager) {
+        window.navigationManager.showDefaultUpload();
+        return;
+    }
 
-    // Hide analysis sections
+    // Fallback implementation
     const sectionsToHide = [
         'portfolioAnalysis',
         'transactionAnalysis',
         'analysisContainer',
         'analysisContent',
         'dataPreview',
-        'loadingSection',
-        'pnlAttribution',
-        'tradePerformance',
-        'turnoverAnalysis',
-        'taxAnalysis',
-        'cashFlowAnalysis'
+        'loadingSection'
     ];
 
     sectionsToHide.forEach(sectionId => {
@@ -247,23 +246,15 @@ function showDefaultUpload() {
         }
     });
 
-    // Explicitly SHOW the Upload Sections
+    // Show default upload section
     const defaultSection = document.getElementById('defaultUploadSection');
     if (defaultSection) {
         defaultSection.classList.remove('hidden');
-        defaultSection.style.display = 'block';
-    }
-
-    const requirementsInfo = document.getElementById('dataRequirementsInfo');
-    if (requirementsInfo) {
-        requirementsInfo.classList.remove('hidden');
-        requirementsInfo.style.display = 'block';
+        defaultSection.style.display = 'block'; // Force show
     }
 
     // Clear any loading spinners
-    if (window.clearAllLoadingSpinners) {
-        window.clearAllLoadingSpinners();
-    }
+    clearAllLoadingSpinners();
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
