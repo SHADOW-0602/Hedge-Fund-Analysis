@@ -12,6 +12,48 @@ def normalize_portfolio_format(df):
         df_pl = df
     
     df_pl = df_pl.rename({col: col.lower().strip() for col in df_pl.columns})
+    
+    df_pl = df_pl.rename({col: col.lower().strip() for col in df_pl.columns})
+    
+    # Robust Regex-based Column Mapping
+    # Maps canonical internal names to list of regex patterns
+    # Order matters: check for more specific matches first
+    column_patterns = {
+        'avg_cost': [
+            r'avg.*cost', r'average.*cost', r'cost.*basis', r'unit.*cost', 
+            r'buy.*price', r'price.*paid', r'cost.*per.*share', r'book.*value',
+            r'^cost$', r'^price$' # strict fallbacks
+        ],
+        'quantity': [
+            r'^quant', r'^qty$', r'^shares$', r'^units$', r'^vol', r'^count$'
+        ],
+        'symbol': [
+            r'^symbol', r'^ticker', r'^stock', r'^security', r'^asset', r'^instrument'
+        ]
+    }
+    
+    # Iterate through current columns and try to match patterns
+    rename_dict = {}
+    current_cols = df_pl.columns
+    
+    for canon_name, patterns in column_patterns.items():
+        # If we already have the canonical column, skip
+        if canon_name in current_cols:
+            continue
+            
+        found = False
+        for pattern in patterns:
+            if found: break
+            for col in current_cols:
+                # Use regex search (case insensitive already handled by lower())
+                if re.search(pattern, col):
+                    rename_dict[col] = canon_name
+                    found = True
+                    break
+    
+    if rename_dict:
+        df_pl = df_pl.rename(rename_dict)
+        
     cols = df_pl.columns
     
     if 'symbol' in cols and 'quantity' in cols and 'price' in cols:
@@ -36,7 +78,9 @@ def normalize_portfolio_format(df):
     if 'avg_cost' not in df_pl.columns:
         df_pl = df_pl.with_columns([pl.lit(100.0).alias('avg_cost')])
     
-    result = df_pl.select(['symbol', 'quantity', 'avg_cost']).to_pandas()
+    # Return all columns to preserve metadata (like account_id, market_value from Plaid)
+    # Analysis tools should select only what they need ('symbol', 'quantity', 'avg_cost')
+    result = df_pl.to_pandas()
     return result
 
 def sanitize_for_json(obj):

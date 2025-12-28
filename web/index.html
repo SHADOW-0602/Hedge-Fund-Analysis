@@ -212,57 +212,7 @@
                     aria-label="Upload transaction file">
 
 
-                <!-- Data Requirements Info -->
-                <div id="dataRequirementsInfo"
-                    class="analysis-card p-6 mb-8 bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-gray-700">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0">
-                            <svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </div>
-                        <div class="ml-4 flex-1">
-                            <h3 class="text-lg font-medium text-blue-900 dark:text-blue-100">How to Load Data for
-                                Analysis</h3>
-                            <div class="mt-3 text-sm text-blue-800 dark:text-gray-300 grid md:grid-cols-2 gap-6">
-                                <div>
-                                    <h4 class="font-bold text-blue-900 dark:text-blue-100 mb-2">Option 1: Upload Files
-                                        (Manual)</h4>
-                                    <ol class="list-decimal pl-5 space-y-1">
-                                        <li>Prepare a CSV file with columns: <span
-                                                class="font-mono text-xs bg-blue-100 dark:bg-gray-700 px-1 rounded">date,
-                                                ticker, action,
-                                                shares, price</span>.</li>
-                                        <li>Click <strong>"+ Upload New Portfolio/Transactions"</strong> below.</li>
-                                        <li>Select your uploaded file from the dropdown menu.</li>
-                                        <li>Click <strong>"View Portfolio"</strong> or <strong>"View
-                                                Transactions"</strong> to load data.</li>
-                                    </ol>
-                                </div>
-                                <div class="md:border-l md:border-blue-200 dark:md:border-gray-700 md:pl-6">
-                                    <h4 class="font-bold text-blue-900 dark:text-blue-100 mb-2">Option 2: Connect via
-                                        Plaid (Auto)</h4>
-                                    <ol class="list-decimal pl-5 space-y-1">
-                                        <li>Click the <strong>"Connect Account"</strong> button in the green box below.
-                                        </li>
-                                        <li>Follow the prompts to securely link your brokerage.</li>
-                                        <li>Once connected, click <strong>"Load Data."</strong></li>
-                                        <li>Your live portfolio and transaction data will be automatically loaded for
-                                            analysis.</li>
-                                    </ol>
-                                </div>
-                            </div>
-                            <p
-                                class="mt-3 text-xs text-blue-600 dark:text-blue-400 border-t border-blue-200 dark:border-gray-700 pt-2">
-                                <span class="font-semibold">Note:</span> For both methods, historical market data and
-                                price history is automatically fetched by the system for powerful portfolio analysis. No
-                                need to upload extra price files.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+
 
                 <!-- Default Upload Section -->
                 <div id="defaultUploadSection" class="analysis-card p-6 mb-8">
@@ -272,8 +222,10 @@
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Portfolio
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Portfolio
                                 Files</label>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2 italic">Note: Only one file active
+                                at a time</p>
                             <select id="portfolioFileSelect"
                                 class="w-full p-3 border rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
                                 onchange="togglePortfolioDelete()" aria-label="Select portfolio file">
@@ -295,8 +247,10 @@
                             </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Transaction
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Transaction
                                 Files</label>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2 italic">Note: Only one file active
+                                at a time</p>
                             <select id="transactionFileSelect"
                                 class="w-full p-3 border rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
                                 onchange="toggleTransactionDelete()" aria-label="Select transaction file">
@@ -334,11 +288,7 @@
                                 <button id="plaidConnectBtn" onclick="togglePlaidConnection()"
                                     class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm w-full sm:w-auto">Connect
                                     Account</button>
-                                <button id="plaidReloadBtn" onclick="loadPlaidPortfolio()"
-                                    class="hidden bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2">Reload
-                                    Data</button>
-                                <div id="plaidStatus" class="mt-2 text-xs text-gray-600">Connect your brokerage account
-                                    for real-time data</div>
+                                <div id="plaidStatus" class="mt-2 text-xs"></div>
                             </div>
 
                             <!-- Plaid Connections Manager (Hidden by default) -->
@@ -1162,6 +1112,7 @@
 
     <!-- Modular JavaScript Files -->
     <script src="js/core/app-core.js?v=welcome"></script>
+    <script src="js/modules/data-merger.js"></script>
     <script src="js/modules/auth.js"></script>
     <script src="js/modules/portfolio.js"></script>
     <script src="js/modules/transactions.js"></script>

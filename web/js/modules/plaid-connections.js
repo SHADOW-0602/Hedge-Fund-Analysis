@@ -3,9 +3,19 @@ class PlaidConnectionsManager {
     constructor() {
         this.connections = [];
         this.activeConnection = null;
+        this.lastLoadTime = 0;
+        this.CACHE_DURATION = 30000; // 30 seconds cache
     }
 
-    async loadConnections() {
+    async loadConnections(autoLoad = true, force = false) {
+        // Prevent spamming the API if loaded recently (unless forced)
+        const now = Date.now();
+        if (!force && this.connections.length > 0 && (now - this.lastLoadTime < this.CACHE_DURATION)) {
+            console.log('[PLAID] Using cached connections list (fresh for 30s)');
+            this.updateConnectionsUI();
+            return this.connections;
+        }
+
         try {
             console.log('[PLAID] Loading connections...');
             const response = await fetch(`${window.API_BASE || 'http://127.0.0.1:8080'}/api/plaid-status`, {
@@ -18,13 +28,33 @@ class PlaidConnectionsManager {
 
             if (result.success) {
                 this.connections = result.connections || [];
+                this.lastLoadTime = Date.now();
                 console.log('[PLAID] Loaded connections:', this.connections);
                 this.updateConnectionsUI();
 
-                // Auto-select removed - User must explicitly load data
-                if (this.connections.length > 0 && !this.activeConnection) {
-                    // Just set the ID but DO NOT trigger load
-                    this.activeConnection = this.connections[0].connection_id;
+                // Auto-select and Auto-load data
+                if (autoLoad && this.connections.length > 0) {
+                    // Set active connection
+                    const firstConnId = this.connections[0].connection_id;
+                    this.activeConnection = firstConnId;
+
+                    // Trigger auto-load
+                    console.log('[PLAID] Auto-loading data for connection:', firstConnId);
+                    // Use setTimeout to allow UI to render first
+                    setTimeout(() => {
+                        this.loadConnectionData(firstConnId);
+                        // Show notification as requested
+                        if (typeof showSuccess === 'function') {
+                            showSuccess(`Connected to ${this.connections[0].institution_name}`);
+                        }
+                    }, 500);
+
+                    // Restore the "small text message" below the button
+                    const statusEl = document.getElementById('plaidStatus');
+                    if (statusEl) {
+                        statusEl.textContent = 'Active';
+                        statusEl.className = 'mt-2 text-xs text-green-600';
+                    }
                 }
 
                 return this.connections;
@@ -126,14 +156,17 @@ class PlaidConnectionsManager {
         const statusDiv = document.getElementById('plaidStatus');
         if (statusDiv) {
             const conn = this.connections.find(c => c.connection_id === connectionId);
-            statusDiv.textContent = `Selected: ${conn?.institution_name || 'Unknown'}. Click "Reload Data" to fetch.`;
+            statusDiv.textContent = `Selected: ${conn?.institution_name || 'Unknown'}. Click "View Data" to load and view holdings.`;
             statusDiv.className = 'mt-2 text-xs text-blue-600 font-medium';
         }
     }
 
     async viewConnectionData(connectionId) {
-        // First select and load the connection
+        // First select the connection
         await this.selectConnection(connectionId);
+
+        // Load data manually for viewing (as requested: view button is manual fetch)
+        await this.loadConnectionData(connectionId);
 
         // Then scroll to data view
         if (typeof viewLoadedData === 'function') {
@@ -180,13 +213,16 @@ class PlaidConnectionsManager {
                     connection_id: connectionId
                 }));
 
-                // Update standard display function if available
-                if (typeof displayPortfolio === 'function') {
-                    displayPortfolio(portfolioData);
+                if (window.DataMerger) {
+                    window.DataMerger.updatePlaidData(connectionId, 'portfolio', portfolioData);
+                } else {
+                    // Fallback
+                    window.portfolioData = portfolioData;
+                    window.currentPortfolio = portfolioData;
+                    if (typeof updatePortfolioMetrics === 'function') {
+                        updatePortfolioMetrics(portfolioData);
+                    }
                 }
-                // Store global
-                window.portfolioData = portfolioData;
-                window.currentPortfolio = portfolioData;
             } else {
                 console.error('[PLAID] Failed to load portfolio data:', resultPortfolio.error || 'Unknown error');
             }
@@ -201,14 +237,20 @@ class PlaidConnectionsManager {
                     data_source: 'Plaid' // Helper for some checks
                 }));
 
-                // Store global
-                window.currentTransactions = transactionData;
+                if (window.DataMerger) {
+                    window.DataMerger.updatePlaidData(connectionId, 'transactions', transactionData);
+                } else {
+                    window.currentTransactions = transactionData;
+                }
 
-                // Update standard display function if available (assuming one exists or data view handles it)
-                // Note: displayTransactions might expect different format, but updating global is key for View Data
+                // Update standard display function if available
             } else {
                 console.error('[PLAID] Failed to load transaction data:', resultTransactions.error || 'Unknown error');
-                window.currentTransactions = [];
+                if (window.DataMerger) {
+                    window.DataMerger.updatePlaidData(connectionId, 'transactions', []);
+                } else {
+                    window.currentTransactions = [];
+                }
             }
 
             if (typeof showDataActions === 'function') {

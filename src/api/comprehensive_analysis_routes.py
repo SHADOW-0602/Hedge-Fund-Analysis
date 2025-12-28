@@ -3,6 +3,17 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from .route_utils import sanitize_for_json, extract_valid_symbols, calculate_portfolio_weights
+from flask import session
+from utils.data_manager import DataManager
+try:
+    from utils.secure_id_manager import secure_id_manager
+except ImportError:
+    secure_id_manager = None
+from utils.data_manager import DataManager
+try:
+    from utils.secure_id_manager import secure_id_manager
+except ImportError:
+    secure_id_manager = None
 
 # Import symbol parser with error handling
 try:
@@ -51,7 +62,26 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                 print(f"[CORRELATION] Using root-level options: {options}")
             
             if not portfolio:
-                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
+                # Auto-detect portfolio from manual uploads + Plaid
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                
+                if user_id:
+                    print(f"DEBUG: Auto-detecting portfolio for user {user_id}")
+                    portfolio = DataManager.get_consolidated_portfolio(user_id)
+            
+            if not portfolio:
+                return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
             
             # Parse interactive options with debug logging
             period = options.get('period', '1Y')
@@ -254,7 +284,26 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             options = data.get('options', {})
             
             if not portfolio:
-                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
+                # Auto-detect portfolio from manual uploads + Plaid
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                
+                if user_id:
+                    print(f"DEBUG: Auto-detecting portfolio for user {user_id}")
+                    portfolio = DataManager.get_consolidated_portfolio(user_id)
+            
+            if not portfolio:
+                return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
             
             symbols = extract_valid_symbols(portfolio)
             weights, total_value = calculate_portfolio_weights(portfolio)

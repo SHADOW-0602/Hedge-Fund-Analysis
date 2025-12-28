@@ -1,10 +1,15 @@
-from flask import request, jsonify
+from flask import request, jsonify, session
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from .route_utils import sanitize_for_json, extract_valid_symbols, calculate_portfolio_weights
 from utils.fed_rate import get_risk_free_rate
 from utils.symbol_parser import get_underlying_symbol
+from utils.data_manager import DataManager
+try:
+    from utils.secure_id_manager import secure_id_manager
+except ImportError:
+    secure_id_manager = None
 
 def _convert_transactions_data(transactions_data):
     """Helper function to convert transaction data to Transaction objects"""
@@ -44,8 +49,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
             
+            if not portfolio_data:
+                 # Auto-detect portfolio logic
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting portfolio for user {user_id}")
+                    portfolio_data = DataManager.get_consolidated_portfolio(user_id)
+
             if not portfolio_data or not isinstance(portfolio_data, list):
-                return jsonify({'success': False, 'error': 'Invalid portfolio data'}), 400
+                return jsonify({'success': False, 'error': 'Invalid portfolio data and no saved data found'}), 400
             
             symbols = extract_valid_symbols(portfolio_data)
             weights, total_value = calculate_portfolio_weights(portfolio_data)
@@ -102,8 +126,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             print(f"[MONTE CARLO API] Received request with {len(portfolio_data)} portfolio items")
             print(f"[MONTE CARLO API] Options: {options}")
             
+            if not portfolio_data:
+                 # Auto-detect portfolio logic
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting portfolio for user {user_id}")
+                    portfolio_data = DataManager.get_consolidated_portfolio(user_id)
+
             if not portfolio_data or not isinstance(portfolio_data, list):
-                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
+                return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
             
             # Read parameters from frontend settings
             forecast_period = options.get('forecast_period', '3M')
@@ -169,9 +212,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
-            
             if not portfolio_data:
-                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
+                 # Auto-detect portfolio logic
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting portfolio for user {user_id}")
+                    portfolio_data = DataManager.get_consolidated_portfolio(user_id)
+
+            if not portfolio_data:
+                return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
             
             symbols = extract_valid_symbols(portfolio_data)
             weights, total_value = calculate_portfolio_weights(portfolio_data)
@@ -239,8 +300,31 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             options = data.get('options', {})
             
             if not portfolio:
-                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
-            
+            # Auto-detect portfolio from manual uploads + Plaid
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                
+                if user_id:
+                    print(f"DEBUG: Auto-detecting portfolio for user {user_id}")
+                    portfolio = DataManager.get_consolidated_portfolio(user_id)
+                    if portfolio:
+                        print(f"DEBUG: Found {len(portfolio)} consolidated items")
+                    else:
+                        print("DEBUG: No consolidated data found")
+                
+            if not portfolio:
+                return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
+        
             # Read parameters from frontend settings
             objective = options.get('objective', 'max_sharpe')
             constraint = options.get('constraint', 'long_only')
@@ -338,9 +422,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
-            
             if not portfolio_data:
-                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
+                 # Auto-detect portfolio logic
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting portfolio for user {user_id}")
+                    portfolio_data = DataManager.get_consolidated_portfolio(user_id)
+
+            if not portfolio_data:
+                return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
             
             symbols = extract_valid_symbols(portfolio_data)
             if not symbols:
@@ -436,9 +538,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             transactions_data = data.get('transactions', [])
             options = data.get('options', {})
-            
             if not transactions_data:
-                return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
+                 # Auto-detect transactions
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting transactions for user {user_id}")
+                    transactions_data = DataManager.get_consolidated_transactions(user_id)
+
+            if not transactions_data:
+                return jsonify({'success': False, 'error': 'No transaction data provided and no saved data found'}), 400
             
             transactions = _convert_transactions_data(transactions_data)
             
@@ -478,8 +598,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             print(f"[COST-ANALYSIS] Options: {options}")
             
             if not transactions_data:
+                 # Auto-detect transactions
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting transactions for user {user_id}")
+                    transactions_data = DataManager.get_consolidated_transactions(user_id)
+
+            if not transactions_data:
                 print(f"[COST-ANALYSIS] ERROR: No transaction data provided")
-                return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
+                return jsonify({'success': False, 'error': 'No transaction data provided and no saved data found'}), 400
             
             # Convert to Transaction objects using the helper function
             transactions = _convert_transactions_data(transactions_data)
@@ -535,9 +674,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             transactions_data = data.get('transactions', [])
             options = data.get('options', {})
-            
             if not transactions_data:
-                return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
+                 # Auto-detect transactions
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting transactions for user {user_id}")
+                    transactions_data = DataManager.get_consolidated_transactions(user_id)
+
+            if not transactions_data:
+                return jsonify({'success': False, 'error': 'No transaction data provided and no saved data found'}), 400
             
             # Convert to Transaction objects using the helper function
             transactions = _convert_transactions_data(transactions_data)
@@ -602,9 +759,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 data = request.get_json()
                 portfolio_data = data.get('portfolio', [])
                 options = data.get('options', {})
-            
             if not portfolio_data:
-                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
+                 # Auto-detect portfolio logic
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting portfolio for user {user_id}")
+                    portfolio_data = DataManager.get_consolidated_portfolio(user_id)
+
+            if not portfolio_data:
+                return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
             
             symbols = extract_valid_symbols(portfolio_data)
             weights, total_value = calculate_portfolio_weights(portfolio_data)
@@ -695,9 +870,27 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
-            
             if not portfolio_data:
-                return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
+                # Auto-detect portfolio logic
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting portfolio for user {user_id}")
+                    portfolio_data = DataManager.get_consolidated_portfolio(user_id)
+
+            if not portfolio_data:
+                return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
             
             symbols = extract_valid_symbols(portfolio_data)
             

@@ -4,23 +4,33 @@ Enterprise-grade portfolio risk analysis and options scanning platform with adva
 
 ## 🚀 **Core Features**
 
-### 📊 **Portfolio Management**
-- **Multi-Format Upload**: CSV transaction files with FIFO cost basis calculation
-- **Live Data Integration**: Plaid brokerage connections
-- **Transaction Analysis**: Complete P&L tracking with realized/unrealized gains
-
-- **Multi-Currency Support**: Currency conversion and valuation
-- **Multi-Portfolio Analysis**: Compare and analyze multiple portfolios
+### 📊 **Unified Data Management**
+- **Hybrid Data Processing**: Seamlessly merges data from **Manual File Uploads** and **Live Plaid Connections** into a single analysis view.
+- **Smart Data Enrichment**:
+  - **Bidirectional Gap-Filling**: Intelligently auto-fills missing data (e.g., Cost Basis, Sector, Custom Tags) by cross-referencing all available sources for each ticker.
+  - **Regex Normalization**: Advanced column matching handles 20+ variations of headers (e.g., "Price Paid", "Unit Cost", "Avg Price") automatically.
+  - **Schema Flexibility**: Preserves **ALL** input columns (20+ columns supported), allowing rich metadata (Notes, Strategies) to persist alongside core analytical data.
+- **Conflict Prevention**: Distinct storage and intelligent merging logic prevent data loss or accidental overwrites.
+- **Manual Uploads**: Supports CSV/Excel files with smart auto-detection.
+- **Plaid Integration**: 
+  - **Multi-Account**: Connects multiple brokerage accounts simultaneously.
+  - **Optimized Caching**: Smart 30s caching prevents API rate limits and redundant reloads.
+  - **Unified View**: Automatically combines assets from the active manual file and all connected Plaid accounts.
+- **Transaction Analysis**: Complete P&L tracking with realized/unrealized gains, FIFO/LIFO accounting, and XIRR calculations.
+- **Multi-Currency Support**: Currency conversion and valuation.
 
 ### 📈 **Analytics & Risk**
-- **Advanced Risk Metrics**: VaR, CVaR, Sharpe, Sortino, Maximum Drawdown, Beta analysis
-- **Options Analysis**: Covered call opportunities, Greeks calculation, volatility analysis
-- **Market Data**: Multi-provider API integration (Polygon, Finnhub, Alpha Vantage, YFinance)
-- **Performance Attribution**: Factor-based attribution with real-time calculations
-- **Technical Analysis**: 50+ indicators, pattern recognition, momentum strategies
-- **Statistical Analysis**: Correlation analysis with D3.js visualization, hierarchical clustering
-- **Monte Carlo Simulation**: Portfolio risk modeling and scenario analysis
-- **Portfolio Optimization**: Efficient frontier and risk-return optimization
+- **Advanced Risk Metrics**: VaR, CVaR, Sharpe, Sortino, Maximum Drawdown, Beta analysis.
+- **Options Analysis**: Covered call opportunities, Greeks calculation, volatility analysis.
+- **Strategy Backtesting**: Test trading strategies with historical data.
+- **Financial Analysis**: P&L Attribution, Trade Performance, Tax Analysis, Cash Flow Analysis, Trade Timing, and Drawdown Analysis.
+- **Market Data**: Multi-provider API integration (Polygon, Finnhub, Alpha Vantage, YFinance).
+- **Performance Attribution**: Factor-based attribution with real-time calculations.
+- **Technical Analysis**: 50+ indicators, pattern recognition, momentum strategies.
+- **Statistical Analysis**: Correlation analysis with D3.js visualization, hierarchical clustering.
+- **Monte Carlo Simulation**: Portfolio risk modeling and scenario analysis.
+- **Portfolio Optimization**: Efficient frontier and risk-return optimization.
+- **XIRR Analysis**: Internal Rate of Return calculations for both portfolios and individual transactions.
 
 ### 📰 **US Stock News with AI (Deep Research Engine)**
 - **Advanced Analyst Persona**:
@@ -400,20 +410,20 @@ python main.py statistical-analysis AAPL MSFT GOOGL TSLA NVDA
 Access the web application at http://127.0.0.1:8080 after running `python app.py`
 
 Features include:
-- **Interactive Portfolio Analysis**: Upload CSV files or connect live accounts
-- **Real-time Risk Metrics**: VaR, Sharpe ratio, Beta, Maximum Drawdown
-- **Options Strategies**: Covered calls, protective puts, iron condors
-- **Performance Attribution**: Asset allocation, security selection, market timing
-- **Monte Carlo Simulation**: Risk modeling and scenario analysis
-- **D3.js Visualizations**: Interactive correlation matrices
-- **Multi-user Authentication**: Role-based access control
-- **Live Brokerage Connections**: Plaid Production Mode integration
+- **Unified Dashboard**: View manual portfolios and Plaid connections side-by-side.
+- **Smart Data Handling**: Auto-detection and merging of multiple data sources without manual intervention.
+- **Interactive Analytics**: Click-through analysis for Risk, Options, and Performance Attribution.
+- **Real-time Risk Metrics**: VaR, Sharpe ratio, Beta, Maximum Drawdown calculated on the fly.
+- **Options Strategies**: Scanner for Covered Calls, Protective Puts, and Iron Condors.
+- **Monte Carlo Simulation**: Interactive risk modeling with customizable scenarios.
+- **D3.js Visualizations**: Dynamic correlation matrices and interactive charts.
+- **Live Brokerage Connections**: Secure Plaid integration with auto-refresh.
 
 ### **Enhanced Web Experience**
-- **Dedicated Landing Pages**: Comprehensive 'Features' and 'About Us' pages with detailed content.
-- **Dynamic Visuals**: Integrated Pexels API for high-quality, relevant background images.
-- **Responsive Design**: Optimized layouts for both desktop and mobile viewing (text/image alternating rows).
-- **Unified Navigation**: Dynamic header injection for consistent navigation across all pages.
+- **Clean UI**: Streamlined interface with collapsible sidebar and unified data controls.
+- **Dedicated Landing Pages**: Comprehensive 'Features' and 'About Us' pages.
+- **Dynamic Visuals**: Integrated Pexels API for high-quality background images.
+- **Responsive Design**: Optimized for desktop and mobile viewing with unified navigation.
 
 ---
 

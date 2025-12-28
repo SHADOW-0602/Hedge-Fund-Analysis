@@ -3,7 +3,7 @@ function toggleSection(sectionId) {
     const section = document.getElementById(sectionId);
     const chevronId = sectionId.replace('Section', 'Chevron');
     const chevron = document.getElementById(chevronId);
-    
+
     if (section.classList.contains('hidden')) {
         section.classList.remove('hidden');
         chevron.style.transform = 'rotate(180deg)';
@@ -16,14 +16,14 @@ function toggleSection(sectionId) {
 function showAnalysisSection(analysisType) {
     // Hide default upload section
     document.getElementById('defaultUploadSection').classList.add('hidden');
-    
+
     // Show analysis container
     document.getElementById('analysisContainer').classList.remove('hidden');
-    
+
     // Hide all analysis sections
     document.getElementById('portfolioAnalysis').classList.add('hidden');
     document.getElementById('transactionAnalysis').classList.add('hidden');
-    
+
     // Show selected analysis section
     document.getElementById(analysisType).classList.remove('hidden');
 }
@@ -31,7 +31,7 @@ function showAnalysisSection(analysisType) {
 function showDefaultUpload() {
     // Show default upload section
     document.getElementById('defaultUploadSection').classList.remove('hidden');
-    
+
     // Hide analysis container
     document.getElementById('analysisContainer').classList.add('hidden');
 }
@@ -56,12 +56,12 @@ function viewLoadedData() {
 }
 
 function showDataPreview() {
-    const portfolioData = window.portfolioData || JSON.parse(localStorage.getItem('currentPortfolio') || '[]');
-    const transactionData = JSON.parse(localStorage.getItem('currentTransactions') || '[]');
+    const portfolioData = window.portfolioData || window.currentPortfolio || JSON.parse(localStorage.getItem('currentPortfolio') || '[]');
+    const transactionData = window.currentTransactions || JSON.parse(localStorage.getItem('currentTransactions') || '[]');
     const dataPreviewContent = document.getElementById('dataPreviewContent');
-    
+
     let content = '';
-    
+
     if (portfolioData && portfolioData.length > 0) {
         content += '<div class="mb-6">';
         content += '<h4 class="font-semibold text-indigo-800 dark:text-indigo-200 mb-3">Portfolio Holdings (' + portfolioData.length + ')</h4>';
@@ -73,7 +73,7 @@ function showDataPreview() {
         content += '<th class="px-4 py-2 text-right text-xs font-medium text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">Avg Cost</th>';
         content += '<th class="px-4 py-2 text-right text-xs font-medium text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">Market Value</th></tr>';
         content += '</thead><tbody class="divide-y divide-gray-200 dark:divide-gray-600">';
-        
+
         portfolioData.forEach((item, index) => {
             const value = (item.quantity * (item.avg_cost || item.price || 0));
             const rowClass = index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700';
@@ -84,10 +84,10 @@ function showDataPreview() {
             content += '<td class="px-4 py-2 text-right font-medium text-gray-900 dark:text-gray-100">$' + value.toLocaleString() + '</td>';
             content += '</tr>';
         });
-        
+
         content += '</tbody></table></div></div>';
     }
-    
+
     if (transactionData && transactionData.length > 0) {
         content += '<div class="mb-6">';
         content += '<h4 class="font-semibold text-purple-800 dark:text-purple-200 mb-3">Recent Transactions (' + transactionData.length + ')</h4>';
@@ -100,7 +100,7 @@ function showDataPreview() {
         content += '<th class="px-4 py-2 text-right text-xs font-medium text-purple-700 dark:text-purple-300 uppercase tracking-wider">Price</th>';
         content += '<th class="px-4 py-2 text-right text-xs font-medium text-purple-700 dark:text-purple-300 uppercase tracking-wider">Date</th></tr>';
         content += '</thead><tbody class="divide-y divide-gray-200 dark:divide-gray-600">';
-        
+
         transactionData.slice(0, 10).forEach((item, index) => {
             const typeColor = item.transaction_type === 'BUY' ? 'text-green-600 dark:text-green-400' : item.transaction_type === 'SELL' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400';
             const rowClass = index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700';
@@ -113,18 +113,18 @@ function showDataPreview() {
             content += '<td class="px-4 py-2 text-right text-gray-700 dark:text-gray-300">' + date + '</td>';
             content += '</tr>';
         });
-        
+
         if (transactionData.length > 10) {
             content += '<tr class="bg-purple-50 dark:bg-purple-900"><td colspan="5" class="px-4 py-2 text-center text-purple-600 dark:text-purple-300 text-sm">+ ' + (transactionData.length - 10) + ' more transactions</td></tr>';
         }
-        
+
         content += '</tbody></table></div></div>';
     }
-    
+
     if ((!portfolioData || portfolioData.length === 0) && (!transactionData || transactionData.length === 0)) {
         content = '<div class="text-gray-500 dark:text-gray-400 text-center py-8">No data currently loaded</div>';
     }
-    
+
     dataPreviewContent.innerHTML = content;
     document.getElementById('dataPreview').classList.remove('hidden');
 }
@@ -134,23 +134,23 @@ function hideDataPreview() {
 }
 
 function showAnalysisPreview(type) {
-    const portfolioData = window.portfolioData || JSON.parse(localStorage.getItem('currentPortfolio') || '[]');
-    const transactionData = JSON.parse(localStorage.getItem('currentTransactions') || '[]');
-    
+    const portfolioData = window.portfolioData || window.currentPortfolio || JSON.parse(localStorage.getItem('currentPortfolio') || '[]');
+    const transactionData = window.currentTransactions || JSON.parse(localStorage.getItem('currentTransactions') || '[]');
+
     if ((!portfolioData || portfolioData.length === 0) && (!transactionData || transactionData.length === 0)) {
         alert('Please upload data first to view analysis');
         return;
     }
-    
+
     const analysisContainer = document.getElementById('analysisContainer');
     const defaultUpload = document.getElementById('defaultUploadSection');
     const dataPreview = document.getElementById('dataPreview');
-    
+
     // Hide default sections
     defaultUpload.classList.add('hidden');
     dataPreview.classList.add('hidden');
     analysisContainer.classList.remove('hidden');
-    
+
     const analysisNames = {
         'risk': 'Risk Metrics',
         'options': 'Options Strategies',
@@ -171,12 +171,14 @@ function showAnalysisPreview(type) {
         'fifo': 'FIFO/LIFO Accounting',
         'timing': 'Trade Timing Analysis',
         'drawdown': 'Drawdown Analysis',
-        'return': 'Return Attribution'
+        'drawdown': 'Drawdown Analysis',
+        'return': 'Return Attribution',
+        'xirr': 'XIRR Analysis'
     };
-    
+
     const isPortfolio = ['risk', 'options', 'performance', 'montecarlo', 'optimization', 'correlation', 'sector', 'statistical', 'technical', 'backtesting'].includes(type);
     const themeColor = isPortfolio ? 'indigo' : 'purple';
-    
+
     // Create individual analysis card
     let content = '<div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">';
     content += '<div class="flex justify-between items-center mb-4">';
@@ -185,11 +187,11 @@ function showAnalysisPreview(type) {
     content += '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>';
     content += '</button></div>';
     content += '<div id="' + type + 'Results"></div></div>';
-    
+
     analysisContainer.innerHTML = content;
-    
+
     // Load specific analysis with proper container ID
-    switch(type) {
+    switch (type) {
         case 'risk':
             const riskContainer = document.getElementById('riskResults');
             if (riskContainer) {
@@ -379,13 +381,24 @@ function showAnalysisPreview(type) {
                 }
             }
             break;
-        case 'return':
-            const returnContainer = document.getElementById('returnResults');
             if (returnContainer) {
                 returnContainer.id = 'returnAttribution';
                 returnContainer.innerHTML = '';
                 if (typeof loadReturnAttribution === 'function') {
                     loadReturnAttribution(transactionData);
+                }
+            }
+            break;
+        case 'xirr':
+            const xirrContainer = document.getElementById('xirrResults');
+            if (xirrContainer) {
+                xirrContainer.id = 'xirrAnalysis';
+                xirrContainer.innerHTML = '';
+                // Use new unified module
+                if (typeof fetchXirrAnalysis === 'function') {
+                    fetchXirrAnalysis('xirrAnalysis', { period: 'ITD' });
+                } else if (typeof loadXIRRAnalysis === 'function') {
+                    loadXIRRAnalysis(transactionData);
                 }
             }
             break;
@@ -395,7 +408,7 @@ function showAnalysisPreview(type) {
 }
 
 // Initialize sidebar state
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Show default upload section on load
     showDefaultUpload();
 });

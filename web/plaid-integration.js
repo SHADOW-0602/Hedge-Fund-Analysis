@@ -70,15 +70,33 @@ async function handlePlaidSuccess(public_token, metadata) {
             console.log(`[PLAID] Token exchange successful for ${institutionName}`);
             updatePlaidStatus(`Connected to ${institutionName}!`, 'success');
 
-            // Reload connections list
+            // Reload connections list and get active connection
             if (window.plaidConnectionsManager) {
-                await window.plaidConnectionsManager.loadConnections();
-            }
+                const connections = await window.plaidConnectionsManager.loadConnections(true); // Auto-load enabled
 
-            // Load portfolio data from new connection
-            setTimeout(() => {
-                loadPlaidPortfolio();
-            }, 2000);
+                // Get the newly added connection (assumed first or we can match institution name?)
+                // Usually list is sorted by date desc or we just take the first one if it's the only one 
+                // or search for matching institution name from metadata?
+                // Ideally backend returns the new connection ID in exchange-token response?
+                // But simplified: use manager's active connection after load
+                const newConnId = window.plaidConnectionsManager.activeConnection;
+
+                if (newConnId) {
+                    console.log(`[PLAID] Triggering full data load for new connection: ${newConnId}`);
+                    // Trigger full load (Portfolio + Transactions) directly for this connection
+                    // Small delay to ensure DB commit if needed, but usually redundant with loadConnections auto-check
+                    // But explicitly calling loadFullPlaidData ensures Dashboard is SHOWN (via displayPortfolio)
+                    // whereas loadConnections only does silent update.
+                    setTimeout(() => {
+                        loadFullPlaidData(newConnId);
+                    }, 1000);
+                }
+            } else {
+                // Fallback
+                setTimeout(() => {
+                    loadFullPlaidData();
+                }, 2000);
+            }
 
         } else {
             throw new Error(result.error || 'Token exchange failed');
@@ -396,8 +414,8 @@ function showConnectionsManager() {
     if (section) {
         section.classList.remove('hidden');
         if (window.plaidConnectionsManager) {
-            // Force reload connections when showing manager
-            window.plaidConnectionsManager.loadConnections();
+            // Force reload connections when showing manager, but DO NOT auto-load data
+            window.plaidConnectionsManager.loadConnections(false);
         } else {
             // Manually load connections if manager not available
             loadConnectionsDirectly();

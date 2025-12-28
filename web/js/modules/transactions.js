@@ -341,6 +341,35 @@ async function loadUserTransactions() {
     window.userTransactions = transactions;
     console.log('Loaded transactions array:', transactions.length);
     updateTransactionsDropdown(transactions);
+
+    // Auto-load the most recent transactions if no data is currently loaded
+    if (transactions.length > 0 && (!window.currentTransactions || window.currentTransactions.length === 0)) {
+        console.log('Auto-loading most recent transactions (Silent):', transactions[0].transaction_set_name);
+        const latestTxn = transactions[0];
+
+        // Handle different data structures & parsing
+        let tData = latestTxn.transactions_data || latestTxn.data || latestTxn.transactions || [];
+        if (typeof tData === 'string') {
+            try { tData = JSON.parse(tData); } catch (e) { tData = []; }
+        }
+
+        // Silent Load: Set global state via merger
+        if (window.DataMerger) {
+            window.DataMerger.updateManualData('transactions', tData);
+        } else {
+            window.currentTransactions = tData;
+            localStorage.setItem('currentTransactions', JSON.stringify(tData));
+        }
+
+        // Just set the dropdown value, don't trigger view
+        const select = document.getElementById('transactionFileSelect');
+        if (select && latestTxn.id) {
+            select.value = latestTxn.id;
+        }
+
+        // Show notification as requested
+        showSuccess(`Transactions "${latestTxn.transaction_set_name}" loaded successfully`);
+    }
 }
 
 function updateTransactionsDropdown(transactions) {
@@ -465,26 +494,40 @@ function viewSelectedTransactions() {
             return;
         }
 
-        // Set global transaction data
-        window.currentTransactions = transactionData;
-        window.portfolioData = []; // Clear portfolio data to prevent confusion
-        localStorage.setItem('currentTransactions', JSON.stringify(transactionData));
-        localStorage.removeItem('currentPortfolio'); // Clear portfolio from local storage
+        // Set global transaction data via merger
+        if (window.DataMerger) {
+            window.DataMerger.updateManualData('transactions', transactionData);
+        } else {
+            window.currentTransactions = transactionData;
+            localStorage.setItem('currentTransactions', JSON.stringify(transactionData));
+        }
 
         window.currentDataType = 'transaction';
         window.currentDataIndex = index;
 
-        // Skip loading analysis for now as per user request
-        /*
-        showAllTransactionCardLoading();
+        // Show simplified data view as per user request ("only view the file data")
+        if (typeof window.viewLoadedData === 'function') {
+            window.viewLoadedData('transactions');
+        }
 
-        // Load all transaction analytics
+        // Hide analysis container if it was open
+        // Reuse existing element reference if available, or query again if needed
+        const txAnalysisContainer = document.getElementById('transactionAnalysis');
+        if (txAnalysisContainer) txAnalysisContainer.classList.add('hidden');
+
+        // Show data action buttons
+        if (typeof showDataActions === 'function') {
+            showDataActions();
+        }
+
+        /*
+        // Skip auto-loading analysis
+        showAllTransactionCardLoading();
         if (typeof loadAllTransactionAnalytics === 'function') {
             loadAllTransactionAnalytics(transactionData);
         } else if (typeof loadTransactionAnalytics === 'function') {
             loadTransactionAnalytics(transactionData);
         } else {
-            // Fallback to analyzeTransactionData
             analyzeTransactionData(transactionData);
         }
         */

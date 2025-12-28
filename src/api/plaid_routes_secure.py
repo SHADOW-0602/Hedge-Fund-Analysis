@@ -18,6 +18,9 @@ try:
 except ImportError:
     plaid_supabase_manager = None
 
+from .route_utils import normalize_portfolio_format
+from .transaction_routes import normalize_transaction_format
+
 def get_real_user_id():
     """Get real UUID from session, handling secure tokens"""
     print(f"[PLAID] Session contents: {dict(session)}")
@@ -162,11 +165,17 @@ def register_plaid_routes(app):
             
             holdings_df = plaid_client.get_holdings(user_id)
             
+            
             if not holdings_df.empty:
+                # Apply regex-based normalization to ensure columns like 'avg_cost' are robustly identified
+                # if Plaid SDK naming ever shifts or for consistency
+                # Convert list of dicts back to DF if needed, or just pass DF
+                normalized_holdings_list = normalize_portfolio_format(holdings_df).to_dict('records')
+                
                 holdings = []
                 total_portfolio_value = 0
                 
-                for _, row in holdings_df.iterrows():
+                for row in normalized_holdings_list:
                     market_value = float(row.get('market_value', 0))
                     total_portfolio_value += market_value
                     
@@ -306,7 +315,9 @@ def register_plaid_routes(app):
             transactions_df = plaid_client.get_investment_transactions(user_id, days)
             
             if not transactions_df.empty:
-                transactions = transactions_df.to_dict('records')
+                # Apply regex-based normalization for consistency
+                # normalize_transaction_format returns a list of dicts
+                transactions = normalize_transaction_format(transactions_df)
                 
                 # Safe JSON serialization for dates and custom types
                 safe_transactions = []

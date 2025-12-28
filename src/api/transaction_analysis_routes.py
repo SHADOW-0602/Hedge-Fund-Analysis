@@ -363,6 +363,7 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
 
             # Track which tickers we have transactions for
             seen_tickers = set()
+            warnings = []
 
             # CASE 1: Process Transactions if available
             if transactions_data:
@@ -451,15 +452,22 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
                         current_price = safe_float(pos_data.get('current_price', 0))
                         
                         price = 0.0
+                        is_fallback_price = False
+
                         if avg_cost > 0:
                             price = avg_cost
                         elif current_qty > 0 and cost_basis > 0:
                             price = cost_basis / current_qty
                         elif current_price > 0:
                             price = current_price # Fallback to current price if no cost data
+                            is_fallback_price = True
                             
                         # Create Proxy Transaction for the "Initial Blob"
                         if initial_qty > 0 and price > 0:
+                            if is_fallback_price:
+                                print(f"[TRANSACTION-XIRR] Warning: Using current price as cost basis for {symbol} (No cost data)")
+                                warnings.append(f"Missing cost basis for {symbol} - assuming 0% return")
+
                             proxy_tx = Transaction(
                                 symbol=symbol,
                                 quantity=initial_qty,
@@ -563,6 +571,7 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
                     'total_invested': portfolio_metrics.total_invested
                 },
                 'ticker_breakdown': ticker_breakdown,
+                'warnings': warnings,
                 'metadata': {
                     'transaction_count': len(transactions),
                     'ticker_count': len(base_tickers),

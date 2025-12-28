@@ -94,7 +94,8 @@ function createIndividualAnalysisHTML(analysisType) {
         'strategy-backtesting', 'technical-indicators', 'pnl-attribution',
         'cost-analysis', 'cash-flow', 'accounting-analysis', 'trade-performance',
         'turnover-analysis', 'drawdown-analysis', 'return-attribution', 'statistical-analysis',
-        'sector-allocation'
+        'turnover-analysis', 'drawdown-analysis', 'return-attribution', 'statistical-analysis',
+        'sector-allocation', 'xirr-analysis'
     ];
 
     if (noCloseButtonAnalyses.includes(analysisType)) {
@@ -161,7 +162,9 @@ function getAnalysisConfig(analysisType) {
         'accounting-analysis': { title: 'FIFO/LIFO Accounting', containerId: 'accountingAnalysis', hasSettings: true },
         'trade-timing': { title: 'Trade Timing Analysis', containerId: 'tradeTimingAnalysis' },
         'drawdown-analysis': { title: 'Drawdown Analysis', containerId: 'drawdownAnalysis' },
-        'return-attribution': { title: 'Return Attribution', containerId: 'returnAttribution' }
+        'drawdown-analysis': { title: 'Drawdown Analysis', containerId: 'drawdownAnalysis' },
+        'return-attribution': { title: 'Return Attribution', containerId: 'returnAttribution' },
+        'xirr-analysis': { title: 'XIRR Analysis', containerId: 'xirrAnalysis' }
     };
 
     return configs[analysisType] || { title: 'Analysis', containerId: 'analysisResults' };

@@ -1,9 +1,15 @@
-from flask import request, jsonify
+from flask import request, jsonify, session
 import pandas as pd
 import polars as pl
+import re
 from datetime import datetime
 import json
 from clients.supabase_client import supabase_client
+from utils.data_manager import DataManager
+try:
+    from utils.secure_id_manager import secure_id_manager
+except ImportError:
+    secure_id_manager = None
 
 
 def clean_for_json(obj):
@@ -31,13 +37,68 @@ def clean_for_json(obj):
     return obj
 
 def normalize_transaction_format(transactions_data):
-    if not transactions_data:
-        return transactions_data
+    # Handle None
+    if transactions_data is None:
+        return []
+        
+    # Handle DataFrame emptiness
+    import pandas as pd
+    try:
+        import polars as pl
+    except ImportError:
+        pl = None
+
+    if isinstance(transactions_data, pd.DataFrame):
+        if transactions_data.empty:
+            return []
+    elif pl and isinstance(transactions_data, pl.DataFrame):
+        if transactions_data.is_empty():
+            return []
+    elif not transactions_data:
+        # Valid for empty list, dict, string
+        return []
     
     try:
         # Try using Polars first (requires pyarrow usually)
         df_pl = pl.DataFrame(transactions_data)
         df_pl = df_pl.rename({col: col.lower().strip() for col in df_pl.columns})
+        
+        # Explicit mapping for space-separated columns to snake_case
+        # Explicit mapping for space-separated columns to snake_case using Regex
+        # Order matters: check for more specific matches first
+        column_patterns = {
+            'account_id': [r'account.*id', r'acct.*id', r'id.*account'],
+            'security_name': [r'security.*name', r'sec.*name', r'asset.*name', r'instrument.*name', r'description', r'^desc$'],
+            'connection_id': [r'connection.*id', r'conn.*id', r'account.*link'],
+            'data_source': [r'data.*source', r'source.*type'],
+            'transaction_type': [r'trans.*type', r'txn.*type', r'action', r'side', r'buy.*sell', r'^type$'],
+            'source': [r'^source$', r'prov'],
+            'date': [r'date', r'time', r'day', r'transaction.*date'],
+            'symbol': [r'^symbol', r'^ticker', r'^stock', r'^security', r'^asset'],
+            'quantity': [r'quant', r'qty', r'share', r'count', r'amount.*unit'],
+            'price': [r'^price', r'^cost', r'^rate', r'amount.*per'],
+            'fees': [r'fee', r'comm', r'charge']
+        }
+        
+        # Iterate through current columns and try to match patterns
+        rename_dict = {}
+        current_cols = df_pl.columns
+        
+        for canon_name, patterns in column_patterns.items():
+            if canon_name in current_cols:
+                continue
+            found = False
+            for pattern in patterns:
+                if found: break
+                for col in current_cols:
+                    if re.search(pattern, col):
+                        rename_dict[col] = canon_name
+                        found = True
+                        break
+        
+        if rename_dict:
+            df_pl = df_pl.rename(rename_dict)
+            
         cols = df_pl.columns
         
         if 'action' in cols:
@@ -56,7 +117,7 @@ def normalize_transaction_format(transactions_data):
         if 'date' in df_pl.columns:
             current_date = datetime.now().strftime('%Y-%m-%d')
             df_pl = df_pl.with_columns([
-                pl.when(pl.col('date').is_null() | (pl.col('date') == ''))
+                pl.when(pl.col('date').is_null())
                 .then(pl.lit(current_date))
                 .otherwise(pl.col('date'))
                 .alias('date')
@@ -77,6 +138,40 @@ def normalize_transaction_format(transactions_data):
         import pandas as pd
         df = pd.DataFrame(transactions_data)
         df.columns = [str(c).lower().strip() for c in df.columns]
+        
+        # Explicit mapping for space-separated columns to snake_case
+        # Explicit mapping for space-separated columns to snake_case using Regex
+        column_patterns = {
+            'account_id': [r'account.*id', r'acct.*id', r'id.*account'],
+            'security_name': [r'security.*name', r'sec.*name', r'asset.*name', r'instrument.*name', r'description', r'^desc$'],
+            'connection_id': [r'connection.*id', r'conn.*id', r'account.*link'],
+            'data_source': [r'data.*source', r'source.*type'],
+            'transaction_type': [r'trans.*type', r'txn.*type', r'action', r'side', r'buy.*sell', r'^type$'],
+            'source': [r'^source$', r'prov'],
+            'date': [r'date', r'time', r'day', r'transaction.*date'],
+            'symbol': [r'^symbol', r'^ticker', r'^stock', r'^security', r'^asset'],
+            'quantity': [r'quant', r'qty', r'share', r'count', r'amount.*unit'],
+            'price': [r'^price', r'^cost', r'^rate', r'amount.*per'],
+            'fees': [r'fee', r'comm', r'charge']
+        }
+        
+        rename_dict = {}
+        current_cols = df.columns
+        
+        for canon_name, patterns in column_patterns.items():
+            if canon_name in current_cols:
+                continue
+            found = False
+            for pattern in patterns:
+                if found: break
+                for col in current_cols:
+                    if re.search(pattern, col):
+                        rename_dict[col] = canon_name
+                        found = True
+                        break
+                        
+        if rename_dict:
+            df = df.rename(columns=rename_dict)
         
         if 'action' in df.columns:
             df['transaction_type'] = df['action'].str.upper()
@@ -226,12 +321,32 @@ def register_transaction_routes(app):
             from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
             from core.transactions import Transaction
             from clients.market_data_client import MarketDataClient
+            from flask import session
             
             data = request.get_json()
             transactions_data = data.get('transactions', [])
             
             if not transactions_data:
-                return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
+                # Auto-detect transactions
+                user_id = None
+                if 'real_user_id' in session:
+                    user_id = session['real_user_id']
+                elif 'user_id' in session:
+                    uid_raw = session['user_id']
+                    if len(uid_raw) == 36 and uid_raw.count('-') == 4:
+                        user_id = uid_raw
+                    elif secure_id_manager:
+                        try:
+                            user_id = secure_id_manager.get_uuid_from_token(uid_raw) or uid_raw
+                        except:
+                            user_id = uid_raw
+                            
+                if user_id:
+                    print(f"DEBUG: Auto-detecting transactions for user {user_id}")
+                    transactions_data = DataManager.get_consolidated_transactions(user_id)
+            
+            if not transactions_data:
+                return jsonify({'success': False, 'error': 'No transaction data provided and no saved data found'}), 400
             
             # Convert to Transaction objects for enterprise analysis
             transactions = []

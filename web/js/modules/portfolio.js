@@ -63,7 +63,11 @@ async function uploadPortfolio() {
                 await window.updateFileSelectors();
             }
 
-            await displayPortfolio(portfolioData);
+            if (window.DataMerger) {
+                window.DataMerger.updateManualData('portfolio', portfolioData);
+            } else {
+                await displayPortfolio(portfolioData);
+            }
 
             statusDiv.innerHTML = '<span class="text-green-600">✓ Portfolio uploaded successfully</span>';
 
@@ -179,6 +183,35 @@ async function loadUserPortfolios() {
             window.userPortfolios = portfolios;
             console.log('Loaded portfolios array:', portfolios.length);
             updatePortfolioDropdown();
+
+            // Auto-load the most recent portfolio if no data is currently loaded
+            if (portfolios.length > 0 && (!window.portfolioData || window.portfolioData.length === 0)) {
+                console.log('Auto-loading most recent portfolio (Silent):', portfolios[0].portfolio_name);
+                const latestPortfolio = portfolios[0];
+
+                // Handle different data structures
+                const pData = latestPortfolio.portfolio_data || latestPortfolio.data || latestPortfolio;
+
+                // Silent Load: Set global state via merger
+                if (window.DataMerger) {
+                    window.DataMerger.updateManualData('portfolio', pData);
+                } else {
+                    window.portfolioData = pData;
+                    localStorage.setItem('currentPortfolio', JSON.stringify(pData));
+                    if (typeof updatePortfolioMetrics === 'function') {
+                        updatePortfolioMetrics(pData);
+                    }
+                }
+
+                // Just set the dropdown value, don't trigger view
+                const select = document.getElementById('portfolioFileSelect');
+                if (select) {
+                    select.value = 0; // Select first item index
+                }
+
+                // Show notification as requested
+                showSuccess(`Portfolio "${latestPortfolio.portfolio_name}" loaded successfully`);
+            }
         } else {
             console.error('Load portfolios failed:', data.error);
         }
@@ -265,29 +298,34 @@ async function viewSelectedPortfolio() {
     // Handle both Supabase structure (portfolio_data/data field) and direct structure
     portfolioData = selectedPortfolio.portfolio_data || selectedPortfolio.data || selectedPortfolio;
 
-    // Set global data and clean others to prevent persistence issues
-    window.portfolioData = portfolioData;
-    window.currentTransactions = []; // Clear transaction data
-    localStorage.setItem('currentPortfolio', JSON.stringify(portfolioData));
-    localStorage.removeItem('currentTransactions');
+    // Set global data - DO NOT clear transactions to allow hybrid analysis
+    if (window.DataMerger) {
+        window.DataMerger.updateManualData('portfolio', portfolioData);
+    } else {
+        window.portfolioData = portfolioData;
+        localStorage.setItem('currentPortfolio', JSON.stringify(portfolioData));
+        window.displayPortfolio(portfolioData);
+    }
 
-    // Skip displayPortfolio to avoid showing analysis dashboard as per user request
-    await displayPortfolio(portfolioData);
+    // Show success message
+    showSuccess(`Portfolio "${filename}" loaded successfully`);
 
-    setTimeout(() => {
-        const portfolioSection = document.getElementById('portfolioAnalysis');
-        if (portfolioSection) {
-            portfolioSection.classList.remove('hidden'); // Ensure analysis is visible
-            // showAllPortfolioCardLoading(); // Disabled loading spinner
+    // Show the data table ONLY (as per user request "only view the file data")
+    if (typeof window.viewLoadedData === 'function') {
+        window.viewLoadedData('portfolio');
+    }
 
-            // Analytics are now loaded on-demand via sidebar clicks
+    // Explicitly hide analysis visualization until user asks for it (e.g. by clicking a sidebar item)
+    // displayPortfolio triggers the dashboard, so we skip it here.
+    // Instead we just calculate metrics silently if needed, or wait for analysis trigger.
+    if (typeof updatePortfolioMetrics === 'function') {
+        updatePortfolioMetrics(portfolioData);
+    }
 
-            // Also show the data table as requested by user
-            if (typeof window.viewLoadedData === 'function') {
-                window.viewLoadedData('portfolio'); // Prioritize portfolio data
-            }
-        }
-    }, 100);
+    // Show data action buttons
+    if (typeof showDataActions === 'function') {
+        showDataActions();
+    }
 
     showSuccess(`Portfolio "${filename}" loaded successfully`);
 

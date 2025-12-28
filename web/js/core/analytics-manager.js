@@ -254,11 +254,7 @@ class AnalyticsManager {
     async loadModule(name) {
         console.log(`Loading module: ${name}`);
 
-        // Hide data requirements info when any module is loaded
-        const requirementsInfo = document.getElementById('dataRequirementsInfo');
-        if (requirementsInfo) {
-            requirementsInfo.style.display = 'none';
-        }
+
 
         const module = this.modules.get(name);
         if (!module) {
