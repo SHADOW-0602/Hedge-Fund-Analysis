@@ -758,6 +758,12 @@ select option {
     box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
 }
 
+[data-theme="dark"] .nav-item.active {
+    background: #4f46e5;
+    /* Indigo-600 for better contrast */
+    color: #ffffff;
+}
+
 .nav-section-toggle {
     width: 100%;
     display: flex;
