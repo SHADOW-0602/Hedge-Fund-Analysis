@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guide - SHM Ventures</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: 'var(--text-primary)',
+                        secondary: 'var(--text-secondary)',
+                        accent: 'var(--accent-color)',
+                        card: 'var(--bg-card)',
+                        'card-hover': 'var(--bg-card-hover)',
+                        'border-card': 'var(--border-card)',
+                        body: 'var(--bg-body)',
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="css/navigation-fix.css">
+    <link rel="stylesheet" href="css/plaid-responsive.css">
+    <script src="js/global-api-config.js"></script>
+    <link rel="stylesheet" href="css/index-styles.css">
+    <link rel="stylesheet" href="css/chatbot.css">
+    <link rel="stylesheet" href="css/footer-styles.css">
+    <script src="js/chatbot.js" defer></script>
+</head>
+
+<body class="gradient-bg min-h-full flex flex-col">
+    <!-- Header -->
+    <header class="border-b-4 border-indigo-600 sticky top-0 z-50 bg-white dark:bg-gray-900 shadow-md">
+        <div class="w-full px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-row items-center justify-between py-3 sm:py-4">
+                <div class="flex items-center">
+                    <a href="index.html" class="flex items-center cursor-pointer whitespace-nowrap">
+                        <div
+                            class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
+                            <span class="text-white font-bold text-sm sm:text-lg">SV</span>
+                        </div>
+                        <h1
+                            class="text-sm sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 hover:text-indigo-600 transition-colors">
+                            SHM Ventures</h1>
+                    </a>
+                </div>
+                <!-- Desktop Menu -->
+                <div class="hidden md:flex items-center justify-end space-x-2 sm:space-x-4">
+                    <a href="landing.html"
+                        class="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white font-medium transition-colors mr-2">Home</a>
+                    <a href="index.html"
+                        class="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white font-medium transition-colors mr-2">Dashboard</a>
+                    <a href="guide.html"
+                        class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200 font-bold transition-colors mr-2">Guide</a>
+
+                    <!-- Auth State -->
+                    <div id="authButtons" class="flex items-center space-x-2">
+                        <a href="auth.html"
+                            class="text-gray-600 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-white font-medium text-sm">Sign
+                            In</a>
+                        <a href="auth.html?mode=register"
+                            class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors">Sign
+                            Up</a>
+                    </div>
+                    <div id="userProfile"
+                        class="hidden flex items-center space-x-3 border-l border-gray-300 dark:border-gray-700 pl-3">
+                        <span id="userNameDisplay"
+                            class="text-sm font-medium text-gray-900 dark:text-gray-100 hidden lg:block"></span>
+                        <button onclick="logout()"
+                            class="text-red-500 hover:text-red-700 text-sm font-medium">Logout</button>
+                    </div>
+
+                    <!-- Theme Toggle -->
+                    <div class="theme-toggle-wrapper ml-2">
+                        <input type="checkbox" class="theme-checkbox" id="themeToggle">
+                        <label for="themeToggle" class="theme-label">
+                            <span class="moon">🌙</span>
+                            <span class="sun">☀️</span>
+                            <span class="ball"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <div class="flex md:hidden items-center">
+                    <button id="mobileMenuBtn"
+                        class="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white focus:outline-none p-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Menu content -->
+            <div id="mobileMenu" class="hidden md:hidden pb-4 border-t border-gray-100 dark:border-gray-800 mt-2">
+                <div class="flex flex-col space-y-2 pt-4">
+                    <a href="landing.html"
+                        class="block px-4 py-2 text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 rounded-lg font-medium">Home</a>
+                    <a href="index.html"
+                        class="block px-4 py-2 text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 rounded-lg font-medium">Dashboard</a>
+                    <a href="guide.html"
+                        class="block px-4 py-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:text-indigo-400 rounded-lg font-bold">Guide</a>
+
+                    <!-- Mobile Auth -->
+                    <div id="mobileAuthButtons" class="pt-2 border-t border-gray-100 dark:border-gray-800">
+                        <a href="auth.html"
+                            class="block px-4 py-2 text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 rounded-lg font-medium">Sign
+                            In</a>
+                        <a href="auth.html?mode=register"
+                            class="block px-4 py-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20 rounded-lg font-medium">Sign
+                            Up</a>
+                    </div>
+                    <div id="mobileUserProfile" class="hidden pt-2 border-t border-gray-100 dark:border-gray-800">
+                        <div class="px-4 py-2 flex items-center justify-between">
+                            <span id="mobileUserNameDisplay"
+                                class="text-sm font-medium text-gray-900 dark:text-gray-100"></span>
+                            <button onclick="logout()"
+                                class="text-red-500 hover:text-red-700 text-sm font-medium">Logout</button>
+                        </div>
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between px-4 py-3 mt-2 border-t border-gray-100 dark:border-gray-800">
+                        <span class="text-gray-600 dark:text-gray-300 font-medium">Theme</span>
+                        <div class="theme-toggle-wrapper">
+                            <input type="checkbox" class="theme-checkbox" id="themeToggleMobile">
+                            <label for="themeToggleMobile" class="theme-label">
+                                <span class="moon">🌙</span>
+                                <span class="sun">☀️</span>
+                                <span class="ball"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Hero Section -->
+        <!-- ... content continues ... -->
+
+        <!-- Footer maps same as before... omit for brevity in replacement if possible, but replace_file_content needs contiguous block. 
+         Wait, I need to be careful. I am replacing the Header inner content and appending the script changes.
+         I will split this into two replacement chunks if possible, or just one large one if needed.
+         Actually, the previous tool call allows multiple chunks. I'll use that.
+    -->
+        <!-- Wait, I can't check 'Main Content' since it's far down. I will target the header content first. -->
+        <!-- And then the script at the bottom. -->
+
+
+        <div class="rounded-2xl overflow-hidden shadow-2xl mb-12 relative h-64 sm:h-80">
+            <img src="/api/pexels-image?query=modern%20financial%20technology" alt="Guide Hero"
+                class="w-full h-full object-cover">
+            <div
+                class="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center text-center p-6">
+                <h1 class="text-3xl sm:text-5xl font-bold text-white mb-4">How can we help you?</h1>
+                <p class="text-lg sm:text-xl text-gray-200 max-w-2xl">Documentation, guides, and support for your SHM
+                    Ventures analytics platform.</p>
+            </div>
+        </div>
+
+        <!-- Navigation Grid (Portseido Style) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+            <!-- Card 1 -->
+            <a href="#quick-links"
+                class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-100 dark:border-gray-700 flex flex-col items-center text-center group">
+                <div
+                    class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4 text-blue-600 dark:text-blue-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <h3
+                    class="font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 transition-colors">
+                    Quick Links</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Get started with file uploads and setup.</p>
+            </a>
+
+            <!-- Card 2 -->
+            <a href="#brokerage"
+                class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-100 dark:border-gray-700 flex flex-col items-center text-center group">
+                <div
+                    class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4 text-green-600 dark:text-green-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                        </path>
+                    </svg>
+                </div>
+                <h3
+                    class="font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 transition-colors">
+                    Brokerage Support</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Connect via Plaid for automatic syncing.</p>
+            </a>
+
+            <!-- Card 3 -->
+            <a href="#analytics"
+                class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-100 dark:border-gray-700 flex flex-col items-center text-center group">
+                <div
+                    class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mb-4 text-purple-600 dark:text-purple-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                        </path>
+                    </svg>
+                </div>
+                <h3
+                    class="font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 transition-colors">
+                    Analytics Guides</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Understand your Performance & Risk metrics.</p>
+            </a>
+
+            <!-- Card 4 -->
+            <a href="#faq"
+                class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow border border-gray-100 dark:border-gray-700 flex flex-col items-center text-center group">
+                <div
+                    class="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mb-4 text-orange-600 dark:text-orange-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                        </path>
+                    </svg>
+                </div>
+                <h3
+                    class="font-bold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-indigo-600 transition-colors">
+                    FAQs</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Troubleshooting & common questions.</p>
+            </a>
+        </div>
+
+        <hr class="border-gray-200 dark:border-gray-700 mb-16">
+
+        <!-- Section 1: Quick Links (Data Management) -->
+        <section id="quick-links" class="mb-20 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8 flex items-center">
+                <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 p-2 rounded-lg mr-4">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </span>
+                Quick Links: Data & Uploads
+            </h2>
+
+            <!-- 1) Portfolio CSV Input -->
+            <div class="mb-16">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">1) Portfolio CSV Input</h3>
+                <ul class="list-disc list-inside text-gray-600 dark:text-gray-400 mb-6 space-y-2 text-lg">
+                    <li>Upload your current holdings to initialize your portfolio.</li>
+                    <li>Required columns: <strong>Symbol</strong>, <strong>Quantity</strong>, <strong>Avg_Cost</strong>.
+                    </li>
+                    <li>Headers are case-insensitive (e.g., "avg_cost", "Avg Cost", "Average Cost").</li>
+                    <li>Custom columns are preserved by our <em>Smart Enrichment</em> system.</li>
+                </ul>
+
+                <!-- "Window" Container for Table -->
+                <div
+                    class="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform transition-all hover:scale-[1.01]">
+                    <!-- Fake Title Bar -->
+                    <div
+                        class="bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                        </div>
+                        <span class="text-xs text-gray-500 font-mono">portfolio_import.csv</span>
+                        <div class="w-16"></div> <!-- Spacer for key balance -->
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                            <thead
+                                class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700/50 dark:text-gray-400 border-b dark:border-gray-700">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3">Symbol <span class="text-red-500">*</span></th>
+                                    <th scope="col" class="px-6 py-3">Quantity <span class="text-red-500">*</span></th>
+                                    <th scope="col" class="px-6 py-3">Avg_Cost <span class="text-red-500">*</span></th>
+                                    <th scope="col" class="px-6 py-3 text-gray-400">Sector (Optional)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">AAPL</td>
+                                    <td class="px-6 py-4">100</td>
+                                    <td class="px-6 py-4">$150.50</td>
+                                    <td class="px-6 py-4 text-gray-400">Technology</td>
+                                </tr>
+                                <tr
+                                    class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">MSFT</td>
+                                    <td class="px-6 py-4">50</td>
+                                    <td class="px-6 py-4">$280.00</td>
+                                    <td class="px-6 py-4 text-gray-400">Technology</td>
+                                </tr>
+                                <tr
+                                    class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">NVDA</td>
+                                    <td class="px-6 py-4">25</td>
+                                    <td class="px-6 py-4">$450.00</td>
+                                    <td class="px-6 py-4 text-gray-400">Semiconductors</td>
+                                </tr>
+                                <tr
+                                    class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">VOO</td>
+                                    <td class="px-6 py-4">10</td>
+                                    <td class="px-6 py-4">$400.00</td>
+                                    <td class="px-6 py-4 text-gray-400">ETF</td>
+                                </tr>
+                                <tr class="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">GOOGL</td>
+                                    <td class="px-6 py-4">25</td>
+                                    <td class="px-6 py-4">$2500.00</td>
+                                    <td class="px-6 py-4 text-gray-400">Communication</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2) Transaction CSV Input -->
+            <div class="mb-12">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">2) Transaction CSV Input</h3>
+                <ul class="list-disc list-inside text-gray-600 dark:text-gray-400 mb-6 space-y-2 text-lg">
+                    <li>Log your trade history for accurate P&L and XIRR analysis.</li>
+                    <li>Required columns: <strong>Date</strong>, <strong>Symbol</strong>, <strong>Type</strong>,
+                        <strong>Qty</strong>, <strong>Price</strong>.
+                    </li>
+                    <li>Accepted Types: <span
+                            class="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-1 rounded">BUY</span>, <span
+                            class="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-1 rounded">SELL</span>, <span
+                            class="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-1 rounded">DIVIDEND</span>, <span
+                            class="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-1 rounded">SPLIT</span>.</li>
+                    <li>Dates should be formatted as <code>YYYY-MM-DD</code>.</li>
+                </ul>
+
+                <!-- "Window" Container -->
+                <div
+                    class="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform transition-all hover:scale-[1.01]">
+                    <!-- Fake Title Bar -->
+                    <div
+                        class="bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                        </div>
+                        <span class="text-xs text-gray-500 font-mono">transactions_history.csv</span>
+                        <div class="w-16"></div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                            <thead
+                                class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700/50 dark:text-gray-400 border-b dark:border-gray-700">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3">Date</th>
+                                    <th scope="col" class="px-4 py-3">Action</th>
+                                    <th scope="col" class="px-4 py-3">Ticker</th>
+                                    <th scope="col" class="px-4 py-3">Price</th>
+                                    <th scope="col" class="px-4 py-3">Shares</th>
+                                    <th scope="col" class="px-4 py-3">Commission ($)</th>
+                                    <th scope="col" class="px-4 py-3">Amount ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-4 py-4 font-mono">2025-01-15</td>
+                                    <td class="px-4 py-4"><span
+                                            class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">BUY</span>
+                                    </td>
+                                    <td class="px-4 py-4 font-medium text-gray-900 dark:text-white">AAPL</td>
+                                    <td class="px-4 py-4">150.00</td>
+                                    <td class="px-4 py-4">100</td>
+                                    <td class="px-4 py-4">5.00</td>
+                                    <td class="px-4 py-4">15005.00</td>
+                                </tr>
+                                <tr
+                                    class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-4 py-4 font-mono">2025-02-20</td>
+                                    <td class="px-4 py-4"><span
+                                            class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-red-900 dark:text-red-300">SELL</span>
+                                    </td>
+                                    <td class="px-4 py-4 font-medium text-gray-900 dark:text-white">MSFT</td>
+                                    <td class="px-4 py-4">300.00</td>
+                                    <td class="px-4 py-4">10</td>
+                                    <td class="px-4 py-4">5.00</td>
+                                    <td class="px-4 py-4">2995.00</td>
+                                </tr>
+                                <tr
+                                    class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-4 py-4 font-mono">2025-03-10</td>
+                                    <td class="px-4 py-4"><span
+                                            class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">DIVIDEND</span>
+                                    </td>
+                                    <td class="px-4 py-4 font-medium text-gray-900 dark:text-white">GOOGL</td>
+                                    <td class="px-4 py-4">0.00</td>
+                                    <td class="px-4 py-4">0</td>
+                                    <td class="px-4 py-4">0.00</td>
+                                    <td class="px-4 py-4">25.50</td>
+                                </tr>
+                                <tr class="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-4 py-4 font-mono">2025-04-12</td>
+                                    <td class="px-4 py-4"><span
+                                            class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">BUY</span>
+                                    </td>
+                                    <td class="px-4 py-4 font-medium text-gray-900 dark:text-white">AMZN</td>
+                                    <td class="px-4 py-4">180.00</td>
+                                    <td class="px-4 py-4">50</td>
+                                    <td class="px-4 py-4">2.99</td>
+                                    <td class="px-4 py-4">9002.99</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Use Pexels for Section Headers -->
+        <hr class="border-gray-200 dark:border-gray-700 mb-16">
+
+        <!-- Section 2: Brokerage Support -->
+        <section id="brokerage" class="mb-20 scroll-mt-24">
+            <div class="relative rounded-xl overflow-hidden mb-8 h-48">
+                <img src="/api/pexels-image?query=stock%20market%20data" alt="Brokerage"
+                    class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-gradient-to-r from-gray-900 to-transparent flex items-center p-8">
+                    <h2 class="text-3xl font-bold text-white">Brokerage Support & Plaid</h2>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="prose dark:prose-invert max-w-none">
+                    <h3>Connecting Your Account</h3>
+                    <p>We use <strong>Plaid</strong> to securely connect to over 12,000 financial institutions.</p>
+                    <ol>
+                        <li>Click the <strong>Connect Account</strong> button in the dashboard.</li>
+                        <li>Select your brokerage (e.g., Robinhood, Fidelity, Vanguard).</li>
+                        <li>Authenticate securely through your bank's portal.</li>
+                    </ol>
+                    <p>We strictly use read-only access. We never store your bank credentials.</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6">
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">Popular Supported Brokerages
+                    </h3>
+                    <div class="flex flex-wrap gap-3">
+                        <span
+                            class="px-3 py-1 bg-white dark:bg-gray-700 rounded-full border shadow-sm text-sm">Interactive
+                            Brokers</span>
+                        <span
+                            class="px-3 py-1 bg-white dark:bg-gray-700 rounded-full border shadow-sm text-sm">Fidelity</span>
+                        <span class="px-3 py-1 bg-white dark:bg-gray-700 rounded-full border shadow-sm text-sm">Charles
+                            Schwab</span>
+                        <span
+                            class="px-3 py-1 bg-white dark:bg-gray-700 rounded-full border shadow-sm text-sm">Robinhood</span>
+                        <span
+                            class="px-3 py-1 bg-white dark:bg-gray-700 rounded-full border shadow-sm text-sm">E*TRADE</span>
+                        <span
+                            class="px-3 py-1 bg-white dark:bg-gray-700 rounded-full border shadow-sm text-sm">Vanguard</span>
+                        <span
+                            class="px-3 py-1 bg-white dark:bg-gray-700 rounded-full border shadow-sm text-sm">Coinbase</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <hr class="border-gray-200 dark:border-gray-700 mb-16">
+
+        <!-- Section 3: Analytics Guides -->
+        <section id="analytics" class="mb-20 scroll-mt-24">
+            <div class="relative rounded-xl overflow-hidden mb-8 h-48">
+                <img src="/api/pexels-image?query=stock%20market%20chart" alt="Analytics"
+                    class="w-full h-full object-cover">
+                <div class="absolute inset-0 bg-gradient-to-r from-indigo-900 to-transparent flex items-center p-8">
+                    <h2 class="text-3xl font-bold text-white">Analytics Explained</h2>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div
+                    class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <h3 class="text-lg font-bold text-primary mb-2">Smart Enrichment</h3>
+                    <p class="text-secondary text-sm">Our system automatically fills in missing data. If your manual CSV
+                        lacks sector info, we fetch it. If your Plaid data lacks cost basis, we infer it from your
+                        transaction history.</p>
+                </div>
+                <div
+                    class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <h3 class="text-lg font-bold text-primary mb-2">XIRR vs TWR</h3>
+                    <p class="text-secondary text-sm"><strong>XIRR</strong> (Money-Weighted Return) accounts for the
+                        timing of your deposits. <strong>TWR</strong> (Time-Weighted Return) isolates your investment
+                        skill by ignoring cash flows.</p>
+                </div>
+                <div
+                    class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <h3 class="text-lg font-bold text-primary mb-2">Risk Metrics (VaR)</h3>
+                    <p class="text-secondary text-sm"><strong>Value at Risk (VaR)</strong> estimates the maximum
+                        potential loss over a specific time frame at a given confidence level (e.g., 95%).</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: FAQs -->
+        <section id="faq" class="mb-20 scroll-mt-24">
+            <h2 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Frequently Asked Questions</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+                <!-- Category: General & Account -->
+                <div class="space-y-4">
+                    <h3 class="text-xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">General & Account</h3>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>How do you handle privacy?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">We prioritize security. Plaid handles
+                            all bank credentials securely. We only access read-only transaction data to generate your
+                            analytics.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Is there a mobile app?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Our dashboard is fully responsive. You
+                            can access it on any smartphone or tablet via your browser for a seamless experience.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Does SHM Ventures offer trading?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">No, we are purely an analytics
+                            platform. We help you analyze your portfolio, but trades must be executed through your
+                            brokerage.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>How do I switch between Light and Dark mode?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Use the toggle switch in the top-right
+                            corner of the header. Your preference is saved automatically.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Can I export my reports?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Currently, reports are viewed on the
+                            dashboard. PDF export functionality is on our roadmap for Q3.</p>
+                    </details>
+                </div>
+
+                <!-- Category: Data & Uploads -->
+                <div class="space-y-4">
+                    <h3 class="text-xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">Data & Uploads</h3>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Can I upload data and use Plaid together?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Yes! Our <strong>Data Merger</strong>
+                            combines them. Manual uploads generally override Plaid data for the same ticker, giving you
+                            full control.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>What if my brokerage isn't supported by Plaid?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">You can use the <strong>Manual CSV
+                                Upload</strong> feature. See the "Quick Links" section above for the required format.
+                        </p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>How do I delete my data?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">You can reset your portfolio in the
+                            Settings menu (coming soon). For now, uploading an empty CSV file will clear your manual
+                            data.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Do I need to clean my CSV file?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">We support <strong>Regex
+                                Mapping</strong>, so minor header variations (e.g., "Avg Cost" vs "avg_cost") are
+                            handled automatically. However, ensure special characters are removed.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Does Plaid access expire?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Access tokens may expire periodically
+                            for security. If your data stops syncing, simply click "Connect Account" again to
+                            re-authenticate.</p>
+                    </details>
+                </div>
+
+                <!-- Category: Portfolio Analytics -->
+                <div class="space-y-4">
+                    <h3 class="text-xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">Portfolio Analytics</h3>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Why is my XIRR showing 0%?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">XIRR requires both positive (Buy) and
+                            negative (Sell/Current Value) flows. If you only have Buys without a current valuation, or
+                            missing Cost Basis, it may return 0.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>What accounting method is used for PnL?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Our Advanced Transaction Analyzer
+                            calculates PnL using both <strong>FIFO (First-In-First-Out)</strong> and <strong>LIFO
+                                (Last-In-First-Out)</strong>. You can view both in the detailed report.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>How often are stock prices updated?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Prices are fetched in real-time (or
+                            15-min delay depending on the exchange) via our data partners like Polygon.io and Alpha
+                            Vantage.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>What is Smart Enrichment?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">It's our background process that fills
+                            gaps. If your data misses "Sector" or "Industry", we fetch it automatically using the ticker
+                            symbol.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Why is my Total Return different from my broker's?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Brokers often use "Simple Return". We
+                            provide "Time-Weighted Return" (TWR) and XIRR, which are more accurate measures of your
+                            actual investment performance over time.</p>
+                    </details>
+                </div>
+
+                <!-- Category: Technical & Risk -->
+                <div class="space-y-4">
+                    <h3 class="text-xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">Technical & Risk</h3>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>What is Value at Risk (VaR)?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">VaR estimates the maximum loss you
+                            might expect over a given period (e.g., 1 day) with 95% confidence. It helps you quantify
+                            downside risk.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Can I customize the charts?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Yes, our Technical Analysis charts
+                            powered by TradingView allow you to add indicators like RSI, MACD, and Bollinger Bands.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>What is the Sharpe Ratio?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">It measures risk-adjusted return. A
+                            higher Sharpe Ratio (typically > 1.0) means you are getting better returns for the amount of
+                            risk taken.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Do you support Options charts?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">We currently visualize payoff diagrams
+                            for basic option strategies. Comprehensive Greeks and volatility surfaces are in
+                            development.</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>What does "Beta" mean?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Beta measures volatility relative to
+                            the market. Beta > 1 means your portfolio is more volatile than the S&P 500; Beta < 1 means
+                                it is less volatile.</p>
+                    </details>
+                </div>
+            </div>
+
+            <!-- Troubleshooting -->
+            <div class="mt-8">
+                <h3 class="text-xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">Troubleshooting</h3>
+                <div class="space-y-4">
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Why are some charts empty?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">This usually happens if we cannot fetch
+                            data for a specific ticker symbol. Check your CSV for typos (e.g., "APPL" vs "AAPL").</p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>My CSV upload failed. What do I do?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">Ensure your file is a valid
+                            <code>.csv</code> (not Excel .xlsx) and matches the schema shown in "Quick Links". Try
+                            reducing the file size if it's very large.
+                        </p>
+                    </details>
+
+                    <details
+                        class="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                        <summary
+                            class="flex justify-between items-center font-medium cursor-pointer list-none text-primary">
+                            <span>Found a bug or have a feature request?</span>
+                            <span class="transition group-open:rotate-180"><svg fill="none" class="w-6 h-6"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg></span>
+                        </summary>
+                        <p class="text-secondary mt-3 group-open:animate-fadeIn">We'd love to hear from you! Please
+                            contact our support team via the link in the footer.</p>
+                    </details>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto">
+        <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div class="col-span-1 md:col-span-1">
+                    <div class="flex items-center mb-4">
+                        <div
+                            class="w-8 h-8 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-2">
+                            <span class="text-white font-bold">SV</span>
+                        </div>
+                        <span class="text-xl font-bold text-gray-900 dark:text-white">SHM Ventures</span>
+                    </div>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm">
+                        Advanced portfolio analytics and risk management for modern investors.
+                    </p>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Platform</h3>
+                    <ul class="space-y-3">
+                        <li><a href="landing.html"
+                                class="text-base text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Home</a>
+                        </li>
+                        <li><a href="index.html"
+                                class="text-base text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Dashboard</a>
+                        </li>
+                        <li><a href="guide.html"
+                                class="text-base text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Guide</a>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Resources</h3>
+                    <ul class="space-y-3">
+                        <li><a href="#quick-links"
+                                class="text-base text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Documentation</a>
+                        </li>
+                        <li><a href="#faq"
+                                class="text-base text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">FAQs</a>
+                        </li>
+                        <li><a href="#brokerage"
+                                class="text-base text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Brokerage
+                                Support</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div
+                class="mt-8 border-t border-gray-200 dark:border-gray-700 pt-8 flex flex-col md:flex-row justify-between items-center">
+                <p class="text-base text-gray-400 text-center md:text-left">
+                    &copy; 2025 SHM Ventures. All rights reserved.
+                </p>
+                <div class="mt-4 md:mt-0 flex space-x-6">
+                    <a href="#" class="text-sm text-gray-400 hover:text-gray-500">Privacy Policy</a>
+                    <a href="#" class="text-sm text-gray-400 hover:text-gray-500">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Theme Toggle Script -->
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeToggleMobile = document.getElementById('themeToggleMobile');
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const mobileMenu = document.getElementById('mobileMenu');
+        const html = document.documentElement;
+
+        // Auth Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const authButtons = document.getElementById('authButtons');
+            const userProfile = document.getElementById('userProfile');
+            const userNameDisplay = document.getElementById('userNameDisplay');
+
+            const currentUser = localStorage.getItem('currentUser');
+
+            if (currentUser) {
+                try {
+                    const user = JSON.parse(currentUser);
+                    // Desktop
+                    if (authButtons) authButtons.classList.add('hidden');
+                    if (userProfile) userProfile.classList.remove('hidden');
+                    if (userNameDisplay) userNameDisplay.textContent = user.username || 'User';
+
+                    // Mobile
+                    const mobileAuthButtons = document.getElementById('mobileAuthButtons');
+                    const mobileUserProfile = document.getElementById('mobileUserProfile');
+                    const mobileUserNameDisplay = document.getElementById('mobileUserNameDisplay');
+
+                    if (mobileAuthButtons) mobileAuthButtons.classList.add('hidden');
+                    if (mobileUserProfile) mobileUserProfile.classList.remove('hidden');
+                    if (mobileUserNameDisplay) mobileUserNameDisplay.textContent = user.username || 'User';
+
+                } catch (e) {
+                    console.error('Error parsing user', e);
+                    localStorage.removeItem('currentUser');
+                }
+            } else {
+                // Desktop
+                if (authButtons) authButtons.classList.remove('hidden');
+                if (userProfile) userProfile.classList.add('hidden');
+
+                // Mobile
+                const mobileAuthButtons = document.getElementById('mobileAuthButtons');
+                const mobileUserProfile = document.getElementById('mobileUserProfile');
+
+                if (mobileAuthButtons) mobileAuthButtons.classList.remove('hidden');
+                if (mobileUserProfile) mobileUserProfile.classList.add('hidden');
+            }
+        });
+
+        function logout() {
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('appState');
+            window.location.reload();
+        }
+
+        // Mobile Menu Toggle
+        if (mobileMenuBtn && mobileMenu) {
+            mobileMenuBtn.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+            });
+        }
+
+        // Helper to set theme
+        function setTheme(isDark) {
+            if (isDark) {
+                html.classList.add('dark');
+                html.setAttribute('data-theme', 'dark');
+                if (themeToggle) themeToggle.checked = true;
+                if (themeToggleMobile) themeToggleMobile.checked = true;
+                localStorage.setItem('theme', 'dark');
+            } else {
+                html.classList.remove('dark');
+                html.setAttribute('data-theme', 'light');
+                if (themeToggle) themeToggle.checked = false;
+                if (themeToggleMobile) themeToggleMobile.checked = false;
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        // Initial Theme Check
+        if (localStorage.getItem('theme') === 'dark' ||
+            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            setTheme(true);
+        } else {
+            setTheme(false);
+        }
+
+        // Toggle Listeners
+        if (themeToggle) {
+            themeToggle.addEventListener('change', function () {
+                setTheme(this.checked);
+            });
+        }
+        if (themeToggleMobile) {
+            themeToggleMobile.addEventListener('change', function () {
+                setTheme(this.checked);
+            });
+        }
+    </script>
+</body>
+
+</html>

@@ -18,29 +18,10 @@ function hasPexelsKey() {
 }
 
 // Pexels API functions
-async function fetchPexelsImage(query, size = 'medium') {
-    try {
-        // Use backend proxy to avoid CORS issues and expose API key
-        // Note: The backend endpoint /api/pexels-image defaults to 'medium' size
-        const url = `${API_BASE}/api/pexels-image?query=${encodeURIComponent(query)}`;
-
-        const response = await fetch(url);
-
-        if (!response.ok) {
-            // Silently fail for 404s (image not found)
-            if (response.status !== 404) {
-                console.warn('Pexels Proxy responded with non-OK status:', response.status);
-            }
-            return '';
-        }
-
-        const data = await response.json();
-        return data.image || '';
-
-    } catch (error) {
-        console.error('Error fetching Pexels image:', error);
-        return '';
-    }
+function fetchPexelsImage(query) {
+    // Return the backend proxy URL directly
+    // The browser will handle the redirect to the actual image
+    return `${API_BASE}/api/pexels-image?query=${encodeURIComponent(query)}`;
 }
 
 // Helper function to decode HTML entities
@@ -66,33 +47,25 @@ async function loadImages() {
         { id: 'aboutImg', query: 'professional trading desk' }
     ];
 
-    const imagePromises = imageElements.map(async ({ id, query }) => {
+    imageElements.forEach(({ id, query }) => {
         try {
             const element = document.getElementById(id);
             if (element) {
-                const imageUrl = await fetchPexelsImage(query);
-                if (imageUrl) {
-                    element.src = imageUrl;
-                    element.style.opacity = '0';
-                    element.onload = () => {
-                        element.style.transition = 'opacity 0.5s ease';
-                        element.style.opacity = '1';
-                    };
-                    element.onerror = () => {
-                        console.debug(`Image failed to load for ${id}`);
-                    };
-                }
+                const imageUrl = fetchPexelsImage(query);
+                element.src = imageUrl;
+                element.style.opacity = '0';
+                element.onload = () => {
+                    element.style.transition = 'opacity 0.5s ease';
+                    element.style.opacity = '1';
+                };
+                element.onerror = () => {
+                    console.debug(`Image failed to load for ${id}`);
+                };
             }
         } catch (error) {
-            console.debug(`Failed to load image for ${id}:`, error);
+            console.debug(`Failed to set image for ${id}:`, error);
         }
     });
-
-    try {
-        await Promise.all(imagePromises);
-    } catch (error) {
-        console.debug('Some images failed to load:', error);
-    }
 }
 
 // Intersection Observer for animations
