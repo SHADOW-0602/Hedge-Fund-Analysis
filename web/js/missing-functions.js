@@ -381,14 +381,21 @@ function viewLoadedData(preferredType = null) {
         filteredSources = filteredSources.filter(ds => ds.source && ds.source.toLowerCase() === filter.source.toLowerCase());
     }
     if (filter.connection_id) {
-        // Only filter by connection_id if the source data has it
-        filteredSources = filteredSources.filter(ds => {
-            // Check first item in data if available to match connection_id
-            const firstItem = ds.data && ds.data.length > 0 ? ds.data[0] : null;
-            // If data is empty but source matches, keep it (it's our placeholder)
-            if (!firstItem && ds.source === 'plaid') return true;
-            return firstItem && firstItem.connection_id === filter.connection_id;
-        });
+        // Filter the CONTENTS of the data sources, not just the source container
+        filteredSources = filteredSources.map(ds => {
+            // If placeholder with no data, keep it if it's Plaid (to show "No Data" for this specific connection)
+            if ((!ds.data || ds.data.length === 0) && ds.source === 'plaid') {
+                return ds;
+            }
+
+            // If data exists, filter the array items
+            if (ds.data && ds.data.length > 0) {
+                const filteredData = ds.data.filter(item => item.connection_id === filter.connection_id);
+                return { ...ds, data: filteredData };
+            }
+
+            return { ...ds, data: [] };
+        }).filter(ds => ds.data.length > 0 || (ds.source === 'plaid' && filter.source === 'plaid'));
     }
 
     if (filteredSources.length === 0) {
@@ -451,9 +458,28 @@ function viewLoadedData(preferredType = null) {
         if (selector) selector.value = initialIndex;
     }
 
+    // Explicitly hide analysis container for "Raw Data Only" view
+    const analysisContainer = document.getElementById('analysisContainer');
+    const portfolioAnalysis = document.getElementById('portfolioAnalysis');
+    const transactionAnalysis = document.getElementById('transactionAnalysis');
+
+    if (analysisContainer) analysisContainer.classList.add('hidden');
+    // Keeping defaultUploadSection visible so users can still see controls
+    // if (defaultUpload) defaultUpload.classList.add('hidden'); 
+
+    if (portfolioAnalysis) portfolioAnalysis.classList.add('hidden');
+    if (transactionAnalysis) transactionAnalysis.classList.add('hidden');
+
     // Show the preview section
     dataPreview.classList.remove('hidden');
-    dataPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Scroll to show the upload section at the top, ensuring data is visible below it
+    const defaultUploadSection = document.getElementById('defaultUploadSection');
+    if (defaultUploadSection) {
+        defaultUploadSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        dataPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 }
 
 

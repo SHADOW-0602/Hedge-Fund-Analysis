@@ -59,14 +59,14 @@ class AnalyticsCore {
                 </button>
             </div>
             
-            <div class="bg-white rounded-lg shadow p-12 text-center">
+            <div class="p-12 text-center">
                 <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-                <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
-                <p class="text-gray-600 mb-4">Analyzing ${transactionCount} transactions for ${analysisName.toLowerCase()}...</p>
-                <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Processing Your Data</h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">Analyzing ${transactionCount} transactions for ${analysisName.toLowerCase()}...</p>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4 max-w-md mx-auto">
                     <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
                 </div>
-                <p class="text-sm text-gray-500">This may take a few moments</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">This may take a few moments</p>
             </div>
         `;
     }
@@ -86,14 +86,14 @@ class AnalyticsCore {
                 </button>
             </div>
             
-            <div class="bg-white rounded-lg shadow p-12 text-center">
+            <div class="p-12 text-center">
                 <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-                <h3 class="text-xl font-semibold text-gray-900 mb-2">Processing Your Data</h3>
-                <p class="text-gray-600 mb-4">Analyzing ${portfolioCount} positions for ${analysisName.toLowerCase()}...</p>
-                <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Processing Your Data</h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">Analyzing ${portfolioCount} positions for ${analysisName.toLowerCase()}...</p>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4 max-w-md mx-auto">
                     <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
                 </div>
-                <p class="text-sm text-gray-500">This may take a few moments</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">This may take a few moments</p>
             </div>
         `;
     }

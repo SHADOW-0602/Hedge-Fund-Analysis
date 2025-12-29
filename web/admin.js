@@ -68,7 +68,7 @@ function displayUsers(users) {
     noUsersMessage.style.display = 'none';
 
     tbody.innerHTML = users.map(user => `
-        <tr class="hover:bg-gray-50">
+        <tr>
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                     <div class="w-8 h-8 bg-${user.role === 'admin' ? 'red' : 'blue'}-100 rounded-full flex items-center justify-center mr-3">

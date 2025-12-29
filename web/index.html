@@ -42,7 +42,7 @@
 <body class="gradient-bg min-h-full">
     <div class="min-h-screen flex flex-col">
         <!-- Header -->
-        <header class="border-b-4 border-indigo-600">
+        <header class="border-b-4 border-indigo-600 relative z-50">
             <div class="w-full px-4 sm:px-6 lg:px-8">
                 <div class="flex flex-row items-center justify-between py-3 sm:py-6">
                     <div class="flex items-center">
@@ -59,6 +59,131 @@
 
                     </div>
                     <div class="hidden md:flex items-center justify-end space-x-2 sm:space-x-4">
+                        <!-- Analysis Dropdown -->
+                        <div class="group ml-1 mr-2">
+                            <button
+                                class="flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white font-medium transition-colors py-2">
+                                <span>Analysis</span>
+                                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+
+                            <!-- Mega Menu -->
+                            <div
+                                class="absolute right-0 mt-0 w-max max-w-[90vw] bg-white dark:bg-gray-800 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-gray-200 dark:border-gray-700 top-full p-6 bg-opacity-95 backdrop-blur-sm before:content-[''] before:absolute before:-top-8 before:left-0 before:w-full before:h-8 before:bg-transparent">
+                                <div class="flex flex-wrap gap-8">
+                                    <!-- Portfolio Analysis -->
+                                    <div class="w-56">
+                                        <div
+                                            class="flex items-center mb-4 text-indigo-600 dark:text-indigo-400 border-b border-gray-200 dark:border-gray-700 pb-2">
+                                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
+                                            </svg>
+                                            <h3 class="font-bold text-sm uppercase tracking-wider">Portfolio</h3>
+                                        </div>
+                                        <div class="space-y-1 flex flex-col">
+                                            <button data-analysis="risk-metrics"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Risk
+                                                Metrics</button>
+                                            <button data-analysis="options-strategies"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Options
+                                                Strategies</button>
+                                            <button data-analysis="performance-attribution"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Performance
+                                                Attr.</button>
+                                            <button data-analysis="monte-carlo"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Monte
+                                                Carlo</button>
+                                            <button data-analysis="portfolio-optimization"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Optimization</button>
+                                            <button data-analysis="correlation-analysis"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Correlation</button>
+                                            <button data-analysis="sector-allocation"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Sector
+                                                Allocation</button>
+                                            <button data-analysis="statistical-analysis"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Statistical
+                                                Analysis</button>
+                                            <button data-analysis="technical-indicators"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Technical
+                                                Indicators</button>
+                                            <button data-analysis="strategy-backtesting"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Backtesting</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Transaction Analysis -->
+                                    <div class="w-56">
+                                        <div
+                                            class="flex items-center mb-4 text-purple-600 dark:text-purple-400 border-b border-gray-200 dark:border-gray-700 pb-2">
+                                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z">
+                                                </path>
+                                            </svg>
+                                            <h3 class="font-bold text-sm uppercase tracking-wider">Transactions</h3>
+                                        </div>
+                                        <div class="space-y-1 flex flex-col">
+                                            <button data-analysis="pnl-attribution"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">P&L
+                                                Attribution</button>
+                                            <button data-analysis="trade-performance"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Trade
+                                                Performance</button>
+                                            <button data-analysis="cost-analysis"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Cost
+                                                Analysis</button>
+                                            <button data-analysis="turnover-analysis"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Turnover
+                                                Analysis</button>
+                                            <button data-analysis="tax-analysis"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Tax
+                                                Analysis</button>
+                                            <button data-analysis="cash-flow"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Cash
+                                                Flow</button>
+                                            <button data-analysis="accounting-analysis"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">FIFO/LIFO
+                                                Accounting</button>
+                                            <button data-analysis="trade-timing"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Trade
+                                                Timing</button>
+                                            <button data-analysis="drawdown-analysis"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Drawdown
+                                                Analysis</button>
+                                            <button data-analysis="return-attribution"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Return
+                                                Attribution</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Other Analysis -->
+                                    <div class="w-56">
+                                        <div
+                                            class="flex items-center mb-4 text-green-600 dark:text-green-400 border-b border-gray-200 dark:border-gray-700 pb-2">
+                                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                            </svg>
+                                            <h3 class="font-bold text-sm uppercase tracking-wider">Advanced</h3>
+                                        </div>
+                                        <div class="space-y-1 flex flex-col">
+                                            <button data-analysis="xirr-analysis"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">XIRR
+                                                Analysis</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <a href="landing.html"
                             class="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white font-medium transition-colors mr-2">Home</a>
                         <a href="guide.html"
@@ -93,7 +218,7 @@
         <div class="flex-1 flex w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
             <!-- Left Sidebar -->
             <div id="sidebar"
-                class="hidden md:block w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mr-6 h-fit max-h-screen sticky top-4 overflow-y-auto">
+                class="hidden w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mr-6 h-fit max-h-screen sticky top-4 overflow-y-auto">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100">Analysis Menu</h3>
 
@@ -193,6 +318,8 @@
                         <div class="flex flex-col space-y-2">
                             <a href="landing.html"
                                 class="block w-full text-left px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-indigo-600 transition-colors">Home</a>
+                            <a href="guide.html"
+                                class="block w-full text-left px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-indigo-600 transition-colors">Guide</a>
                             <button onclick="showAdminPanel()" id="mobileAdminBtn"
                                 class="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm"
                                 style="display: none;">Admin Panel</button>

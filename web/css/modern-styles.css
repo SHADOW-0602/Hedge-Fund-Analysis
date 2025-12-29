@@ -266,6 +266,11 @@ table {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+[data-theme="dark"] table {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
 table th {
     background: #f8fafc;
     padding: 12px;
@@ -275,13 +280,28 @@ table th {
     border-bottom: 1px solid #e5e7eb;
 }
 
+[data-theme="dark"] table th {
+    background: #2d3748;
+    color: var(--text-primary);
+    border-bottom: 1px solid #4a5568;
+}
+
 table td {
     padding: 12px;
     border-bottom: 1px solid #f3f4f6;
 }
 
+[data-theme="dark"] table td {
+    border-bottom: 1px solid #4a5568;
+    color: var(--text-secondary);
+}
+
 table tr:hover {
     background: #f9fafb;
+}
+
+[data-theme="dark"] table tr:hover {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 /* Metrics Grid */

@@ -2,6 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
     'use strict';
 
     function injectChatbot() {
+        // Check if user is logged in
+        const currentUser = localStorage.getItem('currentUser');
+        if (!currentUser) return;
+
         if (document.getElementById('shm-chatbot-widget')) return;
 
         const widgetContainer = document.createElement('div');
