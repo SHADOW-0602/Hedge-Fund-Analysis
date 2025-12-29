@@ -2760,7 +2760,62 @@ class AnalyticsManager {
         const currentClassification = options?.classification || settings.classification || 'GICS';
 
         // Data Preparation
-        let data = result.allocation || [];
+        // Data Preparation
+        let data = [];
+        // Support both API response formats (result.analysis or result.allocation)
+        const rawSource = result.analysis || result.allocation;
+
+        if (rawSource && !Array.isArray(rawSource)) {
+            // Handle Dictionary Format (New API / Sector Mapper)
+            // Map UI level to API key
+            let levelKey = 'sectors';
+            if (currentLevel === 'Industry') levelKey = 'industries';
+            else if (currentLevel === 'Sub-industry') levelKey = 'industries'; // Fallback
+            else if (currentLevel === 'Country') levelKey = 'countries';
+
+            // Attempt to find data using diverse keys
+            let analysisData = rawSource[levelKey];
+            if (!analysisData) {
+                // Fallback for result.allocation format (comprehensive routes)
+                if (levelKey === 'sectors') analysisData = rawSource['sector_allocation'];
+                else if (levelKey === 'countries') analysisData = rawSource['geographic_allocation'];
+                else if (levelKey === 'industries') analysisData = rawSource['industry_allocation'];
+            }
+            analysisData = analysisData || {};
+
+            // Transform dictionary to array
+            data = Object.entries(analysisData).map(([name, stats]) => {
+                // Normalize portfolio share (handle 'percentage' 0-100 vs 'weight' 0-1)
+                // Use explicit checks and defaults to avoid NaN
+                let portShare = 0;
+                if (stats && stats.weight !== undefined && stats.weight !== null) {
+                    portShare = Number(stats.weight);
+                } else if (stats && stats.percentage !== undefined && stats.percentage !== null) {
+                    portShare = Number(stats.percentage) / 100;
+                }
+                if (isNaN(portShare)) portShare = 0;
+
+                // Get benchmark share
+                let benchShare = 0;
+                if (stats && stats.benchmark_weight !== undefined && stats.benchmark_weight !== null) {
+                    benchShare = Number(stats.benchmark_weight);
+                }
+                if (isNaN(benchShare)) benchShare = 0;
+
+                return {
+                    name: name || 'Unknown',
+                    portfolio: portShare,
+                    benchmark: benchShare,
+                    active: portShare - benchShare
+                };
+            });
+
+            // Sort by portfolio percentage descending
+            data.sort((a, b) => b.portfolio - a.portfolio);
+        } else {
+            // Legacy array format or empty
+            data = Array.isArray(rawSource) ? rawSource : [];
+        }
 
         // Apply Threshold
         let filteredData = [];
@@ -2982,8 +3037,18 @@ class AnalyticsManager {
                 legend: { position: 'right', fontFamily: 'Inter, sans-serif' },
                 tooltip: {
                     theme: isDark ? 'dark' : 'light',
+                    style: {
+                        fontSize: '12px',
+                        fontFamily: 'Inter, sans-serif'
+                    },
                     x: { show: true },
-                    y: { formatter: (val) => fmtPct(val) }
+                    y: {
+                        formatter: (val) => fmtPct(val),
+                        title: {
+                            formatter: (seriesName) => seriesName + ':'
+                        }
+                    },
+                    marker: { show: true }
                 }
             };
 
@@ -2997,10 +3062,13 @@ class AnalyticsManager {
 
             if (currentView === 'Treemap') {
                 // ApexCharts Treemap
-                const seriesData = filteredData.map(d => ({
-                    x: d.name,
-                    y: safeNum(d.portfolio)
-                }));
+                // Treemap requires POSITIVE values for area calculation. Filter out 0 or negative.
+                const seriesData = filteredData
+                    .map(d => ({
+                        x: d.name,
+                        y: safeNum(d.portfolio)
+                    }))
+                    .filter(item => item.y > 0);
 
                 apexOptions = {
                     ...commonOptions,

@@ -358,6 +358,10 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
             results = mapper.analyze_portfolio_sectors(portfolio_for_mapper)
             print(f"SectorMapper results: total_value={results.get('total_value')}, sectors={len(results.get('sectors', {}))}")
             
+            # Get Benchmark Weights
+            benchmark_weights = mapper.get_benchmark_weights(benchmark)
+            print(f"Loaded {len(benchmark_weights)} benchmark sectors for {benchmark}")
+
             # Convert SectorMapper results to expected format with NaN protection
             sector_allocation = {}
             for sector, data in results['sectors'].items():
@@ -366,8 +370,22 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                 if pd.isna(percentage) or np.isinf(percentage):
                     percentage = 0
                 
+                # Get benchmark weight for this sector (default 0)
+                # Normalize sector name first to match benchmark keys
+                normalized_sector = mapper.normalize_sector_name(sector)
+                bench_weight = benchmark_weights.get(normalized_sector, 0)
+                
+                # Debug logging for mismatches
+                if bench_weight == 0 and percentage > 0.5:
+                   # Try case-insensitive lookup as fallback
+                   for k, v in benchmark_weights.items():
+                       if k.upper() == normalized_sector.upper():
+                           bench_weight = v
+                           break
+                
                 sector_allocation[sector] = {
                     'weight': float(percentage) / 100,  # Convert percentage to decimal
+                    'benchmark_weight': float(bench_weight) / 100, # Benchmark is usually 0-100
                     'value': float(data.get('value', 0)),
                     'symbols': data.get('symbols', [])
                 }

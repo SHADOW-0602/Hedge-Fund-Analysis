@@ -8,7 +8,7 @@ class AnalyticsCore {
 
     // Generic API call handler
     async callAPI(endpoint, data, options = {}) {
-        const timeoutDuration = options.timeout || 60000; // Default 60 seconds
+        const timeoutDuration = options.timeout || 300000; // Default 300 seconds (5 minutes)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
 
