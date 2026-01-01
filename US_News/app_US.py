@@ -45,6 +45,29 @@ supabase: Client = create_client(
     os.getenv('SUPABASE_ANON_KEY')
 )
 
+# State Management for Schedules
+def get_last_fundamental_run():
+    """Get the timestamp of the last fundamental run from Supabase"""
+    try:
+        data = supabase.table('system_state').select('value').eq('key', 'last_fundamental_run').execute()
+        if data.data:
+            return data.data[0]['value']
+        return None
+    except Exception as e:
+        print(f"Error fetching last run state: {e}")
+        return None
+
+def set_last_fundamental_run():
+    """Update the timestamp of the last fundamental run in Supabase"""
+    try:
+        now_iso = datetime.now().isoformat()
+        # Upsert equivalent
+        data = supabase.table('system_state').upsert({'key': 'last_fundamental_run', 'value': now_iso}).execute()
+        print(f"Updated last fundamental run to {now_iso}")
+    except Exception as e:
+        print(f"Error updating last run state: {e}")
+
+
 # Groq AI uses standard Requests, no specific client needed here
 # Model: llama-3.3-70b-versatile
 
@@ -2613,24 +2636,4 @@ def get_quant_analysis(ticker):
 
 
 
-# State Management for Schedules
-def get_last_fundamental_run():
-    """Get the timestamp of the last fundamental run from Supabase"""
-    try:
-        data = supabase.table('system_state').select('value').eq('key', 'last_fundamental_run').execute()
-        if data.data:
-            return data.data[0]['value']
-        return None
-    except Exception as e:
-        print(f"Error fetching last run state: {e}")
-        return None
 
-def set_last_fundamental_run():
-    """Update the timestamp of the last fundamental run in Supabase"""
-    try:
-        now_iso = datetime.now().isoformat()
-        # Upsert equivalent
-        data = supabase.table('system_state').upsert({'key': 'last_fundamental_run', 'value': now_iso}).execute()
-        print(f"Updated last fundamental run to {now_iso}")
-    except Exception as e:
-        print(f"Error updating last run state: {e}")
