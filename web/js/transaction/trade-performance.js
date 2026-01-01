@@ -7,11 +7,11 @@ let currentTradeOptions = {
     type: 'All'
 };
 
-async function loadTradePerformance(transactions) {
+async function loadTradePerformance(transactions, options = {}) {
     console.log('[TRADE-PERFORMANCE] Loading with transactions:', transactions?.length);
 
     const container = document.getElementById('tradePerformance');
-    if (!container) {
+    if (!container && !options.background) {
         console.error('tradePerformance container not found');
         return;
     }
@@ -21,7 +21,9 @@ async function loadTradePerformance(transactions) {
     }
 
     if (!transactions || transactions.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for trade performance analysis</div>';
+        if (container && !options.background) {
+            container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for trade performance analysis</div>';
+        }
         return;
     }
 
@@ -29,7 +31,18 @@ async function loadTradePerformance(transactions) {
     window.currentTradeTransactions = transactions;
 
     // Initial load
-    await fetchTradeData();
+    // Initial load - check for saved settings first
+    try {
+        const savedSettings = localStorage.getItem('tradePerformanceSettings');
+        if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            currentTradeOptions = { ...currentTradeOptions, ...parsed };
+        }
+    } catch (e) {
+        console.error('Failed to load trade performance settings:', e);
+    }
+
+    await fetchTradeData(options);
 }
 
 function updateTradeOptions() {
@@ -40,18 +53,26 @@ function updateTradeOptions() {
         ranking: document.getElementById('tradeRanking')?.value || 'Best 5',
         type: document.getElementById('tradeType')?.value || 'All'
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('tradePerformanceSettings', JSON.stringify(currentTradeOptions));
+    } catch (e) {
+        console.error('Failed to save trade performance settings:', e);
+    }
 }
 
-async function fetchTradeData() {
+async function fetchTradeData(options = {}) {
     const container = document.getElementById('tradePerformance');
-    if (!container) return;
+    if (!container && !options.background) return;
 
     // Preserve settings state if they exist
     const settingsPanel = document.getElementById('tradeSettings');
     const settingsHidden = settingsPanel ? settingsPanel.classList.contains('hidden') : true;
 
-    // Show loading state with full UI
-    container.innerHTML = `
+    // Show loading state with full UI (only if not background)
+    if (container && !options.background) {
+        container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-900">Trade Performance</h2>
             <div class="flex items-center space-x-2">
@@ -131,12 +152,13 @@ async function fetchTradeData() {
             <p class="text-sm text-gray-500">This may take a few moments</p>
         </div>
     `;
+    }
 
     try {
         console.log('[TRADE-PERFORMANCE] Making API call with options:', currentTradeOptions);
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), 300000);
 
         const response = await fetch(`${API_BASE}/api/trade-performance`, {
             method: 'POST',
@@ -156,13 +178,22 @@ async function fetchTradeData() {
         console.log('[TRADE-PERFORMANCE] API response:', data);
 
         if (data.success && data.trade_performance) {
-            displayResults(data.trade_performance);
+            if (!options.background) {
+                displayResults(data.trade_performance);
+            } else {
+                console.log('[TRADE-PERFORMANCE] Background load complete');
+            }
         } else {
-            showError(data.error || 'No valid trade data found');
+            console.error('[TRADE-PERFORMANCE] Analysis failed:', data);
+            if (!options.background) {
+                showError(data.error || 'No valid trade data found');
+            }
         }
     } catch (error) {
         console.error('[TRADE-PERFORMANCE] Error:', error);
-        showError(error.name === 'AbortError' ? 'Request timeout' : error.message);
+        if (!options.background) {
+            showError(error.name === 'AbortError' ? 'Request timeout' : error.message);
+        }
     }
 }
 

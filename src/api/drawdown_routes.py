@@ -1,6 +1,7 @@
 from flask import request, jsonify
 from datetime import datetime
 from .route_utils import sanitize_for_json
+from utils.cache_manager import cache_manager
 
 def register_drawdown_routes(app, data_client, smart_cache=None):
     """Register drawdown analysis routes"""
@@ -16,6 +17,13 @@ def register_drawdown_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             transactions_data = data.get('transactions', [])
             options = data.get('options', {})
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('drawdown-analysis', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
+
             print(f"[DEBUG] Received {len(transactions_data)} transactions, options: {options}")
             
             if not transactions_data:
@@ -61,10 +69,13 @@ def register_drawdown_routes(app, data_client, smart_cache=None):
             sanitized_result = sanitize_for_json(drawdown_result)
             print(f"[DEBUG] Returning sanitized result with keys: {list(sanitized_result.keys()) if sanitized_result else 'None'}")
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'drawdown_analysis': sanitized_result
-            })
+            }
+            cache_manager.set(cache_key, response_data)
+
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"Drawdown analysis error: {e}")
@@ -78,6 +89,12 @@ def register_drawdown_routes(app, data_client, smart_cache=None):
             
             data = request.get_json()
             transactions_data = data.get('transactions', [])
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('portfolio-drawdown', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
@@ -124,10 +141,13 @@ def register_drawdown_routes(app, data_client, smart_cache=None):
                 'frequency': drawdown_result.get('frequency', 'Daily')
             }
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'portfolio_drawdown': sanitize_for_json(portfolio_drawdown)
-            })
+            }
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"Portfolio drawdown error: {e}")

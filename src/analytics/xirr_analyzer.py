@@ -261,16 +261,42 @@ class DetailedXIRRAnalyzer:
             
         # Only include significant cash flows
         significant_flows = [(d, cf) for d, cf in cash_flows if abs(cf) > 0.01]
+        
+        # Edge Case 1: Terminal value was 0 (e.g., price missing or bankruptcy)
+        # If we had input flows but they got filtered, or strictly negative flows
         if len(significant_flows) < 2:
+            if len(cash_flows) >= 2:
+                # We had flows, but one was likely 0 (terminal). 
+                # If sum is negative, it's a 100% loss.
+                total = sum(cf for _, cf in cash_flows)
+                if total < 0 and cash_flows[0][1] < 0:
+                    return -1.0 # -100% return
             return 0.0
             
         # Sort by date
         significant_flows.sort(key=lambda x: x[0])
         
+        start_date = significant_flows[0][0]
+        end_date = significant_flows[-1][0]
+        
+        # Edge Case 2: Intraday/Same Day (Duration ~ 0)
+        # Standard XIRR fails here (infinite). Return Simple Return.
+        days_diff = (end_date - start_date).days
+        if days_diff < 1:
+            invested = sum(cf for _, cf in significant_flows if cf < 0)
+            if abs(invested) > 0.01:
+                total_profit = sum(cf for _, cf in significant_flows)
+                return total_profit / abs(invested)
+            return 0.0
+        
         # Check signs
         signs = [1 if cf > 0 else -1 for _, cf in significant_flows]
         if len(set(signs)) == 1:
-            return 0.0
+            # All positive or all negative.
+            # Convert to simple return logic if possible, or return -1.0 if all negative
+            if signs[0] == -1:
+                return -1.0
+            return 0.0 # Infinite gain?
         
         # Try multiple starting rates
         starting_rates = [0.1, 0.01, 0.5, -0.5, 0.2, -0.2, 1.0, -0.9]
@@ -278,21 +304,22 @@ class DetailedXIRRAnalyzer:
         for start_rate in starting_rates:
             try:
                 result = newton(lambda r: xnpv(r, significant_flows), start_rate, maxiter=1000, tol=1e-6)
-                if -0.99 <= result <= 100:
+                if -0.999 <= result <= 10000: # Allow larger range
                     return float(result)
             except Exception:
                 continue
                 
         # Fallback approximation
         try:
-            current_value = significant_flows[-1][1] if significant_flows[-1][1] > 0 else 0
-            total_invested = sum(cf for _, cf in significant_flows[:-1] if cf < 0)
+            current_value = sum(cf for _, cf in significant_flows if cf > 0)
+            total_invested = sum(cf for _, cf in significant_flows if cf < 0)
             if total_invested < 0:
-                end_date = significant_flows[-1][0]
-                start_date = significant_flows[0][0]
                 total_return = (current_value + total_invested) / abs(total_invested)
-                time_period = (end_date - start_date).days / 365.25
-                result = (total_return ** (1 / time_period)) - 1 if time_period > 0 else 0
+                time_period = days_diff / 365.25
+                if time_period < 0.01: time_period = 0.01 # floor period
+                
+                # compound annual growth rate
+                result = ((1 + total_return) ** (1 / time_period)) - 1
                 return float(result) if np.isfinite(result) else 0.0
         except:
             pass

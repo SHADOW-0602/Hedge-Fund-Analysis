@@ -381,6 +381,8 @@ function showAnalysisPreview(type) {
                 }
             }
             break;
+        case 'return':
+            const returnContainer = document.getElementById('returnResults');
             if (returnContainer) {
                 returnContainer.id = 'returnAttribution';
                 returnContainer.innerHTML = '';

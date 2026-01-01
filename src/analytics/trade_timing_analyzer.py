@@ -17,6 +17,10 @@ class TradeTimingAnalyzer:
         # Convert transactions to DataFrame
         df = self._transactions_to_df(transactions)
         
+        # Ensure date column is datetime objects, handling the case where _filter_by_period skips conversion
+        if not df.empty and 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
+        
         # Filter by period
         df = self._filter_by_period(df, period)
         
@@ -42,15 +46,25 @@ class TradeTimingAnalyzer:
         summary = self._calculate_summary(df)
         
         # Safe date range for parameters
+        # Safe date range for parameters
         try:
-            start_date = df['date'].min()
-            end_date = df['date'].max()
-            if pd.notna(start_date) and pd.notna(end_date):
-                date_range_str = f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+            if not df.empty and 'date' in df.columns:
+                start_date = df['date'].min()
+                end_date = df['date'].max()
+                
+                # Handle NaT explicitly
+                start_str = start_date.strftime('%Y-%m-%d') if pd.notna(start_date) else "?"
+                end_str = end_date.strftime('%Y-%m-%d') if pd.notna(end_date) else "?"
+                
+                if start_str != "?" and end_str != "?":
+                    date_range_str = f"{start_str} to {end_str}"
+                else:
+                    date_range_str = "N/A"
             else:
                 date_range_str = "N/A"
-        except:
-            date_range_str = "N/A"
+        except Exception as e:
+            print(f"Error calculating date range: {e}")
+            date_range_str = "Error"
         
         return {
             'time_bucket_performance': time_bucket_performance,

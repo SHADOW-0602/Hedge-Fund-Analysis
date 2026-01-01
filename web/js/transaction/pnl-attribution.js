@@ -7,11 +7,11 @@ let currentPnlOptions = {
     tax_impact: 'Pre-tax'
 };
 
-async function loadPnlAttribution(transactions) {
+async function loadPnlAttribution(transactions, options = {}) {
     console.log('loadPnlAttribution called with:', transactions?.length || 0, 'transactions');
 
     const container = document.getElementById('pnlAttribution');
-    if (!container) {
+    if (!container && !options.background) {
         console.error('pnlAttribution container not found');
         return;
     }
@@ -24,7 +24,9 @@ async function loadPnlAttribution(transactions) {
 
     // Validate transactions
     if (!transactions || transactions.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for P&L attribution analysis</div>';
+        if (container && !options.background) {
+            container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for P&L attribution analysis</div>';
+        }
         return;
     }
 
@@ -32,7 +34,18 @@ async function loadPnlAttribution(transactions) {
     window.currentPnlTransactions = transactions;
 
     // Initial load
-    await fetchPnlAttribution(transactions);
+    // Initial load - check for saved settings first
+    try {
+        const savedSettings = localStorage.getItem('pnlAttributionSettings');
+        if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            currentPnlOptions = { ...currentPnlOptions, ...parsed };
+        }
+    } catch (e) {
+        console.error('Failed to load P&L settings:', e);
+    }
+
+    await fetchPnlAttribution(transactions, options);
 }
 
 function updatePnlOptions() {
@@ -43,18 +56,27 @@ function updatePnlOptions() {
         currency: document.getElementById('pnlCurrency')?.value || 'USD',
         tax_impact: document.getElementById('pnlTaxImpact')?.value || 'Pre-tax'
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('pnlAttributionSettings', JSON.stringify(currentPnlOptions));
+    } catch (e) {
+        console.error('Failed to save P&L settings:', e);
+    }
 }
 
-async function fetchPnlAttribution(transactions) {
+async function fetchPnlAttribution(transactions, options = {}) {
     const container = document.getElementById('pnlAttribution');
-    if (!container) return;
+    if (!container && !options.background) return;
 
     // Preserve settings state if they exist
     const settingsPanel = document.getElementById('pnlSettings');
     const settingsHidden = settingsPanel ? settingsPanel.classList.contains('hidden') : true;
 
-    // Show loading state with full UI
-    container.innerHTML = `
+    // Show loading state with full UI (only if not background)
+    // Show loading state with full UI (only if not background)
+    if (container && !options.background) {
+        container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-gray-900">P&L Attribution</h2>
             <div class="flex items-center space-x-2">
@@ -131,12 +153,13 @@ async function fetchPnlAttribution(transactions) {
             <p class="text-sm text-gray-500">This may take a few moments</p>
         </div>
     `;
+    }
 
     try {
         console.log('Making P&L Attribution API call with options:', currentPnlOptions);
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), 300000);
 
         const response = await fetch(`${API_BASE}/api/pnl-attribution`, {
             method: 'POST',
@@ -147,18 +170,27 @@ async function fetchPnlAttribution(transactions) {
 
         clearTimeout(timeoutId);
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status} `);
 
         const data = await response.json();
 
         if (data.success && data.pnl_attribution) {
-            displayPnlAttribution(data.pnl_attribution);
+            if (!options.background) {
+                displayPnlAttribution(data.pnl_attribution);
+            } else {
+                console.log('[P&L Attribution] Background load complete');
+            }
         } else {
-            showError(data.error || 'No valid transactions found');
+            console.error('P&L Attribution failed:', data);
+            if (!options.background) {
+                showError(data.error || 'No valid transactions found');
+            }
         }
     } catch (error) {
         console.error('P&L Attribution error:', error);
-        showError(error.name === 'AbortError' ? 'Request timeout' : error.message);
+        if (!options.background) {
+            showError(error.name === 'AbortError' ? 'Request timeout' : error.message);
+        }
     }
 }
 
@@ -187,7 +219,7 @@ function displayPnlAttribution(data) {
     }
 
     contentDiv.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        < div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" >
             <div class="analysis-card p-6">
                 <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Total P&L</h3>
                 <p class="text-3xl font-bold ${totalPnl >= 0 ? 'text-green-600' : 'text-red-600'}">
@@ -209,30 +241,31 @@ function displayPnlAttribution(data) {
                 </p>
                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Open positions</p>
             </div>
-        </div>
+        </div >
 
         ${breakdownHtml ? `
             <div class="analysis-card p-6 mb-6">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">${grouping}</h3>
                 <div class="space-y-2">${breakdownHtml}</div>
             </div>
-        ` : ''}
+        ` : ''
+        }
 
-        <div class="analysis-card p-6">
-            <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.period || 'ITD'}</span></div>
-                <div><span class="text-gray-600 dark:text-gray-400">View:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.view || 'Total'}</span></div>
-                <div><span class="text-gray-600 dark:text-gray-400">Grouping:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.grouping || 'By Symbol'}</span></div>
-                <div><span class="text-gray-600 dark:text-gray-400">Currency:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.currency || 'USD'}</span></div>
-            </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
-                <div><span class="text-gray-600 dark:text-gray-400">Tax Impact:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.tax_impact || 'Pre-tax'}</span></div>
-                <div><span class="text-gray-600 dark:text-gray-400">Transactions:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.transaction_count || 0}</span></div>
-                <div><span class="text-gray-600 dark:text-gray-400">Start Date:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.start_date || 'N/A'}</span></div>
-                <div><span class="text-gray-600 dark:text-gray-400">End Date:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.end_date || 'N/A'}</span></div>
-            </div>
+    <div class="analysis-card p-6">
+        <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.period || 'ITD'}</span></div>
+            <div><span class="text-gray-600 dark:text-gray-400">View:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.view || 'Total'}</span></div>
+            <div><span class="text-gray-600 dark:text-gray-400">Grouping:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.grouping || 'By Symbol'}</span></div>
+            <div><span class="text-gray-600 dark:text-gray-400">Currency:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.currency || 'USD'}</span></div>
         </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
+            <div><span class="text-gray-600 dark:text-gray-400">Tax Impact:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.tax_impact || 'Pre-tax'}</span></div>
+            <div><span class="text-gray-600 dark:text-gray-400">Transactions:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.transaction_count || 0}</span></div>
+            <div><span class="text-gray-600 dark:text-gray-400">Start Date:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.start_date || 'N/A'}</span></div>
+            <div><span class="text-gray-600 dark:text-gray-400">End Date:</span> <span class="font-medium text-gray-900 dark:text-white">${metadata.end_date || 'N/A'}</span></div>
+        </div>
+    </div>
     `;
 }
 
@@ -240,32 +273,85 @@ function showError(message) {
     const contentDiv = document.getElementById('pnlContent');
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div class="analysis-card p-8 text-center text-red-600">
+        < div class="analysis-card p-8 text-center text-red-600" >
                 <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p class="text-xl font-semibold mb-2">Analysis Error</p>
                 <p class="text-sm text-gray-600 dark:text-gray-400">${message}</p>
-            </div>
+            </div >
         `;
     }
 }
 
 function createSymbolBreakdown(bySymbol, currencySymbol) {
-    return Object.entries(bySymbol)
+    const sortedSymbols = Object.entries(bySymbol)
         .sort((a, b) => Math.abs(b[1].total_pnl || 0) - Math.abs(a[1].total_pnl || 0))
-        .filter(([, data]) => Math.abs(data.total_pnl || 0) > 0.001)
-        .map(([symbol, data]) => {
-            const pnl = data.total_pnl || 0;
-            return `
-                <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
-                    <span class="font-medium text-gray-900 dark:text-white">${symbol}</span>
-                    <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
-                        ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                </div>
-            `;
-        }).join('');
+        .filter(([, data]) => Math.abs(data.total_pnl || 0) > 0.001);
+
+    if (sortedSymbols.length === 0) return '<div class="text-center py-4 text-gray-500">No significant P&L data found.</div>';
+
+    return `
+        < div class="overflow-x-auto" >
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                        <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Symbol</th>
+                        <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Qty</th>
+                        <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Avg Cost</th>
+                        <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Price</th>
+                        <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Realized</th>
+                        <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Unrealized</th>
+                        <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total P&L</th>
+                        <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Return</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                    ${sortedSymbols.map(([symbol, data]) => {
+        const quantity = data.quantity || 0;
+        const costBasis = data.cost_basis || 0;
+        const currentPrice = data.current_price || 0;
+        const realized = data.realized_pnl || 0;
+        const unrealized = data.unrealized_pnl || 0;
+        const total = data.total_pnl || 0;
+
+        let returnPct = 0;
+        let returnDisplay = '-';
+        let returnColor = 'text-gray-500 dark:text-gray-400';
+
+        const investedAmount = Math.abs(quantity * costBasis);
+
+        if (investedAmount > 0) {
+            returnPct = (total / investedAmount) * 100;
+            returnDisplay = (returnPct > 0 ? '+' : '') + returnPct.toFixed(2) + '%';
+            returnColor = returnPct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+        } else if (quantity === 0 && Math.abs(total) > 0) {
+            returnDisplay = 'Closed';
+        }
+
+        // Formatting helpers
+        const fmtMoney = (val) => (val >= 0 ? '+' : '') + currencySymbol + Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtPrice = (val) => currencySymbol + val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        const pnlColor = (val) => val > 0 ? 'text-green-600 dark:text-green-400' : (val < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400');
+
+        return `
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">${symbol}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-right text-gray-600 dark:text-gray-400">${quantity.toLocaleString()}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-right text-gray-600 dark:text-gray-400">${fmtPrice(costBasis)}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-right text-gray-600 dark:text-gray-400">${fmtPrice(currentPrice)}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-right font-medium ${pnlColor(realized)}">${realized !== 0 ? fmtMoney(realized) : '-'}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-right font-medium ${pnlColor(unrealized)}">${unrealized !== 0 ? fmtMoney(unrealized) : '-'}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-right font-bold ${pnlColor(total)}">${fmtMoney(total)}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-right font-medium ${returnColor}">${returnDisplay}</td>
+                            </tr>
+                        `;
+    }).join('')}
+                </tbody>
+            </table>
+        </div >
+        `;
 }
 
 function createSectorBreakdown(bySector, currencySymbol) {
@@ -275,13 +361,13 @@ function createSectorBreakdown(bySector, currencySymbol) {
         .map(([sector, data]) => {
             const pnl = data.total_pnl || 0;
             return `
-                <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+        < div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700" >
                     <span class="font-medium text-gray-900 dark:text-white">${sector} <span class="text-sm text-gray-600 dark:text-gray-400">(${data.symbols?.length || 0} symbols)</span></span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                </div>
-            `;
+                </div >
+        `;
         }).join('');
 }
 
@@ -292,13 +378,13 @@ function createDateBreakdown(byDate, currencySymbol) {
         .map(([date, data]) => {
             const pnl = data.total_pnl || 0;
             return `
-                <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+        < div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700" >
                     <span class="font-medium text-gray-900 dark:text-white">${date}</span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                </div>
-            `;
+                </div >
+        `;
         }).join('');
 }
 
@@ -309,13 +395,13 @@ function createSizeBreakdown(bySize, currencySymbol) {
             const data = bySize[size];
             const pnl = data.total_pnl || 0;
             return `
-                <div class="flex justify-between items-center py-2 border-b border-card">
+        < div class="flex justify-between items-center py-2 border-b border-card" >
                     <span class="font-medium text-primary">${size} <span class="text-sm text-secondary">(${data.count || 0} positions)</span></span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                </div>
-            `;
+                </div >
+        `;
         }).join('');
 }
 

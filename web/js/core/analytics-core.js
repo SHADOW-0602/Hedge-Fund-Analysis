@@ -4,10 +4,27 @@ class AnalyticsCore {
         this.portfolioData = null;
         this.transactionData = null;
         this.apiBase = window.API_BASE || window.location.origin;
+        this.resultsCache = new Map(); // Cache for API results
+    }
+
+    // Clear cache when data changes
+    clearCache() {
+        console.log('[ANALYTICS-CORE] Clearing results cache');
+        this.resultsCache.clear();
     }
 
     // Generic API call handler
     async callAPI(endpoint, data, options = {}) {
+        // Generate cache key
+        const cacheOptions = { ...options };
+        const cacheKey = `${endpoint}_${JSON.stringify(cacheOptions)}`;
+
+        // Return cached result if available
+        if (this.resultsCache.has(cacheKey)) {
+            console.log(`[ANALYTICS-CORE] Returning cached result for ${endpoint}`);
+            return this.resultsCache.get(cacheKey);
+        }
+
         const timeoutDuration = options.timeout || 300000; // Default 300 seconds (5 minutes)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
@@ -31,6 +48,11 @@ class AnalyticsCore {
             clearTimeout(timeoutId);
             const result = await response.json();
             console.log(`API response from ${endpoint}:`, result);
+
+            if (result.success) {
+                this.resultsCache.set(cacheKey, result);
+            }
+
             return result;
         } catch (error) {
             clearTimeout(timeoutId);
@@ -314,7 +336,7 @@ class AnalyticsCore {
 
         // Show loading screen for portfolio analysis
         const container = document.getElementById(containerId) || document.getElementById('analysisContent');
-        if (container) {
+        if (container && !explicitSettings?.background) {
             container.classList.remove('hidden');
             this.showPortfolioLoadingScreen(container, endpoint, portfolioData.length);
         }
@@ -474,10 +496,15 @@ class AnalyticsCore {
                 }
             }
 
+            if (options.background) {
+                console.log(`[ANALYTICS-CORE] Background fetch complete for ${endpoint}. Skipping render.`);
+                return;
+            }
+
             displayFunction(result, options);
         } else {
             const container = document.getElementById('analysisContent');
-            if (container) {
+            if (container && !options.background) {
                 container.innerHTML = `
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-2xl font-bold text-gray-900">Analysis Error</h2>
@@ -515,7 +542,7 @@ class AnalyticsCore {
             console.log('[ANALYTICS-CORE] No transaction data available for', endpoint);
             const analysisName = this.getAnalysisDisplayName(endpoint);
             const container = document.getElementById('analysisContent');
-            if (container) {
+            if (container && !explicitSettings?.background) {
                 container.innerHTML = `
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">${analysisName}</h2>
@@ -529,7 +556,7 @@ class AnalyticsCore {
 
         // Show loading screen for transaction analysis
         const container = document.getElementById('analysisContent');
-        if (container) {
+        if (container && !explicitSettings?.background) {
             container.classList.remove('hidden');
             this.showTransactionLoadingScreen(container, endpoint, transactionData.length);
         }
@@ -567,10 +594,14 @@ class AnalyticsCore {
             console.log(`[ANALYTICS-CORE] ${endpoint} result:`, result);
 
             if (result.success) {
+                if (options.background) {
+                    console.log(`[ANALYTICS-CORE] Background fetch complete for ${endpoint}. Skipping render.`);
+                    return;
+                }
                 console.log(`[ANALYTICS-CORE] Calling displayFunction for ${endpoint}`);
                 displayFunction(result, options);
             } else {
-                if (container) {
+                if (container && !options.background) {
                     container.innerHTML = `
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="text-2xl font-bold text-gray-900">Analysis Error</h2>
@@ -601,11 +632,13 @@ class AnalyticsCore {
     setPortfolioData(data) {
         this.portfolioData = data;
         window.currentPortfolioData = data;
+        this.clearCache(); // Invalidate cache on new data
     }
 
     setTransactionData(data) {
         this.transactionData = data;
         window.currentTransactions = data;
+        this.clearCache(); // Invalidate cache on new data
     }
 
     // Show data source selection

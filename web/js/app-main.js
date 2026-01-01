@@ -475,31 +475,9 @@ async function saveTransactionsToSupabase(filename, data) {
 
 // loadCashFlowAnalysis removed - using dedicated cash-flow-analysis.js module
 
-async function loadFifoLifoAnalysis(transactions) {
-    document.getElementById('fifoLifoAnalysis').innerHTML = `
-        <div class="space-y-3">
-            <div class="flex justify-between"><span>FIFO Gains</span><span class="font-semibold">$0</span></div>
-            <div class="flex justify-between"><span>LIFO Gains</span><span class="font-semibold">$0</span></div>
-            <div class="flex justify-between"><span>Tax Advantage</span><span class="font-semibold">N/A</span></div>
-        </div>
-    `;
-}
+// Fifo/Lifo analysis legacy code removed - using dedicated accounting-analysis.js module
 
-async function loadTradeTimingAnalysis(transactions) {
-    const morningTrades = transactions.filter(t => {
-        const hour = new Date(t.date).getHours();
-        return hour >= 9 && hour <= 11;
-    }).length;
-    const afternoonTrades = transactions.length - morningTrades;
-
-    document.getElementById('tradeTimingAnalysis').innerHTML = `
-        <div class="space-y-3">
-            <div class="flex justify-between"><span>Morning Trades</span><span class="font-semibold">${morningTrades}</span></div>
-            <div class="flex justify-between"><span>Afternoon Trades</span><span class="font-semibold">${afternoonTrades}</span></div>
-            <div class="flex justify-between"><span>Optimal Timing</span><span class="font-semibold">${morningTrades === afternoonTrades ? 'Equal' : morningTrades > afternoonTrades ? 'Morning' : 'Afternoon'}</span></div>
-        </div>
-    `;
-}
+// Trade timing analysis legacy code removed - using dedicated trade-timing-analysis.js module
 
 // Old drawdown analysis function removed - using comprehensive version from drawdown-analysis.js
 

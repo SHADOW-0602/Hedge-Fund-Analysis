@@ -49,6 +49,19 @@ const DataMerger = {
 
     // Rebuild global window.currentX and window.portfolioData arrays
     rebuildGlobalData: function (type) {
+        // Debounce implementation
+        if (this._debounceTimers && this._debounceTimers[type]) {
+            clearTimeout(this._debounceTimers[type]);
+        }
+
+        if (!this._debounceTimers) this._debounceTimers = {};
+
+        this._debounceTimers[type] = setTimeout(() => {
+            this._executeRebuild(type);
+        }, 500); // 500ms debounce
+    },
+
+    _executeRebuild: function (type) {
         // Shared Regex Normalization Helper
         const normalizeItem = (item) => {
             const newItem = { ...item };

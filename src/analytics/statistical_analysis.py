@@ -163,10 +163,29 @@ class StatisticalAnalyzer:
             if returns.empty:
                 return {'error': 'Insufficient return data'}
             
+            # Align symbols with available data
+            valid_symbols = [s for s in symbols if s in returns.columns]
+            
+            if not valid_symbols:
+                return {'error': f'No valid data found for symbols: {symbols}. Market data source provided: {list(returns.columns)}'}
+            
+            # Warn if some symbols are missing
+            missing_symbols = set(symbols) - set(valid_symbols)
+            if missing_symbols:
+                print(f"[Statistical Analysis] Warning: Missing data for symbols: {missing_symbols}")
+
             # Portfolio returns if weights provided
             portfolio_returns = None
             if weights:
-                portfolio_returns = (returns[symbols] * pd.Series(weights)).sum(axis=1)
+                # Filter weights to valid symbols
+                valid_weights = {k: v for k, v in weights.items() if k in valid_symbols}
+                # Renormalize weights
+                total_w = sum(valid_weights.values())
+                if total_w > 0:
+                    valid_weights = {k: v/total_w for k, v in valid_weights.items()}
+                
+                if valid_weights:
+                    portfolio_returns = (returns[valid_symbols] * pd.Series(valid_weights)).sum(axis=1)
             
             # Benchmark returns
             benchmark_returns = returns[benchmark] if benchmark in returns.columns else None
@@ -177,11 +196,13 @@ class StatisticalAnalyzer:
                     'frequency': frequency,
                     'benchmark': f"{benchmark} ({self.benchmarks.get(benchmark, 'Custom')})",
                     'confidence_level': confidence_level,
-                    'data_points': len(returns)
+                    'data_points': len(returns),
+                    'symbols_analyzed': len(valid_symbols),
+                    'missing_symbols': list(missing_symbols)
                 },
-                'correlation_analysis': self._calculate_correlations(returns[symbols], confidence_level),
-                'risk_metrics': self._calculate_risk_metrics(returns[symbols], confidence_level, frequency),
-                'performance_metrics': self._calculate_performance_metrics(returns[symbols], benchmark_returns, confidence_level, frequency)
+                'correlation_analysis': self._calculate_correlations(returns[valid_symbols], confidence_level),
+                'risk_metrics': self._calculate_risk_metrics(returns[valid_symbols], confidence_level, frequency),
+                'performance_metrics': self._calculate_performance_metrics(returns[valid_symbols], benchmark_returns, confidence_level, frequency)
             }
             
             # Add portfolio-specific metrics if weights provided

@@ -7,11 +7,11 @@ let currentCashFlowOptions = {
     benchmark: 'Cash yield'
 };
 
-async function loadCashFlowAnalysis(transactions) {
+async function loadCashFlowAnalysis(transactions, options = {}) {
     console.log('loadCashFlowAnalysis called with:', transactions?.length || 0, 'transactions');
 
     const container = document.getElementById('cashFlowAnalysis');
-    if (!container) {
+    if (!container && !options.background) {
         console.error('Cash flow analysis container not found');
         return;
     }
@@ -24,26 +24,38 @@ async function loadCashFlowAnalysis(transactions) {
 
     // Validate transactions
     if (!transactions || transactions.length === 0) {
-        container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Cash Flow Analysis</h2>
-            </div>
-            <div class="text-center py-8 text-yellow-600">
-                <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <p class="text-lg font-medium">No transactions available</p>
-                <p class="text-sm text-gray-500 mt-2">Upload transaction data to view cash flow analysis</p>
-            </div>
-        `;
+        if (container && !options.background) {
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-primary">Cash Flow Analysis</h2>
+                </div>
+                <div class="text-center py-8 text-yellow-600">
+                    <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <p class="text-lg font-medium">No transactions available</p>
+                    <p class="text-sm text-secondary mt-2">Upload transaction data to view cash flow analysis</p>
+                </div>
+            `;
+        }
         return;
     }
 
     // Store transactions for refresh
     window.currentCashFlowTransactions = transactions;
 
-    // Initial load
-    await fetchCashFlowAnalysis(transactions);
+    // Initial load - check for saved settings first
+    try {
+        const savedSettings = localStorage.getItem('cashFlowSettings');
+        if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            currentCashFlowOptions = { ...currentCashFlowOptions, ...parsed };
+        }
+    } catch (e) {
+        console.error('Failed to load cash flow settings:', e);
+    }
+
+    await fetchCashFlowAnalysis(transactions, options);
 }
 
 function updateCashFlowOptions() {
@@ -54,6 +66,13 @@ function updateCashFlowOptions() {
         smoothing: document.getElementById('cashFlowSmoothing')?.value || 'None',
         benchmark: document.getElementById('cashFlowBenchmark')?.value || 'Cash yield'
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('cashFlowSettings', JSON.stringify(currentCashFlowOptions));
+    } catch (e) {
+        console.error('Failed to save cash flow settings:', e);
+    }
 
     // Trigger refresh
     if (window.currentCashFlowTransactions) {
@@ -68,18 +87,19 @@ function toggleCashFlowSettings() {
     }
 }
 
-async function fetchCashFlowAnalysis(transactions) {
+async function fetchCashFlowAnalysis(transactions, options = {}) {
     const container = document.getElementById('cashFlowAnalysis');
-    if (!container) return;
+    if (!container && !options.background) return;
 
     // Preserve settings state if they exist
     const settingsPanel = document.getElementById('cashFlowSettings');
     const settingsHidden = settingsPanel ? settingsPanel.classList.contains('hidden') : true;
 
-    // Show loading state with minimal UI
-    container.innerHTML = `
+    // Show loading state with minimal UI (only if not background)
+    if (container && !options.background) {
+        container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">Cash Flow Analysis</h2>
+            <h2 class="text-2xl font-bold text-primary">Cash Flow Analysis</h2>
             <div class="flex items-center space-x-2">
                 <button onclick="toggleCashFlowSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                     Settings
@@ -149,19 +169,18 @@ async function fetchCashFlowAnalysis(transactions) {
             <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
-            <p class="text-sm text-gray-500">This may take a few moments</p>
+            <p class="text-sm text-secondary">This may take a few moments</p>
         </div>
     `;
-
-    try {
+    } try {
         console.log('Making Cash Flow Analysis API call with options:', currentCashFlowOptions);
         console.log(`Sending ${transactions.length} transactions to backend`);
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
-            console.log('Request timeout after 15 seconds');
+            console.log('Request timeout after 300 seconds');
             controller.abort();
-        }, 15000);
+        }, 300000);
 
         const response = await fetch(`${API_BASE}/api/cash-flow-analysis`, {
             method: 'POST',
@@ -177,20 +196,29 @@ async function fetchCashFlowAnalysis(transactions) {
         const data = await response.json();
 
         if (data.success && data.cash_flow_analysis) {
-            displayCashFlowAnalysis(data.cash_flow_analysis);
-            // Enable refresh button after successful load
-            updateRefreshButton();
+            if (!options.background) {
+                displayCashFlowAnalysis(data.cash_flow_analysis);
+                // Enable refresh button after successful load
+                updateRefreshButton();
+            } else {
+                console.log('[Cash Flow Analysis] Background load complete');
+            }
         } else {
-            showError(data.error || 'No valid cash flow analysis data returned');
+            console.error('[Cash Flow Analysis] Analysis failed:', data);
+            if (!options.background) {
+                showError(data.error || 'No valid cash flow analysis data returned');
+            }
         }
     } catch (error) {
         console.error('Cash Flow Analysis error:', error);
-        if (error.name === 'AbortError') {
-            showError('Request timed out after 15 seconds. Please try again.');
-        } else if (error.message.includes('Failed to fetch')) {
-            showError('Network error. Please check your connection and try again.');
-        } else {
-            showError(`Analysis failed: ${error.message}`);
+        if (!options.background) {
+            if (error.name === 'AbortError') {
+                showError('Request timed out after 15 seconds. Please try again.');
+            } else if (error.message.includes('Failed to fetch')) {
+                showError('Network error. Please check your connection and try again.');
+            } else {
+                showError(`Analysis failed: ${error.message}`);
+            }
         }
     }
 }
@@ -445,4 +473,5 @@ window.updateCashFlowAnalysis = () => {
 window.refreshCashFlowAnalysis = () => {
     if (window.currentCashFlowTransactions) fetchCashFlowAnalysis(window.currentCashFlowTransactions);
 };
+window.displayCashFlowAnalysis = displayCashFlowAnalysis;
 window.renderCashFlowChart = renderCashFlowChart;

@@ -2,7 +2,8 @@ import sys
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variab
+# les
 # Trigger Reload
 load_dotenv()
 
@@ -186,6 +187,17 @@ def application(environ, start_response):
     return app(environ, start_response)
 
 if __name__ == '__main__':
+    # Flush cache on startup
+    try:
+        from utils.cache_manager import cache_manager
+        print("[STARTUP] Clearing analysis cache...")
+        if cache_manager.clear_all():
+             print("[STARTUP] Analysis cache cleared successfully")
+        else:
+             print("[STARTUP] Warning: Failed to clear analysis cache")
+    except Exception as e:
+        print(f"[STARTUP] Error clearing cache: {e}")
+
     app.logger.info("Starting Portfolio & Options Analysis Engine")
     port = int(os.environ.get('PORT', 8080))
     # Use 0.0.0.0 for container/production compatibility

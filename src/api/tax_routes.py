@@ -2,6 +2,7 @@ from flask import request, jsonify
 from datetime import datetime
 from .route_utils import sanitize_for_json
 from utils.date_parser import UniversalDateParser
+from utils.cache_manager import cache_manager
 
 def register_tax_routes(app, data_client, smart_cache=None):
     """Register tax analysis routes"""
@@ -24,6 +25,12 @@ def register_tax_routes(app, data_client, smart_cache=None):
             
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('tax-analysis', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             # Convert to Transaction objects
             transactions = []
@@ -65,10 +72,15 @@ def register_tax_routes(app, data_client, smart_cache=None):
                 'tax_efficiency_ratio': tax_harvesting.get('tax_efficiency_ratio', 0)
             }
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'tax_analysis': sanitize_for_json(comprehensive_result)
-            })
+            }
+            
+            # Cache result
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"Tax analysis error: {e}")

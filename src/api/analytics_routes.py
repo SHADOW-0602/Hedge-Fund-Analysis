@@ -11,6 +11,8 @@ try:
 except ImportError:
     secure_id_manager = None
 
+from utils.cache_manager import cache_manager
+
 def _convert_transactions_data(transactions_data):
     """Helper function to convert transaction data to Transaction objects"""
     from core.transactions import Transaction
@@ -45,12 +47,18 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             if not data:
                 return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
-            
+
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
             
+            # Check cache
+            cache_key = cache_manager.generate_key('analyze-risk', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
+            
             if not portfolio_data:
-                 # Auto-detect portfolio logic
+                # Auto-detect portfolio logic
                 user_id = None
                 if 'real_user_id' in session:
                     user_id = session['real_user_id']
@@ -103,7 +111,12 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             })
             
             print(f"Risk analysis successful for {len(symbols)} symbols, portfolio value: ${total_value:,.2f}")
-            return jsonify({'success': True, 'risk_metrics': sanitize_for_json(risk_metrics)})
+            print(f"Risk analysis successful for {len(symbols)} symbols, portfolio value: ${total_value:,.2f}")
+            
+            response_data = {'success': True, 'risk_metrics': sanitize_for_json(risk_metrics)}
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"Risk analysis error: {str(e)}")
@@ -147,6 +160,12 @@ def register_analytics_routes(app, data_client, smart_cache=None):
 
             if not portfolio_data or not isinstance(portfolio_data, list):
                 return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('monte-carlo', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             # Read parameters from frontend settings
             forecast_period = options.get('forecast_period', '3M')
@@ -197,7 +216,10 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             sanitized_results = sanitize_for_json(results)
             print(f"[MONTE CARLO API] Sanitized results keys: {list(sanitized_results.keys()) if sanitized_results else 'None'}")
             
-            return jsonify({'success': True, 'results': sanitized_results})
+            response_data = {'success': True, 'results': sanitized_results}
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"Monte Carlo error: {str(e)}")
@@ -212,6 +234,13 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('performance-attribution', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
+
             if not portfolio_data:
                  # Auto-detect portfolio logic
                 user_id = None
@@ -276,7 +305,12 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 }), 500
             
             print(f"Performance attribution successful: {list(results.keys())}")
-            return jsonify({'success': True, 'attribution': results})
+            print(f"Performance attribution successful: {list(results.keys())}")
+            
+            response_data = {'success': True, 'attribution': sanitize_for_json(results)}
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"Performance attribution error: {e}")
@@ -325,6 +359,12 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             if not portfolio:
                 return jsonify({'success': False, 'error': 'No portfolio data provided and no saved data found'}), 400
         
+            # Check cache
+            cache_key = cache_manager.generate_key('portfolio-optimization', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
+            
             # Read parameters from frontend settings
             objective = options.get('objective', 'max_sharpe')
             constraint = options.get('constraint', 'long_only')
@@ -403,10 +443,14 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             )
             
             print(f"Optimization completed successfully with results keys: {list(optimization_results.keys()) if optimization_results else 'None'}")
-            return jsonify({
+            
+            response_data = {
                 'success': True,
                 'optimization': optimization_results
-            })
+            }
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"Portfolio optimization error: {e}")
@@ -422,6 +466,13 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('options-strategies', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
+            
             if not portfolio_data:
                  # Auto-detect portfolio logic
                 user_id = None
@@ -517,6 +568,10 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 'summary': summary
             }
             print(f"Returning {len(opportunities)} opportunities to frontend")
+            print(f"Returning {len(opportunities)} opportunities to frontend")
+            
+            cache_manager.set(cache_key, result)
+            
             return jsonify(result)
             
         except Exception as e:
@@ -759,6 +814,13 @@ def register_analytics_routes(app, data_client, smart_cache=None):
                 data = request.get_json()
                 portfolio_data = data.get('portfolio', [])
                 options = data.get('options', {})
+            
+            # Check cache (only for POST requests for now or consistent key)
+            cache_key = cache_manager.generate_key('statistical-analysis', options) # Simpler key for stats
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                 return jsonify(cached_result)
+
             if not portfolio_data:
                  # Auto-detect portfolio logic
                 user_id = None
@@ -870,6 +932,13 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('correlation-analysis', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
+
             if not portfolio_data:
                 # Auto-detect portfolio logic
                 user_id = None
@@ -937,10 +1006,14 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             }
             
             print(f"Correlation analysis completed for {len(symbols)} symbols")
-            return jsonify({
+            
+            response_data = {
                 'success': True,
                 'correlation_analysis': sanitize_for_json(formatted_results)
-            })
+            }
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"Correlation analysis error: {e}")

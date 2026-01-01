@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from sector_mapper import SectorMapper
 from sector_visualizer import SectorVisualizer
+from utils.cache_manager import cache_manager
 import json
 import plotly
 from werkzeug.utils import secure_filename
@@ -123,12 +124,21 @@ def analyze_portfolio_sectors():
         if not portfolio_data:
             return jsonify({'error': 'No portfolio data provided'}), 400
         
+        # Check cache
+        cache_key = cache_manager.generate_key('sector-analysis', data)
+        cached_result = cache_manager.get(cache_key)
+        if cached_result:
+            return jsonify(cached_result)
+
         analysis = sector_mapper.analyze_portfolio_sectors(portfolio_data)
         
-        return jsonify({
+        response_data = {
             'success': True,
             'analysis': analysis
-        })
+        }
+        cache_manager.set(cache_key, response_data)
+        
+        return jsonify(response_data)
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -199,6 +209,12 @@ def benchmark_comparison():
         if not portfolio_data:
             return jsonify({'error': 'No portfolio data provided'}), 400
         
+        # Check cache
+        cache_key = cache_manager.generate_key('sector-benchmark', data)
+        cached_result = cache_manager.get(cache_key)
+        if cached_result:
+            return jsonify(cached_result)
+
         client = MarketDataClient()
         
         # Calculate portfolio metrics
@@ -216,13 +232,16 @@ def benchmark_comparison():
         # Benchmark prices
         benchmark_prices = {name: prices.get(symbol, 0) for name, symbol in benchmarks.items()}
         
-        return jsonify({
+        response_data = {
             'success': True,
             'portfolio_value': total_value,
             'portfolio_analysis': portfolio_analysis,
             'benchmark_prices': benchmark_prices,
             'portfolio_prices': {symbol: prices.get(symbol, 0) for symbol in symbols}
-        })
+        }
+        cache_manager.set(cache_key, response_data)
+        
+        return jsonify(response_data)
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500

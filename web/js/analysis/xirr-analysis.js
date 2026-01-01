@@ -1,18 +1,20 @@
 // XIRR Analysis Module - Unifies Portfolio and Transaction Analysis
 
-async function fetchXirrAnalysis(containerId, options = {}) {
+async function fetchXirrAnalysis(containerId, options = {}, preloadedData = null) {
     console.log('Fetching XIRR Analysis...');
     const container = document.getElementById(containerId);
-    if (!container) return;
+    if (!container && !options.background) return;
 
-    // Show loading state
-    container.innerHTML = `
-        <div class="flex flex-col items-center justify-center p-12">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-            <p class="text-primary font-medium">Calculating comprehensive XIRR analysis...</p>
-            <p class="text-xs text-secondary mt-2">Fetching live prices & modeling option values</p>
-        </div>
-    `;
+    // Show loading state (only if not background)
+    if (container && !options.background) {
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center p-12">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p class="text-primary font-medium">Calculating comprehensive XIRR analysis...</p>
+                <p class="text-xs text-secondary mt-2">Fetching live prices & modeling option values</p>
+            </div>
+        `;
+    }
 
     try {
         // Collect data from loaded files
@@ -20,20 +22,38 @@ async function fetchXirrAnalysis(containerId, options = {}) {
         const portfolio = window.currentPortfolio || window.portfolioData || window.currentPortfolioData || [];
 
         if (transactions.length === 0 && portfolio.length === 0) {
-            container.innerHTML = `
-                <div class="flex flex-col items-center justify-center p-12 bg-card rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
-                    <div class="text-indigo-500 mb-4">
-                        <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                        </svg>
+            if (container && !options.background) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center p-12 bg-card rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
+                        <div class="text-indigo-500 mb-4">
+                            <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-primary mb-2">No Data Available</h3>
+                        <p class="text-secondary text-center max-w-md">
+                            Please load your portfolio or transaction data using the data management tools to view XIRR analysis.
+                        </p>
                     </div>
-                    <h3 class="text-xl font-bold text-primary mb-2">No Data Available</h3>
-                    <p class="text-secondary text-center max-w-md">
-                        Please load your portfolio or transaction data using the data management tools to view XIRR analysis.
-                    </p>
-                </div>
-            `;
+                `;
+            }
             return;
+        }
+
+        if (preloadedData && preloadedData.transaction_xirr) {
+            console.log('Using preloaded XIRR data');
+            const data = preloadedData.transaction_xirr;
+            if (!options.background) {
+                renderXirrDashboard(container, data, {
+                    hasTransactions: transactions.length > 0,
+                    hasPortfolio: portfolio.length > 0
+                });
+            } else {
+                console.log('[XIRR Analysis] Preloaded background load complete');
+            }
+            return;
+        } else if (preloadedData) {
+            console.warn('Invalid preloaded XIRR data received:', preloadedData);
         }
 
         const requestData = {
@@ -60,19 +80,25 @@ async function fetchXirrAnalysis(containerId, options = {}) {
         }
 
         const data = result.transaction_xirr;
-        renderXirrDashboard(container, data, {
-            hasTransactions: transactions.length > 0,
-            hasPortfolio: portfolio.length > 0
-        });
+        if (!options.background) {
+            renderXirrDashboard(container, data, {
+                hasTransactions: transactions.length > 0,
+                hasPortfolio: portfolio.length > 0
+            });
+        } else {
+            console.log('[XIRR Analysis] Background load complete');
+        }
 
     } catch (error) {
         console.error('XIRR Analysis Error:', error);
-        container.innerHTML = `
-            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center">
-                <p class="text-red-600 dark:text-red-400 font-medium">Analysis Failed</p>
-                <p class="text-sm text-red-500 dark:text-red-300 mt-1">${error.message}</p>
-            </div>
-        `;
+        if (container && !options.background) {
+            container.innerHTML = `
+                <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center">
+                    <p class="text-red-600 dark:text-red-400 font-medium">Analysis Failed</p>
+                    <p class="text-sm text-red-500 dark:text-red-300 mt-1">${error.message}</p>
+                </div>
+            `;
+        }
     }
 }
 

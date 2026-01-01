@@ -7,6 +7,22 @@ let currentCorrelationOptions = {
 };
 
 window.loadCorrelationAnalysis = function (portfolioData, options = {}) {
+    // Load settings from localStorage
+    try {
+        const savedSettings = localStorage.getItem('correlationAnalysisSettings');
+        if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            currentCorrelationOptions = { ...currentCorrelationOptions, ...parsed };
+            console.log('[CORRELATION] Loaded settings from storage:', currentCorrelationOptions);
+        }
+    } catch (e) {
+        console.error('Failed to load correlation settings:', e);
+    }
+
+    // Ensure analyticsCore has these settings
+    if (!window.analyticsCore) window.analyticsCore = {};
+    window.analyticsCore.correlationOptions = currentCorrelationOptions;
+
     if (window.analyticsManager) {
         window.analyticsManager.loadModule('correlation-analysis');
     }
@@ -350,6 +366,14 @@ function updateCorrelationOptions() {
 // Update analysis
 window.updateCorrelationAnalysis = () => {
     updateCorrelationOptions();
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('correlationAnalysisSettings', JSON.stringify(currentCorrelationOptions));
+    } catch (e) {
+        console.error('Failed to save correlation settings:', e);
+    }
+
     console.log('[CORRELATION] Updating with settings:', currentCorrelationOptions);
 
     // Store options and call analysis

@@ -6,17 +6,17 @@ let currentCostOptions = {
     view: 'Absolute $'
 };
 
-async function loadCostAnalysis(transactions) {
+async function loadCostAnalysis(transactions, options = {}) {
     console.log('loadCostAnalysis called with:', transactions?.length || 0, 'transactions');
 
     const container = document.getElementById('analysisContent');
-    if (!container) {
+    if (!container && !options.background) {
         console.error('analysisContent container not found');
         return;
     }
 
     // Show the container
-    container.classList.remove('hidden');
+    if (container && !options.background) container.classList.remove('hidden');
 
     // Ensure API_BASE is defined
     if (typeof API_BASE === 'undefined') {
@@ -26,20 +26,32 @@ async function loadCostAnalysis(transactions) {
 
     // Validate transactions
     if (!transactions || transactions.length === 0) {
-        container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-gray-900 dark:text-white">Cost Analysis</h2>
-            </div>
-            <div class="text-center py-4 text-yellow-500">No transactions available for cost analysis</div>
-        `;
+        if (container && !options.background) {
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Cost Analysis</h2>
+                </div>
+                <div class="text-center py-4 text-yellow-500">No transactions available for cost analysis</div>
+            `;
+        }
         return;
     }
 
     // Store transactions for refresh
     window.currentCostTransactions = transactions;
 
-    // Initial load
-    await fetchCostAnalysis(transactions);
+    // Initial load - check for saved settings first
+    try {
+        const savedSettings = localStorage.getItem('costSettings');
+        if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            currentCostOptions = { ...currentCostOptions, ...parsed };
+        }
+    } catch (e) {
+        console.error('Failed to load cost settings:', e);
+    }
+
+    await fetchCostAnalysis(transactions, options);
 }
 
 function updateCostOptions() {
@@ -49,6 +61,13 @@ function updateCostOptions() {
         benchmark: document.getElementById('costBenchmark')?.value || 'Industry average',
         view: document.getElementById('costView')?.value || 'Absolute $'
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('costSettings', JSON.stringify(currentCostOptions));
+    } catch (e) {
+        console.error('Failed to save cost settings:', e);
+    }
 
     // Trigger refresh
     if (window.currentCostTransactions) {
@@ -63,16 +82,17 @@ function toggleCostSettings() {
     }
 }
 
-async function fetchCostAnalysis(transactions) {
+async function fetchCostAnalysis(transactions, options = {}) {
     const container = document.getElementById('analysisContent');
-    if (!container) return;
+    if (!container && !options.background) return;
 
     // Preserve settings state if they exist
     const settingsPanel = document.getElementById('costSettings');
     const settingsHidden = settingsPanel ? settingsPanel.classList.contains('hidden') : true;
 
     // Show loading state with full UI matching Risk Analysis
-    container.innerHTML = `
+    if (container && !options.background) {
+        container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="analysis-title">Cost Analysis</h2>
             <div class="flex items-center space-x-2">
@@ -137,8 +157,7 @@ async function fetchCostAnalysis(transactions) {
             <p class="text-sm text-gray-500">This may take a few moments</p>
         </div>
     `;
-
-    try {
+    } try {
         console.log('Making Cost Analysis API call with options:', currentCostOptions);
         console.log(`Sending ${transactions.length} transactions to backend`);
         if (transactions.length > 0) {
@@ -147,9 +166,9 @@ async function fetchCostAnalysis(transactions) {
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
-            console.log('Request timeout after 15 seconds');
+            console.log('Request timeout after 300 seconds');
             controller.abort();
-        }, 15000);
+        }, 300000);
 
         const response = await fetch(`${API_BASE}/api/cost-analysis`, {
             method: 'POST',
@@ -165,18 +184,27 @@ async function fetchCostAnalysis(transactions) {
         const data = await response.json();
 
         if (data.success && data.cost_analysis) {
-            displayCostAnalysis(data.cost_analysis);
+            if (!options.background) {
+                displayCostAnalysis(data.cost_analysis);
+            } else {
+                console.log('[Cost Analysis] Background load complete');
+            }
         } else {
-            showError(data.error || 'No valid cost analysis data returned');
+            console.error('Cost Analysis failed:', data);
+            if (!options.background) {
+                showError(data.error || 'No valid cost analysis data returned');
+            }
         }
     } catch (error) {
         console.error('Cost Analysis error:', error);
-        if (error.name === 'AbortError') {
-            showError('Request timed out after 15 seconds. Please try again.');
-        } else if (error.message.includes('Failed to fetch')) {
-            showError('Network error. Please check your connection and try again.');
-        } else {
-            showError(`Analysis failed: ${error.message}`);
+        if (!options.background) {
+            if (error.name === 'AbortError') {
+                showError('Request timed out after 15 seconds. Please try again.');
+            } else if (error.message.includes('Failed to fetch')) {
+                showError('Network error. Please check your connection and try again.');
+            } else {
+                showError(`Analysis failed: ${error.message}`);
+            }
         }
     }
 }

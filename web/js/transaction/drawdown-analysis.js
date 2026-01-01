@@ -1,39 +1,47 @@
 // Drawdown Analysis Module
-window.loadDrawdownAnalysis = function (transactions) {
+window.loadDrawdownAnalysis = function (transactions, options = {}) {
     console.log('Loading drawdown analysis with', transactions?.length || 0, 'transactions');
+
+    // Get current settings or use defaults - MUST BE DONE BEFORE CLEARING DOM
+    const settings = window.getDrawdownSettings();
+    console.log('[DEBUG] Loading Drawdown with settings:', settings);
 
     if (!transactions || transactions.length === 0) {
         console.log('No transactions available for drawdown analysis');
-        const container = document.getElementById('analysisContent');
-        if (container) {
-            container.innerHTML = `
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Drawdown Analysis</h2>
-                </div>
-                <div class="text-center py-4 text-yellow-500">No transactions available for drawdown analysis</div>
-            `;
-            container.classList.remove('hidden');
+        // Only update UI if not in background
+        if (!options.background) {
+            const container = document.getElementById('analysisContent');
+            if (container) {
+                container.innerHTML = `
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Drawdown Analysis</h2>
+                    </div>
+                    <div class="text-center py-4 text-yellow-500">No transactions available for drawdown analysis</div>
+                `;
+                container.classList.remove('hidden');
+            }
         }
         return;
     }
 
-    // Show container and loading state
-    const container = document.getElementById('analysisContent');
-    if (container) {
-        container.classList.remove('hidden');
-        container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Drawdown Analysis</h2>
-            </div>
-            <div class="text-center py-8">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
-                <p class="text-gray-600 dark:text-gray-400">Analyzing portfolio drawdowns...</p>
-            </div>
-        `;
+    // Show container and loading state (only if not background)
+    let container = null;
+    if (!options.background) {
+        container = document.getElementById('analysisContent');
+        if (container) {
+            container.classList.remove('hidden');
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Drawdown Analysis</h2>
+                </div>
+                <div class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                    <p class="text-gray-600 dark:text-gray-400">Analyzing portfolio drawdowns...</p>
+                </div>
+            `;
+        }
     }
 
-    // Get current settings or use defaults
-    const settings = window.getDrawdownSettings();
 
     // Make API call
     const API_BASE = window.API_BASE || 'http://127.0.0.1:8080';
@@ -49,7 +57,11 @@ window.loadDrawdownAnalysis = function (transactions) {
         .then(data => {
             console.log('Drawdown analysis response:', data);
             if (data.success) {
-                displayDrawdownResults(data.drawdown_analysis, settings);
+                if (!options.background) {
+                    displayDrawdownResults(data.drawdown_analysis, settings);
+                } else {
+                    console.log('[Drawdown Analysis] Background load complete');
+                }
             } else {
                 throw new Error(data.error || 'Analysis failed');
             }
@@ -77,7 +89,7 @@ window.getDrawdownSettings = function () {
     return {
         period: document.getElementById('drawdownPeriod')?.value || stored.period || '1Y',
         frequency: document.getElementById('drawdownFrequency')?.value || stored.frequency || 'Daily',
-        severity_filter: document.getElementById('drawdownSeverity')?.value || stored.severity || 'All',
+        severity: document.getElementById('drawdownSeverity')?.value || stored.severity || 'All',
         comparison: document.getElementById('drawdownComparison')?.value || stored.comparison || 'None'
     };
 };
@@ -187,6 +199,12 @@ function displayDrawdownResults(result, options) {
                     <h4 class="section-header">Avg Recovery</h4>
                     <p class="text-2xl font-bold metric-value neutral">${recoveryAnalysis.avg_recovery_days || 0} days</p>
                 </div>
+                ${summary.benchmark_max_drawdown !== undefined ? `
+                <div class="details-box">
+                    <h4 class="section-header">Benchmark DD (${summary.benchmark_symbol || 'SPY'})</h4>
+                    <p class="text-2xl font-bold metric-value neutral">${summary.benchmark_max_drawdown}%</p>
+                </div>
+                ` : ''}
             </div>
 
             <!-- Drawdown Periods -->
@@ -205,14 +223,14 @@ function displayDrawdownResults(result, options) {
                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Recovery</th>
                                     </tr>
                                 </thead>
-                                <tbody class="bg-white dark:bg-gray-800 divide-y border-gray-200 dark:border-gray-700">
+                                <tbody class="divide-y border-gray-200 dark:border-gray-700">
                                     ${drawdownPeriods.slice(0, 10).map(period => `
-                                        <tr>
-                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-white">${period.start_date}</td>
-                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-white">${period.end_date}</td>
-                                            <td class="px-3 py-2 text-sm font-medium ${period.max_drawdown > 10 ? 'text-red-600' : 'text-gray-900 dark:text-white'}">${period.max_drawdown}%</td>
-                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-white">${period.duration_days} days</td>
-                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-white">${period.recovery_days ? period.recovery_days + ' days' : 'Ongoing'}</td>
+                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.start_date}</td>
+                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.end_date}</td>
+                                            <td class="px-3 py-2 text-sm font-medium ${period.max_drawdown > 10 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-200'}">${period.max_drawdown}%</td>
+                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.duration_days} days</td>
+                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.recovery_days ? period.recovery_days + ' days' : 'Ongoing'}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -269,6 +287,17 @@ function displayDrawdownResults(result, options) {
                 </div>
             </div>
 
+
+            <!-- Analysis Parameters -->
+            <div class="analysis-card p-6 dark:bg-gray-800">
+                <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div><span class="text-gray-500 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-gray-200">${options.period || '1Y'}</span></div>
+                    <div><span class="text-gray-500 dark:text-gray-400">Frequency:</span> <span class="font-medium text-gray-900 dark:text-gray-200">${options.frequency || 'Daily'}</span></div>
+                    <div><span class="text-gray-500 dark:text-gray-400">Severity:</span> <span class="font-medium text-gray-900 dark:text-gray-200">${options.severity_filter || options.severity || 'All'}</span></div>
+                    <div><span class="text-gray-500 dark:text-gray-400">Comparison:</span> <span class="font-medium text-gray-900 dark:text-gray-200">${options.comparison || 'None'}</span></div>
+                </div>
+            </div>
 
         </div>
     `;

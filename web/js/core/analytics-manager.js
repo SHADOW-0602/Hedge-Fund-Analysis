@@ -159,7 +159,7 @@ class AnalyticsManager {
             endpoint: 'cash-flow-analysis',
             containerId: 'cashFlowAnalysis',
             settingsId: 'cashFlowSettings',
-            displayFunction: null, // Handled by dedicated module
+            displayFunction: window.displayCashFlowAnalysis,
             type: 'transaction'
         });
 
@@ -167,7 +167,7 @@ class AnalyticsManager {
             endpoint: 'accounting-analysis',
             containerId: 'accountingAnalysis',
             settingsId: 'accountingSettings',
-            displayFunction: this.displayAccountingAnalysis.bind(this),
+            displayFunction: window.displayAccountingAnalysis,
             type: 'transaction'
         });
 
@@ -209,7 +209,7 @@ class AnalyticsManager {
             endpoint: 'transaction-xirr', // Reuses the enhanced transaction endpoint
             containerId: 'xirrAnalysis',
             settingsId: 'xirrSettings',
-            displayFunction: (containerId, options) => window.fetchXirrAnalysis(containerId, options),
+            displayFunction: (result, options) => window.fetchXirrAnalysis('xirrAnalysis', options, result),
             type: 'transaction'
         });
 
@@ -251,15 +251,32 @@ class AnalyticsManager {
     }
 
     // Load specific module
-    async loadModule(name) {
+    async loadModule(name, options = {}) {
         console.log(`Loading module: ${name}`);
 
+        // Only hide upload and preview sections if this is a foreground request
+        if (!options.background) {
+            const uploadSection = document.getElementById('defaultUploadSection');
+            if (uploadSection) uploadSection.classList.add('hidden');
+
+            const previewSection = document.getElementById('dataPreview');
+            if (previewSection) previewSection.classList.add('hidden');
+        }
 
 
-        const module = this.modules.get(name);
-        if (!module) {
+
+        const originalModule = this.modules.get(name);
+        if (!originalModule) {
             console.error(`Module ${name} not found`);
             return;
+        }
+
+        // Clone module config to allow local overrides for this call
+        const module = { ...originalModule };
+
+        // For background requests, use a no-op display function to prevent rendering
+        if (options.background) {
+            module.displayFunction = (data) => console.log(`[Background] ${name} data fetched and cached`);
         }
 
         // Pass stored settings as options for return-attribution
@@ -269,7 +286,7 @@ class AnalyticsManager {
                 module.containerId,
                 module.displayFunction,
                 module.settingsId,
-                window.analyticsCore.returnAttributionSettings
+                { ...window.analyticsCore.returnAttributionSettings, ...options }
             );
             return;
         }
@@ -280,7 +297,11 @@ class AnalyticsManager {
             console.log('Delegating to loadPnlAttribution');
             // Ensure container is visible
             const container = document.getElementById(DEFAULT_CONTAINER_ID);
-            if (container) container.classList.remove('hidden');
+
+            // Only unhide container if NOT background
+            if (container && !options.background) {
+                container.classList.remove('hidden');
+            }
 
             // Use the P&L container ID defined in registration or default
             const containerId = module ? module.containerId : 'pnlAttribution';
@@ -303,30 +324,27 @@ class AnalyticsManager {
                         container.appendChild(pnlContainer);
                     }
                 }
-                pnlContainer.classList.remove('hidden');
+                if (!options.background) {
+                    pnlContainer.classList.remove('hidden');
+                }
             }
 
             // Check for transaction data
             const transactions = this.transactionData || window.currentTransactions;
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
                 console.log('No transaction data available for pnl attribution');
-                if (container) {
-                    // We use the container (analysisContent) to render the message if pnlContainer is empty/new
-                    // OR we render into pnlContainer?
-                    // Let's render into pnlContainer if it exists, to keep structure
-                    if (pnlContainer) {
-                        pnlContainer.innerHTML = `
-                            <div class="flex justify-between items-center mb-6">
-                                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">P&L Attribution</h2>
-                            </div>
-                            <div class="text-center py-4 text-yellow-500">No transactions available for P&L attribution analysis</div>
-                        `;
-                    }
+                if (container && pnlContainer && !options.background) {
+                    pnlContainer.innerHTML = `
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">P&L Attribution</h2>
+                        </div>
+                        <div class="text-center py-4 text-yellow-500">No transactions available for P&L attribution analysis</div>
+                    `;
                 }
                 return;
             }
 
-            window.loadPnlAttribution(transactions);
+            window.loadPnlAttribution(transactions, options);
             return;
         }
 
@@ -339,7 +357,9 @@ class AnalyticsManager {
             console.log('Delegating to loadTurnoverAnalysis');
             // Ensure container is visible
             const container = document.getElementById(DEFAULT_CONTAINER_ID);
-            if (container) container.classList.remove('hidden');
+            if (container && !options.background) {
+                container.classList.remove('hidden');
+            }
 
             // Use the Turnover container ID defined in registration or default
             const containerId = module ? module.containerId : 'turnoverAnalysis';
@@ -361,14 +381,16 @@ class AnalyticsManager {
                         container.appendChild(turnoverContainer);
                     }
                 }
-                turnoverContainer.classList.remove('hidden');
+                if (!options.background) {
+                    turnoverContainer.classList.remove('hidden');
+                }
             }
 
             // Check for transaction data
             const transactions = this.transactionData || window.currentTransactions;
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
                 console.log('No transaction data available for turnover analysis');
-                if (turnoverContainer) {
+                if (turnoverContainer && !options.background) {
                     turnoverContainer.innerHTML = `
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Turnover Analysis</h2>
@@ -379,7 +401,7 @@ class AnalyticsManager {
                 return;
             }
 
-            window.loadTurnoverAnalysis(transactions);
+            window.loadTurnoverAnalysis(transactions, options);
             return;
         }
 
@@ -388,7 +410,7 @@ class AnalyticsManager {
             console.log('Delegating to loadTradePerformance');
             // Ensure container is visible
             const container = document.getElementById(DEFAULT_CONTAINER_ID);
-            if (container) container.classList.remove('hidden');
+            if (container && !options.background) container.classList.remove('hidden');
 
             // Use the Trade Performance container ID defined in registration or default
             const containerId = module ? module.containerId : 'tradePerformance';
@@ -408,14 +430,14 @@ class AnalyticsManager {
                     container.innerHTML = '';
                     container.appendChild(tpContainer);
                 }
-                tpContainer.classList.remove('hidden');
+                if (!options.background) tpContainer.classList.remove('hidden');
             }
 
             // Check for transaction data
             const transactions = this.transactionData || window.currentTransactions;
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
                 console.log('No transaction data available for trade performance');
-                if (container) {
+                if (container && !options.background) {
                     container.innerHTML = `
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Trade Performance</h2>
@@ -426,7 +448,7 @@ class AnalyticsManager {
                 return;
             }
 
-            window.loadTradePerformance(transactions);
+            window.loadTradePerformance(transactions, options);
             return;
         }
 
@@ -437,8 +459,10 @@ class AnalyticsManager {
             // Ensure container is visible
             const container = document.getElementById(DEFAULT_CONTAINER_ID);
             if (container) {
-                container.classList.remove('hidden');
-                container.innerHTML = '';
+                if (!options.background) {
+                    container.classList.remove('hidden');
+                    container.innerHTML = '';
+                }
             }
 
             // Check for transaction data
@@ -446,7 +470,7 @@ class AnalyticsManager {
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
                 console.log('No transaction data available for cost analysis');
                 const container = document.getElementById(DEFAULT_CONTAINER_ID);
-                if (container) {
+                if (container && !options.background) {
                     container.classList.remove('hidden');
                     container.innerHTML = `
                         <div class="flex justify-between items-center mb-6">
@@ -459,34 +483,37 @@ class AnalyticsManager {
             }
 
             // Use the dedicated cost analysis handler directly
-            window.loadCostAnalysis(transactions);
+            window.loadCostAnalysis(transactions, options);
             return;
         }
 
         // Special handling for Unified XIRR Analysis
         if (name === 'xirr-analysis') {
             console.log('Delegating to unified XIRR Analysis');
-            const container = document.getElementById(DEFAULT_CONTAINER_ID);
-            if (container) container.classList.remove('hidden');
 
-            const containerId = module ? module.containerId : 'xirrAnalysis';
-            let xirrContainer = document.getElementById(containerId);
+            if (!options.background) {
+                const container = document.getElementById(DEFAULT_CONTAINER_ID);
+                if (container) container.classList.remove('hidden');
 
-            if (!xirrContainer) {
-                xirrContainer = document.createElement('div');
-                xirrContainer.id = containerId;
-            }
+                const containerId = module ? module.containerId : 'xirrAnalysis';
+                let xirrContainer = document.getElementById(containerId);
 
-            if (container) {
-                if (container.firstElementChild !== xirrContainer || container.children.length > 1) {
-                    container.innerHTML = '';
-                    container.appendChild(xirrContainer);
+                if (!xirrContainer) {
+                    xirrContainer = document.createElement('div');
+                    xirrContainer.id = containerId;
                 }
-                xirrContainer.classList.remove('hidden');
+
+                if (container) {
+                    if (container.firstElementChild !== xirrContainer || container.children.length > 1) {
+                        container.innerHTML = '';
+                        container.appendChild(xirrContainer);
+                    }
+                    xirrContainer.classList.remove('hidden');
+                }
             }
 
             if (module && module.displayFunction) {
-                module.displayFunction(containerId, {});
+                module.displayFunction(null, options);
             }
             return;
         }
@@ -502,7 +529,7 @@ class AnalyticsManager {
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
                 console.log('No transaction data available for tax analysis');
                 const container = document.getElementById(DEFAULT_CONTAINER_ID);
-                if (container) {
+                if (container && !options.background) {
                     container.classList.remove('hidden');
                     container.innerHTML = `
                         <div class="flex justify-between items-center mb-6">
@@ -516,7 +543,7 @@ class AnalyticsManager {
 
             // Call tax analysis with proper data - let it handle its own container
             console.log('Calling loadTaxAnalysis with', transactions.length, 'transactions');
-            window.loadTaxAnalysis(transactions);
+            window.loadTaxAnalysis(transactions, options);
             return;
         }
 
@@ -526,7 +553,7 @@ class AnalyticsManager {
 
             // Ensure container is visible
             const container = document.getElementById(DEFAULT_CONTAINER_ID);
-            if (container) container.classList.remove('hidden');
+            if (container && !options.background) container.classList.remove('hidden');
 
             // Use the Cash Flow container ID defined in registration or default
             const containerId = module ? module.containerId : 'cashFlowAnalysis';
@@ -537,7 +564,7 @@ class AnalyticsManager {
                 console.log('Restoring missing cash-flow container');
                 cfContainer = document.createElement('div');
                 cfContainer.id = containerId;
-                cfContainer.className = 'bg-white rounded-xl shadow-lg p-6 mb-8'; // Add default styling
+                cfContainer.className = 'bg-card rounded-xl shadow-lg p-6 mb-8'; // Add default styling
                 // Don't append yet - we clean parent first
             }
 
@@ -548,7 +575,7 @@ class AnalyticsManager {
                     container.innerHTML = '';
                     container.appendChild(cfContainer);
                 }
-                cfContainer.classList.remove('hidden');
+                if (!options.background) cfContainer.classList.remove('hidden');
             }
 
             // Check for transaction data first
@@ -556,7 +583,7 @@ class AnalyticsManager {
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
                 console.log('No transaction data available for cash flow analysis');
                 const container = document.getElementById(DEFAULT_CONTAINER_ID);
-                if (container) {
+                if (container && !options.background) {
                     container.classList.remove('hidden');
                     container.innerHTML = `
                         <div class="flex justify-between items-center mb-6">
@@ -570,7 +597,7 @@ class AnalyticsManager {
 
             // Call cash flow analysis with proper data - let it handle its own container
             console.log('✓ CASH FLOW: Calling loadCashFlowAnalysis with', transactions.length, 'transactions');
-            window.loadCashFlowAnalysis(transactions);
+            window.loadCashFlowAnalysis(transactions, options);
             return;
         }
 
@@ -583,7 +610,7 @@ class AnalyticsManager {
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
                 console.log('No transaction data available for trade timing analysis');
                 const container = document.getElementById(DEFAULT_CONTAINER_ID);
-                if (container) {
+                if (container && !options.background) {
                     container.classList.remove('hidden');
                     container.innerHTML = `
                         <div class="flex justify-between items-center mb-6">
@@ -595,7 +622,7 @@ class AnalyticsManager {
                 return;
             }
 
-            window.loadTradeTimingAnalysis(transactions);
+            window.loadTradeTimingAnalysis(transactions, options);
             return;
         }
 
@@ -608,7 +635,7 @@ class AnalyticsManager {
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
                 console.log('No transaction data available for drawdown analysis');
                 const container = document.getElementById(DEFAULT_CONTAINER_ID);
-                if (container) {
+                if (container && !options.background) {
                     container.classList.remove('hidden');
                     container.innerHTML = `
                         <div class="flex justify-between items-center mb-6">
@@ -620,7 +647,7 @@ class AnalyticsManager {
                 return;
             }
 
-            window.loadDrawdownAnalysis(transactions);
+            window.loadDrawdownAnalysis(transactions, options);
             return;
         }
 
@@ -630,7 +657,7 @@ class AnalyticsManager {
 
             // Ensure container is visible
             const container = document.getElementById(DEFAULT_CONTAINER_ID);
-            if (container) container.classList.remove('hidden');
+            if (container && !options.background) container.classList.remove('hidden');
 
             // Use the Accounting container ID defined in registration or default
             const containerId = module ? module.containerId : 'accountingAnalysis';
@@ -641,7 +668,7 @@ class AnalyticsManager {
                 console.log('Restoring missing accounting-analysis container');
                 accContainer = document.createElement('div');
                 accContainer.id = containerId;
-                accContainer.className = 'bg-white rounded-xl shadow-lg p-6 mb-8'; // Add default styling
+                accContainer.className = 'bg-card rounded-xl shadow-lg p-6 mb-8'; // Add default styling
             }
 
             if (container) {
@@ -650,7 +677,7 @@ class AnalyticsManager {
                     container.innerHTML = '';
                     container.appendChild(accContainer);
                 }
-                accContainer.classList.remove('hidden');
+                if (!options.background) accContainer.classList.remove('hidden');
             }
 
             // Prevent multiple simultaneous calls
@@ -665,11 +692,11 @@ class AnalyticsManager {
             if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
                 console.log('No transaction data available for accounting analysis');
                 const container = document.getElementById(DEFAULT_CONTAINER_ID);
-                if (container) {
+                if (container && !options.background) {
                     container.classList.remove('hidden');
                     container.innerHTML = `
                         <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Accounting Analysis</h2>
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">FIFO/LIFO Analysis</h2>
                         </div>
                         <div class="text-center py-4 text-yellow-500">No transaction data available for accounting analysis</div>
                     `;
@@ -680,7 +707,7 @@ class AnalyticsManager {
 
             // Call accounting analysis with proper data
             try {
-                window.loadAccountingAnalysis(transactions);
+                window.loadAccountingAnalysis(transactions, options);
             } finally {
                 // Reset flag after a delay to allow the analysis to complete
                 setTimeout(() => {
@@ -708,7 +735,7 @@ class AnalyticsManager {
                 module.containerId,
                 module.displayFunction,
                 module.settingsId,
-                window.analyticsCore.optionsSettings
+                { ...window.analyticsCore.optionsSettings, ...options }
             );
             return;
         }
@@ -720,7 +747,7 @@ class AnalyticsManager {
                 module.containerId,
                 module.displayFunction,
                 module.settingsId,
-                window.analyticsCore.monteCarloSettings
+                { ...window.analyticsCore.monteCarloSettings, ...options }
             );
             return;
         }
@@ -733,7 +760,7 @@ class AnalyticsManager {
                 module.containerId,
                 module.displayFunction,
                 module.settingsId,
-                window.analyticsCore.sectorSettings
+                { ...window.analyticsCore.sectorSettings, ...options }
             );
             return;
         }
@@ -745,7 +772,7 @@ class AnalyticsManager {
                 module.containerId,
                 module.displayFunction,
                 module.settingsId,
-                window.analyticsCore.backtestSettings
+                { ...window.analyticsCore.backtestSettings, ...options }
             );
             return;
         }
@@ -756,6 +783,7 @@ class AnalyticsManager {
         }
 
         // Show loading indicator for all analysis types
+        // Show loading indicator for all analysis types (unless running in background)
         const container = document.getElementById(DEFAULT_CONTAINER_ID);
         if (container && !['cost-analysis', 'accounting-analysis', 'pnl-attribution', 'turnover-analysis', 'trade-performance', 'cash-flow', 'trade-timing', 'drawdown-analysis'].includes(name)) {
             container.classList.remove('hidden');
@@ -769,7 +797,8 @@ class AnalyticsManager {
                     module.endpoint,
                     module.containerId,
                     module.displayFunction,
-                    module.settingsId
+                    module.settingsId,
+                    options
                 );
             } else if (module.type === 'news') {
                 await this.loadMarketNews(module);
@@ -779,7 +808,8 @@ class AnalyticsManager {
                     module.endpoint,
                     module.containerId,
                     module.displayFunction,
-                    module.settingsId
+                    module.settingsId,
+                    options
                 );
             }
         } catch (error) {
@@ -823,13 +853,13 @@ class AnalyticsManager {
             // Get current transactions from the analytics core
             const transactions = this.transactionData || window.currentTransactions || [];
             console.log('Calling loadTurnoverAnalysis with transactions:', transactions?.length || 0);
-            window.loadTurnoverAnalysis(transactions);
+            window.loadTurnoverAnalysis(transactions, options);
             return;
         }
 
         // Fallback: show basic message in the correct container
         const container = document.getElementById('turnoverAnalysis') || document.getElementById(DEFAULT_CONTAINER_ID);
-        if (container) {
+        if (container && !options.background) {
             container.innerHTML = `
                 <div class="p-4 bg-gray-50 rounded-lg">
                     <p class="text-gray-600">Turnover Analysis results display is currently being updated.</p>
@@ -921,19 +951,24 @@ class AnalyticsManager {
         if (!container) return;
 
         // Debug logging
+        console.log('[RETURN ATTRIBUTION] Using fixed displayReturnAttribution');
         console.log('[RETURN ATTRIBUTION] Raw result:', result);
-        console.log('[RETURN ATTRIBUTION] Options:', options);
 
         // Extract attribution data from result
+        // Handle various possible response structures
         const attribution = result.return_attribution || result.attribution || result;
         const effects = attribution.attribution_effects || attribution.effects || attribution;
 
-        console.log('[RETURN ATTRIBUTION] Extracted attribution:', attribution);
-        console.log('[RETURN ATTRIBUTION] Extracted effects:', effects);
+        // Ensure we have valid objects to prevent errors
+        const safeEffects = effects || {};
+        const safeAttribution = attribution || {};
+
+        console.log('[RETURN ATTRIBUTION] Extracted attribution:', safeAttribution);
+        console.log('[RETURN ATTRIBUTION] Extracted effects:', safeEffects);
 
         const getValueClass = (value) => {
             if (value === null || value === undefined || isNaN(value)) return 'neutral';
-            return value > 0 ? 'positive' : 'negative';
+            return value > 0 ? 'text-green-600' : value < 0 ? 'text-red-600' : 'text-gray-600';
         };
 
         const formatValue = (value) => {
@@ -964,48 +999,45 @@ class AnalyticsManager {
                 </div>
             </div>
             
-            <div id="returnAttributionSettings" class="settings-panel hidden mb-6">
+            <div id="returnAttributionSettings" class="settings-panel hidden mb-6 analysis-card p-4 rounded-lg">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Period</label>
-                        <select id="returnPeriod" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="updateReturnAttribution()">
+                        <select id="returnPeriod" onchange="updateReturnAttribution()" class="w-full p-2 border rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600">
                             <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
                             <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
                             <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
                             <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
-                            <option value="YTD" ${currentPeriod === 'YTD' ? 'selected' : ''}>Year to Date</option>
-                            <option value="ITD" ${currentPeriod === 'ITD' ? 'selected' : ''}>Inception to Date</option>
+                            <option value="YTD" ${currentPeriod === 'YTD' ? 'selected' : ''}>YTD</option>
+                            <option value="ITD" ${currentPeriod === 'ITD' ? 'selected' : ''}>Inception</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Attribution Model</label>
-                        <select id="returnModel" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="updateReturnAttribution()">
+                        <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Model</label>
+                        <select id="returnModel" onchange="updateReturnAttribution()" class="w-full p-2 border rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600">
                             <option value="brinson" ${currentModel === 'brinson' ? 'selected' : ''}>Brinson</option>
-                            <option value="factor" ${currentModel === 'factor' ? 'selected' : ''}>Factor-based</option>
-                            <option value="holdings" ${currentModel === 'holdings' ? 'selected' : ''}>Holdings-based</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Benchmark</label>
-                        <select id="returnBenchmark" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="updateReturnAttribution()">
+                        <select id="returnBenchmark" onchange="updateReturnAttribution()" class="w-full p-2 border rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600">
                             <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
                             <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>NASDAQ (QQQ)</option>
                             <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
-                            <option value="VTI" ${currentBenchmark === 'VTI' ? 'selected' : ''}>Total Stock Market (VTI)</option>
+                            <option value="VTI" ${currentBenchmark === 'VTI' ? 'selected' : ''}>Total Market (VTI)</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Currency</label>
-                        <select id="returnCurrency" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="updateReturnAttribution()">
+                        <select id="returnCurrency" onchange="updateReturnAttribution()" class="w-full p-2 border rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600">
                             <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>USD</option>
                             <option value="EUR" ${currentCurrency === 'EUR' ? 'selected' : ''}>EUR</option>
                             <option value="GBP" ${currentCurrency === 'GBP' ? 'selected' : ''}>GBP</option>
-                            <option value="MULTI" ${currentCurrency === 'MULTI' ? 'selected' : ''}>Multi-currency</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Frequency</label>
-                        <select id="returnFrequency" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="updateReturnAttribution()">
+                        <select id="returnFrequency" onchange="updateReturnAttribution()" class="w-full p-2 border rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600">
                             <option value="daily" ${currentFrequency === 'daily' ? 'selected' : ''}>Daily</option>
                             <option value="weekly" ${currentFrequency === 'weekly' ? 'selected' : ''}>Weekly</option>
                             <option value="monthly" ${currentFrequency === 'monthly' ? 'selected' : ''}>Monthly</option>
@@ -1013,49 +1045,56 @@ class AnalyticsManager {
                     </div>
                 </div>
             </div>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="space-y-3">
-                    <h4 class="section-header">Attribution Effects</h4>
-                    <div class="metric-row">
-                        <span class="metric-label">Asset Allocation</span>
-                        <span class="metric-value ${getValueClass(effects.asset_allocation)}">${formatValue(effects.asset_allocation)}</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Security Selection</span>
-                        <span class="metric-value ${getValueClass(effects.security_selection)}">${formatValue(effects.security_selection)}</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Interaction Effect</span>
-                        <span class="metric-value ${getValueClass(effects.interaction_effect)}">${formatValue(effects.interaction_effect)}</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Currency Effect</span>
-                        <span class="metric-value ${getValueClass(effects.currency_effect)}">${formatValue(effects.currency_effect)}</span>
+                <!-- Attribution Effects -->
+                <div class="analysis-card rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Attribution Effects</h3>
+                    <div class="space-y-1">
+                        <div class="attribution-item flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Asset Allocation</span>
+                            <span class="text-lg font-bold ${getValueClass(safeEffects.asset_allocation)}">${formatValue(safeEffects.asset_allocation)}</span>
+                        </div>
+                        <div class="attribution-item flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Security Selection</span>
+                            <span class="text-lg font-bold ${getValueClass(safeEffects.security_selection)}">${formatValue(safeEffects.security_selection)}</span>
+                        </div>
+                        <div class="attribution-item flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Interaction Effect</span>
+                            <span class="text-lg font-bold ${getValueClass(safeEffects.interaction_effect)}">${formatValue(safeEffects.interaction_effect)}</span>
+                        </div>
+                        <div class="attribution-item flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Currency Effect</span>
+                            <span class="text-lg font-bold ${getValueClass(safeEffects.currency_effect)}">${formatValue(safeEffects.currency_effect)}</span>
+                        </div>
                     </div>
                 </div>
-                <div class="space-y-3">
-                    <h4 class="section-header">Performance Summary</h4>
-                    <div class="metric-row">
-                        <span class="metric-label">Portfolio Return</span>
-                        <span class="metric-value ${getValueClass(attribution.portfolio_return)}">${formatValue(attribution.portfolio_return)}</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Benchmark Return</span>
-                        <span class="metric-value ${getValueClass(attribution.benchmark_return)}">${formatValue(attribution.benchmark_return)}</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Active Return</span>
-                        <span class="metric-value ${getValueClass(attribution.active_return)}">${formatValue(attribution.active_return)}</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Market Timing</span>
-                        <span class="metric-value ${getValueClass(attribution.market_timing)}">${formatValue(attribution.market_timing)}</span>
+
+                <!-- Performance Summary -->
+                <div class="analysis-card rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Performance Summary</h3>
+                    <div class="space-y-1">
+                        <div class="attribution-item flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Portfolio Return</span>
+                            <span class="text-lg font-bold ${getValueClass(safeAttribution.portfolio_return)}">${formatValue(safeAttribution.portfolio_return)}</span>
+                        </div>
+                        <div class="attribution-item flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Benchmark Return</span>
+                            <span class="text-lg font-bold ${getValueClass(safeAttribution.benchmark_return)}">${formatValue(safeAttribution.benchmark_return)}</span>
+                        </div>
+                        <div class="attribution-item flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Active Return</span>
+                            <span class="text-lg font-bold ${getValueClass(safeAttribution.active_return)}">${formatValue(safeAttribution.active_return)}</span>
+                        </div>
+                        <div class="attribution-item flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Market Timing</span>
+                            <span class="text-lg font-bold ${getValueClass(safeAttribution.market_timing)}">${formatValue(safeAttribution.market_timing)}</span>
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <div class="analysis-card mt-6">
+
+            <div class="analysis-card mt-6 p-4">
                 <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${currentPeriod === '1Y' ? '1 Year' : currentPeriod}</span></div>
@@ -1065,7 +1104,7 @@ class AnalyticsManager {
                     <div><span class="text-gray-600 dark:text-gray-400">Frequency:</span> <span class="font-medium text-gray-900 dark:text-white">${currentFrequency === 'daily' ? 'Daily' : currentFrequency === 'weekly' ? 'Weekly' : currentFrequency === 'monthly' ? 'Monthly' : currentFrequency}</span></div>
                 </div>
             </div>
-`;
+        `;
     }
 
     displayPerformanceAttribution(result, options) {
@@ -1195,7 +1234,7 @@ class AnalyticsManager {
             </div>
             
             <!-- Analysis Parameters -->
-            <div class="analysis-card mt-6">
+            <div class="analysis-card mt-6 p-6">
         <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
             <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${currentPeriod}</span></div>
@@ -1570,12 +1609,28 @@ class AnalyticsManager {
             }
         };
 
+        // --- Extract Current Settings ---
+        if (!window.analyticsCore.riskSettings) {
+            window.analyticsCore.riskSettings = {};
+            // Load from localStorage
+            try {
+                const saved = localStorage.getItem('riskSettings');
+                if (saved) {
+                    window.analyticsCore.riskSettings = JSON.parse(saved);
+                    console.log('Loaded Risk settings from localStorage');
+                }
+            } catch (e) {
+                console.error('Failed to load risk settings:', e);
+            }
+        }
+        const settings = window.analyticsCore.riskSettings;
+
         // Get current settings
-        const currentPeriod = options?.period || metrics.settings?.period || '1Y';
-        const currentConfidence = options?.var_confidence || metrics.settings?.var_confidence || 0.95;
-        const currentModel = options?.risk_model || metrics.settings?.risk_model || 'historical';
-        const currentBenchmark = options?.benchmark || metrics.settings?.benchmark || 'SPY';
-        const currentWindow = options?.rolling_window || metrics.settings?.rolling_window || 252;
+        const currentPeriod = options?.period || settings.period || metrics.settings?.period || '1Y';
+        const currentConfidence = options?.var_confidence || settings.var_confidence || metrics.settings?.var_confidence || 0.95;
+        const currentModel = options?.risk_model || settings.risk_model || metrics.settings?.risk_model || 'historical';
+        const currentBenchmark = options?.benchmark || settings.benchmark || metrics.settings?.benchmark || 'SPY';
+        const currentWindow = options?.rolling_window || settings.rolling_window || metrics.settings?.rolling_window || 252;
 
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
@@ -1726,13 +1781,28 @@ class AnalyticsManager {
         // Extract unique symbols for the dynamic filter
         const uniqueSymbols = [...new Set(window.optionsOpportunities.map(o => o.symbol))].sort();
 
+        // --- Extract Current Settings ---
+        if (!window.analyticsCore.optionsSettings) {
+            window.analyticsCore.optionsSettings = {};
+            // Load from localStorage
+            try {
+                const saved = localStorage.getItem('optionsSettings');
+                if (saved) {
+                    window.analyticsCore.optionsSettings = JSON.parse(saved);
+                    console.log('Loaded Options settings from localStorage');
+                }
+            } catch (e) {
+                console.error('Failed to load options settings:', e);
+            }
+        }
+        const settings = window.analyticsCore.optionsSettings;
+
         // Get current settings/defaults
-        const storedSettings = window.analyticsCore?.optionsSettings || {};
-        const currentExpiration = storedSettings.expiration || '3M';
-        const currentMoneyness = storedSettings.moneyness || 'All';
-        const currentStrategy = storedSettings.strategy || 'All';
-        const currentMinPremium = storedSettings.min_premium || 0.50;
-        const currentDelta = storedSettings.delta_range || 'All';
+        const currentExpiration = settings.expiration || '3M';
+        const currentMoneyness = settings.moneyness || 'All';
+        const currentStrategy = settings.strategy || 'All';
+        const currentMinPremium = settings.min_premium || 0.50;
+        const currentDelta = settings.delta_range || 'All';
 
         // --- 1. Header with Dynamic Filter & Actions ---
         container.innerHTML = `
@@ -1918,7 +1988,19 @@ class AnalyticsManager {
         if (!container) return;
 
         // --- Extract Current Settings ---
-        if (!window.analyticsCore.monteCarloSettings) window.analyticsCore.monteCarloSettings = {};
+        if (!window.analyticsCore.monteCarloSettings) {
+            window.analyticsCore.monteCarloSettings = {};
+            // Load from localStorage
+            try {
+                const saved = localStorage.getItem('monteCarloSettings');
+                if (saved) {
+                    window.analyticsCore.monteCarloSettings = JSON.parse(saved);
+                    console.log('Loaded Monte Carlo settings from localStorage');
+                }
+            } catch (e) {
+                console.error('Failed to load Monte Carlo settings:', e);
+            }
+        }
         const settings = window.analyticsCore.monteCarloSettings;
 
         const currentPeriod = settings.forecast_period || '3M';
@@ -2039,7 +2121,19 @@ class AnalyticsManager {
         if (!container) return;
 
         // --- Extract Current Settings ---
-        if (!window.analyticsCore.optimizationSettings) window.analyticsCore.optimizationSettings = {};
+        // Load from localStorage if available and not already in memory
+        if (!window.analyticsCore.optimizationSettings) {
+            window.analyticsCore.optimizationSettings = {};
+            try {
+                const saved = localStorage.getItem('optimizationSettings');
+                if (saved) {
+                    window.analyticsCore.optimizationSettings = JSON.parse(saved);
+                    console.log('Loaded Portfolio Optimization settings from localStorage');
+                }
+            } catch (e) {
+                console.error('Failed to load optimization settings:', e);
+            }
+        }
         const settings = window.analyticsCore.optimizationSettings;
 
         const currentObjective = settings.objective || 'max_sharpe';
@@ -2318,11 +2412,13 @@ class AnalyticsManager {
                     displaylogo: false
                 };
 
-                Plotly.newPlot('frontierChart', [traceFrontier, traceOptimal, traceCurrent], layout, config);
+                Plotly.newPlot(chartDiv, [traceFrontier, traceOptimal, traceCurrent], layout, config);
 
                 // Handle Resize
                 window.addEventListener('resize', () => {
-                    Plotly.Plots.resize('frontierChart');
+                    if (chartDiv && document.body.contains(chartDiv)) {
+                        Plotly.Plots.resize(chartDiv);
+                    }
                 });
 
                 // Dynamic Theme Handling
@@ -2356,7 +2452,9 @@ class AnalyticsManager {
                                 'hoverlabel.font.color': isDarkNow ? '#ffffff' : '#1f2937'
                             };
 
-                            Plotly.relayout('frontierChart', update);
+                            if (chartDiv && document.body.contains(chartDiv)) {
+                                Plotly.relayout(chartDiv, update);
+                            }
                         }
                     });
                 });
@@ -2623,7 +2721,7 @@ class AnalyticsManager {
                 </div>
             </div>
             
-            <div class="analysis-card mt-6">
+            <div class="analysis-card mt-6 p-6">
                 <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${currentPeriod}</span></div>
@@ -2736,19 +2834,229 @@ class AnalyticsManager {
                 stroke: { show: false }
             };
 
-            window.techSignalChart = new ApexCharts(document.querySelector("#signalDistChart"), options);
-            window.techSignalChart.render();
+            if (!options.background) {
+                window.techSignalChart = new ApexCharts(document.querySelector("#signalDistChart"), options);
+                window.techSignalChart.render();
+            }
         }, 100);
     }
 
     // Display Sector Allocation result
     // Display Sector Allocation result
+
+    // Display Performance Attribution result (Brinson)
+    displayPerformanceAttribution(result, options) {
+        console.log('Performance Attribution result:', result);
+        const container = document.getElementById('performanceAttribution') || document.getElementById(DEFAULT_CONTAINER_ID);
+        if (!container) return;
+
+        // --- Extract Current Settings ---
+        if (!window.analyticsCore.performanceAttributionSettings) {
+            window.analyticsCore.performanceAttributionSettings = {};
+            // Load from localStorage
+            try {
+                const saved = localStorage.getItem('performanceAttributionSettings');
+                if (saved) {
+                    window.analyticsCore.performanceAttributionSettings = JSON.parse(saved);
+                    console.log('Loaded Performance Attribution settings from localStorage');
+                }
+            } catch (e) {
+                console.error('Failed to load attribution settings:', e);
+            }
+        }
+        const settings = window.analyticsCore.performanceAttributionSettings;
+
+        // Default or Saved Settings
+        const currentPeriod = settings.period || '1Y';
+        const currentModel = settings.attribution_model || 'brinson';
+        const currentBenchmark = settings.benchmark || 'SPY';
+        const currentCurrency = settings.currency || 'USD';
+        const currentFrequency = settings.frequency || 'Daily';
+
+        // 1. Header with Settings Toggle
+        container.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Performance Attribution</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Analyze sources of return vs benchmark</p>
+                </div>
+                <div class="flex space-x-3">
+                     <button onclick="window.togglePerformanceAttributionSettings()" class="flex items-center px-3 py-2 border border-card shadow-sm text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 bg-card hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                        </svg>
+                        Settings
+                    </button>
+                    <button onclick="window.analyticsManager.loadModule('performance-attribution')" class="flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. Settings Panel -->
+            <div id="performanceAttributionSettings" class="settings-panel hidden mb-6">
+                <!-- Using grid to match other modules -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Period</label>
+                        <select id="perfPeriod" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                             <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
+                             <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
+                             <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
+                             <option value="1Y" ${currentPeriod === '1Y' ? 'selected' : ''}>1 Year</option>
+                             <option value="YTD" ${currentPeriod === 'YTD' ? 'selected' : ''}>YTD</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Benchmark</label>
+                        <select id="perfBenchmark" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                             <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
+                             <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>Nasdaq 100 (QQQ)</option>
+                             <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
+                             <option value="VT" ${currentBenchmark === 'VT' ? 'selected' : ''}>Global Stocks (VT)</option>
+                             <option value="AGG" ${currentBenchmark === 'AGG' ? 'selected' : ''}>Agg Bond (AGG)</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Model</label>
+                        <select id="perfModel" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                             <option value="brinson" ${currentModel === 'brinson' ? 'selected' : ''}>Brinson-Fachler</option>
+                             <option value="holdings" ${currentModel === 'holdings' ? 'selected' : ''}>Holdings Based</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Currency</label>
+                        <select id="perfCurrency" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                             <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>USD</option>
+                             <option value="EUR" ${currentCurrency === 'EUR' ? 'selected' : ''}>EUR</option>
+                             <option value="CAD" ${currentCurrency === 'CAD' ? 'selected' : ''}>CAD</option>
+                             <option value="GBP" ${currentCurrency === 'GBP' ? 'selected' : ''}>GBP</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Frequency</label>
+                        <select id="perfFrequency" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                             <option value="Daily" ${currentFrequency === 'Daily' ? 'selected' : ''}>Daily</option>
+                             <option value="Weekly" ${currentFrequency === 'Weekly' ? 'selected' : ''}>Weekly</option>
+                             <option value="Monthly" ${currentFrequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Results Dashboard -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Summary Card -->
+                <div class="analysis-card p-6 col-span-1 lg:col-span-3">
+                     <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Attribution Summary</h3>
+                     <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        <div>
+                             <div class="text-sm text-gray-500 dark:text-gray-400">Total Active Return</div>
+                             <div class="text-2xl font-bold ${result.active_return >= 0 ? 'text-green-600' : 'text-red-600'}">
+                                ${result.active_return >= 0 ? '+' : ''}${result.active_return.toFixed(2)}%
+                             </div>
+                        </div>
+                         <div>
+                             <div class="text-sm text-gray-500 dark:text-gray-400">Portfolio Return</div>
+                             <div class="text-xl font-semibold text-gray-900 dark:text-white">
+                                ${result.portfolio_return.toFixed(2)}%
+                             </div>
+                        </div>
+                         <div>
+                             <div class="text-sm text-gray-500 dark:text-gray-400">Benchmark Return</div>
+                             <div class="text-xl font-semibold text-gray-900 dark:text-white">
+                                ${result.benchmark_return.toFixed(2)}%
+                             </div>
+                        </div>
+                        <div>
+                             <div class="text-sm text-gray-500 dark:text-gray-400">Unexplained</div>
+                             <div class="text-xl font-semibold text-gray-500">
+                                ${(result.active_return - (result.asset_allocation + result.security_selection + result.interaction_effect + result.currency_effect + result.market_timing)).toFixed(2)}%
+                             </div>
+                        </div>
+                     </div>
+                </div>
+
+                <!-- Effects Breakdown -->
+                <div class="analysis-card p-6 col-span-1 lg:col-span-3">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Return Breakdown</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-card">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Source</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Effect</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-card divide-y divide-card">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Asset Allocation</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.asset_allocation >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${result.asset_allocation >= 0 ? '+' : ''}${result.asset_allocation.toFixed(2)}%
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Value added by over/underweighting sectors/assets</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Security Selection</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.security_selection >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${result.security_selection >= 0 ? '+' : ''}${result.security_selection.toFixed(2)}%
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Value added by specific stock picking</td>
+                                </tr>
+                                 <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Interaction</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.interaction_effect >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${result.interaction_effect >= 0 ? '+' : ''}${result.interaction_effect.toFixed(2)}%
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Combined effect of allocation and selection</td>
+                                </tr>
+                                ${result.market_timing !== 0 ? `
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Market Timing</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.market_timing >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${result.market_timing >= 0 ? '+' : ''}${result.market_timing.toFixed(2)}%
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Value from beta adjustments over time</td>
+                                </tr>` : ''}
+                                 <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Currency</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.currency_effect >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${result.currency_effect >= 0 ? '+' : ''}${result.currency_effect.toFixed(2)}%
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Impact of foreign exchange movements</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     displaySectorAllocation(result, options) {
         console.log('Sector Allocation result:', result);
         const container = document.getElementById('sectorAllocation') || document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
-        // Current Settings
+        // LOAD SETTINGS FROM LOCAL STORAGE IF NOT IN MEMORY
+        try {
+            if (!window.analyticsCore) window.analyticsCore = {};
+            // Only load if not already set (preserve session changes) or force merge? 
+            // Better to load if empty.
+            if (!window.analyticsCore.sectorSettings) {
+                const saved = localStorage.getItem('sectorAllocationSettings');
+                if (saved) {
+                    window.analyticsCore.sectorSettings = JSON.parse(saved);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load sector settings:', e);
+        }
+
         // Current Settings - prioritize options passed from core (which include explicit updates)
         const settings = window.analyticsCore?.sectorSettings || {};
 
@@ -2759,7 +3067,6 @@ class AnalyticsManager {
         const currentThreshold = parseFloat(options?.threshold !== undefined ? options.threshold : (settings.threshold || 0));
         const currentClassification = options?.classification || settings.classification || 'GICS';
 
-        // Data Preparation
         // Data Preparation
         let data = [];
         // Support both API response formats (result.analysis or result.allocation)
@@ -3168,8 +3475,10 @@ class AnalyticsManager {
             }
 
             // Render
-            window.sectorApexChart = new ApexCharts(document.querySelector("#sectorChartContainer"), apexOptions);
-            window.sectorApexChart.render();
+            if (!options.background) {
+                window.sectorApexChart = new ApexCharts(document.querySelector("#sectorChartContainer"), apexOptions);
+                window.sectorApexChart.render();
+            }
 
         }, 100);
     }
@@ -3403,27 +3712,23 @@ class AnalyticsManager {
             setTimeout(() => {
                 if (window.ApexCharts && document.querySelector("#backtestChart")) {
                     // Validate and format data
-                    const validPoints = equityCurve.filter(p =>
-                        p &&
-                        p.date &&
-                        p.equity !== undefined &&
-                        p.equity !== null &&
-                        !isNaN(parseFloat(p.equity)) &&
-                        isFinite(parseFloat(p.equity))
-                    );
+                    // Validate and format data for time-series - FIX NAN ERROR
+                    const chartData = equityCurve
+                        .map(p => {
+                            if (!p || !p.date || p.equity === undefined || p.equity === null) return null;
+                            const timestamp = new Date(p.date).getTime();
+                            const val = parseFloat(p.equity);
+                            if (isNaN(timestamp) || isNaN(val) || !isFinite(val)) return null;
+                            return { x: timestamp, y: val };
+                        })
+                        .filter(p => p !== null)
+                        .sort((a, b) => a.x - b.x);
 
-                    if (validPoints.length === 0) {
+                    if (chartData.length === 0) {
                         console.warn('No valid equity curve points found');
                         document.getElementById('backtestChart').innerHTML = '<p class="text-center text-gray-500 py-10">No valid chart data available</p>';
                         return;
                     }
-
-                    const dates = validPoints.map(p => {
-                        const d = new Date(p.date);
-                        return isNaN(d.getTime()) ? 'Invalid Date' : d.toLocaleDateString();
-                    });
-
-                    const values = validPoints.map(p => parseFloat(p.equity));
 
                     // Destroy existing if any
                     if (window.backtestChartInstance) {
@@ -3436,7 +3741,7 @@ class AnalyticsManager {
                     const options = {
                         series: [{
                             name: 'Portfolio Value',
-                            data: values
+                            data: chartData
                         }],
                         chart: {
                             type: 'area',
@@ -3503,8 +3808,7 @@ class AnalyticsManager {
                             colors: [isDarkMode ? '#818CF8' : '#4F46E5']
                         },
                         xaxis: {
-                            categories: dates,
-                            type: 'category', // explicitly set type
+                            type: 'datetime', // Use datetime axis for robustness
                             crosshairs: {
                                 show: true,
                                 width: 1,
@@ -3556,7 +3860,7 @@ class AnalyticsManager {
                                 color: isDarkMode ? '#4B5563' : '#E5E7EB'
                             },
                             tooltip: { enabled: true },
-                            tickAmount: Math.min(12, Math.max(6, Math.floor(dates.length / 10)))
+                            tickAmount: chartData.length > 10 ? Math.min(12, Math.floor(chartData.length / 5)) : undefined
                         },
                         yaxis: {
                             title: {
@@ -3645,8 +3949,10 @@ class AnalyticsManager {
                         }
                     };
 
-                    window.backtestChartInstance = new ApexCharts(document.querySelector("#backtestChart"), options);
-                    window.backtestChartInstance.render();
+                    if (!options.background) {
+                        window.backtestChartInstance = new ApexCharts(document.querySelector("#backtestChart"), options);
+                        window.backtestChartInstance.render();
+                    }
                 } else {
                     console.warn('ApexCharts not loaded or container missing');
                     const chartEl = document.getElementById('backtestChart');
@@ -3655,6 +3961,8 @@ class AnalyticsManager {
             }, 100);
         }
     }
+
+    // Duplicate displayReturnAttribution removed
 
 }
 
@@ -4076,8 +4384,18 @@ window.updateMonteCarloAnalysis = () => {
         volatility_adjustment: volatility
     };
 
+    // Save to localStorage
+    try {
+        localStorage.setItem('monteCarloSettings', JSON.stringify(window.analyticsCore.monteCarloSettings));
+    } catch (e) {
+        console.error('Failed to save Monte Carlo settings:', e);
+    }
+
     window.analyticsManager.loadModule('monte-carlo');
 };
+
+// Alias for HTML handlers
+window.updateMonteCarloParams = window.updateMonteCarloAnalysis;
 
 // Portfolio Optimization Settings
 window.toggleOptimizationSettings = () => {
@@ -4088,15 +4406,14 @@ window.toggleOptimizationSettings = () => {
 };
 
 window.updatePortfolioOptimization = () => {
-    const objective = document.getElementById('optimizationObjective')?.value || 'max_sharpe';
-    const constraint = document.getElementById('optimizationConstraint')?.value || 'long_only';
-    const rebalancing = document.getElementById('optimizationRebalancing')?.value || 'quarterly';
-    const riskBudget = document.getElementById('optimizationRiskBudget')?.value || 'equal';
-    const lookback = document.getElementById('optimizationLookback')?.value || '1Y';
+    const objective = document.getElementById('optObjective')?.value || 'max_sharpe';
+    const constraint = document.getElementById('optConstraint')?.value || 'long_only';
+    const rebalancing = document.getElementById('optRebalancing')?.value || 'quarterly';
+    const riskBudget = document.getElementById('optRiskBudget')?.value || 'equal';
+    const lookback = document.getElementById('optLookback')?.value || '1Y';
 
     console.log('[OPTIMIZATION UPDATE] Settings:', { objective, constraint, rebalancing, riskBudget, lookback });
 
-    if (!window.analyticsCore) window.analyticsCore = {};
     window.analyticsCore.optimizationSettings = {
         objective,
         constraint,
@@ -4104,6 +4421,14 @@ window.updatePortfolioOptimization = () => {
         risk_budget: riskBudget,
         lookback_period: lookback
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('optimizationSettings', JSON.stringify(window.analyticsCore.optimizationSettings));
+    } catch (e) {
+        console.error('Failed to save optimization settings:', e);
+    }
+
 
     console.log('[OPTIMIZATION UPDATE] Stored settings:', window.analyticsCore.optimizationSettings);
     window.analyticsManager.loadModule('portfolio-optimization');
@@ -4134,6 +4459,13 @@ window.updateSectorAllocationV2 = () => {
         view,
         threshold
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('sectorAllocationSettings', JSON.stringify(window.analyticsCore.sectorSettings));
+    } catch (e) {
+        console.error('Failed to save sector allocation settings:', e);
+    }
 
     console.log('[SECTOR SETTINGS] Stored settings:', window.analyticsCore.sectorSettings);
     window.analyticsManager.loadModule('sector-allocation');
@@ -4391,9 +4723,169 @@ window.updateMonteCarloParams = () => {
         volatility_adjustment: parseFloat(volAdj)
     };
 
+    // Save to localStorage
+    try {
+        localStorage.setItem('monteCarloSettings', JSON.stringify(window.analyticsCore.monteCarloSettings));
+        console.log('[Monte Carlo] Saved settings to localStorage');
+    } catch (e) {
+        console.error('Failed to save Monte Carlo settings:', e);
+    }
+
     console.log('[Monte Carlo] Updating with settings:', window.analyticsCore.monteCarloSettings);
     window.analyticsManager.loadModule('monte-carlo');
 };
+
+// ----------------------------------------------------------------------------------
+// Options Strategies Helpers
+// ----------------------------------------------------------------------------------
+
+window.toggleOptionsSettings = () => {
+    const settings = document.getElementById('optionsSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updateOptionsAnalysis = () => {
+    const expiration = document.getElementById('optionsExpiration')?.value || '3M';
+    const moneyness = document.getElementById('optionsMoneyness')?.value || 'All';
+    const strategy = document.getElementById('optionsStrategy')?.value || 'All';
+    const minPremium = parseFloat(document.getElementById('optionsMinPremium')?.value || 0.50);
+    const deltaRange = document.getElementById('optionsDeltaRange')?.value || 'All';
+
+    if (!window.analyticsCore) window.analyticsCore = {};
+    window.analyticsCore.optionsSettings = {
+        expiration: expiration,
+        moneyness: moneyness,
+        strategy: strategy,
+        min_premium: minPremium,
+        delta_range: deltaRange
+    };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('optionsSettings', JSON.stringify(window.analyticsCore.optionsSettings));
+        console.log('[Options] Saved settings to localStorage');
+    } catch (e) {
+        console.error('Failed to save options settings:', e);
+    }
+
+    console.log('[Options] Updating with settings:', window.analyticsCore.optionsSettings);
+    window.analyticsManager.loadModule('options-strategies');
+};
+
+window.filterOptionsStrategies = () => {
+    const symbolFilter = document.getElementById('optionsSymbolFilter')?.value || 'all';
+    const itemsPerPage = document.getElementById('optItemsPerPage')?.value;
+    const limit = itemsPerPage === 'all' ? 1000 : parseInt(itemsPerPage || 10);
+
+    // Filter data
+    let filtered = window.optionsOpportunities || [];
+    if (symbolFilter !== 'all') {
+        filtered = filtered.filter(o => o.symbol === symbolFilter);
+    }
+
+    // Update summary cards based on filtered data
+    const summaryContainer = document.getElementById('optionsSummaryCards');
+    if (summaryContainer) {
+        // Calculate dynamic summary
+        let totalPremium = 0;
+        let totalProfitPot = 0;
+        let avgIv = 0;
+
+        filtered.forEach(o => {
+            totalPremium += (o.premium || 0) * 100; // x100 per contract
+            totalProfitPot += (o.annualized_return || o.profit_potential || 0);
+            avgIv += (o.iv || 0);
+        });
+
+        const avgReturn = filtered.length ? totalProfitPot / filtered.length : 0;
+        const avgIvVal = filtered.length ? avgIv / filtered.length : 0;
+
+        summaryContainer.innerHTML = `
+            <div class="analysis-card p-4">
+                <h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Opportunities</h3>
+                <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">${filtered.length}</p>
+                <p class="text-xs text-gray-500 mt-1">Found matching criteria</p>
+            </div>
+            <div class="analysis-card p-4">
+                <h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Avg Annual Return</h3>
+                <p class="text-2xl font-bold ${avgReturn > 0.2 ? 'text-green-600' : 'text-gray-900 dark:text-gray-100'}">${(avgReturn * 100).toFixed(1)}%</p>
+                <p class="text-xs text-gray-500 mt-1">Based on premium/capital</p>
+            </div>
+             <div class="analysis-card p-4">
+                <h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Avg IV</h3>
+                <p class="text-2xl font-bold text-purple-600 dark:text-purple-400">${(avgIvVal * 100).toFixed(1)}%</p>
+                <p class="text-xs text-gray-500 mt-1">Implied Volatility</p>
+            </div>
+        `;
+    }
+
+    // Pagination
+    const totalItems = filtered.length;
+    const totalPages = Math.ceil(totalItems / limit);
+
+    // Ensure current page is valid
+    if (window.optionsCurrentPage > totalPages) window.optionsCurrentPage = 1;
+    if (window.optionsCurrentPage < 1) window.optionsCurrentPage = 1;
+
+    const startIdx = (window.optionsCurrentPage - 1) * limit;
+    const endIdx = Math.min(startIdx + limit, totalItems);
+    const pageItems = filtered.slice(startIdx, endIdx);
+
+    // Render Table
+    const tbody = document.getElementById('optionsOpportunitiesBody');
+    if (tbody) {
+        if (pageItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No opportunities found matching these criteria.</td></tr>`;
+        } else {
+            tbody.innerHTML = pageItems.map(opp => {
+                const isPositive = (opp.annualized_return || opp.profit_potential || 0) > 0;
+                const returnVal = (opp.annualized_return || opp.profit_potential || 0) * 100;
+                const strategyLabel = opp.strategy === 'covered_calls' ? 'Covered Call' :
+                    opp.strategy === 'protective_puts' ? 'Protective Put' :
+                        opp.strategy === 'iron_condors' ? 'Iron Condor' :
+                            opp.strategy.replace('_', ' ');
+
+                return `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">${opp.symbol}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${strategyLabel}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${opp.expiration}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+                        ${opp.strike ? '$' + opp.strike.toFixed(2) :
+                        (opp.call_strike && opp.put_strike ? 'C$' + opp.call_strike + '/P$' + opp.put_strike : 'N/A')}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">$${(opp.premium || 0).toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">${(opp.delta || 0).toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">${((opp.iv || 0) * 100).toFixed(1)}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}">
+                        ${returnVal.toFixed(2)}%
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+    }
+
+    // Update pagination controls
+    const startEl = document.getElementById('optStart');
+    const endEl = document.getElementById('optEnd');
+    const totalEl = document.getElementById('optTotal');
+    const indicatorEl = document.getElementById('optPageIndicator');
+
+    if (startEl) startEl.innerText = totalItems > 0 ? startIdx + 1 : 0;
+    if (endEl) endEl.innerText = endIdx;
+    if (totalEl) totalEl.innerText = totalItems;
+    if (indicatorEl) indicatorEl.innerText = `Page ${window.optionsCurrentPage}`;
+};
+
+window.changeOptionsPage = (newPage) => {
+    window.optionsCurrentPage = newPage;
+    window.filterOptionsStrategies();
+};
+
+
 
 // Helper for Portfolio Optimization settings
 window.toggleOptimizationSettings = () => {
@@ -4435,6 +4927,42 @@ window.updatePortfolioOptimization = () => {
 // Risk Metrics Helpers (Migrated from strategy-backtesting-globals.js)
 // ----------------------------------------------------------------------------------
 
+// Helper for Performance Attribution updates
+window.togglePerformanceAttributionSettings = () => {
+    const settings = document.getElementById('performanceAttributionSettings');
+    if (settings) {
+        settings.classList.toggle('hidden');
+    }
+};
+
+window.updatePerformanceAttribution = () => {
+    const period = document.getElementById('perfPeriod')?.value || '1Y';
+    const benchmark = document.getElementById('perfBenchmark')?.value || 'SPY';
+    const model = document.getElementById('perfModel')?.value || 'brinson';
+    const currency = document.getElementById('perfCurrency')?.value || 'USD';
+    const frequency = document.getElementById('perfFrequency')?.value || 'Daily';
+
+    if (!window.analyticsCore) window.analyticsCore = {};
+    window.analyticsCore.performanceAttributionSettings = {
+        period: period,
+        benchmark: benchmark,
+        attribution_model: model,
+        currency: currency,
+        frequency: frequency
+    };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('performanceAttributionSettings', JSON.stringify(window.analyticsCore.performanceAttributionSettings));
+        console.log('[Performance Attribution] Saved settings to localStorage');
+    } catch (e) {
+        console.error('Failed to save attribution settings:', e);
+    }
+
+    console.log('[Performance Attribution] Updating with settings:', window.analyticsCore.performanceAttributionSettings);
+    window.analyticsManager.loadModule('performance-attribution');
+};
+
 window.toggleRiskSettingsPanel = () => {
     const settings = document.getElementById('riskSettings');
     if (settings) {
@@ -4463,6 +4991,14 @@ window.updateRiskAnalysis = () => {
         rolling_window: parseInt(window_size)
     };
 
+    // Save to localStorage
+    try {
+        localStorage.setItem('riskSettings', JSON.stringify(window.analyticsCore.riskSettings));
+        console.log('[Risk Metrics] Saved settings to localStorage');
+    } catch (e) {
+        console.error('Failed to save risk settings:', e);
+    }
+
     console.log('[Risk Metrics] Updating with settings:', window.analyticsCore.riskSettings);
     window.analyticsManager.loadModule('risk-metrics');
 };
@@ -4474,6 +5010,11 @@ window.updateRiskAnalysis = () => {
 
 // Initialize Analytics Manager instance
 // Note: Instance already created at line 2812. Duplicate removed.
+// Ensure instance exists
+if (!window.analyticsManager) {
+    window.analyticsManager = new AnalyticsManager();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Only initialize if not already done (handled by class method check)
     if (window.analyticsManager) {

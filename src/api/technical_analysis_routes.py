@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from .route_utils import sanitize_for_json, extract_valid_symbols, calculate_portfolio_weights
 from utils.symbol_parser import get_underlying_symbol
+from utils.cache_manager import cache_manager
 
 def register_technical_analysis_routes(app, data_client, smart_cache=None):
     """Register technical analysis routes"""
@@ -57,6 +58,17 @@ def register_technical_analysis_routes(app, data_client, smart_cache=None):
             bb_period = int(options.get('bb_period', 20))
             bb_std = int(options.get('bb_std', 2))
             signal_strength = options.get('signal_strength', 'Medium')
+            
+            # Check cache
+            # Create a consistent cache key from portfolio (symbols/weights) and options
+            cache_data = {
+                'portfolio_symbols': sorted([p.get('symbol', '') for p in portfolio]),
+                'options': options
+            }
+            cache_key = cache_manager.generate_key('technical-analysis', cache_data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                 return jsonify(cached_result)
             
             # Map period to data client format
             period_map = {'1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y'}
@@ -306,6 +318,7 @@ def register_technical_analysis_routes(app, data_client, smart_cache=None):
             
             # Final sanitization before JSON response
             response_data = sanitize_for_json({'success': True, 'technical_analysis': results})
+            cache_manager.set(cache_key, response_data)
             return jsonify(response_data)
             
         except Exception as e:

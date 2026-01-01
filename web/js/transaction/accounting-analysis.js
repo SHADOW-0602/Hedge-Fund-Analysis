@@ -9,11 +9,11 @@ let currentAccountingOptions = {
 let isAccountingAnalysisLoading = false;
 let accountingAnalysisTimeout = null;
 
-async function loadAccountingAnalysis(transactions) {
+async function loadAccountingAnalysis(transactions, options = {}) {
     console.log('loadAccountingAnalysis called with:', transactions?.length || 0, 'transactions');
 
     const container = document.getElementById('accountingAnalysis');
-    if (!container) {
+    if (!container && !options.background) {
         console.error('accountingAnalysis container not found');
         return;
     }
@@ -25,15 +25,30 @@ async function loadAccountingAnalysis(transactions) {
 
     // Validate transactions
     if (!transactions || transactions.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for accounting analysis</div>';
+        if (container && !options.background) {
+            container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for accounting analysis</div>';
+        }
         return;
     }
 
     // Store transactions for refresh
     window.currentAccountingTransactions = transactions;
 
+    // Verify and load settings with priority: Options > LocalStorage > Defaults
+    const savedSettings = JSON.parse(localStorage.getItem('accountingSettings') || '{}');
+
+    // Update global options
+    currentAccountingOptions = {
+        method: options.method || savedSettings.method || 'FIFO',
+        period: options.period || savedSettings.period || '1Y',
+        tax_impact: options.tax_impact || savedSettings.tax_impact || 'Current rates',
+        comparison: options.comparison || savedSettings.comparison || 'None'
+    };
+
+    console.log('[Accounting Analysis] Loaded settings:', currentAccountingOptions);
+
     // Initial load
-    await fetchAccountingAnalysis(transactions);
+    await fetchAccountingAnalysis(transactions, options);
 }
 
 function updateAccountingOptions() {
@@ -43,11 +58,15 @@ function updateAccountingOptions() {
         tax_impact: document.getElementById('accountingTaxImpact')?.value || 'Current rates',
         comparison: document.getElementById('accountingComparison')?.value || 'None'
     };
+
+    // Save to localStorage
+    localStorage.setItem('accountingSettings', JSON.stringify(currentAccountingOptions));
+    console.log('[Accounting Analysis] Settings saved:', currentAccountingOptions);
 }
 
-async function fetchAccountingAnalysis(transactions) {
+async function fetchAccountingAnalysis(transactions, options = {}) {
     const container = document.getElementById('accountingAnalysis');
-    if (!container) return;
+    if (!container && !options.background) return;
 
     if (isAccountingAnalysisLoading) {
         console.log('Accounting analysis already in progress');
@@ -60,10 +79,11 @@ async function fetchAccountingAnalysis(transactions) {
     const settingsPanel = document.getElementById('accountingSettings');
     const settingsHidden = settingsPanel ? settingsPanel.classList.contains('hidden') : true;
 
-    // Show loading state with minimal UI
-    container.innerHTML = `
+    // Show loading state with minimal UI (only if not background)
+    if (container && !options.background) {
+        container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">FIFO/LIFO Accounting</h2>
+            <h2 class="text-2xl font-bold text-primary">FIFO/LIFO Analysis</h2>
             <div class="flex items-center space-x-2">
                 <button onclick="toggleAccountingSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                     Settings
@@ -133,9 +153,10 @@ async function fetchAccountingAnalysis(transactions) {
             <div class="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-md mx-auto">
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
-            <p class="text-sm text-gray-500">This may take a few moments</p>
+            <p class="text-sm text-secondary">This may take a few moments</p>
         </div>
     `;
+    } // Close UI block
 
     try {
         console.log('Making Accounting Analysis API call with options:', {
@@ -146,15 +167,15 @@ async function fetchAccountingAnalysis(transactions) {
         });
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), 300000);
 
         const requestBody = {
             transactions,
             options: {
                 accountingMethod: currentAccountingOptions.method,
                 accountingPeriod: currentAccountingOptions.period,
-                taxImpact: currentAccountingOptions.tax_impact,
-                comparison: currentAccountingOptions.comparison
+                accountingTaxImpact: currentAccountingOptions.tax_impact,
+                accountingComparison: currentAccountingOptions.comparison
             }
         };
 
@@ -177,29 +198,30 @@ async function fetchAccountingAnalysis(transactions) {
 
         const data = await response.json();
         console.log('API Response:', data);
-        console.log('Response keys:', Object.keys(data));
-        console.log('Success flag:', data.success);
-        console.log('Has fifo_lifo_analysis:', !!data.fifo_lifo_analysis);
 
         if (data.success && data.fifo_lifo_analysis) {
             console.log('Analysis data received:', data.fifo_lifo_analysis);
-            console.log('Analysis data keys:', Object.keys(data.fifo_lifo_analysis));
-            console.log('Analysis data type:', typeof data.fifo_lifo_analysis);
-            console.log('Calling displayAccountingAnalysis with:', data.fifo_lifo_analysis);
-            displayAccountingAnalysis(data.fifo_lifo_analysis);
-            // Enable refresh button after successful load
-            enableRefreshButton();
+
+            if (!options.background) {
+                displayAccountingAnalysis(data.fifo_lifo_analysis);
+                // Enable refresh button after successful load
+                enableRefreshButton();
+            } else {
+                console.log('[Accounting Analysis] Background load complete');
+            }
         } else {
             console.error('Analysis failed:', data);
-            console.error('Expected success=true and fifo_lifo_analysis, got:', data);
-            console.error('Data structure:', JSON.stringify(data, null, 2));
-            showError(data.error || 'No valid analysis data returned');
+            if (!options.background) {
+                showError(data.error || 'No valid analysis data returned');
+            }
         }
     } catch (error) {
         console.error('Accounting Analysis error:', error);
-        showError(error.name === 'AbortError' ? 'Request timeout' : error.message);
-        // Enable refresh button even on error
-        enableRefreshButton();
+        if (!options.background) {
+            showError(error.name === 'AbortError' ? 'Request timeout' : error.message);
+            // Enable refresh button even on error
+            enableRefreshButton();
+        }
     } finally {
         isAccountingAnalysisLoading = false;
     }
@@ -226,77 +248,25 @@ function enableRefreshButton() {
 function displayAccountingAnalysis(data) {
     console.log('displayAccountingAnalysis called with:', data);
     const contentDiv = document.getElementById('accountingContent');
-    if (!contentDiv) {
-        console.error('accountingContent div not found');
-        return;
-    }
+    if (!contentDiv) return;
 
     // Handle Comparison View
-    if (data.comparison_summary) {
-        console.log('Displaying comparison view');
+    if (data.comparison_summary && data.comparison_summary.best_method_for_tax) {
         displayComparisonView(data, contentDiv);
         return;
     }
 
-    // Handle Single Method View
+    // Single View
     const result = data.primary_method || data;
-    console.log('Using result data:', result);
-    const realizedPnl = result.realized_pnl || 0;
-    const taxLiability = result.tax_liability || 0;
-    const shortTerm = result.short_term_gains || 0;
-    const longTerm = result.long_term_gains || 0;
-    console.log('Extracted values:', { realizedPnl, taxLiability, shortTerm, longTerm });
 
-    contentDiv.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div class="analysis-card p-6">
-                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Realized P&L</h3>
-                <p class="text-3xl font-bold ${realizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}">
-                    ${realizedPnl >= 0 ? '+' : ''}$${Math.abs(realizedPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p class="text-sm text-secondary mt-1">Using ${result.method || currentAccountingOptions.method}</p>
-            </div>
-            <div class="analysis-card p-6">
-                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Est. Tax Liability</h3>
-                <p class="text-3xl font-bold text-red-600">
-                    $${Math.abs(taxLiability).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p class="text-sm text-secondary mt-1">Based on ${currentAccountingOptions.tax_impact}</p>
-            </div>
-            <div class="analysis-card p-6">
-                <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Tax Efficiency</h3>
-                <p class="text-3xl font-bold ${realizedPnl > 0 ? 'text-blue-600' : 'text-gray-600'}">
-                    ${realizedPnl > 0 ? ((1 - (taxLiability / realizedPnl)) * 100).toFixed(1) + '%' : 'N/A'}
-                </p>
-                <p class="text-sm text-secondary mt-1">After-tax retention</p>
-            </div>
-        </div>
-
-        <div class="analysis-card p-6 mb-6">
-            <h3 class="text-lg font-semibold text-primary mb-4">Gain/Loss Breakdown</h3>
-            <div class="space-y-4">
-                <div class="flex justify-between items-center py-2 border-b border-card">
-                    <span class="font-medium text-primary">Short-Term Gains (< 1 Year)</span>
-                    <span class="font-semibold ${shortTerm >= 0 ? 'text-green-600' : 'text-red-600'}">
-                        ${shortTerm >= 0 ? '+' : ''}$${Math.abs(shortTerm).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                </div>
-                <div class="flex justify-between items-center py-2 border-b border-card">
-                    <span class="font-medium text-primary">Long-Term Gains (> 1 Year)</span>
-                    <span class="font-semibold ${longTerm >= 0 ? 'text-green-600' : 'text-red-600'}">
-                        ${longTerm >= 0 ? '+' : ''}$${Math.abs(longTerm).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <div class="analysis-card p-6">
+    contentDiv.innerHTML = renderAnalysisSection(result, result.method || currentAccountingOptions.method) + `
+        <div class="analysis-card p-6 mt-6">
             <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div><span class="text-secondary">Method:</span> <span class="font-medium text-primary">${result.method || currentAccountingOptions.method}</span></div>
+                <div><span class="text-secondary">Comparison:</span> <span class="font-medium text-primary">${currentAccountingOptions.comparison}</span></div>
                 <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentAccountingOptions.period}</span></div>
                 <div><span class="text-secondary">Tax Impact:</span> <span class="font-medium text-primary">${currentAccountingOptions.tax_impact}</span></div>
-                <div><span class="text-secondary">Transactions:</span> <span class="font-medium text-primary">${result.transaction_count || 0}</span></div>
             </div>
         </div>
     `;
@@ -304,22 +274,9 @@ function displayAccountingAnalysis(data) {
 
 function displayComparisonView(data, contentDiv) {
     const summary = data.comparison_summary;
-    const details = summary.details || [];
-
-    let comparisonHtml = details.map(d => `
-        <tr class="hover:bg-white/5">
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary">${d.method}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm ${d.realized_pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
-                ${d.realized_pnl >= 0 ? '+' : ''}$${Math.abs(d.realized_pnl).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                $${Math.abs(d.tax_liability).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </td>
-        </tr>
-    `).join('');
 
     contentDiv.innerHTML = `
-        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 text-left">
+        <div class="bg-blue-50 dark:bg-gray-800 border-l-4 border-blue-500 p-4 mb-8 text-left shadow-sm">
             <div class="flex">
                 <div class="flex-shrink-0">
                     <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
@@ -327,35 +284,96 @@ function displayComparisonView(data, contentDiv) {
                     </svg>
                 </div>
                 <div class="ml-3">
-                    <p class="text-sm text-blue-700">
+                    <p class="text-sm text-blue-700 dark:text-blue-200">
                         Based on your transactions, <strong>${summary.best_method_for_tax}</strong> results in the lowest tax liability, potentially saving 
-                        <strong>$${summary.tax_savings.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong> compared to the highest tax method.
+                        <strong>$${summary.tax_savings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> compared to the highest tax method.
                     </p>
                 </div>
             </div>
         </div>
 
-        <div class="analysis-card overflow-hidden mb-6">
-            <table class="min-w-full divide-y divide-card">
-                <thead class="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">Method</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">Realized P&L</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">Est. Tax Liability</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-card divide-y divide-card">
-                    ${comparisonHtml}
-                </tbody>
-            </table>
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 relative">
+            <!-- Vertical Divider (Desktop only) -->
+            <div class="hidden xl:block absolute left-1/2 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700 transform -translate-x-1/2"></div>
+
+            <!-- FIFO Column -->
+            <div class="space-y-6">
+                <div class="flex items-center justify-center mb-2">
+                    <span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                        FIFO Strategy
+                    </span>
+                </div>
+                ${renderAnalysisSection(data.FIFO, 'FIFO')}
+            </div>
+
+            <!-- LIFO Column -->
+            <div class="space-y-6">
+                 <div class="flex items-center justify-center mb-2">
+                    <span class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                        LIFO Strategy
+                    </span>
+                </div>
+                ${renderAnalysisSection(data.LIFO, 'LIFO')}
+            </div>
         </div>
-        
-        <div class="analysis-card p-6">
+
+        <div class="analysis-card p-6 mt-8">
             <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div><span class="text-secondary">Comparison:</span> <span class="font-medium text-primary">${currentAccountingOptions.comparison}</span></div>
                 <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentAccountingOptions.period}</span></div>
                 <div><span class="text-secondary">Tax Impact:</span> <span class="font-medium text-primary">${currentAccountingOptions.tax_impact}</span></div>
+            </div>
+        </div>
+    `;
+}
+
+function renderAnalysisSection(data, methodTitle) {
+    if (!data) return '<div class="text-center text-red-500">Data unavailable</div>';
+
+    const realizedPnl = data.realized_pnl || 0;
+    const taxLiability = data.tax_liability || 0;
+    const shortTerm = data.short_term_gains || 0;
+    const longTerm = data.long_term_gains || 0;
+    const efficiency = realizedPnl > 0 ? ((1 - (taxLiability / realizedPnl)) * 100).toFixed(1) : 'N/A';
+
+    return `
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="analysis-card p-4">
+                <h3 class="text-xs font-medium text-secondary uppercase tracking-wide mb-1">Realized P&L</h3>
+                <p class="text-2xl font-bold ${realizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    ${realizedPnl >= 0 ? '+' : ''}$${Math.abs(realizedPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+            </div>
+            <div class="analysis-card p-4">
+                <h3 class="text-xs font-medium text-secondary uppercase tracking-wide mb-1">Est. Tax Liability</h3>
+                <p class="text-2xl font-bold text-red-600">
+                    $${Math.abs(taxLiability).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+            </div>
+            <div class="analysis-card p-4">
+                <h3 class="text-xs font-medium text-secondary uppercase tracking-wide mb-1">Tax Efficiency</h3>
+                <p class="text-2xl font-bold ${realizedPnl > 0 ? 'text-blue-600' : 'text-gray-600'}">
+                    ${efficiency === 'N/A' ? 'N/A' : efficiency + '%'}
+                </p>
+            </div>
+        </div>
+
+        <div class="analysis-card p-5 mb-6">
+            <h3 class="text-base font-semibold text-primary mb-3">Gain/Loss Breakdown (${methodTitle})</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center py-2 border-b border-card">
+                    <span class="text-sm font-medium text-primary">Short-Term Gains (< 1 Year)</span>
+                    <span class="text-sm font-bold ${shortTerm >= 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${shortTerm >= 0 ? '+' : ''}$${Math.abs(shortTerm).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-card">
+                    <span class="text-sm font-medium text-primary">Long-Term Gains (> 1 Year)</span>
+                    <span class="text-sm font-bold ${longTerm >= 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${longTerm >= 0 ? '+' : ''}$${Math.abs(longTerm).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                </div>
             </div>
         </div>
     `;
@@ -395,9 +413,21 @@ window.updateAccountingAnalysis = () => {
         if (window.currentAccountingTransactions) fetchAccountingAnalysis(window.currentAccountingTransactions);
     }, 300);
 };
+
+window.handleAccountingMethodChange = () => {
+    // If user changes the specific Method, they likely want to see Single View for that method, 
+    // so we disable the Comparison view override.
+    const comparisonSelect = document.getElementById('accountingComparison');
+    if (comparisonSelect && comparisonSelect.value !== 'None') {
+        comparisonSelect.value = 'None';
+    }
+    window.updateAccountingAnalysis();
+};
+
 window.refreshAccountingAnalysis = () => {
     if (window.currentAccountingTransactions) fetchAccountingAnalysis(window.currentAccountingTransactions);
 };
+window.displayAccountingAnalysis = displayAccountingAnalysis;
 
 window.showTaxOptimization = async () => {
     if (!window.currentAccountingTransactions) {
@@ -431,37 +461,37 @@ function displayTaxOptimizationModal(data) {
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
     modal.innerHTML = `
-        <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-96 overflow-y-auto">
+        <div class="bg-card rounded-lg p-6 max-w-4xl w-full mx-4 max-h-96 overflow-y-auto border border-border-card">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold">Tax-Loss Harvesting Optimization</h3>
-                <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                <h3 class="text-lg font-semibold text-primary">Tax-Loss Harvesting Optimization</h3>
+                <button onclick="this.closest('.fixed').remove()" class="text-secondary hover:text-primary">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </button>
             </div>
             
-            <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <h4 class="font-medium text-green-800 mb-2">Optimal Method: ${data.optimal_method}</h4>
-                <p class="text-sm text-green-700">Potential tax savings: $${(data.potential_savings || 0).toLocaleString()}</p>
+            <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4">
+                <h4 class="font-medium text-green-800 dark:text-green-300 mb-2">Optimal Method: ${data.optimal_method}</h4>
+                <p class="text-sm text-green-700 dark:text-green-400">Potential tax savings: $${(data.potential_savings || 0).toLocaleString()}</p>
             </div>
             
             <div class="space-y-4">
-                <h4 class="font-medium text-gray-800">Tax-Loss Harvesting Recommendations:</h4>
+                <h4 class="font-medium text-primary">Tax-Loss Harvesting Recommendations:</h4>
                 <ul class="space-y-2">
                     ${(data.recommendations || []).map(rec => `
                         <li class="flex items-start space-x-2">
                             <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
                             </svg>
-                            <span class="text-sm text-gray-700">${rec}</span>
+                            <span class="text-sm text-secondary">${rec}</span>
                         </li>
                     `).join('')}
                 </ul>
             </div>
             
-            <div class="flex justify-end space-x-3 pt-4 border-t mt-4">
-                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">
+            <div class="flex justify-end space-x-3 pt-4 border-t border-border-card mt-4">
+                <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-600">
                     Close
                 </button>
                 <button onclick="applyOptimalMethod('${data.optimal_method}')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">

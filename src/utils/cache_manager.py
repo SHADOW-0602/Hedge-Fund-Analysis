@@ -1,222 +1,137 @@
-import redis
-import json
-import pickle
-from typing import Any, Optional
-from datetime import timedelta
-import hashlib
-from utils.config import Config
-import logging
 
-# Setup module logger
+import os
+import json
+import hashlib
+import requests
+import logging
+from typing import Optional, Any, Dict
+
 logger = logging.getLogger(__name__)
 
 class CacheManager:
+    """
+    Manages caching of analysis results using Upstash Redis REST API.
+    Uses SHA256 of the input data (options + transaction identifiers) as the cache key.
+    """
+    
     def __init__(self):
-        self.redis_client = None
-        if Config.REDIS_URL:
-            logger.info(f"Initializing Redis cache manager with URL: {Config.REDIS_URL[:20]}...")
-            try:
-                if Config.REDIS_URL.startswith('rediss://'):
-                    # Upstash Redis with SSL
-                    import urllib.parse
-                    parsed = urllib.parse.urlparse(Config.REDIS_URL)
-                    self.redis_client = redis.Redis(
-                        host=parsed.hostname,
-                        port=parsed.port,
-                        password=parsed.password,
-                        ssl=True,
-                        ssl_cert_reqs=None,
-                        decode_responses=True
-                    )
-                else:
-                    self.redis_client = redis.from_url(Config.REDIS_URL, decode_responses=True)
-                
-                # Test connection
-                self.redis_client.ping()
-                logger.info("Redis cache manager initialized successfully")
-            except Exception as e:
-                logger.error(f"Redis connection failed: {e}")
-                print(f"Redis connection failed: {e}")
-                self.redis_client = None
+        self.url = os.getenv('UPSTASH_REDIS_REST_URL')
+        self.token = os.getenv('UPSTASH_REDIS_REST_TOKEN')
+        self.enabled = bool(self.url and self.token)
+        
+        if not self.enabled:
+            logger.warning("Upstash Redis credentials not found. Caching is disabled.")
         else:
-            logger.warning("Redis URL not configured - cache disabled")
-    
-    def _generate_key(self, prefix: str, identifier: str) -> str:
-        """Generate cache key with prefix"""
-        return f"hedge_fund:{prefix}:{identifier}"
-    
-    def set_user_session(self, user_id: str, session_data: dict, expire_hours: int = 24):
-        """Cache user session data"""
-        if not self.redis_client:
-            return False
-        
-        logger.debug(f"Caching session data for user {user_id}")
-        try:
-            key = self._generate_key("session", user_id)
-            self.redis_client.setex(
-                key, 
-                timedelta(hours=expire_hours), 
-                json.dumps(session_data)
-            )
-            return True
-        except:
-            return False
-    
-    def get_user_session(self, user_id: str) -> Optional[dict]:
-        """Get cached user session"""
-        if not self.redis_client:
-            return None
-        
-        try:
-            key = self._generate_key("session", user_id)
-            data = self.redis_client.get(key)
-            return json.loads(data) if data else None
-        except:
-            return None
-    
-    def set_portfolio_data(self, user_id: str, portfolio_id: str, data: dict, expire_hours: int = 6):
-        """Cache portfolio analysis data"""
-        if not self.redis_client:
-            return False
-        
-        try:
-            key = self._generate_key("portfolio", f"{user_id}:{portfolio_id}")
-            self.redis_client.setex(
-                key,
-                timedelta(hours=expire_hours),
-                json.dumps(data, default=str)
-            )
-            return True
-        except:
-            return False
-    
-    def get_portfolio_data(self, user_id: str, portfolio_id: str) -> Optional[dict]:
-        """Get cached portfolio data"""
-        if not self.redis_client:
-            return None
-        
-        try:
-            key = self._generate_key("portfolio", f"{user_id}:{portfolio_id}")
-            data = self.redis_client.get(key)
-            return json.loads(data) if data else None
-        except:
-            return None
-    
-    def set_market_data(self, symbols: list, period: str, data: Any, expire_minutes: int = 15):
-        """Cache market data with short expiry"""
-        if not self.redis_client:
-            return False
-        
-        logger.debug(f"Caching market data for {len(symbols)} symbols, period: {period}")
-        try:
-            # Create hash of symbols and period for key
-            symbols_hash = hashlib.md5(f"{sorted(symbols)}:{period}".encode()).hexdigest()
-            key = self._generate_key("market", symbols_hash)
-            
-            # Use pickle for pandas DataFrames
-            serialized_data = pickle.dumps(data)
-            self.redis_client.setex(
-                key,
-                timedelta(minutes=expire_minutes),
-                serialized_data
-            )
-            return True
-        except:
-            return False
-    
-    def get_market_data(self, symbols: list, period: str) -> Optional[Any]:
-        """Get cached market data"""
-        if not self.redis_client:
-            return None
-        
-        try:
-            symbols_hash = hashlib.md5(f"{sorted(symbols)}:{period}".encode()).hexdigest()
-            key = self._generate_key("market", symbols_hash)
-            data = self.redis_client.get(key)
-            return pickle.loads(data) if data else None
-        except:
-            return None
-    
-    def set_news_data(self, symbol: str, news_data: list, expire_hours: int = 2):
-        """Cache news data"""
-        if not self.redis_client:
-            return False
-        
-        try:
-            key = self._generate_key("news", symbol)
-            self.redis_client.setex(
-                key,
-                timedelta(hours=expire_hours),
-                json.dumps(news_data, default=str)
-            )
-            return True
-        except:
-            return False
-    
-    def get_news_data(self, symbol: str) -> Optional[list]:
-        """Get cached news data"""
-        if not self.redis_client:
-            return None
-        
-        try:
-            key = self._generate_key("news", symbol)
-            data = self.redis_client.get(key)
-            return json.loads(data) if data else None
-        except:
-            return None
-    
-    def invalidate_portfolio_data(self, user_id: str, portfolio_id: str):
-        """Clear specific portfolio cache"""
-        if not self.redis_client:
-            return
-        
-        try:
-            key = self._generate_key("portfolio", f"{user_id}:{portfolio_id}")
-            self.redis_client.delete(key)
-        except:
-            pass
-    
-    def invalidate_user_cache(self, user_id: str):
-        """Clear all cache for a user"""
-        if not self.redis_client:
-            return
-        
-        try:
-            pattern = self._generate_key("*", f"*{user_id}*")
-            keys = self.redis_client.keys(pattern)
-            if keys:
-                self.redis_client.delete(*keys)
-        except:
-            pass
-    
-    def delete_cache_key(self, user_id: str, cache_key: str):
-        """Delete specific cache key for a user"""
-        if not self.redis_client:
-            return False
-        
-        try:
-            key = self._generate_key("portfolio", f"{user_id}:{cache_key}")
-            return self.redis_client.delete(key) > 0
-        except:
-            return False
-    
-    def get_cache_stats(self) -> dict:
-        """Get cache statistics"""
-        if not self.redis_client:
-            logger.debug("Cache statistics requested but Redis is disabled")
-            return {"status": "disabled"}
-        
-        try:
-            info = self.redis_client.info()
-            return {
-                "status": "connected",
-                "used_memory": info.get("used_memory_human", "N/A"),
-                "connected_clients": info.get("connected_clients", 0),
-                "total_commands_processed": info.get("total_commands_processed", 0)
-            }
-        except Exception as e:
-            logger.error(f"Failed to get cache statistics: {e}")
-            return {"status": "error"}
+            logger.info("Upstash Redis caching enabled.")
 
-# Global cache manager
+    def generate_key(self, endpoint: str, data: Dict[str, Any]) -> str:
+        """
+        Generates a deterministic cache key based on the endpoint and input data.
+        The data dictionary is serialized with sorted keys to ensuring consistent hashing.
+        """
+        if not data:
+            data = {}
+            
+        # Serialize data deterministically
+        serialized = json.dumps(data, sort_keys=True, default=str)
+        
+        # Create SHA256 hash
+        data_hash = hashlib.sha256(serialized.encode('utf-8')).hexdigest()
+        
+        return f"analysis:{endpoint}:{data_hash}"
+
+    def get(self, key: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves data from the cache.
+        Returns deserialized JSON data or None if miss/error.
+        """
+        if not self.enabled:
+            return None
+            
+        try:
+            # Upstash REST: GET /get/{key}
+            # Headers: Authorization: Bearer {token}
+            response = requests.get(
+                f"{self.url}/get/{key}",
+                headers={"Authorization": f"Bearer {self.token}"},
+                timeout=2.0 # Fast timeout to avoid blocking main thread
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                # Upstash response format: {"result": "serialized_string"} or {"result": null}
+                cached_str = result.get('result')
+                
+                if cached_str:
+                    logger.debug(f"Cache HIT for {key}")
+                    return json.loads(cached_str)
+            
+            logger.debug(f"Cache MISS for {key}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Cache GET error for {key}: {e}")
+            return None
+
+    def set(self, key: str, value: Any, ttl_seconds: int = 3600) -> bool:
+        """
+        Stores data in the cache with a TTL (default 1 hour).
+        """
+        if not self.enabled:
+            return False
+            
+        try:
+            serialized_value = json.dumps(value, default=str)
+            
+            # Upstash REST: POST /set/{key}?EX={ttl}
+            # Body: raw string value
+            response = requests.post(
+                f"{self.url}/set/{key}?EX={ttl_seconds}",
+                headers={"Authorization": f"Bearer {self.token}"},
+                data=serialized_value,
+                timeout=2.0
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('result') == 'OK':
+                    logger.debug(f"Cache SET success for {key} (TTL: {ttl_seconds}s)")
+                    return True
+            
+            logger.warning(f"Cache SET failed for {key}: {response.text}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Cache SET error for {key}: {e}")
+            return False
+
+    def clear_all(self) -> bool:
+        """
+        Clears all keys in the database (FLUSHDB).
+        """
+        if not self.enabled:
+            return False
+            
+        try:
+            # Upstash REST: POST /flushdb
+            response = requests.post(
+                f"{self.url}/flushdb",
+                headers={"Authorization": f"Bearer {self.token}"},
+                timeout=5.0
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('result') == 'OK':
+                    logger.info("Cache FLUSHDB success - All keys cleared")
+                    return True
+            
+            logger.warning(f"Cache FLUSHDB failed: {response.text}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Cache FLUSHDB error: {e}")
+            return False
+
+# Global instance
 cache_manager = CacheManager()

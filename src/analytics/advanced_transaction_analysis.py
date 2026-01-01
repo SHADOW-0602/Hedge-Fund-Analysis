@@ -1222,7 +1222,7 @@ class AdvancedTransactionAnalyzer:
             return 0.002
 
     def drawdown_analysis(self, transactions: List[Transaction], period='1Y', frequency='Daily', severity_filter='All', comparison='None') -> Dict:
-        """Enhanced drawdown analysis with comprehensive filters"""
+        """Enhanced drawdown analysis with MTM (Realized + Unrealized) calculation"""
         if not transactions:
             return {
                 'drawdown_periods': [],
@@ -1231,8 +1231,16 @@ class AdvancedTransactionAnalyzer:
                 'summary': {'max_drawdown': 0, 'total_periods': 0, 'avg_duration_days': 0}
             }
         
-        # Filter by period - NO FALLBACK DATA
-        cutoff_date = datetime.now()
+        # 1. Determine Date Range
+        tx_dates = [t.date for t in transactions]
+        start_date = min(tx_dates)
+        end_date = datetime.now()
+        
+        # Adjust start date based on period if period is fixed and shorter than history?
+        # Actually, best to calculate curve for full history first to get correct cost basis, 
+        # then slice the curve.
+        
+        cutoff_date = end_date
         if period == '3M':
             cutoff_date -= timedelta(days=90)
         elif period == '6M':
@@ -1242,12 +1250,10 @@ class AdvancedTransactionAnalyzer:
         elif period == '2Y':
             cutoff_date -= timedelta(days=730)
         elif period == 'All Time':
-            cutoff_date = datetime(1900, 1, 1)  # Very old date to include all
-        
-        # Fix timezone comparison issue
+            cutoff_date = datetime(1900, 1, 1)
+            
         def safe_date_compare(txn_date, cutoff):
             try:
-                # Make both dates timezone-naive for comparison
                 if hasattr(txn_date, 'tzinfo') and txn_date.tzinfo is not None:
                     txn_date = txn_date.replace(tzinfo=None)
                 if hasattr(cutoff, 'tzinfo') and cutoff.tzinfo is not None:
@@ -1255,151 +1261,349 @@ class AdvancedTransactionAnalyzer:
                 return txn_date >= cutoff
             except:
                 return txn_date.date() >= cutoff.date()
+
+        # 2. Fetch Price Data
+        symbols = list(set(t.symbol for t in transactions))
         
-        filtered_txns = [t for t in transactions if safe_date_compare(t.date, cutoff_date)]
+        # Calculate YFinance valid period string roughly
+        total_days = (end_date - start_date).days
+        yf_period = '1y'
+        if total_days > 730: yf_period = '5y'
+        elif total_days > 365: yf_period = '2y'
+        elif total_days > 180: yf_period = '1y'
+        elif total_days > 30: yf_period = '6mo'
+        else: yf_period = '1mo'
         
-        # NO FALLBACK - Return empty result if no transactions in period
-        if not filtered_txns:
-            return {
+        # Always fetch max if "All Time" or long history to ensure coverage
+        if period == 'All Time' or total_days > 365 * 2:
+            yf_period = 'max'
+
+        try:
+            price_data = self.data_client.get_price_data(symbols, yf_period)
+        except Exception as e:
+            print(f"[DRAWDOWN] Failed to fetch prices: {e}")
+            price_data = pd.DataFrame()
+
+        # Ensure index is datetime and sorted
+        if not price_data.empty:
+            price_data.index = pd.to_datetime(price_data.index)
+            # Make timezone naive for easier comparison/joining
+            price_data.index = price_data.index.tz_localize(None)
+            price_data.sort_index(inplace=True)
+
+        # 3. Calculate Daily Total Profit
+        # Iterate through every day in the price data (or synthetic range if prices missing)
+        
+        if not price_data.empty:
+            analysis_dates = price_data.index
+            # Filter to start from first transaction
+            if analysis_dates[0] > start_date.replace(tzinfo=None):
+                # We might miss early days if price data is shorter than transaction history
+                pass 
+            analysis_dates = [d for d in analysis_dates if d >= start_date.replace(tzinfo=None)]
+        else:
+             # Fallback if no price data: just transaction dates
+             analysis_dates = sorted(list(set(t.date.replace(tzinfo=None) for t in transactions)))
+
+        daily_curve = {}
+        
+        # Portfolio State
+        positions = defaultdict(lambda: {'quantity': 0, 'avg_cost': 0})
+        realized_pnl_cum = 0.0
+        
+        sorted_txns = sorted(transactions, key=lambda x: x.date.replace(tzinfo=None))
+        current_txn_idx = 0
+        
+        # If we have no price data, we fall back to realized logic essentially
+        # But we create a daily series for it.
+        
+        # Create a complete date range for smoother graphs
+        if not analysis_dates:
+             # Just return empty if absolutely no dates
+             return {
                 'drawdown_periods': [],
                 'severity_breakdown': {'<5%': 0, '5-10%': 0, '10-20%': 0, '>20%': 0},
                 'recovery_analysis': {'avg_recovery_days': 0, 'max_recovery_days': 0},
-                'summary': {'max_drawdown': 0, 'total_periods': 0, 'avg_duration_days': 0, 'period': period, 'transactions_found': 0}
+                'summary': {'max_drawdown': 0, 'total_periods': 0, 'avg_duration_days': 0}
             }
-        
-        # Calculate daily P&L
-        daily_pnl = defaultdict(float)
-        positions = defaultdict(lambda: {'quantity': 0, 'avg_cost': 0})
-        
-        for txn in sorted(filtered_txns, key=lambda x: x.date):
-            date_key = txn.date.date()
             
-            if txn.transaction_type in ['BUY', 'Buy']:
-                old_value = positions[txn.symbol]['quantity'] * positions[txn.symbol]['avg_cost']
-                new_value = abs(txn.quantity) * txn.price
-                total_quantity = positions[txn.symbol]['quantity'] + abs(txn.quantity)
-                if total_quantity > 0:
-                    positions[txn.symbol]['avg_cost'] = (old_value + new_value) / total_quantity
-                positions[txn.symbol]['quantity'] = total_quantity
-                
-            elif txn.transaction_type in ['SELL', 'Sell'] and positions[txn.symbol]['quantity'] > 0:
-                sell_quantity = min(abs(txn.quantity), positions[txn.symbol]['quantity'])
-                pnl = (txn.price - positions[txn.symbol]['avg_cost']) * sell_quantity - txn.fees
-                daily_pnl[date_key] += pnl
-                positions[txn.symbol]['quantity'] -= sell_quantity
+        # Ensure we cover the requested period at least
+        full_date_range = pd.date_range(start=analysis_dates[0], end=datetime.now().replace(tzinfo=None), freq='D')
         
-        if not daily_pnl:
+        last_known_prices = {s: 0.0 for s in symbols}
+        
+        for date in full_date_range:
+            # Process transactions for this day
+            while current_txn_idx < len(sorted_txns) and sorted_txns[current_txn_idx].date.replace(tzinfo=None).date() <= date.date():
+                txn = sorted_txns[current_txn_idx]
+                
+                if txn.transaction_type in ['BUY', 'Buy']:
+                    old_qty = positions[txn.symbol]['quantity']
+                    old_cost = positions[txn.symbol]['avg_cost']
+                    new_qty = abs(txn.quantity)
+                    total_qty = old_qty + new_qty
+                    
+                    if total_qty > 0:
+                        positions[txn.symbol]['avg_cost'] = ((old_qty * old_cost) + (new_qty * txn.price)) / total_qty
+                    positions[txn.symbol]['quantity'] = total_qty
+                    
+                    # Update last known price from transaction execution if needed
+                    # logic: prices usually usually override this, but good for gaps
+                    last_known_prices[txn.symbol] = txn.price 
+
+                elif txn.transaction_type in ['SELL', 'Sell']:
+                    sell_qty = min(abs(txn.quantity), positions[txn.symbol]['quantity'])
+                    if sell_qty > 0:
+                        # Calculate Realized P&L
+                        pnl = (txn.price - positions[txn.symbol]['avg_cost']) * sell_qty - txn.fees
+                        realized_pnl_cum += pnl
+                        positions[txn.symbol]['quantity'] -= sell_qty
+                        
+                    last_known_prices[txn.symbol] = txn.price
+
+                current_txn_idx += 1
+            
+            # Update Prices from Market Data
+            current_unrealized_pnl = 0.0
+            
+            if not price_data.empty:
+                # Find latest price for this date or before
+                # In a daily loop, we can usually just check if date is in index
+                # But to be safe and fast:
+                
+                # Check if this date exists in price data
+                if date in price_data.index:
+                    for sym in symbols:
+                        if sym in price_data.columns and not pd.isna(price_data.at[date, sym]):
+                            last_known_prices[sym] = price_data.at[date, sym]
+            
+            # Calculate Unrealized P&L
+            for sym, pos in positions.items():
+                qty = pos['quantity']
+                avg_cost = pos['avg_cost']
+                if qty > 0:
+                    price = last_known_prices.get(sym, avg_cost) # Fallback to cost if no price
+                    unrealized = (price - avg_cost) * qty
+                    current_unrealized_pnl += unrealized
+            
+            daily_curve[date] = realized_pnl_cum + current_unrealized_pnl
+            
+        # 4. Filter by View Period
+        pnl_series = {k: v for k, v in daily_curve.items() if safe_date_compare(k, cutoff_date)}
+        
+        if not pnl_series:
+            # Try to return at least something if period filtering was too strict but data exists
+            if daily_curve:
+                # Return the last points that fit? No, just return empty to avoid confusion
+                pass
             return {
                 'drawdown_periods': [],
                 'severity_breakdown': {'<5%': 0, '5-10%': 0, '10-20%': 0, '>20%': 0},
                 'recovery_analysis': {'avg_recovery_days': 0, 'max_recovery_days': 0},
                 'summary': {'max_drawdown': 0, 'total_periods': 0, 'avg_duration_days': 0}
             }
-        
-        # Create time series based on frequency
-        dates = sorted(daily_pnl.keys())
-        if frequency == 'Weekly':
-            # Aggregate to weekly
-            weekly_pnl = defaultdict(float)
-            for date, pnl in daily_pnl.items():
-                week_start = date - timedelta(days=date.weekday())
-                weekly_pnl[week_start] += pnl
-            pnl_series = weekly_pnl
-        elif frequency == 'Monthly':
-            # Aggregate to monthly
-            monthly_pnl = defaultdict(float)
-            for date, pnl in daily_pnl.items():
-                month_start = date.replace(day=1)
-                monthly_pnl[month_start] += pnl
-            pnl_series = monthly_pnl
-        else:
-            pnl_series = daily_pnl
-        
-        # Calculate cumulative P&L and drawdowns
+
+        # 5. Calculate Drawdowns (Standard Logic)
         sorted_dates = sorted(pnl_series.keys())
-        cumulative_pnl = []
-        running_total = 0
+        cumulative_pnl = [pnl_series[d] for d in sorted_dates]
         
-        for date in sorted_dates:
-            running_total += pnl_series[date]
-            cumulative_pnl.append(running_total)
+        # Normalize curve to start at 0? 
+        # Usually Drawdown is calculated from Peak. Absolute values matter if using % of Equity.
+        # But here we have $ P&L.
+        # Drawdown in %: (Peak_Value - Current_Value) / Peak_Value.
+        # If we only have P&L, we don't know the "Total Equity" (Initial Capital).
+        # We can approximate "Invested Capital" to create a % drawdown?
+        # Or just use $ Drawdown? 
+        # The UI shows "%". 
         
-        # Find drawdown periods
+        # Estimate "Capital At Risk" or "Peak Equity"
+        # We can simulate a "Starting Capital" or calculate "Total Invested" dynamically.
+        # Let's track "Cumulative Cost Basis" as a proxy for invested capital.
+        # Or, simpler: Drawdown as % of Peak Equity (where Equity = Initial + P&L).
+        # We don't know Initial.
+        
+        # Hybrid Approach:
+        # If we treat the "Peak P&L" as the high watermark. 
+        # But if Peak P&L is $1000 and it drops to $500, is that a 50% drawdown? 
+        # Depends if we started with $1M or $0.
+        
+        # Solution: Use "Total Invested Capital" at the time of Peak as the denominator?
+        # Or assume a basis.
+        # FOR NOW: Let's use the code's existing logic `max(abs(peak), 1)` BUT clearly this is flaw if peak is near 0.
+        # WE SHOULD USE: Denominator = Max(Peak Value, Max Invested Capital).
+        
+        # Let's calculate Max Invested Capital during the run to handle the "small P&L" case.
+        # Retained logical improvement:
+        
         drawdown_periods = []
-        peak = cumulative_pnl[0]
+        # Re-using the same loop logic but with the new P&L curve
+        peak = -float('inf') 
         peak_date = sorted_dates[0]
         in_drawdown = False
         drawdown_start = None
-        max_dd = 0
+        current_period_max_dd_pct = 0
         
-        for i, (date, cum_pnl) in enumerate(zip(sorted_dates, cumulative_pnl)):
-            if cum_pnl > peak:
-                # New peak - end any current drawdown
+        # Determine a baseline logical denominators
+        # Track max_invested
+        # This is tough without processing transactions again.
+        # Let's assume a minimum denominator of $1000 or the actual Peak P&L to prevent divide-by-zero or massive % on small accounts.
+        # Better: (Peak - Current) / Peak works if Peak is Total Value.
+        # Total Value = Initial + P&L.
+        # Let's assumed Initial = Max Cost Basis observed? 
+        # Or simply:
+        # Drawdown = (Peak P&L - Current P&L) / (Peak P&L + Invested Capital) ?
+        
+        # Standard approach when only P&L is known: 
+        # Drawdown is calculated on the 'Equity Curve'.
+        # We constructed 'daily_curve' as Total Profit using 0 as start. 
+        # Total Value_t = Initial_Capital + daily_curve_t
+        # Current DD_t = (Max_Value - Value_t) / Max_Value
+        #              = (Max(Init + Curve) - (Init + Curve_t)) / Max(Init + Curve)
+        #              = (Max_Curve - Curve_t) / (Init + Max_Curve)
+        
+        # Since we don't know Init, let's assume Init = Max(Cost Basis) encountered.
+        # This provides a reasonable 'Account Size' proxy.
+        
+        # Let's calculate approx max cost basis
+        max_invested = 0
+        curr_invested = 0
+        for txn in sorted_txns:
+             if txn.transaction_type in ['BUY', 'Buy']:
+                 curr_invested += (txn.quantity * txn.price)
+                 max_invested = max(max_invested, curr_invested)
+             elif txn.transaction_type in ['SELL', 'Sell']:
+                 # Reduce invested? 
+                 # Simplest approximation: sum of all buys? No.
+                 # Just use max_invested as a floor for the account size.
+                 pass
+        
+        effective_account_size = max(max_invested, 10000) # Fallback $10k
+        
+        equity_curve = [val + effective_account_size for val in cumulative_pnl]
+        
+        peak_equity = equity_curve[0]
+        peak_date = sorted_dates[0]
+        
+        for i, (date, equity) in enumerate(zip(sorted_dates, equity_curve)):
+            if equity > peak_equity:
+                # Recovery
                 if in_drawdown and drawdown_start:
                     recovery_days = (date - drawdown_start).days
                     drawdown_periods.append({
                         'start_date': drawdown_start.strftime('%Y-%m-%d'),
                         'end_date': date.strftime('%Y-%m-%d'),
-                        'max_drawdown': round(max_dd * 100, 2),
+                        'max_drawdown': round(current_period_max_dd_pct * 100, 2),
                         'duration_days': recovery_days,
                         'recovery_days': recovery_days
                     })
-                peak = cum_pnl
+                peak_equity = equity
                 peak_date = date
                 in_drawdown = False
-                max_dd = 0
+                current_period_max_dd_pct = 0
+            
             else:
-                # In drawdown
+                # In Drawdown
                 if not in_drawdown:
                     drawdown_start = peak_date
                     in_drawdown = True
                 
-                current_dd = (peak - cum_pnl) / max(abs(peak), 1)
-                max_dd = max(max_dd, current_dd)
+                dd_pct = (peak_equity - equity) / peak_equity
+                current_period_max_dd_pct = max(current_period_max_dd_pct, dd_pct)
         
-        # Handle ongoing drawdown
+        # Handle ongoing
         if in_drawdown and drawdown_start:
             drawdown_periods.append({
                 'start_date': drawdown_start.strftime('%Y-%m-%d'),
                 'end_date': sorted_dates[-1].strftime('%Y-%m-%d'),
-                'max_drawdown': round(max_dd * 100, 2),
+                'max_drawdown': round(current_period_max_dd_pct * 100, 2),
                 'duration_days': (sorted_dates[-1] - drawdown_start).days,
-                'recovery_days': None  # Ongoing
+                'recovery_days': None
             })
+
+        # 6. Apply Filter & Calculate Stats
+        original_periods = drawdown_periods # Keep all for breakdown if needed? 
+        # Actually logic says filter first then breakdown usually, but breakdown should probably show all. 
+        # But let's stick to existing pattern: filter limits what is returned in 'drawdown_periods' list
+        # We can calc breakdown on ALL.
         
-        # Apply severity filter
+        # Calculate breakdown on ALL periods
+        severity_breakdown = {'<5%': 0, '5-10%': 0, '10-20%': 0, '>20%': 0}
+        for period in original_periods:
+            dd = period['max_drawdown']
+            if dd < 5: severity_breakdown['<5%'] += 1
+            elif dd < 10: severity_breakdown['5-10%'] += 1
+            elif dd < 20: severity_breakdown['10-20%'] += 1
+            else: severity_breakdown['>20%'] += 1
+            
+        # Apply Filter for the List
         if severity_filter != 'All':
             if severity_filter == '<5%':
-                drawdown_periods = [p for p in drawdown_periods if p['max_drawdown'] < 5]
+                drawdown_periods = [p for p in original_periods if p['max_drawdown'] < 5]
             elif severity_filter == '5-10%':
-                drawdown_periods = [p for p in drawdown_periods if 5 <= p['max_drawdown'] < 10]
+                drawdown_periods = [p for p in original_periods if 5 <= p['max_drawdown'] < 10]
             elif severity_filter == '10-20%':
-                drawdown_periods = [p for p in drawdown_periods if 10 <= p['max_drawdown'] < 20]
+                drawdown_periods = [p for p in original_periods if 10 <= p['max_drawdown'] < 20]
             elif severity_filter == '>20%':
-                drawdown_periods = [p for p in drawdown_periods if p['max_drawdown'] >= 20]
+                drawdown_periods = [p for p in original_periods if p['max_drawdown'] >= 20]
+                
+        # Stats
+        max_drawdown = max([p['max_drawdown'] for p in original_periods]) if original_periods else 0
+        avg_duration = np.mean([p['duration_days'] for p in original_periods]) if original_periods else 0
         
-        # Severity breakdown
-        severity_breakdown = {'<5%': 0, '5-10%': 0, '10-20%': 0, '>20%': 0}
-        for period in drawdown_periods:
-            dd = period['max_drawdown']
-            if dd < 5:
-                severity_breakdown['<5%'] += 1
-            elif dd < 10:
-                severity_breakdown['5-10%'] += 1
-            elif dd < 20:
-                severity_breakdown['10-20%'] += 1
-            else:
-                severity_breakdown['>20%'] += 1
+        all_recoveries = [p['recovery_days'] for p in original_periods if p['recovery_days'] is not None]
+        avg_recovery = np.mean(all_recoveries) if all_recoveries else 0
+        max_recovery = max(all_recoveries) if all_recoveries else 0
+
+        return {
+            'drawdown_periods': drawdown_periods,
+            'severity_breakdown': severity_breakdown,
+            'recovery_analysis': {
+                'avg_recovery_days': round(avg_recovery, 1),
+                'max_recovery_days': round(max_recovery, 1),
+                'total_periods': len(original_periods),
+                'period': period
+            },
+            'summary': {
+                'max_drawdown': round(max_drawdown, 2),
+                'total_periods': len(original_periods),
+                'avg_duration_days': round(avg_duration, 1)
+            }
+        }
         
-        # Recovery analysis
-        recovery_times = [p['recovery_days'] for p in drawdown_periods if p['recovery_days'] is not None]
-        avg_recovery = np.mean(recovery_times) if recovery_times else 0
-        max_recovery = max(recovery_times) if recovery_times else 0
-        
-        # Summary statistics
-        max_drawdown = max([p['max_drawdown'] for p in drawdown_periods]) if drawdown_periods else 0
-        avg_duration = np.mean([p['duration_days'] for p in drawdown_periods]) if drawdown_periods else 0
-        
+        # Calculate Benchmark Drawdown if requested
+        benchmark_metrics = {}
+        if comparison in ['vs Benchmark', 'vs Market']:
+            try:
+                # Default to SPY for market/benchmark
+                benchmark_symbol = 'SPY'
+                
+                # Fetch benchmark data for the same period
+                # We need start date from the data or cutoff
+                bench_start = sorted_dates[0] if sorted_dates else cutoff_date
+                
+                # Get price data
+                market_data = self.data_client.get_price_data([benchmark_symbol], period=period)
+                
+                if market_data is not None and not market_data.empty:
+                    # Calculate benchmark drawdown
+                    # Extract close prices
+                    if benchmark_symbol in market_data.columns:
+                        prices = market_data[benchmark_symbol]
+                    else:
+                        prices = market_data.iloc[:, 0]
+                        
+                    # Calculate drawdown
+                    rolling_max = prices.cummax()
+                    drawdown = (prices - rolling_max) / rolling_max
+                    bench_max_dd = abs(drawdown.min()) * 100
+                    
+                    benchmark_metrics = {
+                        'benchmark_symbol': benchmark_symbol,
+                        'benchmark_max_drawdown': round(bench_max_dd, 2)
+                    }
+            except Exception as e:
+                print(f"Benchmark analysis failed: {e}")
+                
         return {
             'drawdown_periods': drawdown_periods,
             'severity_breakdown': severity_breakdown,
@@ -1410,7 +1614,8 @@ class AdvancedTransactionAnalyzer:
             'summary': {
                 'max_drawdown': round(max_drawdown, 2),
                 'total_periods': len(drawdown_periods),
-                'avg_duration_days': round(avg_duration, 1)
+                'avg_duration_days': round(avg_duration, 1),
+                **benchmark_metrics
             }
         }
     

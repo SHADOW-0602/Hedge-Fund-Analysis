@@ -227,6 +227,17 @@ class BacktestingManager {
         // Store portfolio data for backtesting
         window.currentBacktestPortfolio = portfolioData;
 
+        // Load saved settings
+        try {
+            const savedSettings = localStorage.getItem('strategyBacktestSettings');
+            if (savedSettings) {
+                const parsed = JSON.parse(savedSettings);
+                currentBacktestOptions = { ...currentBacktestOptions, ...parsed };
+            }
+        } catch (e) {
+            console.error('Failed to load strategy backtest settings:', e);
+        }
+
         // Show loading state with full UI matching P&L Attribution style
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
@@ -320,6 +331,13 @@ function updateBacktestOptions() {
 
     // Don't auto-run, just update options
     console.log('Backtest options updated:', currentBacktestOptions);
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('strategyBacktestSettings', JSON.stringify(currentBacktestOptions));
+    } catch (e) {
+        console.error('Failed to save strategy backtest settings:', e);
+    }
 }
 
 // Global functions for HTML onclick handlers

@@ -7,6 +7,17 @@ let currentStatisticalOptions = {
 };
 
 window.loadStatisticalAnalysis = function (portfolioData, options = {}) {
+    // Initial load - check for saved settings first
+    try {
+        const savedSettings = localStorage.getItem('statisticalAnalysisSettings');
+        if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            currentStatisticalOptions = { ...currentStatisticalOptions, ...parsed };
+        }
+    } catch (e) {
+        console.error('Failed to load statistical settings:', e);
+    }
+
     if (window.analyticsManager) {
         window.analyticsManager.loadModule('statistical-analysis');
     }
@@ -335,6 +346,13 @@ function updateStatisticalOptions() {
         benchmark: document.getElementById('statisticalBenchmark')?.value || 'SPY',
         confidence_level: parseFloat(document.getElementById('statisticalConfidenceLevel')?.value || '0.95')
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('statisticalAnalysisSettings', JSON.stringify(currentStatisticalOptions));
+    } catch (e) {
+        console.error('Failed to save statistical settings:', e);
+    }
 }
 
 // Update analysis

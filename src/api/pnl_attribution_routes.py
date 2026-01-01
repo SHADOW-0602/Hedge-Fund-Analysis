@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from collections import defaultdict
 from .route_utils import sanitize_for_json
+from utils.cache_manager import cache_manager
 
 def register_pnl_attribution_routes(app, data_client, smart_cache=None):
     """Register P&L Attribution routes with interactive features"""
@@ -19,6 +20,12 @@ def register_pnl_attribution_routes(app, data_client, smart_cache=None):
             
             if not data:
                 return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+            # Check cache
+            cache_key = cache_manager.generate_key('pnl-attribution', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             # Handle analytics-core structure: { transactions: [...], options: {...} }
             transactions_data = data.get('transactions', [])
@@ -284,16 +291,18 @@ def register_pnl_attribution_routes(app, data_client, smart_cache=None):
                     print(f"[DEBUG] Retrieved {len(current_prices)} prices: {current_prices}")
                     
                     for symbol, pos in positions.items():
-                        if pos['quantity'] > 0:
+                        # Include if position is open OR if there's realized P&L (even if closed)
+                        has_open_position = abs(pos['quantity']) > 0  # Use abs() to handle short positions
+                        has_realized_pnl = abs(realized_pnl_by_symbol.get(symbol, 0)) > 0
+                        
+                        if has_open_position or has_realized_pnl:
                             if symbol in current_prices:
                                 # Unrealized P&L
                                 # Long: (Current - Basis) * Qty
-                                # Short: (Basis - Current) * Abs(Qty) -> which is (Basis - Current) * (-Qty) * -1 ... wait
+                                # Short: (Basis - Current) * Abs(Qty) -> which is (Basis - Current) * (-Qty) * -1 
                                 # Short Qty is negative. 
                                 # Value = Qty * Current. Cost = Qty * Basis.
                                 # P&L = Value - Cost = Qty * (Current - Basis)
-                                # Example: Short 10 @ 100. Basis=100, Qty=-10. Current=90.
-                                # P&L = -10 * (90 - 100) = -10 * -10 = +100. Correct.
                                 unrealized = (current_prices[symbol] - pos['cost_basis']) * pos['quantity']
                                 pnl_data['unrealized_pnl'] += unrealized
                                 pnl_data['by_symbol'][symbol] = {
@@ -305,7 +314,8 @@ def register_pnl_attribution_routes(app, data_client, smart_cache=None):
                                     'quantity': pos['quantity']
                                 }
                             else:
-                                # No current price available - show position at cost
+                                # No current price available - show position at cost (unrealized = 0)
+                                # But we still want to show realized P&L if it exists
                                 pnl_data['by_symbol'][symbol] = {
                                     'realized_pnl': realized_pnl_by_symbol.get(symbol, 0),
                                     'unrealized_pnl': 0,
@@ -314,6 +324,7 @@ def register_pnl_attribution_routes(app, data_client, smart_cache=None):
                                     'cost_basis': pos['cost_basis'],
                                     'quantity': pos['quantity']
                                 }
+
                     
                     print(f"[DEBUG] Calculated unrealized P&L: ${pnl_data['unrealized_pnl']}")
                     
@@ -368,10 +379,15 @@ def register_pnl_attribution_routes(app, data_client, smart_cache=None):
                 'transaction_count': len(filtered_transactions)
             }
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'pnl_attribution': sanitize_for_json(pnl_data)
-            })
+            }
+            
+            # Cache result
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"P&L Attribution error: {e}")

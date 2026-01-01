@@ -1,11 +1,12 @@
 // Trade Timing Analysis Module
-window.loadTradeTimingAnalysis = function (transactions) {
+window.loadTradeTimingAnalysis = function (transactions, options = {}) {
     console.log('Loading trade timing analysis with', transactions?.length || 0, 'transactions');
+
+    const container = document.getElementById('analysisContent');
 
     if (!transactions || transactions.length === 0) {
         console.log('No transactions available for trade timing analysis');
-        const container = document.getElementById('analysisContent');
-        if (container) {
+        if (container && !options.background) {
             container.innerHTML = `
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Trade Timing Analysis</h2>
@@ -17,9 +18,8 @@ window.loadTradeTimingAnalysis = function (transactions) {
         return;
     }
 
-    // Show container and loading state
-    const container = document.getElementById('analysisContent');
-    if (container) {
+    // Show container and loading state (only if not background)
+    if (container && !options.background) {
         container.classList.remove('hidden');
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
@@ -49,14 +49,18 @@ window.loadTradeTimingAnalysis = function (transactions) {
         .then(data => {
             console.log('Trade timing analysis response:', data);
             if (data.success) {
-                displayTradeTimingResults(data.trade_timing_analysis, settings);
+                if (!options.background) {
+                    displayTradeTimingResults(data.trade_timing_analysis, settings);
+                } else {
+                    console.log('[Trade Timing] Background analysis complete');
+                }
             } else {
                 throw new Error(data.error || 'Analysis failed');
             }
         })
         .catch(error => {
             console.error('Trade timing analysis error:', error);
-            if (container) {
+            if (container && !options.background) {
                 container.innerHTML = `
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Trade Timing Analysis</h2>
@@ -72,7 +76,23 @@ window.loadTradeTimingAnalysis = function (transactions) {
 
 window.getTradeTimingSettings = function () {
     // Get from stored settings or form elements
-    const stored = window.tradeTimingStoredSettings || {};
+    let stored = window.tradeTimingStoredSettings;
+
+    // If not in memory, check localStorage
+    if (!stored) {
+        try {
+            const saved = localStorage.getItem('tradeTimingSettings');
+            if (saved) {
+                stored = JSON.parse(saved);
+                window.tradeTimingStoredSettings = stored;
+            }
+        } catch (e) {
+            console.error('Failed to load trade timing settings:', e);
+        }
+    }
+
+    stored = stored || {};
+
     return {
         period: document.getElementById('tradeTimingPeriod')?.value || stored.period || '1Y',
         timeBuckets: document.getElementById('tradeTimingTimeBuckets')?.value || stored.timeBuckets || 'All',
@@ -162,19 +182,19 @@ function displayTradeTimingResults(result, options) {
         <div class="space-y-6">
             <!-- Summary Stats -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="analysis-card p-4">
+                <div class="analysis-card p-4 dark:bg-gray-800">
                     <h4 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Total Trades</h4>
                     <p class="text-2xl font-bold metric-value neutral">${summary.total_trades || 0}</p>
                 </div>
-                <div class="analysis-card p-4">
+                <div class="analysis-card p-4 dark:bg-gray-800">
                     <h4 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Most Active Time</h4>
                     <p class="text-2xl font-bold metric-value neutral">${summary.most_active_time || 'N/A'}</p>
                 </div>
-                <div class="analysis-card p-4">
+                <div class="analysis-card p-4 dark:bg-gray-800">
                     <h4 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Most Active Day</h4>
                     <p class="text-2xl font-bold metric-value neutral">${summary.most_active_day || 'N/A'}</p>
                 </div>
-                <div class="analysis-card p-4">
+                <div class="analysis-card p-4 dark:bg-gray-800">
                     <h4 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Buy/Sell Ratio</h4>
                     <p class="text-2xl font-bold metric-value neutral">${summary.buy_sell_ratio ? summary.buy_sell_ratio.toFixed(2) : 'N/A'}</p>
                 </div>
@@ -182,7 +202,7 @@ function displayTradeTimingResults(result, options) {
 
             <!-- Time Bucket Performance -->
             ${Object.keys(timeBuckets).length > 0 ? `
-                <div class="analysis-card p-6">
+                <div class="analysis-card p-6 dark:bg-gray-800">
                     <h4 class="text-lg font-bold text-primary mb-4">Time Bucket Performance</h4>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -215,7 +235,7 @@ function displayTradeTimingResults(result, options) {
 
             <!-- Day of Week Performance -->
             ${Object.keys(dayPerformance).length > 0 ? `
-                <div class="analysis-card p-6">
+                <div class="analysis-card p-6 dark:bg-gray-800">
                     <h4 class="text-lg font-bold text-primary mb-4">Day of Week Performance</h4>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -253,7 +273,7 @@ function displayTradeTimingResults(result, options) {
 
             <!-- Market Conditions Performance -->
             ${Object.keys(marketConditions).length > 0 ? `
-                <div class="analysis-card p-6">
+                <div class="analysis-card p-6 dark:bg-gray-800">
                     <h4 class="text-lg font-bold text-primary mb-4">Market Conditions Performance</h4>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -283,13 +303,13 @@ function displayTradeTimingResults(result, options) {
             ` : ''}
 
             <!-- Analysis Parameters -->
-            <div class="analysis-card p-6">
+            <div class="analysis-card p-6 dark:bg-gray-800">
                 <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${parameters.period || 'N/A'}</span></div>
                     <div><span class="text-secondary">Time Buckets:</span> <span class="font-medium text-primary">${parameters.time_buckets || 'N/A'}</span></div>
                     <div><span class="text-secondary">Market Conditions:</span> <span class="font-medium text-primary">${parameters.market_conditions || 'N/A'}</span></div>
-                    <div><span class="text-secondary">Date Range:</span> <span class="font-medium text-primary">${parameters.date_range || 'N/A'}</span></div>
+                    <div><span class="text-secondary">Performance View:</span> <span class="font-medium text-primary">${parameters.performance_view || 'N/A'}</span></div>
                 </div>
             </div>
         </div>
@@ -306,12 +326,21 @@ window.toggleTradeTimingSettings = () => {
 
 window.updateTradeTimingAnalysis = () => {
     // Store current settings
-    window.tradeTimingStoredSettings = {
+    const settings = {
         period: document.getElementById('tradeTimingPeriod')?.value || '1Y',
         timeBuckets: document.getElementById('tradeTimingTimeBuckets')?.value || 'All',
         marketConditions: document.getElementById('tradeTimingMarketConditions')?.value || 'All',
         performanceView: document.getElementById('tradeTimingPerformanceView')?.value || 'Combined'
     };
+
+    window.tradeTimingStoredSettings = settings;
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('tradeTimingSettings', JSON.stringify(settings));
+    } catch (e) {
+        console.error('Failed to save trade timing settings:', e);
+    }
 
     const transactions = window.currentTransactions || [];
     if (transactions.length === 0) {

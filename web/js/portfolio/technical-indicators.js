@@ -40,6 +40,17 @@ async function loadTechnicalIndicators(portfolioData, options = {}) {
     window.currentTechnicalPortfolio = portfolioData;
 
     // Initial load
+    // Initial load - check for saved settings first
+    try {
+        const savedSettings = localStorage.getItem('technicalIndicatorsSettings');
+        if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            currentTechnicalOptions = { ...currentTechnicalOptions, ...parsed };
+        }
+    } catch (e) {
+        console.error('Failed to load technical indicator settings:', e);
+    }
+
     await fetchTechnicalIndicators(portfolioData);
 }
 
@@ -61,6 +72,13 @@ function updateTechnicalOptions() {
         bb_std: 2,
         signal_strength: document.getElementById('technicalSignalStrength')?.value || 'Medium'
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('technicalIndicatorsSettings', JSON.stringify(currentTechnicalOptions));
+    } catch (e) {
+        console.error('Failed to save technical indicator settings:', e);
+    }
 }
 
 async function fetchTechnicalIndicators(portfolioData) {

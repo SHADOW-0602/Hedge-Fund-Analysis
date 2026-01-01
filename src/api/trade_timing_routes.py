@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from .route_utils import sanitize_for_json
+from utils.cache_manager import cache_manager
 
 def register_trade_timing_routes(app, data_client, smart_cache=None):
     """Register trade timing analysis routes"""
@@ -17,6 +18,12 @@ def register_trade_timing_routes(app, data_client, smart_cache=None):
             data = request.get_json()
             transactions_data = data.get('transactions', [])
             options = data.get('options', {})
+
+            # Check cache
+            cache_key = cache_manager.generate_key('trade-timing', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             print(f"[TRADE-TIMING] Received {len(transactions_data)} transactions, options: {options}")
             
@@ -66,10 +73,13 @@ def register_trade_timing_routes(app, data_client, smart_cache=None):
             
             print(f"[TRADE-TIMING] Analysis complete: {len(timing_result.get('time_bucket_performance', {}))} time buckets analyzed")
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'trade_timing_analysis': sanitize_for_json(timing_result)
-            })
+            }
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f'Trade timing analysis failed: {e}')

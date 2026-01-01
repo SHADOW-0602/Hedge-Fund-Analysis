@@ -1,6 +1,7 @@
 from flask import request, jsonify
 from datetime import datetime, timedelta
 from .route_utils import sanitize_for_json, extract_valid_symbols, calculate_portfolio_weights
+from utils.cache_manager import cache_manager
 
 def register_backtesting_routes(app, data_client, smart_cache=None):
     """Register strategy backtesting routes"""
@@ -32,6 +33,12 @@ def register_backtesting_routes(app, data_client, smart_cache=None):
             
             portfolio_data = data.get('portfolio', [])
             options = data.get('options', {})
+
+            # Check cache
+            cache_key = cache_manager.generate_key('strategy-backtesting', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             if not portfolio_data:
                 return jsonify({'success': False, 'error': 'No portfolio data provided'}), 400
@@ -96,10 +103,12 @@ def register_backtesting_routes(app, data_client, smart_cache=None):
             print(f"Sharpe ratio: {results['performance_metrics']['sharpe_ratio']:.3f}")
             print(f"Max drawdown: {results['risk_metrics']['max_drawdown']:.2%}")
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'backtesting_results': sanitize_for_json(results)
-            })
+            }
+            cache_manager.set(cache_key, response_data)
+            return jsonify(response_data)
             
         except Exception as e:
             print(f"Strategy backtesting error: {e}")

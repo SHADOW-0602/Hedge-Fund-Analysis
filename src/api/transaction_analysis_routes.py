@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from .route_utils import sanitize_for_json
+from utils.cache_manager import cache_manager
 
 def register_transaction_analysis_routes(app, data_client, smart_cache=None):
     """Register transaction analysis routes"""
@@ -22,6 +23,13 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transactions provided'}), 400
+
+            # Check cache
+            cache_key = cache_manager.generate_key('cash-flow-analysis', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                print(f"[CASH-FLOW-ROUTE] Cache hit for {cache_key}")
+                return jsonify(cached_result)
             
             # Convert to Transaction objects
             transactions = []
@@ -66,10 +74,14 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             
             print(f"[CASH-FLOW-ROUTE] Analysis complete, returning data with {len(cash_flow_data.get('chart_data', []))} chart points")
             
-            return jsonify({
+            
+            response_data = {
                 'success': True,
                 'cash_flow_analysis': sanitize_for_json(cash_flow_data)
-            })
+            }
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f'Cash flow analysis failed: {e}')
@@ -97,6 +109,12 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transaction data provided'}), 400
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('trade-performance', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             # Convert to Transaction objects for AdvancedTransactionAnalyzer
             transactions = []
@@ -128,10 +146,13 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             
             print(f"[TRADE-PERFORMANCE] Analysis complete: {performance_result.get('total_trades', 0)} trades processed")
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'trade_performance': sanitize_for_json(performance_result)
-            })
+            }
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
             # Options are handled by the analyzer internally
             
@@ -156,6 +177,12 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transactions provided'}), 400
+
+            # Check cache
+            cache_key = cache_manager.generate_key('fifo-lifo-accounting', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             # Convert to Transaction objects
             transactions = []
@@ -221,10 +248,16 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             sanitized_result = sanitize_for_json(fifo_lifo_result)
             print(f"[FIFO-LIFO] Sanitized result: {sanitized_result}")
             
-            return jsonify({
+            
+            response_data = {
                 'success': True,
                 'fifo_lifo_analysis': sanitized_result
-            })
+            }
+            
+            # Cache result
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f'[FIFO-LIFO] Analysis failed: {e}')
@@ -244,6 +277,12 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             
             if not transactions_data:
                 return jsonify({'success': False, 'error': 'No transactions provided'}), 400
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('tax-optimization', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             # Convert to Transaction objects
             transactions = []
@@ -303,7 +342,7 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             if potential_savings > 1000:
                 recommendations.append(f"Potential tax savings of ${potential_savings:,.0f} available")
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'tax_optimization': {
                     'optimal_method': optimal['method'],
@@ -311,7 +350,10 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
                     'recommendations': recommendations,
                     'method_comparison': method_results
                 }
-            })
+            }
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
             
         except Exception as e:
             print(f'Tax optimization failed: {e}')
@@ -334,6 +376,12 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             
             print(f"[TRANSACTION-XIRR] Received {len(transactions_data)} transactions, {len(portfolio_data)} portfolio items")
             
+            # Check cache
+            cache_key = cache_manager.generate_key('transaction-xirr', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
+
             # Helper to cleanly parse floats
             def safe_float(val, default=0.0):
                 if val is None:
@@ -373,10 +421,21 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
                         date_obj = safe_parse_date(tx_data.get('date', ''))
                         symbol = tx_data.get('symbol', 'Unknown')
                         
-                        raw_qty = tx_data.get('quantity', 0)
-                        raw_price = tx_data.get('price', 0)
-                        raw_fees = tx_data.get('fees', 0)
+                        # Robust key extraction
+                        def get_val(item, keys, default=0):
+                            for k in keys:
+                                if k in item and item[k] is not None and str(item[k]).strip() != '':
+                                    return item[k]
+                            return default
+
+                        raw_qty = get_val(tx_data, ['quantity', 'Quantity', 'qty', 'Qty', 'shares', 'Shares', 'amount', 'Amount'], 0)
                         
+                        # Price fields
+                        raw_price = get_val(tx_data, ['price', 'Price', 'unit_price', 'cost_per_share', 'avg_cost', 'rate'], 0)
+                        
+                        # Fee fields
+                        raw_fees = get_val(tx_data, ['fees', 'Fees', 'commission', 'Commission', 'fee', 'trans_cost'], 0)
+
                         transaction = Transaction(
                             symbol=symbol,
                             quantity=safe_float(raw_qty),
@@ -424,7 +483,15 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
                 for i, pos_data in enumerate(portfolio_data):
                     try:
                         symbol = pos_data.get('symbol', 'Unknown')
-                        current_qty = safe_float(pos_data.get('quantity', 0))
+                        
+                        # Use the same get_val helper if available, or redefine
+                        def get_val_p(item, keys, default=0):
+                            for k in keys:
+                                if k in item and item[k] is not None and str(item[k]).strip() != '':
+                                    return item[k]
+                            return default
+
+                        current_qty = safe_float(get_val_p(pos_data, ['quantity', 'Quantity', 'qty', 'Qty', 'shares', 'Shares'], 0))
                         
                         # Get transaction history impact
                         tx_metric = tx_metrics.get(symbol, {'net_qty': 0.0, 'min_date': None})
@@ -443,13 +510,14 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
                         if tx_metric['min_date']:
                             proxy_date = tx_metric['min_date'] - timedelta(days=1)
                         else:
-                            proxy_date = safe_parse_date(pos_data.get('purchase_date'), default=default_purchase_date)
+                            raw_date = get_val_p(pos_data, ['purchase_date', 'date', 'acquisition_date'], None)
+                            proxy_date = safe_parse_date(raw_date, default=default_purchase_date)
                             
                         # Determine Proxy Price
                         # Using avg_cost is the best heuristic for the "base" position
-                        avg_cost = safe_float(pos_data.get('avg_cost', 0))
-                        cost_basis = safe_float(pos_data.get('cost_basis', 0))
-                        current_price = safe_float(pos_data.get('current_price', 0))
+                        avg_cost = safe_float(get_val_p(pos_data, ['avg_cost', 'cost_per_share', 'unit_cost'], 0))
+                        cost_basis = safe_float(get_val_p(pos_data, ['cost_basis', 'total_cost', 'cost'], 0))
+                        current_price = safe_float(get_val_p(pos_data, ['current_price', 'price', 'last_price', 'market_price'], 0))
                         
                         price = 0.0
                         is_fallback_price = False
@@ -532,7 +600,20 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             # Calculate per-ticker XIRR
             ticker_breakdown = []
             for ticker in sorted(base_tickers):
+                # Debug logging for AAPL
+                if ticker == 'AAPL':
+                    print(f"[XIRR-DEBUG] Calculating XIRR for AAPL")
+                    print(f"[XIRR-DEBUG] Current Price: {current_prices.get(ticker, 'Not Found')}")
+                    # Inspect transactions
+                    aapl_txns = [t for t in transactions if t.symbol == ticker]
+                    print(f"[XIRR-DEBUG] Found {len(aapl_txns)} AAPL transactions")
+                    for t in aapl_txns:
+                        print(f"  - {t.date}: {t.transaction_type} {t.quantity} @ {t.price}")
+
                 ticker_metrics = analyzer.calculate_ticker_xirr(ticker, current_prices)
+                
+                if ticker == 'AAPL':
+                    print(f"[XIRR-DEBUG] Result metrics: {ticker_metrics}")
                 
                 # Get position data if available
                 pos_data = position_analysis.get(ticker, {})
@@ -556,7 +637,8 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
             start_date = min(tx.date for tx in transactions)
             end_date = max(tx.date for tx in transactions)
             
-            result = {
+            # Prepare result
+            xirr_result = {
                 'portfolio_xirr': portfolio_metrics.xirr,
                 'portfolio_metrics': {
                     'xirr': portfolio_metrics.xirr,
@@ -567,29 +649,32 @@ def register_transaction_analysis_routes(app, data_client, smart_cache=None):
                     'volatility': portfolio_metrics.volatility,
                     'sharpe_ratio': portfolio_metrics.sharpe_ratio,
                     'max_drawdown': portfolio_metrics.max_drawdown,
+                    'sortino_ratio': portfolio_metrics.sortino_ratio,
+                    'calmar_ratio': portfolio_metrics.calmar_ratio,
                     'current_value': portfolio_metrics.current_value,
-                    'total_invested': portfolio_metrics.total_invested
+                    'total_invested': portfolio_metrics.total_invested,
+                    'holding_period_days': portfolio_metrics.holding_period_days,
+                    'win_rate': portfolio_metrics.win_rate,
+                    'profit_factor': portfolio_metrics.profit_factor
                 },
                 'ticker_breakdown': ticker_breakdown,
-                'warnings': warnings,
                 'metadata': {
-                    'transaction_count': len(transactions),
-                    'ticker_count': len(base_tickers),
-                    'start_date': start_date.strftime('%Y-%m-%d'),
-                    'end_date': end_date.strftime('%Y-%m-%d'),
-                    'holding_period_days': portfolio_metrics.holding_period_days,
-                    'period': options.get('period', 'ITD'),
-                    'view': options.get('view', 'Combined')
+                    'start_date': start_date.isoformat() if start_date else None,
+                    'end_date': end_date.isoformat() if end_date else None,
+                    'total_transactions': len(transactions_data),
+                    'total_portfolio_items': len(portfolio_data)
                 }
             }
             
-            print(f"[TRANSACTION-XIRR] Portfolio XIRR: {portfolio_metrics.xirr:.2%}")
-            print(f"[TRANSACTION-XIRR] Analyzed {len(ticker_breakdown)} tickers")
-            
-            return jsonify({
+            response_data = {
                 'success': True,
-                'transaction_xirr': sanitize_for_json(result)
-            })
+                'transaction_xirr': xirr_result
+            }
+            
+            cache_manager.set(cache_key, response_data)
+            
+            return jsonify(response_data)
+
             
         except Exception as e:
             print(f'Transaction XIRR failed: {e}')

@@ -1,6 +1,7 @@
 from flask import request, jsonify
 import numpy as np
 from .route_utils import sanitize_for_json, extract_valid_symbols
+from utils.cache_manager import cache_manager
 
 def register_options_routes(app, data_client, smart_cache=None):
     """Register options analysis routes"""
@@ -10,6 +11,12 @@ def register_options_routes(app, data_client, smart_cache=None):
         try:
             print(f"hedge_fund_app - INFO - Received options scan request")
             data = request.get_json()
+            
+            # Check cache
+            cache_key = cache_manager.generate_key('scan-options', data)
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return jsonify(cached_result)
             
             # Handle both 'symbols' array and 'portfolio' array
             symbols = data.get('symbols', [])
@@ -139,6 +146,7 @@ def register_options_routes(app, data_client, smart_cache=None):
                     'original_opportunities': len(opportunities)
                 }
             })
+            cache_manager.set(cache_key, response_data)
             
             print(f"hedge_fund_app - INFO - Options scan completed successfully")
             return jsonify(response_data)

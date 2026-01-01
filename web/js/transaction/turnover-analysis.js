@@ -11,22 +11,22 @@ let currentTurnoverOptions = {
 
 let turnoverChart = null;
 
-async function loadTurnoverAnalysis(transactions) {
+async function loadTurnoverAnalysis(transactions, options = {}) {
     console.log('[TURNOVER-ANALYSIS] loadTurnoverAnalysis called with:', transactions?.length || 0, 'transactions');
 
     const container = document.getElementById('turnoverAnalysis');
-    if (!container) {
+    if (!container && !options.background) {
         console.error('[TURNOVER-ANALYSIS] turnoverAnalysis container not found');
         return;
     }
 
-    console.log('[TURNOVER-ANALYSIS] Container found, proceeding with interactive analysis');
-
-    // Clear any existing content immediately
-    container.innerHTML = '';
-
-    // Force display of interactive analysis
-    console.log('[TURNOVER-ANALYSIS] Forcing interactive turnover analysis display');
+    if (container && !options.background) {
+        console.log('[TURNOVER-ANALYSIS] Container found, proceeding with interactive analysis');
+        // Clear any existing content immediately
+        container.innerHTML = '';
+        // Force display of interactive analysis
+        console.log('[TURNOVER-ANALYSIS] Forcing interactive turnover analysis display');
+    }
 
     // Ensure API_BASE is defined
     if (typeof API_BASE === 'undefined') {
@@ -35,15 +35,27 @@ async function loadTurnoverAnalysis(transactions) {
 
     // Validate transactions
     if (!transactions || transactions.length === 0) {
-        container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for Turnover Analysis</div>';
+        if (container && !options.background) {
+            container.innerHTML = '<div class="text-center py-4 text-yellow-500">No transactions available for Turnover Analysis</div>';
+        }
         return;
     }
 
     // Store transactions for refresh
     window.currentTurnoverTransactions = transactions;
 
-    // Initial load
-    await fetchTurnoverAnalysis(transactions);
+    // Initial load - check for saved settings first
+    try {
+        const savedSettings = localStorage.getItem('turnoverSettings');
+        if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            currentTurnoverOptions = { ...currentTurnoverOptions, ...parsed };
+        }
+    } catch (e) {
+        console.error('Failed to load turnover settings:', e);
+    }
+
+    await fetchTurnoverAnalysis(transactions, options);
 }
 
 function updateTurnoverOptions() {
@@ -56,18 +68,26 @@ function updateTurnoverOptions() {
         start_date: document.getElementById('turnoverStartDate')?.value || null,
         end_date: document.getElementById('turnoverEndDate')?.value || null
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('turnoverSettings', JSON.stringify(currentTurnoverOptions));
+    } catch (e) {
+        console.error('Failed to save turnover settings:', e);
+    }
 }
 
-async function fetchTurnoverAnalysis(transactions) {
+async function fetchTurnoverAnalysis(transactions, options = {}) {
     const container = document.getElementById('turnoverAnalysis');
-    if (!container) return;
+    if (!container && !options.background) return;
 
     // Preserve settings state if they exist
     const settingsPanel = document.getElementById('turnoverSettings');
     const settingsHidden = settingsPanel ? settingsPanel.classList.contains('hidden') : true;
 
-    // Show loading state with full UI
-    container.innerHTML = `
+    // Show loading state with full UI (only if not background)
+    if (container && !options.background) {
+        container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-primary">Turnover Analysis</h2>
             <div class="flex items-center space-x-2">
@@ -153,8 +173,7 @@ async function fetchTurnoverAnalysis(transactions) {
             <p class="text-sm text-gray-500">This may take a few moments</p>
         </div>
     `;
-
-    try {
+    } try {
         console.log('Making Turnover Analysis API call with options:', currentTurnoverOptions);
 
         const response = await fetch(`${API_BASE}/api/turnover-analysis`, {
@@ -168,13 +187,22 @@ async function fetchTurnoverAnalysis(transactions) {
         const data = await response.json();
 
         if (data.success && data.turnover_analysis) {
-            displayTurnoverResults(data.turnover_analysis);
+            if (!options.background) {
+                displayTurnoverResults(data.turnover_analysis);
+            } else {
+                console.log('[Turnover Analysis] Background load complete');
+            }
         } else {
-            showTurnoverError(data.error || 'No valid transactions found');
+            console.error('[Turnover Analysis] Analysis failed:', data);
+            if (!options.background) {
+                showTurnoverError(data.error || 'No valid transactions found');
+            }
         }
     } catch (error) {
         console.error('Turnover Analysis error:', error);
-        showTurnoverError(error.message);
+        if (!options.background) {
+            showTurnoverError(error.message);
+        }
     }
 }
 

@@ -31,31 +31,31 @@ window.renderMonteCarloChart = function (apiResponse) {
     // 1. Build Stats Summary HTML
     let statsHtml = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <div class="text-xs text-gray-500 uppercase">Exp. Return</div>
-                <div class="text-lg font-bold text-gray-900">${formatPercent(stats.mean_return || stats.expected_return)}</div>
+            <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="text-xs text-gray-500 dark:text-gray-400 uppercase">Exp. Return</div>
+                <div class="text-lg font-bold text-gray-900 dark:text-white">${formatPercent(stats.mean_return || stats.expected_return)}</div>
             </div>
-            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <div class="text-xs text-gray-500 uppercase">VaR (95%)</div>
-                <div class="text-lg font-bold text-red-600">${formatCurrency(stats.value_at_risk_95 || stats.var_95 || stats.value_at_risk)}</div>
+            <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="text-xs text-gray-500 dark:text-gray-400 uppercase">VaR (95%)</div>
+                <div class="text-lg font-bold text-red-600 dark:text-red-400">${formatCurrency(stats.value_at_risk_95 || stats.var_95 || stats.value_at_risk)}</div>
             </div>
-            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <div class="text-xs text-gray-500 uppercase">Sharpe Ratio</div>
-                <div class="text-lg font-bold text-gray-900">${formatNumber(stats.sharpe_ratio)}</div>
+            <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="text-xs text-gray-500 dark:text-gray-400 uppercase">Sharpe Ratio</div>
+                <div class="text-lg font-bold text-gray-900 dark:text-white">${formatNumber(stats.sharpe_ratio)}</div>
             </div>
-            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <div class="text-xs text-gray-500 uppercase">Max Drawdown</div>
-                <div class="text-lg font-bold text-red-600">${formatPercent(stats.max_drawdown)}</div>
+            <div class="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="text-xs text-gray-500 dark:text-gray-400 uppercase">Max Drawdown</div>
+                <div class="text-lg font-bold text-red-600 dark:text-red-400">${formatPercent(stats.max_drawdown)}</div>
             </div>
         </div>
     `;
 
     // 2. Prepare Chart Container
     const chartContainer = `
-        <div class="relative h-80 w-full bg-white rounded-lg border border-gray-200 p-2">
+        <div class="relative h-80 w-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2">
             <canvas id="monteCarloChart"></canvas>
         </div>
-        <div class="mt-4 text-xs text-gray-500 text-center">
+        <div class="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
             Simulated ${simData.length} paths over forecast period. Showing spread of potential outcomes.
         </div>
     `;
@@ -137,6 +137,10 @@ window.renderMonteCarloChart = function (apiResponse) {
         window.monteCarloChartInstance.destroy();
     }
 
+    const isDark = document.documentElement.classList.contains('dark');
+    const textColor = isDark ? '#9ca3af' : '#4b5563';
+    const gridColor = isDark ? '#374151' : '#f3f4f6';
+
     window.monteCarloChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -150,6 +154,7 @@ window.renderMonteCarloChart = function (apiResponse) {
                 legend: {
                     display: true,
                     labels: {
+                        color: textColor,
                         filter: function (item, chart) {
                             // Only show summary lines in legend
                             return !item.text.startsWith('Sim');
@@ -171,13 +176,14 @@ window.renderMonteCarloChart = function (apiResponse) {
             },
             scales: {
                 y: {
-                    title: { display: true, text: 'Portfolio Value ($)' },
-                    grid: { color: '#f3f4f6' }
+                    title: { display: true, text: 'Portfolio Value ($)', color: textColor },
+                    grid: { color: gridColor },
+                    ticks: { color: textColor }
                 },
                 x: {
-                    title: { display: true, text: 'Forecast Days' },
+                    title: { display: true, text: 'Forecast Days', color: textColor },
                     grid: { display: false },
-                    ticks: { maxTicksLimit: 10 }
+                    ticks: { maxTicksLimit: 10, color: textColor }
                 }
             },
             interaction: {
