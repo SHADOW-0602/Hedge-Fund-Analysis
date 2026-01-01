@@ -1226,11 +1226,12 @@ def process_single_ticker(ticker, all_keys_data, report_type='fundamental'):
         store_news_and_summary(storage_ticker, [], error_summary)
         return error_summary
 
-def process_news_for_active_tickers(force=False, custom_tickers=None):
+def process_news_for_active_tickers(force=False, custom_tickers=None, report_type='news'):
     """Process news for all active tickers in parallel
     Args:
         force (bool): Ignore daily run check
         custom_tickers (list): Optional list of tickers to process, overriding global ACTIVE_TICKERS
+        report_type (str): 'news' or 'fundamental'
     """
     global IS_PROCESSING, ACTIVE_TICKERS
     
@@ -1238,20 +1239,22 @@ def process_news_for_active_tickers(force=False, custom_tickers=None):
         print("News processing already in progress.")
         return
 
+    # Check daily run only if not forced (and distinct storage keys per type?)
+    # For simplicity, we just check generic daily run for now, OR we can split trackers.
+    # ideally we should have distinct logic, but let's keep it simple: 
+    # If report_type is fundamental, we might want to check a different tracker or just rely on 'force' from the script.
+    
     if not force and check_daily_run():
         print("Daily news fetch already completed today. Skipping...")
         return
     
     IS_PROCESSING = True
     target_list = custom_tickers if custom_tickers else ACTIVE_TICKERS
-    print(f"Starting PARALLEL news fetch cycle for {len(target_list)} tickers...")
+    print(f"Starting PARALLEL {report_type} fetch cycle for {len(target_list)} tickers...")
     
     try:
         if not custom_tickers:
             # Update tickers - Prioritize DISPLAY_TICKERS first
-            # We now process ALL tickers, no longer limiting to top 30/volume
-            # Sort logic: (False if in DISPLAY_TICKERS else True, ticker_name) -> Puts DISPLAY_TICKERS first
-            
             sorted_universe = sorted(TICKER_UNIVERSE, key=lambda x: (x not in DISPLAY_TICKERS, x))
             ACTIVE_TICKERS = sorted_universe
             target_list = ACTIVE_TICKERS
@@ -1276,19 +1279,325 @@ def process_news_for_active_tickers(force=False, custom_tickers=None):
         tasks = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor: 
             for ticker in target_list:
-                # Pass ALL keys to each thread. 
-                # generate_ai_summary will shuffle them to ensure load balancing.
-                tasks.append(executor.submit(process_single_ticker, ticker, all_keys))
+                # Pass report_type to process_single_ticker
+                tasks.append(executor.submit(process_single_ticker, ticker, all_keys, report_type=report_type))
             
             # Wait for completion
             concurrent.futures.wait(tasks)
             
-        mark_daily_run()
-        print("News fetch cycle completed successfully!")
+        if report_type == 'news': # Only mark generic daily run for news? 
+             mark_daily_run()
+             
+        print(f"{report_type.capitalize()} fetch cycle completed successfully!")
     except Exception as e:
-        print(f"Critical error in news processing cycle: {e}")
+        print(f"Critical error in {report_type} processing cycle: {e}")
     finally:
         IS_PROCESSING = False
+
+def process_quant_analysis(ticker, force=False):
+    """
+    Generate Expert Quant Analysis using 1h and 1d data via chained AI prompts.
+    Includes 1-hour in-memory cache.
+    Returns the analysis dict or raises Exception.
+    """
+    # Global Cache for Quant Analysis
+    global QUANT_ANALYSIS_CACHE
+    if 'QUANT_ANALYSIS_CACHE' not in globals():
+        QUANT_ANALYSIS_CACHE = {}
+
+    # --- Cache Check ---
+    current_time = time.time()
+    
+    if not force and ticker in QUANT_ANALYSIS_CACHE:
+        cached_entry = QUANT_ANALYSIS_CACHE[ticker]
+        if (current_time - cached_entry['timestamp']) < 3600:
+            print(f"  ✓ Serving Quant Analysis for {ticker} from Cache (< 1h old)")
+            return cached_entry['data']
+        else:
+            print(f"  ↻ Cache expired for {ticker} (> 1h). Regenerating...")
+    
+    if force:
+        print(f"  ↻ Force Refreshing Quant Analysis for {ticker}")
+
+    quant_logger.info(f"--- START Quant Analysis for {ticker} ---")
+
+    from .ta_utils import calculate_technical_indicators, prepare_df_for_llm
+    
+    # 1. Fetch Data (1h and 1d)
+    stock = yf.Ticker(ticker)
+    
+    # 1h Data
+    try:
+            df_1h = stock.history(period="2y", interval="1h")
+    except: df_1h = pd.DataFrame()
+
+    if df_1h.empty or 'High' not in df_1h.columns:
+            print(f"  ⚠ YF 1h Failed. Trying Polygon...")
+            df_poly_1h = fetch_polygon_history(ticker, period_days=730, interval='1h')
+            if df_poly_1h is not None and not df_poly_1h.empty:
+                df_1h = df_poly_1h
+            else:
+                print(f"  ⚠ Polygon 1h Failed. Trying Twelve Data...")
+                df_td_1h = fetch_twelve_data_history(ticker, interval='1h', outputsize=500)
+                if df_td_1h is not None and not df_td_1h.empty:
+                    df_1h = df_td_1h
+                else:
+                    pass
+    
+    # 1d Data
+    try:
+        df_1d = stock.history(period="2y", interval="1d")
+    except: df_1d = pd.DataFrame()
+
+    if df_1d.empty or 'High' not in df_1d.columns:
+            print(f"  ⚠ YF 1d Failed. Trying Polygon...")
+            df_poly_1d = fetch_polygon_history(ticker, period_days=730, interval='day')
+            if df_poly_1d is not None and not df_poly_1d.empty:
+                df_1d = df_poly_1d
+            else:
+                print(f"  ⚠ Polygon 1d Failed. Trying Twelve Data...")
+                df_td_1d = fetch_twelve_data_history(ticker, interval='day', outputsize=500)
+                if df_td_1d is not None and not df_td_1d.empty:
+                    df_1d = df_td_1d
+                else:
+                    pass
+    
+    # 2. Validation & Normalization
+    quant_logger.info(f"Fetching complete for {ticker}. Normalizing columns...")
+    df_1h, is_valid_1h = normalize_and_validate_columns(df_1h, "1H Data")
+    
+    if not is_valid_1h: 
+            quant_logger.error(f"1H Data Invalid for {ticker}")
+            raise ValueError('No 1h data found or missing data columns')
+
+    df_1d, is_valid_1d = normalize_and_validate_columns(df_1d, "1D Data")
+
+    if not is_valid_1d: 
+            quant_logger.error("1D Data Invalid")
+            raise ValueError('No 1d data found or missing data columns')
+
+    # 3. Calculate Indicators
+    try:
+        df_1h = calculate_technical_indicators(df_1h)
+        df_1d = calculate_technical_indicators(df_1d)
+    except Exception as q_err:
+            print(f"  ✗ Quant TA Failed for {ticker}: {q_err}")
+            quant_logger.error(f"Quant TA Calculation Failed: {q_err}", exc_info=True)
+            raise ValueError(f'Technical Analysis Failed: {str(q_err)}')
+    
+    # 3. Serialize Data for Prompt
+    data_1h_str = prepare_df_for_llm(df_1h, last_n=45)
+    data_1d_str = prepare_df_for_llm(df_1d, last_n=45)
+    
+    # 5. Execute AI Analysis
+    api_keys = [os.getenv('GEMINI_API_CHECKER')]
+    if os.getenv('GEMINI_API_KEY_6'):
+        api_keys.append(os.getenv('GEMINI_API_KEY_6'))
+    api_keys = [k for k in api_keys if k]
+    
+    if not api_keys:
+            print("Error: No AI keys (CHECKER or 6) found.")
+            # last_error = "No API Keys found in environment" 
+            # Allow fallback
+
+    analysis_raw = None
+    summary_final = None
+    last_error = "Unknown Error"
+    
+    combined_prompt = f"""
+    Role: You are an expert financial trader at a quantitative hedge fund.
+    
+    Task: Analyze the following technical data for {ticker} (Last 100 1h and 1d candles) and provide a "Expert Quant Assessment".
+    
+    --- 1H DATA ---
+    {data_1h_str}
+    
+    --- 1D DATA ---
+    {data_1d_str}
+    
+    Instructions:
+    1. Analyze price action, moving averages (SMA 20, 50, 200), RSI, and MACD.
+    2. Determine the short-term (1 week) and medium-term (1 month) probability.
+    3. IGNORE news/fundamentals. Focus purely on the math/charts.
+    
+    Output format (Markdown):
+    ## Quant Analysis for {ticker}
+    
+    **Signal**: [BUY / SELL / NEUTRAL] (Choose one based on weight of evidence).
+    **Confidence**: [0-100]%
+    
+    **Short-Term Outlook (1 Week)**: 2-3 sentences on immediate direction, supporting levels (Support/Resistance), and key indicators (e.g. "RSI at 75 suggests overbought").
+    
+    **Medium-Term Trend**: 1-2 sentences on the broader 1D trend (e.g. "Above SMA200, Bullish").
+    
+    **Key Levels to Watch**:
+    *   Support: $...
+    *   Resistance: $...
+    
+    **Strategy**: Concise actionable advice (e.g. "Buy dips to EMA20", "Wait for breakout above $X").
+    """
+
+    # Try AI Generation
+    quant_logger.info(f"Starting AI Generation for {ticker}...")
+    
+    # 1. Try Groq (Llama 3.3) First
+    groq_key = os.getenv('GROQ_API_KEY')
+    groq_success = False
+    
+    if groq_key:
+        try:
+            groq_url = "https://api.groq.com/openai/v1/chat/completions"
+            groq_headers = {
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": "application/json"
+            }
+            groq_payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": "You are an expert quantitative trader."},
+                    {"role": "user", "content": combined_prompt}
+                ],
+                "temperature": 0.3
+            }
+            
+            resp = requests.post(groq_url, headers=groq_headers, json=groq_payload, timeout=45)
+            
+            if resp.status_code == 200:
+                g_data = resp.json()
+                content_text = g_data['choices'][0]['message']['content']
+                if content_text:
+                    summary_final = content_text
+                    analysis_raw = "Generated via Groq (llama-3.3-70b)"
+                    groq_success = True
+                    print(f"  ✓ Groq Analysis Successful for {ticker}")
+            else:
+                print(f"  ⚠ Groq Error: {resp.status_code}")
+        except Exception as e:
+            print(f"  ⚠ Groq Connection Error: {e}")
+
+    # 2. Fallback to Gemini if Groq failed/missing
+    if not groq_success and api_keys:
+        payload = {
+            "contents": [{"parts": [{"text": combined_prompt}]}],
+            "generationConfig": {
+                "temperature": 0.3
+            }
+        }
+
+        for i, key in enumerate(api_keys):
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+                headers = {'Content-Type': 'application/json'}
+                
+                # print(f"DEBUG: Attempting AI Call {i+1}/{len(api_keys)}")
+
+                response = requests.post(url, headers=headers, json=payload, timeout=45)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    candidates = result.get('candidates', [])
+                    if candidates:
+                        content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                        if content_text:
+                            summary_final = content_text
+                            analysis_raw = "Generated via REST API (gemini-2.5-flash)"
+                            break # Success
+                elif response.status_code == 429:
+                    print(f"  ⚠ 429 Rate Limit on key ending ...{key[-4:]}")
+                    time.sleep(0.5) 
+                    continue
+                else:
+                    last_error = f"API Error {response.status_code}"
+                    continue
+
+            except Exception as e:
+                last_error = f"Connection Error: {str(e)}"
+                continue
+
+    # --- FALLBACK MECHANISM ---
+    if not summary_final:
+        print(f"  ⚠ All AI keys failed for {ticker}. Generating Fallback Analysis.")
+        
+        # Simple algorithmic fallback
+        last_close = df_1d['Close'].iloc[-1]
+        sma200 = df_1d['SMA_200'].iloc[-1] if 'SMA_200' in df_1d else 0
+        rsi = df_1d['RSI'].iloc[-1] if 'RSI' in df_1d else 50
+        
+        trend = "Bullish" if last_close > sma200 else "Bearish"
+        signal = "NEUTRAL"
+        confidence = 50
+        
+        if trend == "Bullish":
+            if rsi < 30: signal = "STRONG BUY"; confidence = 85
+            elif rsi < 45: signal = "BUY"; confidence = 70
+            elif rsi > 70: signal = "SELL (Overbought)"; confidence = 65
+            else: signal = "HOLD / BULLISH"; confidence = 60
+        else: # Bearish
+            if rsi > 70: signal = "STRONG SELL"; confidence = 85
+            elif rsi > 55: signal = "SELL"; confidence = 70
+            elif rsi < 30: signal = "BUY (Oversold)"; confidence = 65
+            else: signal = "HOLD / BEARISH"; confidence = 60
+        
+        summary_final = f"""## Quant Analysis for {ticker}
+**Signal**: {signal}
+**Confidence**: {confidence}%
+**Short-Term Outlook (1 Week)**: Technical indicators suggest {signal.lower()} momentum. RSI is at {rsi:.1f}.
+**Medium-Term Trend**: The broader trend is {trend} relative to the 200-day moving average.
+**Strategy**: Watch for confirmation of the current trend before entering positions.
+"""
+        analysis_raw = "Algorithmic Fallback (AI Unavailable)"
+
+    # Final Response Construction
+    response_payload = {
+        'ticker': ticker,
+        'analysis': summary_final,
+        'source': analysis_raw,
+        'timestamp': current_time
+    }
+    
+    # Update Cache
+    QUANT_ANALYSIS_CACHE[ticker] = {
+        'data': response_payload,
+        'timestamp': current_time
+    }
+    # Persist immediately
+    save_cache_to_disk()
+    
+    quant_logger.info(f"Quant Analysis Complete for {ticker}")
+    return response_payload
+
+def process_quant_for_active_tickers(force=False, custom_tickers=None):
+    """Process Quant Analysis for all active tickers in parallel"""
+    global IS_PROCESSING, ACTIVE_TICKERS
+    
+    # reusing IS_PROCESSING might block news if running concurrently, but that's probably fine/desired
+    # if IS_PROCESSING: ... 
+
+    target_list = custom_tickers if custom_tickers else ACTIVE_TICKERS
+    print(f"Starting PARALLEL Quant Analysis cycle for {len(target_list)} tickers...")
+    
+    try:
+        if not custom_tickers:
+             # Ensure active tickers are populated
+             if not ACTIVE_TICKERS:
+                  sorted_universe = sorted(TICKER_UNIVERSE, key=lambda x: (x not in DISPLAY_TICKERS, x))
+                  ACTIVE_TICKERS = sorted_universe
+             target_list = ACTIVE_TICKERS
+
+        def job(t):
+             try:
+                 process_quant_analysis(t, force=force)
+             except Exception as e:
+                 print(f"  ✗ Quant Job Failed for {t}: {e}")
+
+        # Use ThreadPool
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            tasks = [executor.submit(job, ticker) for ticker in target_list]
+            concurrent.futures.wait(tasks)
+            
+        print("Quant Analysis cycle completed successfully!")
+    except Exception as e:
+        print(f"Critical error in Quant processing cycle: {e}")
 
 def run_background_refresh():
     """Run refresh in background thread"""
@@ -2230,357 +2539,15 @@ def get_quant_analysis(ticker):
     Generate Expert Quant Analysis using 1h and 1d data via chained AI prompts.
     Includes 1-hour in-memory cache.
     """
-    # Global Cache for Quant Analysis
-    # Structure: { 'TICKER': { 'timestamp': float, 'data': dict } }
-    global QUANT_ANALYSIS_CACHE
-    if 'QUANT_ANALYSIS_CACHE' not in globals():
-        QUANT_ANALYSIS_CACHE = {}
-
     try:
-        # --- Cache Check ---
         force_refresh = request.args.get('force', 'false').lower() == 'true'
-        current_time = time.time()
-        
-        if not force_refresh and ticker in QUANT_ANALYSIS_CACHE:
-            cached_entry = QUANT_ANALYSIS_CACHE[ticker]
-            # Check if cache is within 1 hour (3600 seconds)
-            if (current_time - cached_entry['timestamp']) < 3600:
-                print(f"  ✓ Serving Quant Analysis for {ticker} from Cache (< 1h old)")
-                return jsonify(cached_entry['data'])
-            else:
-                print(f"  ↻ Cache expired for {ticker} (> 1h). Regenerating...")
-        
-        if force_refresh:
-            print(f"  ↻ Force Refreshing Quant Analysis for {ticker}")
+        result = process_quant_analysis(ticker, force=force_refresh)
+        return jsonify(result)
 
-        quant_logger.info(f"--- START Quant Analysis for {ticker} ---")
-
-        from .ta_utils import calculate_technical_indicators, prepare_df_for_llm
+    except ValueError as ve:
+        # Handled error (e.g. no data)
+        return jsonify({'error': str(ve)}), 404
         
-        from .ta_utils import calculate_technical_indicators, prepare_df_for_llm
-        
-        # (Global normalize_and_validate_columns used below)
-
-        # 1. Fetch Data (1h and 1d)
-        # session = get_yf_session()
-        stock = yf.Ticker(ticker)
-        
-        # 1h Data
-        try:
-             df_1h = stock.history(period="2y", interval="1h")
-        except: df_1h = pd.DataFrame()
-
-        if df_1h.empty or 'High' not in df_1h.columns:
-             print(f"  ⚠ YF 1h Failed. Trying Polygon...")
-             # 2 years ~ 730 days
-             df_poly_1h = fetch_polygon_history(ticker, period_days=730, interval='1h')
-             if df_poly_1h is not None and not df_poly_1h.empty:
-                 df_1h = df_poly_1h
-             else:
-                 print(f"  ⚠ Polygon 1h Failed. Trying Twelve Data...")
-                 df_td_1h = fetch_twelve_data_history(ticker, interval='1h', outputsize=500)
-                 if df_td_1h is not None and not df_td_1h.empty:
-                     df_1h = df_td_1h
-                 else:
-                     pass
-        
-        # 1d Data
-        try:
-            df_1d = stock.history(period="2y", interval="1d")
-        except: df_1d = pd.DataFrame()
-
-        if df_1d.empty or 'High' not in df_1d.columns:
-             print(f"  ⚠ YF 1d Failed. Trying Polygon...")
-             df_poly_1d = fetch_polygon_history(ticker, period_days=730, interval='day')
-             if df_poly_1d is not None and not df_poly_1d.empty:
-                 df_1d = df_poly_1d
-             else:
-                 print(f"  ⚠ Polygon 1d Failed. Trying Twelve Data...")
-                 df_td_1d = fetch_twelve_data_history(ticker, interval='day', outputsize=500)
-                 if df_td_1d is not None and not df_td_1d.empty:
-                     df_1d = df_td_1d
-                 else:
-                     pass
-        
-        # 2. Validation & Normalization (Unconditional)
-        quant_logger.info(f"Fetching complete. Normalizing columns...")
-        df_1h, is_valid_1h = normalize_and_validate_columns(df_1h, "1H Data")
-        quant_logger.info(f"1H Normalization: Valid={is_valid_1h}, Cols={df_1h.columns.tolist() if not df_1h.empty else 'EMPTY'}")
-        
-        if not is_valid_1h: 
-             quant_logger.error("1H Data Invalid")
-             return jsonify({'error': 'No 1h data found or missing data columns'}), 404
-
-        df_1d, is_valid_1d = normalize_and_validate_columns(df_1d, "1D Data")
-        quant_logger.info(f"1D Normalization: Valid={is_valid_1d}, Cols={df_1d.columns.tolist() if not df_1d.empty else 'EMPTY'}")
-
-        if not is_valid_1d: 
-             quant_logger.error("1D Data Invalid")
-             return jsonify({'error': 'No 1d data found or missing data columns'}), 404
-
-        # 3. Calculate Indicators
-        try:
-            df_1h = calculate_technical_indicators(df_1h)
-            df_1d = calculate_technical_indicators(df_1d)
-        except Exception as q_err:
-             print(f"  ✗ Quant TA Failed: {q_err}")
-             quant_logger.error(f"Quant TA Calculation Failed: {q_err}", exc_info=True)
-             print(f"  DEBUG 1H Columns: {df_1h.columns.tolist() if not df_1h.empty else 'EMPTY'}")
-             return jsonify({'error': f'Technical Analysis Failed: {str(q_err)}'}), 500
-        
-        # 3. Serialize Data for Prompt
-        # Limit to last 45 rows (was 100) to avoid Groq 413 Payload Too Large / Token Limits
-        data_1h_str = prepare_df_for_llm(df_1h, last_n=45)
-        data_1d_str = prepare_df_for_llm(df_1d, last_n=45)
-        
-        # 4. Construct Prompt 1 (The Expert Quant)
-        prompt_1 = f"""
-        Imagine you are top finance trader of a leading quant based hedge fund. You have deep expertise with algos, finance & math. 
-        
-        Here is the data for {ticker}:
-        
-        --- 1 HOUR INTERVAL DATA (Last 100 candles) ---
-        {data_1h_str}
-        
-        --- 1 DAY INTERVAL DATA (Last 100 candles) ---
-        {data_1d_str}
-        
-        Your task is to analyze the data, identify patterns, ranges, and probabilities of price movement over a week and a month. 
-        Short term prediction is for one week for which, you would give a 80% priority to the hourly price and indicator data, and 20% to the daily data. 
-        For medium term prediction you would give 80% priority to the daily data and 20% to the long term trend. 
-        Focus should be primarily on price and quant based actions while ignoring fundamentals. 
-        Clearly and explicitly state your assumptions and statistical calculations done.
-        """
-        
-        # 5. Execute Prompt 1
-        # Use load-balanced keys helper if available? 
-        # app_US.py has `run_single` but that's background. We need synchronous or async-await here.
-        # We'll stick to a simple synchronous call using one of the available keys for responsiveness.
-        # Or better, iterate keys like `process_single_ticker` does.
-        
-        # 5. Execute AI Analysis (Prioritize CHECKER for 2.5-flash)
-        api_keys = [
-            os.getenv('GEMINI_API_CHECKER')
-        ]
-        # Allow fallback to Key 6 if needed, or keep exclusive if user wants specific model behavior
-        # Adding Key 6 as backup but usually Checker is robust
-        if os.getenv('GEMINI_API_KEY_6'):
-            api_keys.append(os.getenv('GEMINI_API_KEY_6'))
-
-        # Filter None
-        api_keys = [k for k in api_keys if k]
-        
-        # Randomize order? No, user explicitly requested "use this".
-        # We will try CHECKER first (preserved order)
-        # random.shuffle(api_keys) 
-        
-        if not api_keys:
-             print("Error: No AI keys (CHECKER or 6) found.")
-             last_error = "No API Keys found in environment"
-        
-        # Debug: Print loaded keys count
-        print(f"DEBUG: Loaded {len(api_keys)} keys for Quant Analysis.")
-
-        analysis_raw = None
-        summary_final = None
-        last_error = "Unknown Error"
-        
-        # Combined Prompt to save 1 request cycle and reduce latency/errors
-        combined_prompt = f"""
-        Role: You are an expert financial trader at a quantitative hedge fund.
-        
-        Task: Analyze the following technical data for {ticker} (Last 100 1h and 1d candles) and provide a "Expert Quant Assessment".
-        
-        --- 1H DATA ---
-        {data_1h_str}
-        
-        --- 1D DATA ---
-        {data_1d_str}
-        
-        Instructions:
-        1. Analyze price action, moving averages (SMA 20, 50, 200), RSI, and MACD.
-        2. Determine the short-term (1 week) and medium-term (1 month) probability.
-        3. IGNORE news/fundamentals. Focus purely on the math/charts.
-        
-        Output format (Markdown):
-        ## Quant Analysis for {ticker}
-        
-        **Signal**: [BUY / SELL / NEUTRAL] (Choose one based on weight of evidence).
-        **Confidence**: [0-100]%
-        
-        **Short-Term Outlook (1 Week)**: 2-3 sentences on immediate direction, supporting levels (Support/Resistance), and key indicators (e.g. "RSI at 75 suggests overbought").
-        
-        **Medium-Term Trend**: 1-2 sentences on the broader 1D trend (e.g. "Above SMA200, Bullish").
-        
-        **Key Levels to Watch**:
-        *   Support: $...
-        *   Resistance: $...
-        
-        **Strategy**: Concise actionable advice (e.g. "Buy dips to EMA20", "Wait for breakout above $X").
-        """
-
-        # Try AI Generation
-        quant_logger.info("Starting AI Generation...")
-        # 1. Try Groq (Llama 3.3) First
-        groq_key = os.getenv('GROQ_API_KEY')
-        groq_success = False
-        
-        if groq_key:
-            try:
-                print(f"DEBUG: Attempting Groq Analysis for {ticker}...")
-                groq_url = "https://api.groq.com/openai/v1/chat/completions"
-                groq_headers = {
-                    "Authorization": f"Bearer {groq_key}",
-                    "Content-Type": "application/json"
-                }
-                groq_payload = {
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": [
-                        {"role": "system", "content": "You are an expert quantitative trader."},
-                        {"role": "user", "content": combined_prompt}
-                    ],
-                    "temperature": 0.3
-                }
-                
-                resp = requests.post(groq_url, headers=groq_headers, json=groq_payload, timeout=45)
-                
-                if resp.status_code == 200:
-                    g_data = resp.json()
-                    content_text = g_data['choices'][0]['message']['content']
-                    if content_text:
-                        summary_final = content_text
-                        analysis_raw = "Generated via Groq (llama-3.3-70b)"
-                        groq_success = True
-                        print(f"  ✓ Groq Analysis Successful for {ticker}")
-                else:
-                    print(f"  ⚠ Groq Error: {resp.status_code} - {resp.text[:100]}")
-            except Exception as e:
-                print(f"  ⚠ Groq Connection Error: {e}")
-
-        # 2. Fallback to Gemini if Groq failed/missing
-        if not groq_success and api_keys:
-            # requests is imported at top level
-            
-            payload = {
-                "contents": [{"parts": [{"text": combined_prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.3
-                }
-            }
-
-            for i, key in enumerate(api_keys):
-                try:
-                    # UPDATED: Users requested 2.5-flash
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
-                    headers = {'Content-Type': 'application/json'}
-                    
-                    print(f"DEBUG: Attempting AI Call {i+1}/{len(api_keys)} with key ...{key[-4:]}")
-
-                    # Increased timeout to 45s to prevent ReadTimeout
-                    response = requests.post(url, headers=headers, json=payload, timeout=45)
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        candidates = result.get('candidates', [])
-                        if candidates:
-                            content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-                            if content_text:
-                                summary_final = content_text
-                                analysis_raw = "Generated via REST API (gemini-2.5-flash)"
-                                break # Success
-                        else:
-                             print(f"DEBUG: No candidates in response: {result}")
-                             quant_logger.warning(f"Gemini No Candidates: {result}")
-                             last_error = "Empty AI Response"
-                             
-                    elif response.status_code == 429:
-                        print(f"  ⚠ 429 Rate Limit on key ending ...{key[-4:]}")
-                        last_error = "Rate Limit (429)"
-                        time.sleep(0.5) # Slight backoff
-                        continue
-                    else:
-                        # Log FULL error for debugging
-                        print(f"  ⚠ AI Error {response.status_code} on key ...{key[-4:]}: {response.text}")
-                        last_error = f"API Error {response.status_code}: {response.text[:50]}"
-                        continue
-
-                except Exception as e:
-                    print(f"  ⚠ Connection Error using key ...{key[-4:]}: {e}")
-                    last_error = f"Connection Error: {str(e)}"
-                    continue
-
-        # --- FALLBACK MECHANISM ---
-        # --- FALLBACK MECHANISM ---
-        if not summary_final:
-            print(f"  ⚠ All AI keys failed for {ticker} (Tried {len(api_keys)} keys). Generating Fallback Analysis.")
-            
-            # Simple algorithmic fallback using the data we already calculated
-            # 1. Determine Trend
-            last_close = df_1d['Close'].iloc[-1]
-            sma200 = df_1d['SMA_200'].iloc[-1] if 'SMA_200' in df_1d else 0
-            rsi = df_1d['RSI'].iloc[-1] if 'RSI' in df_1d else 50
-            
-            trend = "Bullish" if last_close > sma200 else "Bearish"
-            signal = "NEUTRAL"
-            confidence = 50
-            
-            if trend == "Bullish":
-                if rsi < 30: 
-                    signal = "STRONG BUY"
-                    confidence = 85
-                elif rsi < 45: 
-                    signal = "BUY"
-                    confidence = 70
-                elif rsi > 70: 
-                    signal = "SELL (Overbought)"
-                    confidence = 65
-                else:
-                    signal = "HOLD / BULLISH"
-                    confidence = 60
-            else: # Bearish
-                if rsi > 70: 
-                    signal = "STRONG SELL"
-                    confidence = 85
-                elif rsi > 55: 
-                    signal = "SELL"
-                    confidence = 70
-                elif rsi < 30: 
-                    signal = "BUY (Oversold)"
-                    confidence = 65
-                else:
-                    signal = "HOLD / BEARISH"
-                    confidence = 60
-            
-            # Construct Fallback JSON structure matching the AI output
-            summary_final = f"""## Quant Analysis for {ticker}
-**Signal**: {signal}
-**Confidence**: {confidence}%
-**Short-Term Outlook (1 Week)**: Technical indicators suggest {signal.lower()} momentum. RSI is at {rsi:.1f}.
-**Medium-Term Trend**: The broader trend is {trend} relative to the 200-day moving average.
-**Strategy**: Watch for confirmation of the current trend before entering positions.
-"""
-            analysis_raw = "Algorithmic Fallback (AI Unavailable)"
-            quant_logger.info("Using Algorithmic Fallback")
-
-        # Final Response Construction
-        response_payload = {
-            'ticker': ticker,
-            'analysis': summary_final,
-            'source': analysis_raw,
-            'timestamp': current_time
-        }
-        
-        # Update Cache
-        QUANT_ANALYSIS_CACHE[ticker] = {
-            'data': response_payload,
-            'timestamp': current_time
-        }
-        # Persist immediately
-        save_cache_to_disk()
-        
-        quant_logger.info("Quant Analysis Complete. Returning response.")
-        return jsonify(response_payload)
-
     except Exception as e:
         print(f"Quant Analysis Error for {ticker}: {e}")
         quant_logger.error(f"CRASH: {e}", exc_info=True)
