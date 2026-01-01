@@ -73,11 +73,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         summarySection.addEventListener('touchend', handleTouchEnd, { passive: true });
 
         // Initialize ticker persistence
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlTicker = urlParams.get('ticker');
         const savedTicker = localStorage.getItem('selectedTicker');
-        if (savedTicker && currentTickers.includes(savedTicker)) {
+
+        if (urlTicker && currentTickers.includes(urlTicker.toUpperCase())) {
+            // Priority 1: URL Parameter
+            const t = urlTicker.toUpperCase();
+            currentIndex = currentTickers.indexOf(t);
+            selectTicker(t);
+        } else if (savedTicker && currentTickers.includes(savedTicker)) {
+            // Priority 2: LocalStorage
             currentIndex = currentTickers.indexOf(savedTicker);
             selectTicker(savedTicker);
         } else {
+            // Priority 3: Default (First in list)
             if (currentTickers.length > 0) selectTicker(currentTickers[0]);
         }
 
@@ -224,7 +234,8 @@ async function handleSearchInput(e) {
         const response = await fetch(`api/search?q=${encodeURIComponent(query)}`);
         if (response.ok) {
             const data = await response.json();
-            const quotes = data.quotes || [];
+            // Handle both array (legacy) and object-with-quotes behaviors just in case
+            const quotes = Array.isArray(data) ? data : (data.quotes || []);
 
             // Relaxed filtering: Check for valid symbol and ensure it's not already added from local
             const apiMatches = quotes.filter(q => {

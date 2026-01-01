@@ -60,6 +60,81 @@ TICKER_UNIVERSE = [
     'CRSP', 'NVO', 'GILD', 'BA', 'CAT', 'SPY'
 ]
 
+# Mapping of Tickers to Company Names for Search
+TICKER_NAMES = {
+    'AAPL': 'Apple Inc.', 'MSFT': 'Microsoft Corp.', 'GOOG': 'Alphabet Inc.', 'AMZN': 'Amazon.com Inc.', 
+    'NVDA': 'NVIDIA Corp.', 'META': 'Meta Platforms Inc.', 'TSLA': 'Tesla Inc.', 'LLY': 'Eli Lilly and Co.', 
+    'JPM': 'JPMorgan Chase & Co.', 'NFLX': 'Netflix Inc.', 'BRK-B': 'Berkshire Hathaway Inc.', 'V': 'Visa Inc.', 
+    'UNH': 'UnitedHealth Group Inc.', 'AVGO': 'Broadcom Inc.', 'AMD': 'Advanced Micro Devices Inc.', 
+    'TSM': 'Taiwan Semiconductor Mfg.', 'PFE': 'Pfizer Inc.', 'MRK': 'Merck & Co. Inc.', 'JNJ': 'Johnson & Johnson', 
+    'ORCL': 'Oracle Corp.', 'ADBE': 'Adobe Inc.', 'CRM': 'Salesforce Inc.', 'COST': 'Costco Wholesale Corp.', 
+    'HD': 'The Home Depot Inc.', 'WMT': 'Walmart Inc.', 'BAC': 'Bank of America Corp.', 'GS': 'The Goldman Sachs Group', 
+    'UBER': 'Uber Technologies Inc.', 'DELL': 'Dell Technologies Inc.', 'PLTR': 'Palantir Technologies Inc.', 
+    'ARM': 'Arm Holdings plc', 'SMCI': 'Super Micro Computer Inc.', 'CRWD': 'CrowdStrike Holdings Inc.', 
+    'SNOW': 'Snowflake Inc.', 'NET': 'Cloudflare Inc.', 'PDD': 'PDD Holdings Inc.', 'BABA': 'Alibaba Group Holding', 
+    'COIN': 'Coinbase Global Inc.', 'SOFI': 'SoFi Technologies Inc.', 'TTD': 'The Trade Desk Inc.', 
+    'ROKU': 'Roku Inc.', 'REGN': 'Regeneron Pharmaceuticals', 'NBIX': 'Neurocrine Biosciences', 
+    'CORT': 'Corcept Therapeutics', 'CAPR': 'Capricor Therapeutics', 'CRSP': 'CRISPR Therapeutics', 
+    'NVO': 'Novo Nordisk A/S', 'GILD': 'Gilead Sciences Inc.', 'BA': 'The Boeing Company', 'CAT': 'Caterpillar Inc.', 
+    'SPY': 'SPDR S&P 500 ETF Trust'
+}
+
+@us_news_bp.route('/api/search')
+def search_tickers():
+    """Search for tickers using Yahoo Finance Autocomplete API"""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify([])
+    
+    try:
+        # Yahoo Finance Autocomplete API
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}&quotesCount=10&newsCount=0&enableFuzzyQuery=false&quotesQueryId=tss_match_phrase_query"
+        
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            api_matches = []
+            if 'quotes' in data:
+                for item in data['quotes']:
+                    symbol = item.get('symbol', '')
+                    name = item.get('shortname') or item.get('longname') or symbol
+                    quote_type = item.get('quoteType', '')
+                    
+                    if quote_type in ['EQUITY', 'ETF', 'MUTUALFUND', 'INDEX']:
+                        api_matches.append({
+                            'symbol': symbol,
+                            'name': name
+                        })
+
+            # Prioritize Universe Tickers
+            universe_set = set(getattr(globals(), 'TICKER_UNIVERSE', []))
+            
+            sorted_matches = sorted(api_matches, key=lambda x: (
+                0 if x['symbol'] in universe_set else 1,  # Priority 1: In Universe
+                0 if x['symbol'] == query else 1,         # Priority 2: Exact Match
+                len(x['symbol'])                          # Priority 3: Shortest Symbol
+            ))
+            
+            return jsonify(sorted_matches)
+        else:
+            print(f"Yahoo Search Error: {response.status_code}")
+            return jsonify({'quotes': []})
+        
+    except Exception as e:
+        print(f"Search API Error: {e}")
+        # Fallback to local static check if API fails
+        matches = []
+        query_upper = query.upper()
+        for ticker in getattr(globals(), 'TICKER_UNIVERSE', []):
+            name = TICKER_NAMES.get(ticker, ticker)
+            if ticker.startswith(query_upper) or query_upper in name.upper():
+                matches.append({'symbol': ticker, 'name': name})
+                if len(matches) >= 5: break
+        return jsonify(matches)
+
 # Tickers to display on the main page
 # Tickers to display on the main page
 DISPLAY_TICKERS = sorted(['AAPL', 'GOOG', 'MSFT', 'META', 'NVDA', 'TSLA', 'AMZN'])
@@ -71,6 +146,12 @@ ACTIVE_TICKERS = sorted_tickers
 print(f"Initialized {len(ACTIVE_TICKERS)} tickers for processing (Top: {', '.join(ACTIVE_TICKERS[:7])})")
 
 IS_PROCESSING = False  # Track if news processing is running
+
+@us_news_bp.route('/stock/<ticker>')
+def stock_analysis_us(ticker):
+    """Render stock analysis page under US-News blueprint"""
+    ticker = ticker.upper().strip()
+    return render_template('stock_analysis.html', ticker=ticker)
 
 # Global Cache for Quotes
 # key: ticker, value: { 'data': dict, 'timestamp': float }
@@ -1657,40 +1738,7 @@ def get_status():
     """Check processing status"""
     return jsonify({'is_processing': IS_PROCESSING})
 
-@us_news_bp.route('/api/search', methods=['GET'])
-def search_tickers():
-    """Proxy request to Yahoo Finance for ticker search"""
-    from flask import request
-    query = request.args.get('q', '').strip()
-    
-    if not query:
-        return jsonify({'quotes': []})
-        
-    try:
-        # Use Yahoo Finance's public API
-        url = "https://query2.finance.yahoo.com/v1/finance/search"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        params = {
-            'q': query,
-            'quotesCount': 10,
-            'newsCount': 0,
-            'enableFuzzyQuery': 'false',
-            'quotesQueryId': 'tss_match_phrase_query'
-        }
-        
-        response = requests.get(url, headers=headers, params=params, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            return jsonify({'quotes': data.get('quotes', [])})
-        else:
-            print(f"Yahoo Search Error: {response.status_code}")
-            return jsonify({'quotes': []})
-            
-    except Exception as e:
-        print(f"Search Proxy Error: {e}")
-        return jsonify({'error': str(e)}), 500
+
 
 # Helper for Column Normalization (Global)
 def normalize_and_validate_columns(df, label="Data"):
@@ -2565,3 +2613,24 @@ def get_quant_analysis(ticker):
 
 
 
+# State Management for Schedules
+def get_last_fundamental_run():
+    """Get the timestamp of the last fundamental run from Supabase"""
+    try:
+        data = supabase.table('system_state').select('value').eq('key', 'last_fundamental_run').execute()
+        if data.data:
+            return data.data[0]['value']
+        return None
+    except Exception as e:
+        print(f"Error fetching last run state: {e}")
+        return None
+
+def set_last_fundamental_run():
+    """Update the timestamp of the last fundamental run in Supabase"""
+    try:
+        now_iso = datetime.now().isoformat()
+        # Upsert equivalent
+        data = supabase.table('system_state').upsert({'key': 'last_fundamental_run', 'value': now_iso}).execute()
+        print(f"Updated last fundamental run to {now_iso}")
+    except Exception as e:
+        print(f"Error updating last run state: {e}")

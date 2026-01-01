@@ -376,5 +376,95 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Landing Page Search Functionality
+    const searchInput = document.getElementById('landingSearchInput');
+    const searchBtn = document.getElementById('landingSearchBtn');
+    const searchDropdown = document.getElementById('searchDropdown');
+    let debounceTimer;
+
+    // Force Uppercase Input
+    if (searchInput) {
+        searchInput.addEventListener('input', function (e) {
+            this.value = this.value.toUpperCase();
+
+            // Trigger search with debounce
+            clearTimeout(debounceTimer);
+            const query = this.value.trim();
+
+            if (query.length > 0) {
+                debounceTimer = setTimeout(() => fetchSuggestions(query), 300);
+            } else {
+                hideDropdown();
+            }
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+                hideDropdown();
+            }
+        });
+    }
+
+    async function fetchSuggestions(query) {
+        try {
+            const response = await fetch(`/us-news/api/search?q=${encodeURIComponent(query)}`);
+            if (response.ok) {
+                const suggestions = await response.json();
+                renderDropdown(suggestions);
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+        }
+    }
+
+    function renderDropdown(suggestions) {
+        if (!searchDropdown) return;
+
+        if (suggestions.length === 0) {
+            hideDropdown();
+            return;
+        }
+
+        searchDropdown.innerHTML = suggestions.map(item => `
+            <div class="search-item" onclick="selectSymbol('${item.symbol}')">
+                <span class="item-symbol">${item.symbol}</span>
+                <span class="item-name">${item.name}</span>
+            </div>
+        `).join('');
+
+        searchDropdown.classList.add('active');
+    }
+
+    window.selectSymbol = function (symbol) {
+        if (searchInput) searchInput.value = symbol;
+        hideDropdown();
+        window.location.href = `/us-news/?ticker=${symbol}`;
+    };
+
+    function hideDropdown() {
+        if (searchDropdown) {
+            searchDropdown.classList.remove('active');
+            searchDropdown.innerHTML = '';
+        }
+    }
+
+    function handleSearch() {
+        const query = searchInput.value.trim().toUpperCase();
+        if (query) {
+            window.location.href = `/us-news/?ticker=${query}`;
+        }
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSearch();
+        });
+    }
+
+    if (searchBtn) {
+        searchBtn.addEventListener('click', handleSearch);
+    }
+
 
 });
