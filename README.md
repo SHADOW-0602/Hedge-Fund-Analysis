@@ -1,4 +1,4 @@
-# Portfolio & Options Analysis Engine
+# Portfolio & Transaction Analysis Engine
 
 Enterprise-grade portfolio risk analysis and options scanning platform with advanced analytics, multi-user support, and comprehensive market data integration.
 
@@ -34,7 +34,7 @@ Enterprise-grade portfolio risk analysis and options scanning platform with adva
 
 ### 📰 **US Stock News with AI (Deep Research Engine)**
 - **Advanced Analyst Persona**:
-  - **Engine**: `Gemini Flash 2.0` configured as a senior Wall St analyst with 20 years of experience.
+  - **Engine**: `Gemini 2.5 PRO` and `Groq` configured as a senior Wall St analyst with 20 years of experience.
   - **Output**: Generates comprehensive 1,500+ word investment reports including specific Buy/Sell signals, price targets, and deep competitive analysis.
 - **Premium User Experience**:
   - **Real-Time Data**: Instant integration of live price, change, and "Previous Close" data.
