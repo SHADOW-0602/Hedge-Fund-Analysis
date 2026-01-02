@@ -7,7 +7,7 @@ import re
 import threading
 import pandas as pd
 import numpy as np
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 import threading
 from flask import Blueprint, render_template, jsonify, request
 from dotenv import load_dotenv
@@ -104,59 +104,84 @@ TICKER_NAMES = {
 
 @us_news_bp.route('/api/search')
 def search_tickers():
-    """Search for tickers using Yahoo Finance Autocomplete API"""
-    query = request.args.get('q', '').strip()
+    """Search for tickers using Yahoo Finance Dual-Strategy (Autoc + Query2)"""
+    query = request.args.get('q', '').strip().upper()
     if not query:
         return jsonify([])
     
-    try:
-        # Yahoo Finance Autocomplete API
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}&quotesCount=10&newsCount=0&enableFuzzyQuery=false&quotesQueryId=tss_match_phrase_query"
-        
-        response = requests.get(url, headers=headers, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            api_matches = []
-            if 'quotes' in data:
-                for item in data['quotes']:
-                    symbol = item.get('symbol', '')
-                    name = item.get('shortname') or item.get('longname') or symbol
-                    quote_type = item.get('quoteType', '')
-                    
-                    if quote_type in ['EQUITY', 'ETF', 'MUTUALFUND', 'INDEX']:
-                        api_matches.append({
-                            'symbol': symbol,
-                            'name': name
-                        })
+    # Always start with Local Matches (Safety Net)
+    local_matches = []
+    # Use TICKER_NAMES for full checks
+    for ticker, full_name in getattr(globals(), 'TICKER_NAMES', {}).items():
+        if ticker.startswith(query) or query in full_name.upper():
+            local_matches.append({'symbol': ticker, 'name': full_name})
+    
+    # Also check the raw UNIVERSE list if not in NAMES
+    universe_set = set(getattr(globals(), 'TICKER_UNIVERSE', []))
+    for ticker in universe_set:
+        # Avoid dupes if already added via NAMES
+        if not any(m['symbol'] == ticker for m in local_matches):
+            if ticker.startswith(query):
+                local_matches.append({'symbol': ticker, 'name': ticker})
 
-            # Prioritize Universe Tickers
-            universe_set = set(getattr(globals(), 'TICKER_UNIVERSE', []))
-            
-            sorted_matches = sorted(api_matches, key=lambda x: (
-                0 if x['symbol'] in universe_set else 1,  # Priority 1: In Universe
-                0 if x['symbol'] == query else 1,         # Priority 2: Exact Match
-                len(x['symbol'])                          # Priority 3: Shortest Symbol
-            ))
-            
-            return jsonify(sorted_matches)
-        else:
-            print(f"Yahoo Search Error: {response.status_code}")
-            return jsonify({'quotes': []})
+    api_matches = []
+    try:
+        # Yahoo Finance Headers
+        headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
         
+        # Strategy 1: Autoc
+        try:
+            url_autoc = f"https://autoc.finance.yahoo.com/autoc?query={query}&region=US&lang=en"
+            resp = requests.get(url_autoc, headers=headers, timeout=2)
+            if resp.status_code == 200:
+                results = resp.json().get('ResultSet', {}).get('Result', [])
+                for item in results:
+                    sym = item.get('symbol', '')
+                    if not sym: continue
+                    type_c = item.get('type', '').upper()
+                    if type_c in ['S', 'E', 'I']:
+                        api_matches.append({'symbol': sym, 'name': item.get('name', sym)})
+        except: pass
+
+        # Strategy 2: Query2 (if Autoc yielded few results)
+        if len(api_matches) < 3:
+            try:
+                url_q2 = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}&quotesCount=20&enableFuzzyQuery=true"
+                resp = requests.get(url_q2, headers=headers, timeout=2)
+                if resp.status_code == 200:
+                    quotes = resp.json().get('quotes', [])
+                    for q in quotes:
+                        sym = q.get('symbol', '')
+                        if not sym: continue
+                        type_c = q.get('quoteType', '').upper()
+                        if type_c in ['EQUITY', 'ETF', 'MUTUALFUND', 'INDEX']:
+                            # Avoid duplicates from Autoc
+                            if not any(m['symbol'] == sym for m in api_matches):
+                                api_matches.append({'symbol': sym, 'name': q.get('shortname') or q.get('longname') or sym})
+            except: pass
+
     except Exception as e:
         print(f"Search API Error: {e}")
-        # Fallback to local static check if API fails
-        matches = []
-        query_upper = query.upper()
-        for ticker in getattr(globals(), 'TICKER_UNIVERSE', []):
-            name = TICKER_NAMES.get(ticker, ticker)
-            if ticker.startswith(query_upper) or query_upper in name.upper():
-                matches.append({'symbol': ticker, 'name': name})
-                if len(matches) >= 5: break
-        return jsonify(matches)
+
+    # MERGE: Combine Local + API (Deduplicate)
+    # Priority: API data often has better names, but Local ensures existence.
+    # We'll use a dictionary keyed by symbol to merge.
+    merged = {m['symbol']: m for m in local_matches} # Start with local
+    for m in api_matches:
+        merged[m['symbol']] = m # Overwrite/Add API matches (newer data)
+    
+    final_list = list(merged.values())
+    
+    return _sort_matches(final_list, query, universe_set)
+
+def _sort_matches(matches, query, universe_set):
+    """Helper to consistently sort matches: Exact > Universe > Length"""
+    sorted_matches = sorted(matches, key=lambda x: (
+        0 if x['symbol'] == query else 1,         # Priority 1: Exact Match
+        0 if x['symbol'] in universe_set else 1,  # Priority 2: In Universe
+        len(x['symbol'])                          # Priority 3: Shortest Symbol
+    ))
+    return jsonify(sorted_matches)
 
 # Tickers to display on the main page
 # Tickers to display on the main page
@@ -194,6 +219,10 @@ QUANT_ANALYSIS_CACHE = {}
 # Global Cache for Technical Analysis
 # key: ticker_interval, value: { 'data': dict, 'timestamp': float }
 TA_CACHE = {}
+
+# Global Cache for Latest Price (Intraday Chart Updates)
+# key: ticker, value: { 'data': dict, 'timestamp': float }
+LATEST_PRICE_CACHE = {}
 
 # Redis Configuration
 REDIS_URL = os.getenv('UPSTASH_REDIS_REST_URL')
@@ -509,6 +538,7 @@ def fetch_quote_data(ticker):
             # print(f"  [DEBUG] Served {ticker} from Cache")
             return cached['data']
 
+    print(f"DEBUG: Fetching quote for {ticker} via YFinance...")
     try:
         # Use custom session to rotate User-Agent
         # session = get_yf_session() # Removed to compatible with latest yf / curl_cffi
@@ -517,11 +547,16 @@ def fetch_quote_data(ticker):
         # fast_info often misses pre-market. Use history for latest tick.
         # caching: yfinance might cache history calls, but creating a new Ticker usually avoids instance cache.
         # Yahoo API itself has 1-min delay usually.
-        df = stock.history(period='1d', interval='1m', prepost=True)
+        try:
+            df = stock.history(period='1d', interval='1m', prepost=True)
+        except Exception as hist_e:
+            print(f"DEBUG: YF History failed for {ticker}: {hist_e}")
+            df = pd.DataFrame()
         
         data = None
         
         if not df.empty:
+            print(f"DEBUG: YF History success for {ticker}, rows={len(df)}")
             latest = df.iloc[-1]
             last_price = float(latest['Close'])
             
@@ -531,6 +566,7 @@ def fetch_quote_data(ticker):
             
             # Fallback if history fetch fails or returns weird data
             if pd.isna(last_price):
+                print(f"DEBUG: Last price is NaN for {ticker}")
                 last_price = stock.fast_info.last_price
 
             change = last_price - prev_close if prev_close else 0
@@ -567,6 +603,9 @@ def fetch_quote_data(ticker):
                 'timestamp': current_time
             }
             return data
+        else:
+             print(f"DEBUG: YF returned no data for {ticker}, triggering Fallback.")
+             raise Exception("YF returned no data") # Trigger catch block for fallback
 
     except Exception as e:
         print(f"  ⚠ Yahoo Quote Error for {ticker}: {str(e)}")
@@ -1270,7 +1309,7 @@ def store_news_and_summary(ticker, news_articles, summary_data):
                     'analyst_earnings': summary_data['analyst_earnings'],
                     'last_week_updates': summary_data['last_week_updates'],
                     'summary_date': str(today),
-                    'created_at': datetime.now().isoformat()
+                    'created_at': datetime.now(timezone.utc).isoformat()
                 }).execute()
                 print(f"  ✓ Stored summary for {ticker}")
             except Exception as e:
@@ -1490,8 +1529,8 @@ def process_quant_analysis(ticker, force=False):
             raise ValueError(f'Technical Analysis Failed: {str(q_err)}')
     
     # 3. Serialize Data for Prompt
-    data_1h_str = prepare_df_for_llm(df_1h, last_n=45)
-    data_1d_str = prepare_df_for_llm(df_1d, last_n=45)
+    data_1h_str = prepare_df_for_llm(df_1h, last_n=24)
+    data_1d_str = prepare_df_for_llm(df_1d, last_n=24)
     
     # 5. Execute AI Analysis
     api_keys = [os.getenv('GEMINI_API_CHECKER')]
@@ -1527,18 +1566,17 @@ def process_quant_analysis(ticker, force=False):
     Output format (Markdown):
     ## Quant Analysis for {ticker}
     
-    **Signal**: [BUY / SELL / NEUTRAL] (Choose one based on weight of evidence).
-    **Confidence**: [0-100]%
+    * **Signal**: [BUY / SELL / NEUTRAL] (Choose one based on weight of evidence).
+    * **Confidence**: [0-100]%
     
-    **Short-Term Outlook (1 Week)**: 2-3 sentences on immediate direction, supporting levels (Support/Resistance), and key indicators (e.g. "RSI at 75 suggests overbought").
+    * **Short-Term Outlook (1 Week)**: 2-3 sentences on immediate direction.
+    * **Medium-Term Trend**: 1-2 sentences on the broader 1D trend (e.g. "Above SMA200, Bullish").
     
-    **Medium-Term Trend**: 1-2 sentences on the broader 1D trend (e.g. "Above SMA200, Bullish").
+    * **Key Levels to Watch**:
+      * Support: $...
+      * Resistance: $...
     
-    **Key Levels to Watch**:
-    *   Support: $...
-    *   Resistance: $...
-    
-    **Strategy**: Concise actionable advice (e.g. "Buy dips to EMA20", "Wait for breakout above $X").
+    * **Strategy**: Concise actionable advice (e.g. "Buy dips to EMA20", "Wait for breakout above $X").
     """
 
     # Try AI Generation
@@ -1643,11 +1681,11 @@ def process_quant_analysis(ticker, force=False):
             else: signal = "HOLD / BEARISH"; confidence = 60
         
         summary_final = f"""## Quant Analysis for {ticker}
-**Signal**: {signal}
-**Confidence**: {confidence}%
-**Short-Term Outlook (1 Week)**: Technical indicators suggest {signal.lower()} momentum. RSI is at {rsi:.1f}.
-**Medium-Term Trend**: The broader trend is {trend} relative to the 200-day moving average.
-**Strategy**: Watch for confirmation of the current trend before entering positions.
+* **Signal**: {signal}
+* **Confidence**: {confidence}%
+* **Short-Term Outlook**: Technical indicators suggest {signal.lower()} momentum. RSI is at {rsi:.1f}.
+* **Medium-Term Trend**: The broader trend is {trend} relative to the 200-day moving average.
+* **Strategy**: Watch for confirmation of the current trend before entering positions.
 """
         analysis_raw = "Algorithmic Fallback (AI Unavailable)"
 
@@ -2563,43 +2601,88 @@ def get_history(ticker):
 @us_news_bp.route('/api/latest-price/<ticker>', methods=['GET'])
 def get_latest_price(ticker):
     """Fetch latest price for real-time chart updates"""
+    global LATEST_PRICE_CACHE
+    current_time = time.time()
+    
+    # 1. Check Cache (1 minute cache to avoid rate limits)
+    if ticker in LATEST_PRICE_CACHE:
+        cached = LATEST_PRICE_CACHE[ticker]
+        if current_time - cached['timestamp'] < 60:
+            return jsonify(cached['data'])
+            
     try:
-        # Use robust session with rotation/proxies
-        # session = get_yf_session() # Removed to let YF handle session (fixes curl_cffi error)
+        # Use simple Yahoo query first
         stock = yf.Ticker(ticker)
-        
-        # Get today's 1-minute data 
         df = stock.history(period='1d', interval='1m')
         
-        if df.empty:
-            return jsonify({'error': 'No data available'}), 404
-            
-        # Get the last row (most recent candle)
-        df = df.reset_index()
-        latest = df.iloc[-1]
-        d = latest['Datetime'] if 'Datetime' in df.columns else latest['Date']
+        data = None
         
-        # Try to get previous close safely
-        prev_close = None
-        try:
-            prev_close = stock.fast_info.previous_close
-        except:
-            pass
+        if not df.empty:
+            df = df.reset_index()
+            latest = df.iloc[-1]
+            col_name = 'Datetime' if 'Datetime' in df.columns else 'Date'
             
-        return jsonify({
-            'time': int(d.timestamp()),  # Unix timestamp for intraday
-            'open': float(latest['Open']),
-            'high': float(latest['High']),
-            'low': float(latest['Low']),
-            'close': float(latest['Close']),
-            'volume': int(latest['Volume']),
-            'previous_close': prev_close
-        })
+            # Get Prev Close from fast_info if available
+            prev_close = None
+            try: prev_close = stock.fast_info.previous_close
+            except: pass
+            
+            data = {
+                'time': int(latest[col_name].timestamp()),
+                'open': float(latest['Open']),
+                'high': float(latest['High']),
+                'low': float(latest['Low']),
+                'close': float(latest['Close']),
+                'volume': int(latest['Volume']),
+                'previous_close': prev_close
+            }
+            
+        else:
+             # YF Empty -> Try Polygon Fallback
+             print(f"  ⚠ Yahoo Latest-Price Empty for {ticker}, trying Polygon...")
+             poly_key = os.getenv('POLYGON_API_KEY')
+             if poly_key:
+                 try:
+                     # Polygon Aggs (Previous close / Today)
+                     # Need real-time? Polygon free tier has delay.
+                     # Let's fetch last trade or prev agg
+                     p_url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev?adjusted=true&apiKey={poly_key}"
+                     r = requests.get(p_url, timeout=5)
+                     if r.status_code == 200:
+                         p_res = r.json()
+                         if p_res.get('resultsCount', 0) > 0:
+                             res = p_res['results'][0]
+                             # res keys: T, v, o, c, h, l, t, n
+                             data = {
+                                 'time': int(res['t'] / 1000),
+                                 'open': res['o'],
+                                 'high': res['h'],
+                                 'low': res['l'],
+                                 'close': res['c'],
+                                 'volume': res['v'],
+                                 'previous_close': None # Prev API is usually 'yesterday'
+                             }
+                 except Exception as pe:
+                     print(f"  ✗ Polygon Latest Fallback Failed: {pe}")
+
+        if data:
+            # Update Cache
+            LATEST_PRICE_CACHE[ticker] = {
+                'data': data,
+                'timestamp': current_time
+            }
+            return jsonify(data)
+        else:
+            return jsonify({'error': 'No data available'}), 404
         
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "Rate Limit" in error_msg or "Too Many Requests" in error_msg:
              print(f"Price Poll Rate Limit Error for {ticker}: {e}")
+             # Return Stale Cache if available
+             if ticker in LATEST_PRICE_CACHE:
+                 print(f"  ⚠ Returning STALE Latest Price cache for {ticker}")
+                 return jsonify(LATEST_PRICE_CACHE[ticker]['data'])
              return jsonify({'error': 'Rate limited by data provider.'}), 429
              
         print(f"Latest Price Error for {ticker}: {e}")

@@ -7,8 +7,15 @@ let isGlobalRefreshing = false; // Flag to pause polling during refresh
 let isFetchingTA = false; // Flag to pause polling during TA fetch
 
 // Touch/swipe handling variables
+// Touch/swipe handling variables
 let touchStartX = 0;
 let touchEndX = 0;
+
+// Helper to switch tabs programmatically
+function switchTab(tabId) {
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (btn) btn.click();
+}
 
 // Load tickers on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -62,7 +69,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         initChart();
 
         // Add refresh button handler
-        document.getElementById('refreshBtn').addEventListener('click', handleRefresh);
+        // Refresh button removed. Listener intentionally deleted.
 
         // Add keyboard navigation (arrow keys)
         document.addEventListener('keydown', handleKeyboardNavigation);
@@ -77,10 +84,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const urlTicker = urlParams.get('ticker');
         const savedTicker = localStorage.getItem('selectedTicker');
 
-        if (urlTicker && currentTickers.includes(urlTicker.toUpperCase())) {
-            // Priority 1: URL Parameter
+        if (urlTicker) {
+            // Priority 1: URL Parameter (Allow ad-hoc tickers from search)
             const t = urlTicker.toUpperCase();
-            currentIndex = currentTickers.indexOf(t);
+
+            // If ad-hoc ticker (not in universe), add it to list or just select it
+            if (!currentTickers.includes(t)) {
+                // Determine insertion point? Or just select.
+                // For now, simple selection is enough, but adding to list allows Nav arrows to work if we want.
+                // Let's just select it directly to respect user intent.
+            } else {
+                currentIndex = currentTickers.indexOf(t);
+            }
+
+            // Force switch to 'news' tab for incoming search redirects
+            switchTab('news');
             selectTicker(t);
         } else if (savedTicker && currentTickers.includes(savedTicker)) {
             // Priority 2: LocalStorage
@@ -107,8 +125,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const ticker = firstItem.dataset.ticker;
                         selectSearchResult(ticker); // Use unified handler
                         e.target.blur();
-                    } else if (e.target.value.length >= 2) {
-                        selectTicker(e.target.value.toUpperCase().trim());
+                    } else if (e.target.value.length >= 1) {
+                        const t = e.target.value.toUpperCase().trim();
+                        // Force switch to 'news' tab on explicit search
+                        switchTab('news');
+                        selectTicker(t);
                         e.target.value = '';
                         e.target.blur();
                         dropdown.classList.remove('show');
@@ -237,13 +258,10 @@ async function handleSearchInput(e) {
             // Handle both array (legacy) and object-with-quotes behaviors just in case
             const quotes = Array.isArray(data) ? data : (data.quotes || []);
 
-            // Relaxed filtering: Check for valid symbol and ensure it's not already added from local
-            const apiMatches = quotes.filter(q => {
-                const type = (q.quoteType || '').toUpperCase();
-                return (type === 'EQUITY' || type === 'ETF' || type === 'MUTUALFUND');
-            }).map(q => ({
+            // Backend already filters types. Map directly.
+            const apiMatches = quotes.map(q => ({
                 symbol: q.symbol,
-                shortname: q.shortname || q.longname || q.symbol,
+                shortname: q.name || q.shortname || q.longname || q.symbol, // Backend sends 'name'
                 type: 'API'
             }));
 
@@ -258,8 +276,19 @@ async function handleSearchInput(e) {
         console.error('Search error:', error);
     }
 
-    // Limit results
-    results = results.slice(0, 8);
+    // Sort combined results: Exact Match > Length
+    results.sort((a, b) => {
+        // Priority 1: Exact Match
+        const aExact = a.symbol === upperQuery ? 0 : 1;
+        const bExact = b.symbol === upperQuery ? 0 : 1;
+        if (aExact !== bExact) return aExact - bExact;
+
+        // Priority 2: Shortest Symbol
+        return a.symbol.length - b.symbol.length;
+    });
+
+    // Limit results (Expanded to show all relevant)
+    results = results.slice(0, 50);
 
     if (results.length > 0) {
         dropdown.innerHTML = results.map(quote => `
@@ -271,6 +300,9 @@ async function handleSearchInput(e) {
                 <span class="result-name">${quote.shortname}</span>
             </div>
         `).join('');
+        // Ensure scrollability
+        dropdown.style.maxHeight = '400px';
+        dropdown.style.overflowY = 'auto';
         dropdown.classList.add('show');
     } else {
         dropdown.innerHTML = '<div class="search-result-item" style="cursor:default; color:var(--text-secondary);">No results found</div>';
@@ -282,6 +314,9 @@ function selectSearchResult(ticker) {
     // Clear all search inputs and result dropdwons
     document.querySelectorAll('.ticker-search-input').forEach(input => input.value = '');
     document.querySelectorAll('.search-dropdown').forEach(d => d.classList.remove('show'));
+
+    // Force switch to 'news' tab on explicit search selection
+    switchTab('news');
 
     // Check if valid ticker via normal flow
     selectTicker(ticker);
@@ -1064,7 +1099,16 @@ function displaySummary(data, targetId = 'summaryContent') {
                 
                 <span class="last-updated-badge" style="font-size: 12px; color: var(--text-secondary); font-weight: 500; background: var(--bg-card); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); margin-left: auto;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px; display:inline-block; vertical-align:text-bottom;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    Updated: ${data.updated_at ? new Date(data.updated_at).toLocaleString(undefined, { timeZoneName: 'short' }) : (data.date || 'N/A')}
+                    Updated: ${(() => {
+            if (!data.updated_at) return data.date || 'N/A';
+            let d = new Date(data.updated_at);
+            const now = new Date();
+            // Correction for double-conversion (if > 4h ahead, assume offset error)
+            if (d > now && (d.getTime() - now.getTime()) > 3600000 * 4) {
+                d = new Date(d.getTime() - 19800000); // Subtract 5.5h
+            }
+            return d.toLocaleString(undefined, { timeZoneName: 'short' });
+        })()}
                 </span>
 
                 <button onclick="${refreshFunction}('${displayTicker}', event)" class="ticker-refresh-btn" title="Force Refresh Analysis">
