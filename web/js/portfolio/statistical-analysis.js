@@ -7,15 +7,14 @@ let currentStatisticalOptions = {
 };
 
 window.loadStatisticalAnalysis = function (portfolioData, options = {}) {
-    // Initial load - check for saved settings first
+    // Load saved settings immediately
     try {
-        const savedSettings = localStorage.getItem('statisticalAnalysisSettings');
-        if (savedSettings) {
-            const parsed = JSON.parse(savedSettings);
-            currentStatisticalOptions = { ...currentStatisticalOptions, ...parsed };
+        const saved = localStorage.getItem('statisticalAnalysisSettings');
+        if (saved) {
+            currentStatisticalOptions = { ...currentStatisticalOptions, ...JSON.parse(saved) };
         }
     } catch (e) {
-        console.error('Failed to load statistical settings:', e);
+        console.error('Failed to load initial statistical settings:', e);
     }
 
     if (window.analyticsManager) {
@@ -54,13 +53,18 @@ window.displayStatisticalAnalysisResults = function (result, options) {
 
     console.log('[STATISTICAL] Processed data:', { statisticalData, parameters, riskMetrics, performanceMetrics });
 
-    // Update current options from result or passed options
+    // CRITICAL: Prioritize options passed from update function, then parameters from backend, then current state
+    const newLookback = options?.lookback_period || parameters.lookback_period || currentStatisticalOptions.lookback_period || '1Y';
+
+    // Update current options
     currentStatisticalOptions = {
-        lookback_period: options?.lookback_period || parameters.lookback_period || currentStatisticalOptions.lookback_period,
-        frequency: options?.frequency || parameters.frequency || currentStatisticalOptions.frequency,
-        benchmark: options?.benchmark || parameters.benchmark || currentStatisticalOptions.benchmark,
-        confidence_level: options?.confidence_level || parameters.confidence_level || currentStatisticalOptions.confidence_level
+        lookback_period: newLookback,
+        frequency: options?.frequency || parameters.frequency || currentStatisticalOptions.frequency || 'Daily',
+        benchmark: options?.benchmark || parameters.benchmark || currentStatisticalOptions.benchmark || 'SPY',
+        confidence_level: options?.confidence_level || parameters.confidence_level || currentStatisticalOptions.confidence_level || 0.95
     };
+
+    console.log('[STATISTICAL] Resolved options:', currentStatisticalOptions);
 
     // Get symbols for analysis
     const riskSymbols = Object.keys(riskMetrics);
@@ -311,6 +315,24 @@ window.displayStatisticalAnalysisResults = function (result, options) {
                     <div><span class="text-secondary">Risk Metrics:</span> <span class="font-medium text-primary">${Object.keys(riskMetrics).length}</span></div>
                     <div><span class="text-secondary">Performance Metrics:</span> <span class="font-medium text-primary">${Object.keys(performanceMetrics).length}</span></div>
                 </div>
+                
+                ${parameters.limiting_symbol ? `
+                <div class="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Data Truncated</h3>
+                            <div class="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                                <p>Analysis limited to <strong>${parameters.limiting_date}</strong> due to limited history available for <strong>${parameters.limiting_symbol}</strong>.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
             </div>
         </div>
     `;
@@ -363,32 +385,13 @@ window.updateStatisticalAnalysis = () => {
     // Store options and call analysis
     window.analyticsCore.statisticalOptions = currentStatisticalOptions;
 
-    // Show loading state first
-    const container = document.getElementById('statisticalAnalysis') || document.getElementById('analysisContent');
-    if (container) {
-        container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Statistical Analysis</h2>
-                <button class="bg-indigo-600 text-white px-3 py-1 rounded-lg transition-colors text-sm flex items-center opacity-50 cursor-not-allowed" disabled>
-                    <svg class="w-4 h-4 mr-1 animate-spin" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
-                    </svg>
-                    Analyzing...
-                </button>
-            </div>
-            <div class="analysis-card p-12 text-center">
-                <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-                <h3 class="text-xl font-semibold text-primary mb-2">Calculating Statistics</h3>
-                <p class="text-secondary mb-4">Analyzing portfolio statistics...</p>
-            </div>
-        `;
-    }
-
+    // Call analysis with EXPLICIT settings to ensure they are used
     window.analyticsCore.analyzePortfolio(
         'statistical-analysis',
         'statisticalAnalysis',
         window.displayStatisticalAnalysisResults,
-        'statisticalSettings'
+        'statisticalSettings',
+        currentStatisticalOptions // Pass explicit settings
     );
 };
 

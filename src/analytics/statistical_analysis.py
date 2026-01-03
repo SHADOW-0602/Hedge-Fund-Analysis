@@ -159,7 +159,17 @@ class StatisticalAnalyzer:
                 price_data = price_data.resample('M').last()
             
             # Calculate returns
+            # Check for data limitations before dropping NaNs
+            first_valid_indices = price_data.apply(lambda x: x.first_valid_index())
+            if not first_valid_indices.empty:
+                latest_start_date = first_valid_indices.max()
+                limiting_symbol = first_valid_indices.idxmax()
+            else:
+                latest_start_date = None
+                limiting_symbol = None
+
             returns = price_data.pct_change().dropna()
+            
             if returns.empty:
                 return {'error': 'Insufficient return data'}
             
@@ -198,7 +208,9 @@ class StatisticalAnalyzer:
                     'confidence_level': confidence_level,
                     'data_points': len(returns),
                     'symbols_analyzed': len(valid_symbols),
-                    'missing_symbols': list(missing_symbols)
+                    'missing_symbols': list(missing_symbols),
+                    'limiting_symbol': limiting_symbol,
+                    'limiting_date': latest_start_date.strftime('%Y-%m-%d') if latest_start_date else None
                 },
                 'correlation_analysis': self._calculate_correlations(returns[valid_symbols], confidence_level),
                 'risk_metrics': self._calculate_risk_metrics(returns[valid_symbols], confidence_level, frequency),

@@ -856,6 +856,13 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             confidence_level = float(options.get('confidence_level', 0.95))
             
             # Handle lookback_period parameter - accept both string periods and integer days
+            # Handle lookback_period parameter - accept both string periods and integer days
+            # Normalize input
+            if isinstance(lookback_days, str) and lookback_days.isdigit():
+                 lookback_days = int(lookback_days)
+            elif isinstance(lookback_days, float):
+                 lookback_days = int(lookback_days)
+
             if isinstance(lookback_days, str):
                 # Frontend sends string periods like '3M', '6M', '1Y', '2Y', '3Y'
                 lookback_period = lookback_days

@@ -4629,89 +4629,38 @@ window.updateTechnicalAnalysis = () => {
 };
 
 // Statistical Analysis Modal Functions
+/*
 window.showStatisticalSettings = () => {
-    // Create settings modal
-    let settingsModal = document.getElementById('statisticalSettingsModal');
-    if (!settingsModal) {
-        settingsModal = document.createElement('div');
-        settingsModal.id = 'statisticalSettingsModal';
-        settingsModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        settingsModal.style.display = 'none';
-        document.body.appendChild(settingsModal);
-    }
-
-    settingsModal.innerHTML = `
-            Cancel
-                        Run Analysis
-    `;
-
-    settingsModal.style.display = 'flex';
+    // Legacy code removed to prevent conflicts with statistical-analysis.js
 };
 
 window.closeStatisticalSettingsModal = () => {
-    const modal = document.getElementById('statisticalSettingsModal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
 };
 
 window.closeStatisticalModal = () => {
-    const modal = document.getElementById('statisticalModal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
 };
 
 window.refreshStatisticalAnalysis = () => {
-    window.runStatisticalAnalysisWithSettings();
+    // This overwrites the correct function in statistical-analysis.js
+    // Removed to allow statistical-analysis.js to handle this.
+    console.warn('Legacy refreshStatisticalAnalysis called - please check script loading order');
+    if (window.analyticsCore && window.analyticsCore.analyzePortfolio) {
+         window.analyticsCore.analyzePortfolio(
+            'statistical-analysis',
+            'statisticalAnalysis',
+            window.displayStatisticalAnalysisResults,
+            'statisticalSettings'
+        );
+    }
 };
 
 window.runStatisticalAnalysisWithSettings = async () => {
-    const lookbackPeriod = document.getElementById('lookbackPeriod')?.value || 252;
-    const frequency = document.getElementById('frequency')?.value || 'daily';
-    const benchmark = document.getElementById('benchmark')?.value || 'SPY';
-    const confidenceLevel = parseFloat(document.getElementById('confidenceLevel')?.value || 0.95);
-
-    // Close settings modal
-    window.closeStatisticalSettingsModal();
-
-    // Get portfolio data
-    const portfolioData = window.analyticsCore?.portfolioData || [];
-    if (!portfolioData || portfolioData.length === 0) {
-        alert('Please upload a portfolio first');
-        return;
-    }
-
-    try {
-        const response = await fetch(`${window.API_BASE || window.location.origin} /api/statistical - analysis`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                portfolio: portfolioData,
-                lookback_period: parseInt(lookbackPeriod),
-                frequency: frequency,
-                benchmark: benchmark,
-                confidence_level: confidenceLevel
-            })
-        });
-
-        const data = await response.json();
-        if (data.success) {
-            window.analyticsManager.displayStatisticalAnalysis(data, {
-                lookback_period: lookbackPeriod,
-                frequency: frequency,
-                benchmark: benchmark,
-                confidence_level: confidenceLevel
-            });
-        } else {
-            alert('Statistical analysis failed: ' + (data.error || 'Unknown error'));
-        }
-    } catch (error) {
-        alert('Failed to run statistical analysis: ' + error.message);
-    }
+    // Legacy code removed
 };
+*/
 
 // Statistical Analysis Settings
+/*
 window.toggleStatisticalSettings = () => {
     const settings = document.getElementById('statisticalSettings');
     if (settings) {
@@ -4736,7 +4685,9 @@ window.toggleStatisticalSettings = () => {
         }
     }
 };
+*/
 
+/*
 window.updateStatisticalAnalysis = () => {
     const lookbackPeriod = document.getElementById('statisticalLookbackPeriod')?.value || '1Y';
     const frequency = document.getElementById('statisticalFrequency')?.value || 'Daily';
@@ -4757,6 +4708,7 @@ window.updateStatisticalAnalysis = () => {
     // Force reload of statistical analysis with new settings
     window.analyticsManager.loadModule('statistical-analysis');
 };
+*/
 
 // Technical Analysis Settings
 window.toggleTechnicalSettings = () => {

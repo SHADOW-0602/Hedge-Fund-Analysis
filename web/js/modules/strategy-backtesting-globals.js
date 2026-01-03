@@ -106,6 +106,7 @@ window.updateSectorAllocation = function () {
     }
 };
 
+/*
 // Statistical analysis settings toggle
 window.toggleStatisticalSettings = function () {
     const settingsPanel = document.getElementById('statisticalSettings');
@@ -134,6 +135,7 @@ window.updateStatisticalAnalysis = function () {
         window.analyticsManager.loadModule('statistical-analysis');
     }
 };
+*/
 
 // Technical analysis settings toggle
 window.toggleTechnicalSettings = function () {

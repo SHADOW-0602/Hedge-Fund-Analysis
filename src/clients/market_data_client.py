@@ -89,16 +89,25 @@ class YFinanceProvider(DataProvider):
             self.rate_limiter.wait_if_needed()
             
             # Map invalid periods to valid YFinance periods
+            # Map invalid periods to valid YFinance periods
             period_mapping = {
                 '1m': '1mo',
                 '3m': '3mo', 
                 '6m': '6mo',
                 '1y': '1y',
+                '2y': '2y',
+                '3y': '5y', # Fetch 5y and slice
                 'ytd': 'ytd',
                 'max': 'max',
                 '5y': '5y'
             }
-            yf_period = period_mapping.get(period, period)
+            
+            # Save original period request
+            req_period = period.lower()
+            needs_3y_slice = req_period == '3y'
+            
+            yf_period = period_mapping.get(req_period, period_mapping.get(period, period))
+            
             if yf_period not in ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']:
                 yf_period = '1y'  # Default fallback
             
@@ -120,6 +129,16 @@ class YFinanceProvider(DataProvider):
                     group_by='ticker' if len(valid_symbols) > 1 else None,
                     timeout=10
                 )
+
+            # Slice for 3y if needed
+            if data is not None and not data.empty and needs_3y_slice:
+                # Calculate 3 year start date
+                start_date = datetime.now() - timedelta(days=365*3)
+                # Ensure index is datetime
+                if not isinstance(data.index, pd.DatetimeIndex):
+                     data.index = pd.to_datetime(data.index)
+                data = data[data.index >= start_date]
+                module_logger.info(f"Sliced data for 3y request. New shape: {data.shape}")
             
             module_logger.info(f"YFinance raw data shape: {data.shape if data is not None else 'None'}")
             module_logger.info(f"YFinance raw columns: {list(data.columns) if data is not None and hasattr(data, 'columns') else 'None'}")
