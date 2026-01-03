@@ -221,12 +221,14 @@ class PlaidClient:
             logger.error(f"Plaid accounts error: {e}")
             return []
     
-    def get_holdings(self, user_id: str) -> pd.DataFrame:
+    def get_holdings(self, user_id: str, access_token: str = None) -> pd.DataFrame:
         """Get investment holdings using official SDK"""
         if not self.client:
             return pd.DataFrame()
         
-        access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
+        if not access_token:
+            access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
+        
         if not access_token:
             return pd.DataFrame()
         
@@ -293,12 +295,14 @@ class PlaidClient:
             logger.error(f"Plaid holdings error: {e}")
             return pd.DataFrame()
     
-    def get_transactions(self, user_id: str, days: int = 30) -> pd.DataFrame:
+    def get_transactions(self, user_id: str, days: int = 30, access_token: str = None) -> pd.DataFrame:
         """Get transaction history using official SDK"""
         if not self.client:
             return pd.DataFrame()
         
-        access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
+        if not access_token:
+            access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
+        
         if not access_token:
             return pd.DataFrame()
         
@@ -400,12 +404,14 @@ class PlaidClient:
             logger.error(f"Error calculating historical portfolio values: {e}")
             return pd.DataFrame()
     
-    def get_investment_transactions(self, user_id: str, days: int = 90) -> pd.DataFrame:
+    def get_investment_transactions(self, user_id: str, days: int = 90, access_token: str = None) -> pd.DataFrame:
         """Get investment transactions (buy/sell) using official SDK with pagination"""
         if not self.client:
             return pd.DataFrame()
         
-        access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
+        if not access_token:
+            access_token = plaid_supabase_manager.get_plaid_token(user_id) if plaid_supabase_manager else user_secret_manager.get_plaid_token(user_id)
+        
         if not access_token:
             return pd.DataFrame()
         

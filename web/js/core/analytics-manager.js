@@ -777,6 +777,18 @@ class AnalyticsManager {
             return;
         }
 
+        // For performance-attribution, pass stored settings as options
+        if (name === 'performance-attribution' && window.analyticsCore?.performanceAttributionSettings) {
+            await window.analyticsCore.analyzePortfolio(
+                module.endpoint,
+                module.containerId,
+                module.displayFunction,
+                module.settingsId,
+                { ...window.analyticsCore.performanceAttributionSettings, ...options }
+            );
+            return;
+        }
+
         // Clear any existing loading states first
         if (window.loadingManager) {
             window.loadingManager.clearAll();
@@ -1648,7 +1660,7 @@ class AnalyticsManager {
                 </div>
             </div>
             
-            <div id="riskSettings" class="settings-panel hidden mb-6">
+            <div id="riskSettings" class="settings-panel hidden mb-6 p-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Time Period</label>
@@ -2850,6 +2862,14 @@ class AnalyticsManager {
         const container = document.getElementById('performanceAttribution') || document.getElementById(DEFAULT_CONTAINER_ID);
         if (!container) return;
 
+        // Extract data robustly (handle nested structures)
+        const attribution = result.performance_attribution || result.return_attribution || result.attribution || result;
+
+        // Helper for safe formatting
+        const fmtNum = (val) => (val === undefined || val === null || isNaN(val)) ? '0.00' : Number(val).toFixed(2);
+        const fmtPct = (val) => fmtNum(val) + '%';
+        const isPos = (val) => (val || 0) >= 0;
+
         // --- Extract Current Settings ---
         if (!window.analyticsCore.performanceAttributionSettings) {
             window.analyticsCore.performanceAttributionSettings = {};
@@ -2897,12 +2917,12 @@ class AnalyticsManager {
             </div>
 
             <!-- 2. Settings Panel -->
-            <div id="performanceAttributionSettings" class="settings-panel hidden mb-6">
+            <div id="performanceAttributionSettings" class="settings-panel hidden mb-6 p-4">
                 <!-- Using grid to match other modules -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Period</label>
-                        <select id="perfPeriod" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                        <select id="performancePeriod" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
                              <option value="1M" ${currentPeriod === '1M' ? 'selected' : ''}>1 Month</option>
                              <option value="3M" ${currentPeriod === '3M' ? 'selected' : ''}>3 Months</option>
                              <option value="6M" ${currentPeriod === '6M' ? 'selected' : ''}>6 Months</option>
@@ -2912,7 +2932,7 @@ class AnalyticsManager {
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Benchmark</label>
-                        <select id="perfBenchmark" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                        <select id="performanceBenchmark" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
                              <option value="SPY" ${currentBenchmark === 'SPY' ? 'selected' : ''}>S&P 500 (SPY)</option>
                              <option value="QQQ" ${currentBenchmark === 'QQQ' ? 'selected' : ''}>Nasdaq 100 (QQQ)</option>
                              <option value="IWM" ${currentBenchmark === 'IWM' ? 'selected' : ''}>Russell 2000 (IWM)</option>
@@ -2922,14 +2942,14 @@ class AnalyticsManager {
                     </div>
                      <div>
                         <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Model</label>
-                        <select id="perfModel" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                        <select id="performanceModel" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
                              <option value="brinson" ${currentModel === 'brinson' ? 'selected' : ''}>Brinson-Fachler</option>
                              <option value="holdings" ${currentModel === 'holdings' ? 'selected' : ''}>Holdings Based</option>
                         </select>
                     </div>
                      <div>
                         <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Currency</label>
-                        <select id="perfCurrency" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                        <select id="performanceCurrency" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
                              <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>USD</option>
                              <option value="EUR" ${currentCurrency === 'EUR' ? 'selected' : ''}>EUR</option>
                              <option value="CAD" ${currentCurrency === 'CAD' ? 'selected' : ''}>CAD</option>
@@ -2938,7 +2958,7 @@ class AnalyticsManager {
                     </div>
                      <div>
                         <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Frequency</label>
-                        <select id="perfFrequency" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
+                        <select id="performanceFrequency" onchange="window.updatePerformanceAttribution()" class="w-full px-3 py-2 border border-card rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-card text-gray-900 dark:text-white">
                              <option value="Daily" ${currentFrequency === 'Daily' ? 'selected' : ''}>Daily</option>
                              <option value="Weekly" ${currentFrequency === 'Weekly' ? 'selected' : ''}>Weekly</option>
                              <option value="Monthly" ${currentFrequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
@@ -2955,26 +2975,26 @@ class AnalyticsManager {
                      <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
                         <div>
                              <div class="text-sm text-gray-500 dark:text-gray-400">Total Active Return</div>
-                             <div class="text-2xl font-bold ${result.active_return >= 0 ? 'text-green-600' : 'text-red-600'}">
-                                ${result.active_return >= 0 ? '+' : ''}${result.active_return.toFixed(2)}%
+                             <div class="text-2xl font-bold ${isPos(attribution.active_return) ? 'text-green-600' : 'text-red-600'}">
+                                ${isPos(attribution.active_return) ? '+' : ''}${fmtPct(attribution.active_return)}
                              </div>
                         </div>
                          <div>
                              <div class="text-sm text-gray-500 dark:text-gray-400">Portfolio Return</div>
                              <div class="text-xl font-semibold text-gray-900 dark:text-white">
-                                ${result.portfolio_return.toFixed(2)}%
+                                ${fmtPct(attribution.portfolio_return)}
                              </div>
                         </div>
                          <div>
                              <div class="text-sm text-gray-500 dark:text-gray-400">Benchmark Return</div>
                              <div class="text-xl font-semibold text-gray-900 dark:text-white">
-                                ${result.benchmark_return.toFixed(2)}%
+                                ${fmtPct(attribution.benchmark_return)}
                              </div>
                         </div>
                         <div>
                              <div class="text-sm text-gray-500 dark:text-gray-400">Unexplained</div>
                              <div class="text-xl font-semibold text-gray-500">
-                                ${(result.active_return - (result.asset_allocation + result.security_selection + result.interaction_effect + result.currency_effect + result.market_timing)).toFixed(2)}%
+                                ${(attribution.active_return - (attribution.asset_allocation + attribution.security_selection + attribution.interaction_effect + attribution.currency_effect + attribution.market_timing)) ? fmtPct(attribution.active_return - (attribution.asset_allocation + attribution.security_selection + attribution.interaction_effect + attribution.currency_effect + attribution.market_timing)) : '0.00%'}
                              </div>
                         </div>
                      </div>
@@ -2995,43 +3015,55 @@ class AnalyticsManager {
                             <tbody class="bg-card divide-y divide-card">
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Asset Allocation</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.asset_allocation >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
-                                        ${result.asset_allocation >= 0 ? '+' : ''}${result.asset_allocation.toFixed(2)}%
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${isPos(attribution.asset_allocation) ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${isPos(attribution.asset_allocation) ? '+' : ''}${fmtPct(attribution.asset_allocation)}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Value added by over/underweighting sectors/assets</td>
                                 </tr>
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Security Selection</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.security_selection >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
-                                        ${result.security_selection >= 0 ? '+' : ''}${result.security_selection.toFixed(2)}%
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${isPos(attribution.security_selection) ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${isPos(attribution.security_selection) ? '+' : ''}${fmtPct(attribution.security_selection)}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Value added by specific stock picking</td>
                                 </tr>
                                  <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Interaction</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.interaction_effect >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
-                                        ${result.interaction_effect >= 0 ? '+' : ''}${result.interaction_effect.toFixed(2)}%
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${isPos(attribution.interaction_effect) ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${isPos(attribution.interaction_effect) ? '+' : ''}${fmtPct(attribution.interaction_effect)}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Combined effect of allocation and selection</td>
                                 </tr>
-                                ${result.market_timing !== 0 ? `
+                                ${attribution.market_timing ? `
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Market Timing</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.market_timing >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
-                                        ${result.market_timing >= 0 ? '+' : ''}${result.market_timing.toFixed(2)}%
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${isPos(attribution.market_timing) ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${isPos(attribution.market_timing) ? '+' : ''}${fmtPct(attribution.market_timing)}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Value from beta adjustments over time</td>
                                 </tr>` : ''}
                                  <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Currency</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${result.currency_effect >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
-                                        ${result.currency_effect >= 0 ? '+' : ''}${result.currency_effect.toFixed(2)}%
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-right ${isPos(attribution.currency_effect) ? 'text-green-600' : 'text-red-600'} font-bold">
+                                        ${isPos(attribution.currency_effect) ? '+' : ''}${fmtPct(attribution.currency_effect)}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">Impact of foreign exchange movements</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+
+            <!-- Analysis Parameters -->
+            <div class="analysis-card mt-6 p-6">
+                <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${currentPeriod}</span></div>
+                    <div><span class="text-gray-600 dark:text-gray-400">Model:</span> <span class="font-medium text-gray-900 dark:text-white">${currentModel}</span></div>
+                    <div><span class="text-gray-600 dark:text-gray-400">Benchmark:</span> <span class="font-medium text-gray-900 dark:text-white">${currentBenchmark}</span></div>
+                    <div><span class="text-gray-600 dark:text-gray-400">Currency:</span> <span class="font-medium text-gray-900 dark:text-white">${currentCurrency}</span></div>
+                    <div><span class="text-gray-600 dark:text-gray-400">Frequency:</span> <span class="font-medium text-gray-900 dark:text-white">${currentFrequency}</span></div>
                 </div>
             </div>
         `;
@@ -4233,6 +4265,14 @@ window.updatePerformanceAttribution = () => {
         currency,
         frequency
     };
+
+    // Save to localStorage
+    try {
+        localStorage.setItem('performanceAttributionSettings', JSON.stringify(window.analyticsCore.performanceAttributionSettings));
+        console.log('[Performance Attribution] Saved settings to localStorage');
+    } catch (e) {
+        console.error('Failed to save performance attribution settings:', e);
+    }
 
     window.analyticsManager.loadModule('performance-attribution');
 };

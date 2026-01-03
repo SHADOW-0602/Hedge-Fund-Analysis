@@ -182,24 +182,37 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
         try:
             data = request.get_json()
             file_id = data.get('file_id')
+            filename = data.get('filename')
+            file_type = data.get('file_type')
             user_id = request.headers.get('X-User-ID')
             
             if not supabase_client or not supabase_client.client:
                 return jsonify({'success': False, 'error': 'Database not available'}), 500
             
-            if not file_id or not user_id:
-                return jsonify({'success': False, 'error': 'Missing file ID or user ID'}), 400
-            
-            # Check if file exists and belongs to user
-            # Note: This assumes 'uploaded_files' table has 'id' and 'user_id' columns
-            result = supabase_client.client.table('uploaded_files').delete().eq('id', file_id).eq('user_id', user_id).execute()
+            if not user_id:
+                return jsonify({'success': False, 'error': 'Missing user ID'}), 400
+
+            if file_id:
+                # Delete by ID
+                result = supabase_client.client.table('uploaded_files').delete().eq('id', file_id).eq('user_id', user_id).execute()
+            elif filename:
+                # Delete by filename (and optionally file_type)
+                query = supabase_client.client.table('uploaded_files').delete().eq('user_id', user_id).eq('filename', filename)
+                if file_type:
+                    query = query.eq('file_type', file_type)
+                result = query.execute()
+            else:
+                return jsonify({'success': False, 'error': 'Missing file ID or filename'}), 400
             
             if result.data:
                 return jsonify({'success': True, 'message': 'File deleted successfully'})
             else:
-                return jsonify({'success': False, 'error': 'File not found or access denied'}), 404
+                # It's possible the file record doesn't exist even if the transaction record did
+                # We shouldn't fail the whole operation if the "cleanup" part fails gracefully
+                return jsonify({'success': True, 'message': 'File not found or already deleted'}), 200
                 
         except Exception as e:
+            print(f"Delete uploaded file error: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/download-sample-portfolio', methods=['GET'])

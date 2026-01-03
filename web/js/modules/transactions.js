@@ -365,6 +365,7 @@ async function loadUserTransactions() {
         const select = document.getElementById('transactionFileSelect');
         if (select && latestTxn.id) {
             select.value = latestTxn.id;
+            if (typeof toggleTransactionDelete === 'function') toggleTransactionDelete();
         }
 
         // Show notification as requested
@@ -429,6 +430,9 @@ function updateTransactionsDropdown(transactions) {
             fileSelect.value = '';
             const deleteBtn = document.getElementById('deleteTransactionsBtn');
             if (deleteBtn) deleteBtn.style.display = 'none';
+        } else {
+            // If value exists (restored or valid), show delete button
+            if (typeof toggleTransactionDelete === 'function') toggleTransactionDelete();
         }
     } else {
         console.error('transactionFileSelect element NOT found in DOM');
@@ -639,20 +643,22 @@ async function deleteSelectedTransactions() {
         return;
     }
 
-    const selectedIndex = parseInt(select.value);
-    const transactionFiles = window.transactionFiles || [];
+    const selectedId = select.value;
+    const transactionFiles = window.userTransactions || [];
 
-    if (selectedIndex < 0 || selectedIndex >= transactionFiles.length) {
+    // Find file by ID (handles string vs number IDs)
+    const fileToDelete = transactionFiles.find(t => t.id == selectedId);
+
+    if (!fileToDelete) {
         showError('Invalid transaction file selected');
         return;
     }
-
-    const fileToDelete = transactionFiles[selectedIndex];
     showLoading(true);
 
     try {
         // Delete from Supabase first
-        if (fileToDelete.source === 'supabase' && fileToDelete.id && currentUser?.user_id) {
+        // Check if NOT local - standard API transactions don't have is_local=true
+        if (!fileToDelete.is_local && fileToDelete.id && currentUser?.user_id) {
             const response = await fetch(`${API_BASE}/api/delete-transactions`, {
                 method: 'DELETE',
                 headers: {
@@ -663,21 +669,29 @@ async function deleteSelectedTransactions() {
             });
 
             if (!response.ok) {
-                throw new Error(`Server error: ${response.status}`);
+                const errData = await response.json();
+                console.warn('Backend deletion warning:', errData.error);
+                // Don't throw here, try to clean up uploaded file and local state anyway
+                // throw new Error(`Server error: ${response.status}`);
             }
         }
 
         // Also delete any matching files from uploaded_files table
         if (currentUser?.user_id) {
             try {
-                await fetch(`${API_BASE}/api/delete-uploaded-file`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-User-ID': currentUser.user_id
-                    },
-                    body: JSON.stringify({ filename: fileToDelete.filename, file_type: 'transaction' })
-                });
+                // For API-loaded files, filename might be missing but transaction_set_name usually matches
+                const filenameToDelete = fileToDelete.filename || fileToDelete.transaction_set_name;
+
+                if (filenameToDelete) {
+                    await fetch(`${API_BASE}/api/delete-uploaded-file`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-User-ID': currentUser.user_id
+                        },
+                        body: JSON.stringify({ filename: filenameToDelete, file_type: 'transaction' })
+                    });
+                }
             } catch (e) {
                 console.log('Uploaded file cleanup failed:', e);
             }
@@ -685,7 +699,12 @@ async function deleteSelectedTransactions() {
 
         // Remove only the deleted file from localStorage
         const localFiles = JSON.parse(localStorage.getItem('transactionFiles') || '[]');
-        const localIndex = localFiles.findIndex(f => f.filename === fileToDelete.filename);
+        // Match by filename OR transaction_set_name (for API-sourced files where filename might be undefined)
+        const localIndex = localFiles.findIndex(f =>
+            f.filename === fileToDelete.filename ||
+            f.filename === fileToDelete.transaction_set_name
+        );
+
         if (localIndex >= 0) {
             localFiles.splice(localIndex, 1);
             localStorage.setItem('transactionFiles', JSON.stringify(localFiles));
@@ -695,6 +714,11 @@ async function deleteSelectedTransactions() {
         // Clear current data only
         window.currentTransactions = null;
 
+        // Clear DataMerger state if available
+        if (window.DataMerger) {
+            window.DataMerger.updateManualData('transactions', []);
+        }
+
         // Clear file input
         const fileInput = document.getElementById('transactionFile');
         if (fileInput) fileInput.value = '';
@@ -702,6 +726,14 @@ async function deleteSelectedTransactions() {
         // Hide analysis section
         const analysisSection = document.getElementById('transactionAnalysis');
         if (analysisSection) analysisSection.classList.add('hidden');
+
+        // Hide Data Preview
+        if (typeof window.hideDataPreview === 'function') {
+            window.hideDataPreview();
+        } else {
+            const dataPreview = document.getElementById('dataPreview');
+            if (dataPreview) dataPreview.classList.add('hidden');
+        }
 
         // Clear analysis content
         const analysisCards = ['pnlAttribution', 'tradePerformance', 'costAnalysis', 'turnoverAnalysis', 'taxAnalysis', 'cashFlowAnalysis', 'fifoLifoAnalysis', 'tradeTimingAnalysis', 'drawdownAnalysis', 'returnAttribution'];

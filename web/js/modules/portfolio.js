@@ -207,6 +207,7 @@ async function loadUserPortfolios() {
                 const select = document.getElementById('portfolioFileSelect');
                 if (select) {
                     select.value = 0; // Select first item index
+                    if (typeof togglePortfolioDelete === 'function') togglePortfolioDelete();
                 }
 
                 // Show notification as requested
@@ -242,6 +243,8 @@ function updatePortfolioDropdown() {
             select.value = '';
             const deleteBtn = document.getElementById('deletePortfolioBtn');
             if (deleteBtn) deleteBtn.style.display = 'none';
+        } else {
+            if (typeof togglePortfolioDelete === 'function') togglePortfolioDelete();
         }
     }
 
@@ -356,7 +359,7 @@ async function deleteSelectedPortfolio() {
     }
 
     const selectedIndex = parseInt(select.value);
-    const portfolioFiles = window.portfolioFiles || [];
+    const portfolioFiles = window.userPortfolios || [];
 
     if (selectedIndex < 0 || selectedIndex >= portfolioFiles.length) {
         showError('Invalid portfolio file selected');
@@ -368,24 +371,53 @@ async function deleteSelectedPortfolio() {
 
     try {
         // Delete from Supabase first
-        if (fileToDelete.source === 'supabase' && fileToDelete.id && currentUser?.user_id) {
+        // Check if NOT local - standard API portfolios don't have is_local=true
+        if (!fileToDelete.is_local && fileToDelete.id && currentUser?.user_id) {
             const response = await fetch(`${API_BASE}/api/delete-portfolio`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-ID': currentUser.user_id
+                    'X-User-ID': currentUser.user_id
                 },
                 body: JSON.stringify({ portfolio_id: fileToDelete.id })
             });
 
             if (!response.ok) {
-                throw new Error(`Server error: ${response.status}`);
+                const errData = await response.json();
+                console.warn('Backend deletion warning:', errData.error);
+                // throw new Error(`Server error: ${response.status}`);
+            }
+        }
+
+        // Also delete any matching files from uploaded_files table
+        if (currentUser?.user_id) {
+            try {
+                // filename might be missing for API portfolios, use portfolio_name as fallback
+                const filenameToDelete = fileToDelete.filename || fileToDelete.portfolio_name;
+
+                if (filenameToDelete) {
+                    await fetch(`${API_BASE}/api/delete-uploaded-file`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-User-ID': currentUser.user_id
+                        },
+                        body: JSON.stringify({ filename: filenameToDelete, file_type: 'portfolio' })
+                    });
+                }
+            } catch (e) {
+                console.log('Uploaded file cleanup failed:', e);
             }
         }
 
         // Remove only the deleted file from localStorage
         const localFiles = JSON.parse(localStorage.getItem('portfolioFiles') || '[]');
-        const localIndex = localFiles.findIndex(f => f.filename === fileToDelete.filename);
+        // Match by filename OR portfolio_name (for API-sourced files where filename might be undefined)
+        const localIndex = localFiles.findIndex(f =>
+            f.filename === fileToDelete.filename ||
+            f.filename === fileToDelete.portfolio_name
+        );
+
         if (localIndex >= 0) {
             localFiles.splice(localIndex, 1);
             localStorage.setItem('portfolioFiles', JSON.stringify(localFiles));
@@ -396,6 +428,11 @@ async function deleteSelectedPortfolio() {
         // Clear current data only
         window.portfolioData = null;
 
+        // Clear DataMerger state if available
+        if (window.DataMerger) {
+            window.DataMerger.updateManualData('portfolio', []);
+        }
+
         // Clear file input
         const fileInput = document.getElementById('portfolioFile');
         if (fileInput) fileInput.value = '';
@@ -403,6 +440,14 @@ async function deleteSelectedPortfolio() {
         // Hide analysis section
         const analysisSection = document.getElementById('portfolioAnalysis');
         if (analysisSection) analysisSection.classList.add('hidden');
+
+        // Hide Data Preview
+        if (typeof window.hideDataPreview === 'function') {
+            window.hideDataPreview();
+        } else {
+            const dataPreview = document.getElementById('dataPreview');
+            if (dataPreview) dataPreview.classList.add('hidden');
+        }
 
         // Clear analysis content
         const analysisCards = ['riskResults', 'optionsResults', 'performanceAttribution', 'technicalAnalysis', 'correlationMatrix', 'sectorAllocation'];

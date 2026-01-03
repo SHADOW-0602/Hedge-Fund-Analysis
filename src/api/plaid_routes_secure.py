@@ -163,7 +163,9 @@ def register_plaid_routes(app):
                     'user_id': user_id
                 }), 200
             
-            holdings_df = plaid_client.get_holdings(user_id)
+            print(f"[PLAID] Retrieved access token: {access_token[:5]}... LEN={len(access_token)}")
+            
+            holdings_df = plaid_client.get_holdings(user_id, access_token=access_token)
             
             
             if not holdings_df.empty:
@@ -312,7 +314,9 @@ def register_plaid_routes(app):
             if not access_token:
                 return jsonify({'success': False, 'error': 'No Plaid connection found'}), 200
             
-            transactions_df = plaid_client.get_investment_transactions(user_id, days)
+            print(f"[PLAID] Retrieved access token for txns: {access_token[:5]}...")
+            
+            transactions_df = plaid_client.get_investment_transactions(user_id, days, access_token=access_token)
             
             if not transactions_df.empty:
                 # Apply regex-based normalization for consistency

@@ -181,25 +181,14 @@ class PlaidConnectionsManager {
         try {
             const baseUrl = window.API_BASE || window.location.origin;
 
-            // Load portfolio data
-            const portfolioPromise = fetch(`${baseUrl}/api/plaid-portfolio`, {
+            // Load portfolio data first
+            const responsePortfolio = await fetch(`${baseUrl}/api/plaid-portfolio`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify({ connection_id: connectionId })
             });
-
-            // Load transaction data (default 90 days)
-            const transactionsPromise = fetch(`${baseUrl}/api/plaid-transactions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ connection_id: connectionId, days: 90 })
-            });
-
-            const [responsePortfolio, responseTransactions] = await Promise.all([portfolioPromise, transactionsPromise]);
             const resultPortfolio = await responsePortfolio.json();
-            const resultTransactions = await responseTransactions.json();
 
             // Process Portfolio Data
             if (resultPortfolio.success && resultPortfolio.holdings) {
@@ -226,6 +215,37 @@ class PlaidConnectionsManager {
             } else {
                 console.error('[PLAID] Failed to load portfolio data:', resultPortfolio.error || 'Unknown error');
             }
+
+            // Load transaction data (default 90 days) - Serialized after portfolio to avoid race conditions
+            // Helper for retry
+            const fetchTransactions = async (retries = 1) => {
+                try {
+                    const response = await fetch(`${baseUrl}/api/plaid-transactions`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ connection_id: connectionId, days: 90 })
+                    });
+                    const res = await response.json();
+
+                    // Specific check for the "No Plaid connection found" error to trigger retry
+                    if (!res.success && res.error && res.error.includes('No Plaid connection') && retries > 0) {
+                        console.warn(`[PLAID] Transaction fetch failed with '${res.error}'. Retrying in 500ms...`);
+                        await new Promise(r => setTimeout(r, 500));
+                        return fetchTransactions(retries - 1);
+                    }
+                    return res;
+                } catch (e) {
+                    if (retries > 0) {
+                        console.warn(`[PLAID] Transaction fetch network error. Retrying...`);
+                        await new Promise(r => setTimeout(r, 500));
+                        return fetchTransactions(retries - 1);
+                    }
+                    throw e;
+                }
+            };
+
+            const resultTransactions = await fetchTransactions();
 
             // Process Transaction Data
             if (resultTransactions.success && resultTransactions.transactions) {

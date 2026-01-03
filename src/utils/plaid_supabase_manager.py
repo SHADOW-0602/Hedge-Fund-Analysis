@@ -106,6 +106,15 @@ class PlaidSupabaseManager:
     def get_plaid_token(self, user_id: str, connection_id: str = None) -> Optional[str]:
         """Get Plaid token, optionally for specific connection"""
         try:
+            # DEBUG LOGGING (Temporary)
+            try:
+                debug_log_path = os.path.join(os.getcwd(), 'debug_api.log')
+                with open(debug_log_path, "a") as f:
+                    f.write(f"\n[{datetime.now()}] get_plaid_token called\n")
+                    f.write(f"  User ID: {user_id}\n")
+                    f.write(f"  Connection ID: {repr(connection_id)}\n")
+            except: pass
+
             if not supabase_client or not supabase_client.service_client:
                 logger.error("Supabase client not available for token retrieval")
                 return None
@@ -118,8 +127,18 @@ class PlaidSupabaseManager:
             if connection_id:
                 query = query.eq('connection_id', connection_id)
             
+            result = query.limit(1).execute() # order by removed? No, it was order('created_at', desc=True)
+
+            # Re-add ordering
             result = query.order('created_at', desc=True).limit(1).execute()
             
+            # DEBUG LOGGING result
+            try:
+                with open("c:/Apps/Contributions/Hedge-Fund-Analysis/debug_api.log", "a") as f:
+                    count = len(result.data) if result.data else 0
+                    f.write(f"  Query Result Count: {count}\n")
+            except: pass
+
             logger.info(f"Token query result for user {user_id} (conn={connection_id}): {len(result.data) if result.data else 0} tokens found")
             
             if result.data:
@@ -129,6 +148,12 @@ class PlaidSupabaseManager:
             return None
             
         except Exception as e:
+            # Log exact error to file
+            try:
+                with open("c:/Apps/Contributions/Hedge-Fund-Analysis/debug_api.log", "a") as f:
+                     f.write(f"  [EXCEPTION] {str(e)}\n")
+            except: pass
+
             logger.error(f"Failed to get Plaid token for user {user_id}: {str(e)} (Type: {type(e).__name__})")
             return None
     
