@@ -59,9 +59,9 @@ class AnalyticsManager {
 
         this.register('correlation-analysis', {
             endpoint: 'correlation-analysis',
-            containerId: 'correlationMatrix',
+            containerId: null, // Use default container
             settingsId: 'correlationSettings',
-            displayFunction: this.displayCorrelationAnalysis.bind(this),
+            displayFunction: window.displayCorrelationAnalysisResults,
             type: 'portfolio'
         });
 

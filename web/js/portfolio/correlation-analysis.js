@@ -33,10 +33,47 @@ window.displayCorrelationAnalysisResults = function (result, options) {
     const container = document.getElementById('analysisContent');
     if (!container) return;
 
+    // Store for re-rendering on theme change
+    window.lastCorrelationResult = result;
+    window.lastCorrelationOptions = options;
+
     container.classList.remove('hidden');
 
     console.log('[CORRELATION] Raw result received:', result);
     console.log('[CORRELATION] Options received:', options);
+
+    // Setup Theme Observer if not already active
+    if (!window.correlationThemeObserver) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    // Slight delay to allow transitions
+                    setTimeout(() => {
+                        // Re-render if we have data and container is visible
+                        const container = document.getElementById('analysisContent');
+                        if (container && !container.classList.contains('hidden') && window.lastCorrelationResult) {
+                            console.log('[CORRELATION] Theme change detected, re-rendering...');
+                            window.displayCorrelationAnalysisResults(window.lastCorrelationResult, window.lastCorrelationOptions);
+                        }
+                    }, 50);
+                }
+            });
+        });
+
+        // Watch both html and body for class changes
+        observer.observe(document.documentElement, { attributes: true });
+        observer.observe(document.body, { attributes: true });
+        window.correlationThemeObserver = observer;
+    }
+
+    // Dark mode detection - Check BOTH html and body
+    const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+    const bgClass = isDark ? 'bg-gray-800' : 'bg-white';
+    const textClass = isDark ? 'text-white' : 'text-gray-900';
+    const subTextClass = isDark ? 'text-gray-400' : 'text-gray-500';
+    const borderClass = isDark ? 'border-gray-700' : 'border-gray-200';
+    const headerBgClass = isDark ? 'bg-gray-700' : 'bg-gray-50';
+    const rowHoverClass = isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50';
 
     // Handle the actual API response structure
     let correlationData, correlation, summary;
@@ -60,7 +97,7 @@ window.displayCorrelationAnalysisResults = function (result, options) {
 
     console.log('[CORRELATION] Processed data:', { correlationData, correlation, summary });
 
-    // Update current options from result or passed options
+    // Update currentoptions from result or passed options
     currentCorrelationOptions = {
         period: options?.period || summary.period || currentCorrelationOptions.period,
         frequency: options?.frequency || summary.frequency || currentCorrelationOptions.frequency,
@@ -76,17 +113,12 @@ window.displayCorrelationAnalysisResults = function (result, options) {
     if (symbols.length === 0) {
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Correlation Analysis - DEBUG MODE</h2>
-                <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
-                    </svg>
-                </button>
+                <h2 class="text-2xl font-bold ${textClass}">Correlation Analysis - DEBUG MODE</h2>
             </div>
-            <div class="analysis-card p-8">
+            <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-8">
                 <h3 class="text-lg font-bold text-red-600 mb-4">DEBUG: No correlation data found</h3>
-                <div class="space-y-3 text-sm">
-                    <div><strong>Raw result:</strong> <pre class="bg-gray-100 p-2 rounded text-xs overflow-auto">${JSON.stringify(result, null, 2)}</pre></div>
+                <div class="space-y-3 text-sm ${textClass}">
+                    <div><strong>Raw result:</strong> <pre class="bg-gray-100 dark:bg-gray-900 p-2 rounded text-xs overflow-auto">${JSON.stringify(result, null, 2)}</pre></div>
                     <div><strong>Result keys:</strong> ${Object.keys(result).join(', ')}</div>
                     <div><strong>Result type:</strong> ${typeof result}</div>
                     <div><strong>Has correlation_analysis:</strong> ${!!result.correlation_analysis}</div>
@@ -104,7 +136,7 @@ window.displayCorrelationAnalysisResults = function (result, options) {
 
     container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">Correlation Analysis</h2>
+            <h2 class="text-2xl font-bold ${textClass}">Correlation Analysis</h2>
             <div class="flex items-center space-x-2">
                 <button onclick="toggleCorrelationSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                     Settings
@@ -115,11 +147,6 @@ window.displayCorrelationAnalysisResults = function (result, options) {
                     </svg>
                     Refresh
                 </button>
-                <button onclick="hideAnalysisContent()" class="text-gray-400 hover:text-gray-600">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clip-rule="evenodd"></path>
-                    </svg>
-                </button>
             </div>
         </div>
         
@@ -127,8 +154,8 @@ window.displayCorrelationAnalysisResults = function (result, options) {
         <div id="correlationSettings" class="settings-panel hidden mb-6">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                    <select id="correlationPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                    <label class="block text-sm font-medium ${textClass} mb-1">Period</label>
+                    <select id="correlationPeriod" class="w-full px-3 py-2 border ${borderClass} ${bgClass} ${textClass} rounded-md text-sm" onchange="updateCorrelationAnalysis()">
                         <option value="1M" ${currentCorrelationOptions.period === '1M' ? 'selected' : ''}>1 Month</option>
                         <option value="3M" ${currentCorrelationOptions.period === '3M' ? 'selected' : ''}>3 Months</option>
                         <option value="6M" ${currentCorrelationOptions.period === '6M' ? 'selected' : ''}>6 Months</option>
@@ -137,24 +164,24 @@ window.displayCorrelationAnalysisResults = function (result, options) {
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                    <select id="correlationFrequency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                    <label class="block text-sm font-medium ${textClass} mb-1">Frequency</label>
+                    <select id="correlationFrequency" class="w-full px-3 py-2 border ${borderClass} ${bgClass} ${textClass} rounded-md text-sm" onchange="updateCorrelationAnalysis()">
                         <option value="Daily" ${currentCorrelationOptions.frequency === 'Daily' ? 'selected' : ''}>Daily</option>
                         <option value="Weekly" ${currentCorrelationOptions.frequency === 'Weekly' ? 'selected' : ''}>Weekly</option>
                         <option value="Monthly" ${currentCorrelationOptions.frequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                    <select id="correlationMethod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                    <label class="block text-sm font-medium ${textClass} mb-1">Method</label>
+                    <select id="correlationMethod" class="w-full px-3 py-2 border ${borderClass} ${bgClass} ${textClass} rounded-md text-sm" onchange="updateCorrelationAnalysis()">
                         <option value="pearson" ${currentCorrelationOptions.method === 'pearson' ? 'selected' : ''}>Pearson</option>
                         <option value="spearman" ${currentCorrelationOptions.method === 'spearman' ? 'selected' : ''}>Spearman</option>
                         <option value="kendall" ${currentCorrelationOptions.method === 'kendall' ? 'selected' : ''}>Kendall</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Rolling Window</label>
-                    <select id="correlationRollingWindow" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCorrelationAnalysis()">
+                    <label class="block text-sm font-medium ${textClass} mb-1">Rolling Window</label>
+                    <select id="correlationRollingWindow" class="w-full px-3 py-2 border ${borderClass} ${bgClass} ${textClass} rounded-md text-sm" onchange="updateCorrelationAnalysis()">
                         <option value="30d" ${currentCorrelationOptions.rolling_window === '30d' ? 'selected' : ''}>30 days</option>
                         <option value="60d" ${currentCorrelationOptions.rolling_window === '60d' ? 'selected' : ''}>60 days</option>
                         <option value="90d" ${currentCorrelationOptions.rolling_window === '90d' ? 'selected' : ''}>90 days</option>
@@ -167,60 +194,58 @@ window.displayCorrelationAnalysisResults = function (result, options) {
         <div class="space-y-6">
             <!-- Summary Statistics -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                <div class="analysis-card p-6">
-                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Average Correlation</h3>
-                    <p class="text-3xl font-bold ${(summary.average_correlation || 0) > 0.7 ? 'text-red-600' : (summary.average_correlation || 0) > 0.3 ? 'text-yellow-600' : 'text-green-600'}">
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6">
+                    <h3 class="text-sm font-medium ${subTextClass} uppercase tracking-wide mb-2">Average Correlation</h3>
+                    <p class="text-3xl font-bold ${(summary.average_correlation || 0) > 0.7 ? isDark ? 'text-red-400' : 'text-red-600' : (summary.average_correlation || 0) > 0.3 ? isDark ? 'text-yellow-400' : 'text-yellow-600' : isDark ? 'text-green-400' : 'text-green-600'}">
                         ${window.analyticsCore.formatNumber(summary.average_correlation || 0)}
                     </p>
-                    <p class="text-sm text-secondary mt-1">${(summary.average_correlation || 0) > 0.7 ? 'High correlation' : (summary.average_correlation || 0) > 0.3 ? 'Moderate correlation' : 'Low correlation'}</p>
+                    <p class="text-sm ${subTextClass} mt-1">${(summary.average_correlation || 0) > 0.7 ? 'High correlation' : (summary.average_correlation || 0) > 0.3 ? 'Moderate correlation' : 'Low correlation'}</p>
                 </div>
-                <div class="analysis-card p-6">
-                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Max Correlation</h3>
-                    <p class="text-3xl font-bold ${(summary.max_correlation || 0) > 0.8 ? 'text-red-600' : 'text-blue-600'}">
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6">
+                    <h3 class="text-sm font-medium ${subTextClass} uppercase tracking-wide mb-2">Max Correlation</h3>
+                    <p class="text-3xl font-bold ${(summary.max_correlation || 0) > 0.8 ? isDark ? 'text-red-400' : 'text-red-600' : isDark ? 'text-blue-400' : 'text-blue-600'}">
                         ${window.analyticsCore.formatNumber(summary.max_correlation || 0)}
                     </p>
-                    <p class="text-sm text-secondary mt-1">Highest pair correlation</p>
+                    <p class="text-sm ${subTextClass} mt-1">Highest pair correlation</p>
                 </div>
-                <div class="analysis-card p-6">
-                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Min Correlation</h3>
-                    <p class="text-3xl font-bold ${(summary.min_correlation || 0) < -0.3 ? 'text-green-600' : 'text-blue-600'}">
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6">
+                    <h3 class="text-sm font-medium ${subTextClass} uppercase tracking-wide mb-2">Min Correlation</h3>
+                    <p class="text-3xl font-bold ${(summary.min_correlation || 0) < -0.3 ? isDark ? 'text-green-400' : 'text-green-600' : isDark ? 'text-blue-400' : 'text-blue-600'}">
                         ${window.analyticsCore.formatNumber(summary.min_correlation || 0)}
                     </p>
-                    <p class="text-sm text-secondary mt-1">Lowest pair correlation</p>
+                    <p class="text-sm ${subTextClass} mt-1">Lowest pair correlation</p>
                 </div>
-                <div class="analysis-card p-6">
-                    <h3 class="text-sm font-medium text-secondary uppercase tracking-wide mb-2">Data Points</h3>
-                    <p class="text-3xl font-bold text-blue-600">
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6">
+                    <h3 class="text-sm font-medium ${subTextClass} uppercase tracking-wide mb-2">Data Points</h3>
+                    <p class="text-3xl font-bold ${isDark ? 'text-blue-400' : 'text-blue-600'}">
                         ${summary.data_points || 'N/A'}
                     </p>
-                    <p class="text-sm text-secondary mt-1">${symbols.length} symbols analyzed</p>
+                    <p class="text-sm ${subTextClass} mt-1">${symbols.length} symbols analyzed</p>
                 </div>
             </div>
             
             <!-- Correlation Matrix -->
             ${symbols.length > 0 ? `
-                <div class="analysis-card p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-primary mb-4">Correlation Matrix</h3>
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6 mb-6">
+                    <h3 class="text-lg font-semibold ${textClass} mb-4">Correlation Matrix</h3>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-card">
-                            <thead class="bg-gray-50 dark:bg-gray-700">
+                        <table class="min-w-full divide-y ${borderClass}">
+                            <thead class="${headerBgClass}">
                                 <tr>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-secondary uppercase">Symbol</th>
-                                    ${symbols.map(symbol => `<th class="px-4 py-2 text-center text-xs font-medium text-secondary uppercase">${symbol}</th>`).join('')}
+                                    <th class="px-4 py-2 text-left text-xs font-medium ${subTextClass} uppercase">Symbol</th>
+                                    ${symbols.map(symbol => `<th class="px-4 py-2 text-center text-xs font-medium ${subTextClass} uppercase">${symbol}</th>`).join('')}
                                 </tr>
                             </thead>
-                            <tbody class="bg-card divide-y divide-card">
+                            <tbody class="${bgClass} divide-y ${borderClass}">
                                 ${symbols.map(symbol1 => `
                                     <tr>
-                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-primary">${symbol1}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium ${textClass}">${symbol1}</td>
                                         ${symbols.map(symbol2 => {
         const corrValue = correlation[symbol1]?.[symbol2] || 0;
-        const colorClass = symbol1 === symbol2 ? 'bg-gray-100 dark:bg-gray-700 dark:text-primary' :
-            corrValue > 0.7 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-white' :
-                corrValue > 0.3 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-white' :
-                    corrValue < -0.3 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-white' :
-                        'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-white';
+        const colorClass = corrValue > 0.7 ? (isDark ? 'bg-red-900 text-red-100' : 'bg-red-100 text-red-800') :
+            corrValue > 0.3 ? (isDark ? 'bg-yellow-900 text-yellow-100' : 'bg-yellow-100 text-yellow-800') :
+                corrValue < -0.3 ? (isDark ? 'bg-green-900 text-green-100' : 'bg-green-100 text-green-800') :
+                    (isDark ? 'bg-blue-900 text-blue-100' : 'bg-blue-100 text-blue-800');
         return `<td class="px-4 py-2 whitespace-nowrap text-sm text-center ${colorClass}">${window.analyticsCore.formatNumber(corrValue)}</td>`;
     }).join('')}
                                     </tr>
@@ -228,12 +253,12 @@ window.displayCorrelationAnalysisResults = function (result, options) {
                             </tbody>
                         </table>
                     </div>
-                    <div class="mt-4 text-sm text-secondary">
+                    <div class="mt-4 text-sm ${subTextClass}">
                         <div class="flex flex-wrap gap-4">
-                            <div class="flex items-center"><div class="w-4 h-4 bg-red-100 dark:bg-red-900 border border-red-200 dark:border-red-800 mr-2"></div>Strong Positive (>0.7)</div>
-                            <div class="flex items-center"><div class="w-4 h-4 bg-yellow-100 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-800 mr-2"></div>Moderate Positive (0.3-0.7)</div>
-                            <div class="flex items-center"><div class="w-4 h-4 bg-blue-100 dark:bg-blue-900 border border-blue-200 dark:border-blue-800 mr-2"></div>Weak (-0.3-0.3)</div>
-                            <div class="flex items-center"><div class="w-4 h-4 bg-green-100 dark:bg-green-900 border border-green-200 dark:border-green-800 mr-2"></div>Negative (<-0.3)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 ${isDark ? 'bg-red-900 border-red-800' : 'bg-red-100 border-red-200'} border mr-2"></div>Strong Positive (>0.7)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 ${isDark ? 'bg-yellow-900 border-yellow-800' : 'bg-yellow-100 border-yellow-200'} border mr-2"></div>Moderate Positive (0.3-0.7)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 ${isDark ? 'bg-blue-900 border-blue-800' : 'bg-blue-100 border-blue-200'} border mr-2"></div>Weak (-0.3-0.3)</div>
+                            <div class="flex items-center"><div class="w-4 h-4 ${isDark ? 'bg-green-900 border-green-800' : 'bg-green-100 border-green-200'} border mr-2"></div>Negative (<-0.3)</div>
                         </div>
                     </div>
                 </div>
@@ -241,15 +266,15 @@ window.displayCorrelationAnalysisResults = function (result, options) {
             
             <!-- High Correlation Pairs -->
             ${correlationData.high_correlation_pairs && correlationData.high_correlation_pairs.length > 0 ? `
-                <div class="analysis-card p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-primary mb-4">High Correlation Pairs</h3>
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6 mb-6">
+                    <h3 class="text-lg font-semibold ${textClass} mb-4">High Correlation Pairs</h3>
                     <div class="space-y-2">
                         ${correlationData.high_correlation_pairs.slice(0, 5).map(pair => `
-                            <div class="flex justify-between items-center py-2 border-b border-card">
-                                <span class="font-medium text-primary">${pair.pair.join(' - ')}</span>
-                                <span class="px-2 py-1 rounded text-sm ${Math.abs(pair.correlation) > 0.8 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-white' :
-            Math.abs(pair.correlation) > 0.6 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-white' :
-                'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-white'
+                            <div class="flex justify-between items-center py-2 border-b ${borderClass}">
+                                <span class="font-medium ${textClass}">${pair.pair.join(' - ')}</span>
+                                <span class="px-2 py-1 rounded text-sm ${Math.abs(pair.correlation) > 0.8 ? (isDark ? 'bg-red-900 text-white' : 'bg-red-100 text-red-800') :
+            Math.abs(pair.correlation) > 0.6 ? (isDark ? 'bg-yellow-900 text-white' : 'bg-yellow-100 text-yellow-800') :
+                (isDark ? 'bg-blue-900 text-white' : 'bg-blue-100 text-blue-800')
         }">${window.analyticsCore.formatNumber(pair.correlation)}</span>
                             </div>
                         `).join('')}
@@ -259,8 +284,8 @@ window.displayCorrelationAnalysisResults = function (result, options) {
             
             <!-- Correlation Insights -->
             ${symbols.length > 1 ? `
-                <div class="analysis-card p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-primary mb-4">Correlation Insights</h3>
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6 mb-6">
+                    <h3 class="text-lg font-semibold ${textClass} mb-4">Correlation Insights</h3>
                     <div class="space-y-3">
                         ${generateCorrelationInsights(correlation, symbols)}
                     </div>
@@ -268,19 +293,19 @@ window.displayCorrelationAnalysisResults = function (result, options) {
             ` : ''}
             
             <!-- Analysis Parameters -->
-            <div class="analysis-card p-6">
-                <h4 class="text-sm font-semibold text-primary mb-3">Analysis Parameters</h4>
+            <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6">
+                <h4 class="text-sm font-semibold ${textClass} mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div><span class="text-secondary">Period:</span> <span class="font-medium text-primary">${currentCorrelationOptions.period}</span></div>
-                    <div><span class="text-secondary">Frequency:</span> <span class="font-medium text-primary">${currentCorrelationOptions.frequency}</span></div>
-                    <div><span class="text-secondary">Method:</span> <span class="font-medium text-primary">${currentCorrelationOptions.method}</span></div>
-                    <div><span class="text-secondary">Rolling Window:</span> <span class="font-medium text-primary">${currentCorrelationOptions.rolling_window}</span></div>
+                    <div><span class="${subTextClass}">Period:</span> <span class="font-medium ${textClass}">${currentCorrelationOptions.period}</span></div>
+                    <div><span class="${subTextClass}">Frequency:</span> <span class="font-medium ${textClass}">${currentCorrelationOptions.frequency}</span></div>
+                    <div><span class="${subTextClass}">Method:</span> <span class="font-medium ${textClass}">${currentCorrelationOptions.method}</span></div>
+                    <div><span class="${subTextClass}">Rolling Window:</span> <span class="font-medium ${textClass}">${currentCorrelationOptions.rolling_window}</span></div>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-2">
-                    <div><span class="text-secondary">Data Points:</span> <span class="font-medium text-primary">${summary.data_points || 'N/A'}</span></div>
-                    <div><span class="text-secondary">Symbols:</span> <span class="font-medium text-primary">${symbols.length}</span></div>
-                    <div><span class="text-secondary">Data Source:</span> <span class="font-medium text-primary">${correlationData.data_source || 'Market Data'}</span></div>
-                    <div><span class="text-secondary">High Pairs:</span> <span class="font-medium text-primary">${correlationData.high_correlation_pairs?.length || 0}</span></div>
+                    <div><span class="${subTextClass}">Data Points:</span> <span class="font-medium ${textClass}">${summary.data_points || 'N/A'}</span></div>
+                    <div><span class="${subTextClass}">Symbols:</span> <span class="font-medium ${textClass}">${symbols.length}</span></div>
+                    <div><span class="${subTextClass}">Data Source:</span> <span class="font-medium ${textClass}">${correlationData.data_source || 'Market Data'}</span></div>
+                    <div><span class="${subTextClass}">High Pairs:</span> <span class="font-medium ${textClass}">${correlationData.high_correlation_pairs?.length || 0}</span></div>
                 </div>
             </div>
         </div>
@@ -382,9 +407,16 @@ window.updateCorrelationAnalysis = () => {
     // Show loading state first
     const container = document.getElementById('analysisContent');
     if (container) {
+        // Dark mode detection
+        const isDark = document.documentElement.classList.contains('dark');
+        const bgClass = isDark ? 'bg-gray-800' : 'bg-white';
+        const textClass = isDark ? 'text-white' : 'text-gray-900';
+        const subTextClass = isDark ? 'text-gray-400' : 'text-gray-500';
+        const borderClass = isDark ? 'border-gray-700' : 'border-gray-200';
+
         container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Correlation Analysis</h2>
+                <h2 class="text-2xl font-bold ${textClass}">Correlation Analysis</h2>
                 <button class="bg-indigo-600 text-white px-3 py-1 rounded-lg transition-colors text-sm flex items-center opacity-50 cursor-not-allowed" disabled>
                     <svg class="w-4 h-4 mr-1 animate-spin" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
@@ -392,10 +424,10 @@ window.updateCorrelationAnalysis = () => {
                     Analyzing...
                 </button>
             </div>
-            <div class="analysis-card p-12 text-center">
+            <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-12 text-center">
                 <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
-                <h3 class="text-xl font-semibold text-primary mb-2">Calculating Correlations</h3>
-                <p class="text-secondary mb-4">Analyzing portfolio correlations...</p>
+                <h3 class="text-xl font-semibold ${textClass} mb-2">Calculating Correlations</h3>
+                <p class="${subTextClass} mb-4">Analyzing portfolio correlations...</p>
             </div>
         `;
     }
