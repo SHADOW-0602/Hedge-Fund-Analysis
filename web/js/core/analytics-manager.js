@@ -789,6 +789,18 @@ class AnalyticsManager {
             return;
         }
 
+        // For portfolio-optimization, pass stored settings as options
+        if (name === 'portfolio-optimization' && window.analyticsCore?.optimizationSettings) {
+            await window.analyticsCore.analyzePortfolio(
+                module.endpoint,
+                module.containerId,
+                module.displayFunction,
+                module.settingsId,
+                { ...window.analyticsCore.optimizationSettings, ...options }
+            );
+            return;
+        }
+
         // Clear any existing loading states first
         if (window.loadingManager) {
             window.loadingManager.clearAll();
@@ -4452,7 +4464,15 @@ window.updatePortfolioOptimization = () => {
     const riskBudget = document.getElementById('optRiskBudget')?.value || 'equal';
     const lookback = document.getElementById('optLookback')?.value || '1Y';
 
-    console.log('[OPTIMIZATION UPDATE] Settings:', { objective, constraint, rebalancing, riskBudget, lookback });
+    console.log('[OPTIMIZATION UPDATE] DOM Values:', {
+        objectiveValue: document.getElementById('optObjective')?.value,
+        constraintValue: document.getElementById('optConstraint')?.value,
+        objective,
+        constraint,
+        rebalancing,
+        riskBudget,
+        lookback
+    });
 
     window.analyticsCore.optimizationSettings = {
         objective,
@@ -4935,30 +4955,7 @@ window.toggleOptimizationSettings = () => {
     }
 };
 
-window.updatePortfolioOptimization = () => {
-    const objective = document.getElementById('optObjective')?.value;
-    const constraint = document.getElementById('optConstraint')?.value;
-    const rebalancing = document.getElementById('optRebalancing')?.value;
-    const riskBudget = document.getElementById('optRiskBudget')?.value;
-    const lookback = document.getElementById('optLookback')?.value;
-
-    if (!objective || !constraint || !rebalancing || !riskBudget || !lookback) {
-        console.error('Missing required Optimization settings');
-        return;
-    }
-
-    if (!window.analyticsCore) window.analyticsCore = {};
-    window.analyticsCore.optimizationSettings = {
-        objective: objective,
-        constraint: constraint,
-        rebalancing: rebalancing,
-        risk_budget: riskBudget,
-        lookback_period: lookback
-    };
-
-    console.log('[Portfolio Optimization] Updating with settings:', window.analyticsCore.optimizationSettings);
-    window.analyticsManager.loadModule('portfolio-optimization');
-};
+// window.updatePortfolioOptimization is defined earlier in the file
 
 // Helper for Sector Allocation updates
 

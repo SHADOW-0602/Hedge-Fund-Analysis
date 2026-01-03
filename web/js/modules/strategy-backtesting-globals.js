@@ -73,27 +73,7 @@ window.toggleOptimizationSettings = function () {
 };
 
 // Update portfolio optimization function
-window.updatePortfolioOptimization = function () {
-    const objective = document.getElementById('optimizationObjective')?.value || 'max_sharpe';
-    const constraint = document.getElementById('optimizationConstraint')?.value || 'long_only';
-    const rebalancing = document.getElementById('optimizationRebalancing')?.value || 'quarterly';
-    const riskBudget = document.getElementById('optimizationRiskBudget')?.value || 'equal';
-    const lookback = document.getElementById('optimizationLookback')?.value || '1Y';
-
-    if (window.analyticsCore) {
-        window.analyticsCore.optimizationSettings = {
-            objective: objective,
-            constraint: constraint,
-            rebalancing: rebalancing,
-            risk_budget: riskBudget,
-            lookback_period: lookback
-        };
-    }
-
-    if (window.analyticsManager) {
-        window.analyticsManager.loadModule('portfolio-optimization');
-    }
-};
+// Update portfolio optimization function moved to analytics-manager.js
 
 // Sector allocation settings toggle
 window.toggleSectorSettings = function () {

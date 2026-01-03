@@ -295,6 +295,11 @@ class AnalyticsCore {
                 else if (input.id === 'sectorBenchmark') paramName = 'benchmark';
                 else if (input.id === 'sectorView') paramName = 'view';
                 else if (input.id === 'sectorThreshold') paramName = 'threshold';
+                else if (input.id === 'optObjective') paramName = 'objective';
+                else if (input.id === 'optConstraint') paramName = 'constraint';
+                else if (input.id === 'optRebalancing') paramName = 'rebalancing';
+                else if (input.id === 'optRiskBudget') paramName = 'risk_budget';
+                else if (input.id === 'optLookback') paramName = 'lookback_period';
 
                 let value = input.value;
                 if (paramName === 'confidence_level') {
