@@ -3199,19 +3199,27 @@ class AnalyticsManager {
         }
 
         // Apply Threshold
+        // Apply Threshold
         let filteredData = [];
         if (currentThreshold > 0) {
             let otherPort = 0;
             let otherBench = 0;
+            let hasOther = false;
+
             data.forEach(d => {
-                if (d.portfolio >= currentThreshold || d.benchmark >= currentThreshold) {
+                const pVal = Number(d.portfolio) || 0;
+                const bVal = Number(d.benchmark) || 0;
+
+                if (pVal >= currentThreshold || bVal >= currentThreshold) {
                     filteredData.push(d);
                 } else {
-                    otherPort += d.portfolio;
-                    otherBench += d.benchmark;
+                    hasOther = true;
+                    otherPort += pVal;
+                    otherBench += bVal;
                 }
             });
-            if (otherPort > 0 || otherBench > 0) {
+
+            if (hasOther) {
                 filteredData.push({
                     name: 'Other (<' + (currentThreshold * 100).toFixed(0) + '%)',
                     portfolio: otherPort,
@@ -3258,10 +3266,18 @@ class AnalyticsManager {
             return colors[Math.abs(hash) % colors.length];
         };
 
+        // Dark Mode Detection & Classes
+        const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+        const bgClass = isDark ? 'bg-gray-800' : 'bg-white';
+        const textClass = isDark ? 'text-white' : 'text-gray-900';
+        const subTextClass = isDark ? 'text-gray-400' : 'text-gray-600';
+        const borderClass = isDark ? 'border-gray-700' : 'border-gray-200';
+        const headerBgClass = isDark ? 'bg-gray-700' : 'bg-gray-50';
+
         // UI Shell
         container.innerHTML = `
-                < div class="flex justify-between items-center mb-6" >
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Sector Allocation</h2>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold ${textClass}">Sector Allocation</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="toggleSectorSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
@@ -3273,30 +3289,30 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div >
+            </div>
 
-            < !--Settings Panel-- >
+            <!-- Settings Panel -->
             <div id="sectorSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Classification</label>
-                        <select id="sectorClassification" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="window.updateSectorAllocationV2()">
+                        <label class="block text-sm font-medium ${subTextClass} mb-1">Classification</label>
+                        <select id="sectorClassification" class="w-full px-3 py-2 border ${borderClass} rounded-md text-sm ${bgClass} ${textClass}" onchange="window.updateSectorAllocationV2()">
                             <option value="GICS" ${currentClassification === 'GICS' ? 'selected' : ''}>GICS</option>
                             <option value="ICB" ${currentClassification === 'ICB' ? 'selected' : ''}>ICB</option>
                             <option value="Custom" ${currentClassification === 'Custom' ? 'selected' : ''}>Custom</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Level</label>
-                        <select id="sectorLevel" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="window.updateSectorAllocationV2()">
+                        <label class="block text-sm font-medium ${subTextClass} mb-1">Level</label>
+                        <select id="sectorLevel" class="w-full px-3 py-2 border ${borderClass} rounded-md text-sm ${bgClass} ${textClass}" onchange="window.updateSectorAllocationV2()">
                             <option value="Sector" ${currentLevel === 'Sector' ? 'selected' : ''}>Sector</option>
                             <option value="Industry" ${currentLevel === 'Industry' ? 'selected' : ''}>Industry</option>
                             <option value="Sub-industry" ${currentLevel === 'Sub-industry' ? 'selected' : ''}>Sub-industry</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Benchmark</label>
-                        <select id="sectorBenchmark" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="window.updateSectorAllocationV2()">
+                        <label class="block text-sm font-medium ${subTextClass} mb-1">Benchmark</label>
+                        <select id="sectorBenchmark" class="w-full px-3 py-2 border ${borderClass} rounded-md text-sm ${bgClass} ${textClass}" onchange="window.updateSectorAllocationV2()">
                             <option value="None" ${currentBenchmark === 'None' ? 'selected' : ''}>None</option>
                             <option value="SPY" ${currentBenchmark === 'SPY' || currentBenchmark === 'S&P 500' ? 'selected' : ''}>S&P 500 (SPY)</option>
                             <option value="IWM" ${currentBenchmark === 'IWM' || currentBenchmark === 'Russell 3000' ? 'selected' : ''}>Russell 3000 (IWM)</option>
@@ -3304,16 +3320,16 @@ class AnalyticsManager {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">View</label>
-                        <select id="sectorView" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="window.updateSectorAllocationV2()">
+                        <label class="block text-sm font-medium ${subTextClass} mb-1">View</label>
+                        <select id="sectorView" class="w-full px-3 py-2 border ${borderClass} rounded-md text-sm ${bgClass} ${textClass}" onchange="window.updateSectorAllocationV2()">
                             <option value="Pie" ${currentView === 'Pie' ? 'selected' : ''}>Pie Chart</option>
                             <option value="Bar" ${currentView === 'Bar' ? 'selected' : ''}>Bar Chart</option>
                             <option value="Treemap" ${currentView === 'Treemap' ? 'selected' : ''}>Treemap</option>
                         </select>
                     </div>
                      <div>
-                        <label class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Threshold</label>
-                        <select id="sectorThreshold" class="w-full px-3 py-2 border border-card rounded-md text-sm bg-card text-gray-900 dark:text-white" onchange="window.updateSectorAllocationV2()">
+                        <label class="block text-sm font-medium ${subTextClass} mb-1">Threshold</label>
+                        <select id="sectorThreshold" class="w-full px-3 py-2 border ${borderClass} rounded-md text-sm ${bgClass} ${textClass}" onchange="window.updateSectorAllocationV2()">
                             <option value="0" ${currentThreshold == 0 ? 'selected' : ''}>All</option>
                             <option value="0.01" ${currentThreshold == 0.01 ? 'selected' : ''}>> 1%</option>
                             <option value="0.05" ${currentThreshold == 0.05 ? 'selected' : ''}>> 5%</option>
@@ -3325,35 +3341,35 @@ class AnalyticsManager {
 
             <div class="grid grid-cols-1 gap-8 mb-6">
                 <!-- Top: Chart -->
-                <div class="analysis-card p-6">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">${currentLevel} Analysis</h3>
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6">
+                    <h3 class="text-lg font-medium ${textClass} mb-4">${currentLevel} Analysis</h3>
                     <div id="sectorChartContainer" class="h-80 w-full relative">
                         <!-- Chart injected here -->
                     </div>
                 </div>
 
                 <!-- Bottom: Table -->
-                <div class="analysis-card p-6">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Detailed Breakdown</h3>
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6">
+                    <h3 class="text-lg font-medium ${textClass} mb-4">Detailed Breakdown</h3>
                     <div class="overflow-x-auto max-h-80 overflow-y-auto">
-                        <table class="min-w-full divide-y divide-card relative">
-                            <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 relative">
+                            <thead class="${headerBgClass} sticky top-0">
                                 <tr>
-                                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                                    <th class="px-2 py-2 text-right text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Port%</th>
-                                    ${currentBenchmark !== 'None' ? '<th class="px-2 py-2 text-right text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Bench%</th>' : ''}
-                                    ${currentBenchmark !== 'None' ? '<th class="px-2 py-2 text-right text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Active%</th>' : ''}
+                                    <th class="px-2 py-2 text-left text-xs font-medium ${subTextClass} uppercase tracking-wider">Name</th>
+                                    <th class="px-2 py-2 text-right text-xs font-medium ${subTextClass} uppercase tracking-wider">Port%</th>
+                                    ${currentBenchmark !== 'None' ? `<th class="px-2 py-2 text-right text-xs font-medium ${subTextClass} uppercase tracking-wider">Bench%</th>` : ''}
+                                    ${currentBenchmark !== 'None' ? `<th class="px-2 py-2 text-right text-xs font-medium ${subTextClass} uppercase tracking-wider">Active%</th>` : ''}
                                 </tr>
                             </thead>
-                            <tbody class="bg-card divide-y divide-card text-sm">
+                            <tbody class="${bgClass} divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                                 ${filteredData.map((row, i) => `
                                     <tr>
-                                        <td class="px-2 py-2 font-medium text-gray-900 dark:text-white flex items-center text-xs">
+                                        <td class="px-2 py-2 font-medium ${textClass} flex items-center text-xs">
                                             <span class="w-2 h-2 rounded-full mr-1" style="background-color: ${getSectorColor(row.name)}"></span>
                                             ${row.name}
                                         </td>
-                                        <td class="px-2 py-2 text-right font-medium text-xs text-gray-900 dark:text-white">${fmtPct(row.portfolio)}</td>
-                                        ${currentBenchmark !== 'None' ? `<td class="px-2 py-2 text-right text-gray-600 dark:text-gray-400 text-xs">${row.benchmark > 0 ? fmtPct(row.benchmark) : '-'}</td>` : ''}
+                                        <td class="px-2 py-2 text-right font-medium text-xs ${textClass}">${fmtPct(row.portfolio)}</td>
+                                        ${currentBenchmark !== 'None' ? `<td class="px-2 py-2 text-right ${subTextClass} text-xs">${row.benchmark > 0 ? fmtPct(row.benchmark) : '-'}</td>` : ''}
                                         ${currentBenchmark !== 'None' ? `<td class="px-2 py-2 text-right text-xs ${row.active > 0 ? 'text-green-600' : (row.active < 0 ? 'text-red-600' : 'text-gray-400')}">
                                             ${row.active > 0 ? '+' : ''}${fmtPct(row.active)}
                                         </td>` : ''}
@@ -3365,15 +3381,15 @@ class AnalyticsManager {
                 </div>
             </div>
             
-             <!--Analysis Parameters-- >
-                <div class="analysis-card p-6 mt-6">
-                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
+             <!-- Analysis Parameters -->
+                <div class="${bgClass} rounded-xl shadow-sm border ${borderClass} p-6 mt-6">
+                    <h4 class="text-sm font-semibold ${textClass} mb-3">Analysis Parameters</h4>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div><span class="text-gray-600 dark:text-gray-400">Classification:</span> <span class="font-medium text-gray-900 dark:text-white">${currentClassification}</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">Level:</span> <span class="font-medium text-gray-900 dark:text-white">${currentLevel}</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">Benchmark:</span> <span class="font-medium text-gray-900 dark:text-white">${currentBenchmark}</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">View:</span> <span class="font-medium text-gray-900 dark:text-white">${currentView} Chart</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">Threshold:</span> <span class="font-medium text-gray-900 dark:text-white">${currentThreshold > 0 ? '> ' + (currentThreshold * 100).toFixed(0) + '%' : 'All'}</span></div>
+                        <div><span class="${subTextClass}">Classification:</span> <span class="font-medium ${textClass}">${currentClassification}</span></div>
+                        <div><span class="${subTextClass}">Level:</span> <span class="font-medium ${textClass}">${currentLevel}</span></div>
+                        <div><span class="${subTextClass}">Benchmark:</span> <span class="font-medium ${textClass}">${currentBenchmark}</span></div>
+                        <div><span class="${subTextClass}">View:</span> <span class="font-medium ${textClass}">${currentView} Chart</span></div>
+                        <div><span class="${subTextClass}">Threshold:</span> <span class="font-medium ${textClass}">${currentThreshold > 0 ? '> ' + (currentThreshold * 100).toFixed(0) + '%' : 'All'}</span></div>
                     </div>
                 </div>
             `;
@@ -3514,6 +3530,15 @@ class AnalyticsManager {
                 // ApexCharts Pie (Donut) - Default
                 const labels = filteredData.map(d => d.name);
                 const values = filteredData.map(d => safeNum(d.portfolio));
+                const totalVal = values.reduce((a, b) => a + b, 0);
+
+                if (totalVal <= 0) {
+                    chartContainer.innerHTML = `
+                        <div class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400 text-sm">
+                            No allocation data to display
+                        </div>`;
+                    return;
+                }
 
                 apexOptions = {
                     ...commonOptions,

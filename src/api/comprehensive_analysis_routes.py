@@ -364,30 +364,58 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
 
             # Convert SectorMapper results to expected format with NaN protection
             sector_allocation = {}
-            for sector, data in results['sectors'].items():
-                percentage = data.get('percentage', 0)
+            
+            # Create a set of all unique sectors from both portfolio and benchmark
+            all_sectors = set(results['sectors'].keys())
+            
+            # Normalize benchmark keys to match portfolio style (Title Case) if needed
+            # But here we rely on the normalized lookup. 
+            # Let's map benchmark keys to our standard names if possible.
+            benchmark_map = {}
+            for k, v in benchmark_weights.items():
+                # Try to map benchmark key to a standard sector name if possible
+                std_name = mapper.normalize_sector_name(k) 
+                if std_name != 'Unknown':
+                    all_sectors.add(std_name)
+                    benchmark_map[std_name] = v  # Store by standard name
+                else:
+                    all_sectors.add(k)
+                    benchmark_map[k] = v
+
+            for sector in all_sectors:
+                # Get portfolio data
+                port_data = results['sectors'].get(sector, {})
+                percentage = port_data.get('percentage', 0)
+                
                 # Ensure percentage is a valid number
                 if pd.isna(percentage) or np.isinf(percentage):
                     percentage = 0
                 
-                # Get benchmark weight for this sector (default 0)
-                # Normalize sector name first to match benchmark keys
-                normalized_sector = mapper.normalize_sector_name(sector)
-                bench_weight = benchmark_weights.get(normalized_sector, 0)
+                # Get benchmark weight
+                # Prioritize the mapped value we just created
+                bench_weight = benchmark_map.get(sector, 0)
                 
-                # Debug logging for mismatches
-                if bench_weight == 0 and percentage > 0.5:
-                   # Try case-insensitive lookup as fallback
-                   for k, v in benchmark_weights.items():
-                       if k.upper() == normalized_sector.upper():
-                           bench_weight = v
-                           break
+                # Fallback: Try looking up by normalized name again if not found directly
+                if bench_weight == 0:
+                     normalized_sector = mapper.normalize_sector_name(sector)
+                     bench_weight = benchmark_weights.get(normalized_sector, 0)
+                     
+                     # Double fallback: Case insensitive check against raw benchmark keys
+                     if bench_weight == 0:
+                        for k, v in benchmark_weights.items():
+                            if k.upper() == sector.upper() or k.upper() == normalized_sector.upper():
+                                bench_weight = v
+                                break
                 
+                # Clean up benchmark weight
+                if pd.isna(bench_weight) or np.isinf(bench_weight):
+                    bench_weight = 0
+
                 sector_allocation[sector] = {
                     'weight': float(percentage) / 100,  # Convert percentage to decimal
                     'benchmark_weight': float(bench_weight) / 100, # Benchmark is usually 0-100
-                    'value': float(data.get('value', 0)),
-                    'symbols': data.get('symbols', [])
+                    'value': float(port_data.get('value', 0)),
+                    'symbols': port_data.get('symbols', [])
                 }
             
             geographic_allocation = {}
