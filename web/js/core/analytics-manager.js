@@ -1765,7 +1765,7 @@ class AnalyticsManager {
                 </div>
             </div>
             
-            <div class="analysis-card mt-6">
+            <div class="analysis-card mt-6 p-6">
                 <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${currentPeriod}</span></div>
