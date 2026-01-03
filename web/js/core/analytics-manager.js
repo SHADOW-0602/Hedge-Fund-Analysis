@@ -43,7 +43,7 @@ class AnalyticsManager {
 
         this.register('monte-carlo', {
             endpoint: 'monte-carlo',
-            containerId: 'monteCarloResults',
+            containerId: null, // Use default container
             settingsId: 'monteCarloSettings',
             displayFunction: this.displayMonteCarloResults.bind(this),
             type: 'portfolio'
@@ -808,7 +808,17 @@ class AnalyticsManager {
 
         // Show loading indicator for all analysis types
         // Show loading indicator for all analysis types (unless running in background)
-        const container = document.getElementById(DEFAULT_CONTAINER_ID);
+        // Show loading indicator in the appropriate container
+        const targetContainerId = module.containerId || DEFAULT_CONTAINER_ID;
+        const container = document.getElementById(targetContainerId) || document.getElementById(DEFAULT_CONTAINER_ID);
+
+        // If we are using a custom container AND IT EXISTS, hide the default one
+        const targetElement = document.getElementById(targetContainerId);
+        if (targetContainerId !== DEFAULT_CONTAINER_ID && targetElement) {
+            const defaultContainer = document.getElementById(DEFAULT_CONTAINER_ID);
+            if (defaultContainer) defaultContainer.classList.add('hidden');
+        }
+
         if (container && !['cost-analysis', 'accounting-analysis', 'pnl-attribution', 'turnover-analysis', 'trade-performance', 'cash-flow', 'trade-timing', 'drawdown-analysis'].includes(name)) {
             container.classList.remove('hidden');
             container.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div><p class="mt-2 text-gray-600 dark:text-gray-400">Loading analysis...</p></div>';
@@ -2009,32 +2019,39 @@ class AnalyticsManager {
     displayMonteCarloResults(result, options) {
         console.log('Monte Carlo result:', result);
         const container = document.getElementById('monteCarloResults') || document.getElementById(DEFAULT_CONTAINER_ID);
-        if (!container) return;
-
-        // --- Extract Current Settings ---
-        if (!window.analyticsCore.monteCarloSettings) {
-            window.analyticsCore.monteCarloSettings = {};
-            // Load from localStorage
-            try {
-                const saved = localStorage.getItem('monteCarloSettings');
-                if (saved) {
-                    window.analyticsCore.monteCarloSettings = JSON.parse(saved);
-                    console.log('Loaded Monte Carlo settings from localStorage');
-                }
-            } catch (e) {
-                console.error('Failed to load Monte Carlo settings:', e);
-            }
+        if (!container) {
+            console.error('[Monte Carlo] No container found');
+            return;
         }
-        const settings = window.analyticsCore.monteCarloSettings;
 
-        const currentPeriod = settings.forecast_period || '3M';
-        const currentSims = settings.simulations || '10000';
-        const currentConfidence = settings.confidence_intervals || '0.95';
-        const currentRegime = settings.market_regime || 'normal';
-        const currentVolAdj = settings.volatility_adjustment || '0.0';
+        // Force container visibility
+        container.classList.remove('hidden');
 
-        // --- 1. Header with Settings Toggle ---
-        container.innerHTML = `
+        try {
+            // --- Extract Current Settings ---
+            if (!window.analyticsCore.monteCarloSettings) {
+                window.analyticsCore.monteCarloSettings = {};
+                // Load from localStorage
+                try {
+                    const saved = localStorage.getItem('monteCarloSettings');
+                    if (saved) {
+                        window.analyticsCore.monteCarloSettings = JSON.parse(saved);
+                        console.log('Loaded Monte Carlo settings from localStorage');
+                    }
+                } catch (e) {
+                    console.error('Failed to load Monte Carlo settings:', e);
+                }
+            }
+            const settings = window.analyticsCore.monteCarloSettings;
+
+            const currentPeriod = settings.forecast_period || '3M';
+            const currentSims = settings.simulations || '10000';
+            const currentConfidence = settings.confidence_intervals || '0.95';
+            const currentRegime = settings.market_regime || 'normal';
+            const currentVolAdj = settings.volatility_adjustment || '0.0';
+
+            // --- 1. Header with Settings Toggle ---
+            container.innerHTML = `
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Monte Carlo Simulation</h2>
@@ -2109,7 +2126,7 @@ class AnalyticsManager {
             </div>
 
             <!-- 3. Results Container -->
-            <div id="monteCarloResults">
+            <div id="monteCarloChartContainer">
                 <!-- Content injected by renderMonteCarloChart -->
             </div>
 
@@ -2126,12 +2143,25 @@ class AnalyticsManager {
             </div>
         `;
 
-        // Pass control to renderer
-        if (window.renderMonteCarloChart) {
-            window.renderMonteCarloChart(result);
-        } else {
-            console.error('[AnalyticsManager] renderMonteCarloChart not found');
-            document.getElementById('monteCarloResults').innerHTML = '<div class="text-red-500 p-4">Error: Monte Carlo renderer not loaded.</div>';
+            // Pass control to renderer
+            if (window.renderMonteCarloChart) {
+                window.renderMonteCarloChart(result);
+            } else {
+                console.error('[AnalyticsManager] renderMonteCarloChart not found');
+                const chartContainer = document.getElementById('monteCarloChartContainer');
+                if (chartContainer) {
+                    chartContainer.innerHTML = '<div class="text-red-500 p-4">Error: Monte Carlo renderer (simplified-monte-carlo.js) not loaded. Please refresh the page.</div>';
+                }
+            }
+        } catch (e) {
+            console.error('[Monte Carlo] Display error:', e);
+            if (container) {
+                container.innerHTML = `<div class="p-6 text-red-600">
+                <h3 class="font-bold">Error Displaying Monte Carlo Results</h3>
+                <p>${e.message}</p>
+                <pre class="text-xs mt-2">${e.stack}</pre>
+            </div>`;
+            }
         }
     }
 
@@ -2168,7 +2198,7 @@ class AnalyticsManager {
 
         // --- UI Structure ---
         container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
+                <div class="flex justify-between items-center mb-6">
                 <div>
                     <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Portfolio Optimization</h2>
                     <p class="text-sm text-gray-600 dark:text-gray-400">Efficient Frontier & Optimal Allocation</p>
@@ -2237,7 +2267,7 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!--Results -->
+            <!-- Results -->
             <div id="optimizationResults"></div>
 
             <!-- Analysis Parameters Footer -->
@@ -2280,7 +2310,7 @@ class AnalyticsManager {
 
         // 3. Render Dashboard using Grid
         resultsContainer.innerHTML = `
-            <!-- Metrics Summary -->
+                < !--Metrics Summary-- >
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div class="analysis-card p-4">
                     <div class="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Sharpe Ratio</div>
@@ -2343,7 +2373,7 @@ class AnalyticsManager {
                     </div>
                 </div>
             </div>
-        `;
+            `;
 
         // 4. Render Chart (Plotly)
         setTimeout(() => {
@@ -2507,15 +2537,15 @@ class AnalyticsManager {
             if (Math.abs(curr) < 0.001 && Math.abs(opt) < 0.001) return '';
 
             return `
-            <tr>
+                < tr >
                     <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">${sym}</td>
                     <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-400">${fmtPct(curr)}</td>
                     <td class="px-3 py-2 text-right font-semibold text-indigo-600">${fmtPct(opt)}</td>
                     <td class="px-3 py-2 text-right ${diff > 0 ? 'text-green-600' : (diff < 0 ? 'text-red-600' : 'text-gray-500')}">
                         ${diff > 0 ? '+' : ''}${fmtPct(diff)}
                     </td>
-                </tr>
-            `;
+                </tr >
+                `;
         }).join('');
     }
 
@@ -2595,16 +2625,16 @@ class AnalyticsManager {
         const getSignalBadge = (signal) => {
             const color = getSignalColor(signal);
             const label = signal || 'Neutral';
-            return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800">
-            ${label}
-            </span>`;
+            return `< span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800" >
+                ${label}
+            </span > `;
         };
 
 
 
         // Render UI - Matching P&L Attribution Style (No Apply Button, Auto-Update)
         container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
+                < div class="flex justify-between items-center mb-6" >
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Technical Analysis</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="toggleTechnicalSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
@@ -2617,9 +2647,9 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div>
+            </div >
 
-            <!-- Settings Panel -->
+            < !--Settings Panel-- >
             <div id="technicalSettings" class="settings-panel hidden mb-6">
                 <!-- Row 1: 5-Column Grid matching P&L Attribution -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
@@ -2669,7 +2699,7 @@ class AnalyticsManager {
 
             </div>
 
-            <!-- Summary Cards -->
+            <!--Summary Cards-- >
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                  <div class="analysis-card p-6">
                     <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Overall Sentiment</h3>
@@ -2700,7 +2730,7 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!-- Detailed Table -->
+            <!--Detailed Table-- >
             <div class="analysis-card overflow-hidden">
                 <div class="px-6 py-4 border-b border-card">
                      <h3 class="text-lg font-medium text-gray-900 dark:text-white">Indicator Analysis</h3>
@@ -2754,7 +2784,7 @@ class AnalyticsManager {
                     <div class="col-span-2"><span class="text-gray-600 dark:text-gray-400">Indicators:</span> <span class="font-medium text-gray-900 dark:text-white">${currentIndicators.join(', ')}</span></div>
                 </div>
             </div>
-        `;
+            `;
 
         // Render Chart
         setTimeout(() => {
@@ -2907,7 +2937,7 @@ class AnalyticsManager {
 
         // 1. Header with Settings Toggle
         container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
+                < div class="flex justify-between items-center mb-6" >
                 <div>
                     <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Performance Attribution</h2>
                     <p class="text-sm text-gray-600 dark:text-gray-400">Analyze sources of return vs benchmark</p>
@@ -2926,9 +2956,9 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div>
+            </div >
 
-            <!-- 2. Settings Panel -->
+            < !--2. Settings Panel-- >
             <div id="performanceAttributionSettings" class="settings-panel hidden mb-6 p-4">
                 <!-- Using grid to match other modules -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -2979,7 +3009,7 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!-- 3. Results Dashboard -->
+            <!--3. Results Dashboard-- >
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Summary Card -->
                 <div class="analysis-card p-6 col-span-1 lg:col-span-3">
@@ -3067,18 +3097,18 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!-- Analysis Parameters -->
-            <div class="analysis-card mt-6 p-6">
-                <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                    <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${currentPeriod}</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Model:</span> <span class="font-medium text-gray-900 dark:text-white">${currentModel}</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Benchmark:</span> <span class="font-medium text-gray-900 dark:text-white">${currentBenchmark}</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Currency:</span> <span class="font-medium text-gray-900 dark:text-white">${currentCurrency}</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Frequency:</span> <span class="font-medium text-gray-900 dark:text-white">${currentFrequency}</span></div>
+            <!--Analysis Parameters-- >
+                <div class="analysis-card mt-6 p-6">
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                        <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${currentPeriod}</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Model:</span> <span class="font-medium text-gray-900 dark:text-white">${currentModel}</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Benchmark:</span> <span class="font-medium text-gray-900 dark:text-white">${currentBenchmark}</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Currency:</span> <span class="font-medium text-gray-900 dark:text-white">${currentCurrency}</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Frequency:</span> <span class="font-medium text-gray-900 dark:text-white">${currentFrequency}</span></div>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
     }
 
     displaySectorAllocation(result, options) {
@@ -3230,7 +3260,7 @@ class AnalyticsManager {
 
         // UI Shell
         container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
+                < div class="flex justify-between items-center mb-6" >
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Sector Allocation</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="toggleSectorSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
@@ -3243,9 +3273,9 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div>
+            </div >
 
-            <!-- Settings Panel -->
+            < !--Settings Panel-- >
             <div id="sectorSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
@@ -3335,18 +3365,18 @@ class AnalyticsManager {
                 </div>
             </div>
             
-             <!-- Analysis Parameters -->
-            <div class="analysis-card p-6 mt-6">
-                <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div><span class="text-gray-600 dark:text-gray-400">Classification:</span> <span class="font-medium text-gray-900 dark:text-white">${currentClassification}</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Level:</span> <span class="font-medium text-gray-900 dark:text-white">${currentLevel}</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Benchmark:</span> <span class="font-medium text-gray-900 dark:text-white">${currentBenchmark}</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">View:</span> <span class="font-medium text-gray-900 dark:text-white">${currentView} Chart</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Threshold:</span> <span class="font-medium text-gray-900 dark:text-white">${currentThreshold > 0 ? '> ' + (currentThreshold * 100).toFixed(0) + '%' : 'All'}</span></div>
+             <!--Analysis Parameters-- >
+                <div class="analysis-card p-6 mt-6">
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div><span class="text-gray-600 dark:text-gray-400">Classification:</span> <span class="font-medium text-gray-900 dark:text-white">${currentClassification}</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Level:</span> <span class="font-medium text-gray-900 dark:text-white">${currentLevel}</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Benchmark:</span> <span class="font-medium text-gray-900 dark:text-white">${currentBenchmark}</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">View:</span> <span class="font-medium text-gray-900 dark:text-white">${currentView} Chart</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Threshold:</span> <span class="font-medium text-gray-900 dark:text-white">${currentThreshold > 0 ? '> ' + (currentThreshold * 100).toFixed(0) + '%' : 'All'}</span></div>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
 
         // Render Chart Logic - ApexCharts Upgrade
         setTimeout(() => {
@@ -3627,7 +3657,7 @@ class AnalyticsManager {
         };
 
         container.innerHTML = `
-            <div class="flex justify-between items-center mb-6">
+                < div class="flex justify-between items-center mb-6" >
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Strategy Backtesting</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="toggleBacktestSettingsPanel()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
@@ -3640,7 +3670,7 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div>
+            </div >
 
             <div id="backtestSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -3727,22 +3757,22 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!--Chart Container Placeholder-->
+            <!--Chart Container Placeholder-- >
             <div id="backtestChartContainer" class="analysis-card p-6 mb-6 hidden">
                 <div id="backtestChart" style="width:100%; height:400px;"></div>
             </div>
 
-            <!--Analysis Parameters-->
-            <div class="analysis-card p-6 mb-6">
-                <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${parameters.period}</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Rebalancing:</span> <span class="font-medium text-gray-900 dark:text-white">${parameters.rebalancing}</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Costs:</span> <span class="font-medium text-gray-900 dark:text-white">${(parameters.transactionCosts * 100).toFixed(2)}%</span></div>
-                    <div><span class="text-gray-600 dark:text-gray-400">Benchmark:</span> <span class="font-medium text-gray-900 dark:text-white">${parameters.benchmark}</span></div>
+            <!--Analysis Parameters-- >
+                <div class="analysis-card p-6 mb-6">
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div><span class="text-gray-600 dark:text-gray-400">Period:</span> <span class="font-medium text-gray-900 dark:text-white">${parameters.period}</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Rebalancing:</span> <span class="font-medium text-gray-900 dark:text-white">${parameters.rebalancing}</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Costs:</span> <span class="font-medium text-gray-900 dark:text-white">${(parameters.transactionCosts * 100).toFixed(2)}%</span></div>
+                        <div><span class="text-gray-600 dark:text-gray-400">Benchmark:</span> <span class="font-medium text-gray-900 dark:text-white">${parameters.benchmark}</span></div>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
 
         // Render Chart if available
         if (equityCurve && equityCurve.length > 0) {
@@ -3984,7 +4014,7 @@ class AnalyticsManager {
                                         if (prevValue && prevValue !== 0) {
                                             const change = ((value - prevValue) / prevValue) * 100;
                                             const sign = change >= 0 ? '+' : '';
-                                            return formattedValue + ` (${sign}${change.toFixed(2)}%)`;
+                                            return formattedValue + ` (${sign}${change.toFixed(2)} %)`;
                                         }
                                     }
                                     return formattedValue;
@@ -4086,7 +4116,7 @@ window.changeOptionsPage = (newPage) => {
             const returnColor = returnVal >= 0 ? 'text-green-600' : 'text-red-600';
 
             return `
-            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                < tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" >
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">${opp.symbol}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">${strategyName}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">${expiry}</td>
@@ -4095,7 +4125,7 @@ window.changeOptionsPage = (newPage) => {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-right">${deltaDisplay}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-right">${ivDisplay}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${returnColor} text-right font-bold">${returnDisplay}</td>
-            </tr>`;
+            </tr > `;
         }).join('');
     }
 };
@@ -4141,10 +4171,10 @@ window.filterOptionsStrategies = () => {
     const summaryContainer = document.getElementById('optionsSummaryCards');
     if (summaryContainer) {
         summaryContainer.innerHTML = `
-            <div class="analysis-card p-4 border-l-4 border-indigo-500">
+                < div class="analysis-card p-4 border-l-4 border-indigo-500" >
                 <div class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Opportunities</div>
                 <div class="text-2xl font-bold text-gray-900 dark:text-white">${totalCount}</div>
-            </div>
+            </div >
             <div class="analysis-card p-4 border-l-4 border-green-500">
                 <div class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Est. Avg Return</div>
                 <div class="text-2xl font-bold text-gray-900 dark:text-white">${avgReturn}%</div>
@@ -4153,7 +4183,7 @@ window.filterOptionsStrategies = () => {
                 <div class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Total Potential Premium</div>
                 <div class="text-2xl font-bold text-gray-900 dark:text-white">$${Math.round(totalPremiumVal).toLocaleString()}</div>
             </div>
-        `;
+            `;
     }
 
     // Reset to first page and render
@@ -4586,7 +4616,7 @@ window.showStatisticalSettings = () => {
     }
 
     settingsModal.innerHTML = `
-        Cancel
+            Cancel
                         Run Analysis
     `;
 
@@ -4863,11 +4893,11 @@ window.filterOptionsStrategies = () => {
         const avgIvVal = filtered.length ? avgIv / filtered.length : 0;
 
         summaryContainer.innerHTML = `
-            <div class="analysis-card p-4">
+                < div class="analysis-card p-4" >
                 <h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Opportunities</h3>
                 <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">${filtered.length}</p>
                 <p class="text-xs text-gray-500 mt-1">Found matching criteria</p>
-            </div>
+            </div >
             <div class="analysis-card p-4">
                 <h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Avg Annual Return</h3>
                 <p class="text-2xl font-bold ${avgReturn > 0.2 ? 'text-green-600' : 'text-gray-900 dark:text-gray-100'}">${(avgReturn * 100).toFixed(1)}%</p>
@@ -4878,7 +4908,7 @@ window.filterOptionsStrategies = () => {
                 <p class="text-2xl font-bold text-purple-600 dark:text-purple-400">${(avgIvVal * 100).toFixed(1)}%</p>
                 <p class="text-xs text-gray-500 mt-1">Implied Volatility</p>
             </div>
-        `;
+            `;
     }
 
     // Pagination
@@ -4897,7 +4927,7 @@ window.filterOptionsStrategies = () => {
     const tbody = document.getElementById('optionsOpportunitiesBody');
     if (tbody) {
         if (pageItems.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No opportunities found matching these criteria.</td></tr>`;
+            tbody.innerHTML = `< tr > <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No opportunities found matching these criteria.</td></tr > `;
         } else {
             tbody.innerHTML = pageItems.map(opp => {
                 const isPositive = (opp.annualized_return || opp.profit_potential || 0) > 0;
@@ -4908,7 +4938,7 @@ window.filterOptionsStrategies = () => {
                             opp.strategy.replace('_', ' ');
 
                 return `
-                <tr>
+                < tr >
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">${opp.symbol}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${strategyLabel}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${opp.expiration}</td>
@@ -4922,7 +4952,7 @@ window.filterOptionsStrategies = () => {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}">
                         ${returnVal.toFixed(2)}%
                     </td>
-                </tr>
+                </tr >
                 `;
             }).join('');
         }
@@ -4937,7 +4967,7 @@ window.filterOptionsStrategies = () => {
     if (startEl) startEl.innerText = totalItems > 0 ? startIdx + 1 : 0;
     if (endEl) endEl.innerText = endIdx;
     if (totalEl) totalEl.innerText = totalItems;
-    if (indicatorEl) indicatorEl.innerText = `Page ${window.optionsCurrentPage}`;
+    if (indicatorEl) indicatorEl.innerText = `Page ${window.optionsCurrentPage} `;
 };
 
 window.changeOptionsPage = (newPage) => {

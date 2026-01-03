@@ -8,7 +8,7 @@ class MonteCarloEngine:
     def __init__(self, data_client: MarketDataClient):
         self.data_client = data_client
     
-    def _get_empty_results(self, market_regime='normal', volatility_adjustment=0.0, num_simulations=1000, time_horizon=63):
+    def _get_empty_results(self, market_regime='normal', volatility_adjustment=0.0, num_simulations=1000, time_horizon=63, error_message=None):
         """Return consistent empty results structure"""
         empty_stats = {
             'mean_return': 0.0, 'median_return': 0.0, 'std_dev': 0.0,
@@ -31,7 +31,8 @@ class MonteCarloEngine:
             'market_regime': market_regime,
             'volatility_adjustment': volatility_adjustment,
             'num_simulations': num_simulations,
-            'time_horizon_days': time_horizon
+            'time_horizon_days': time_horizon,
+            'error': error_message
         }
 
     def portfolio_simulation(self, symbols: List[str], weights: Dict[str, float], 
@@ -97,7 +98,7 @@ class MonteCarloEngine:
         
         if not valid_symbols or price_data is None or price_data.empty:
             print("Monte Carlo: No valid data found")
-            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon)
+            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon, "Failed to download market data for symbols")
         
         # Use only valid symbols
         if len(valid_symbols) > 1:
@@ -106,7 +107,7 @@ class MonteCarloEngine:
         print(f"Monte Carlo: Using {len(valid_symbols)} symbols with {len(price_data)} data points")
         
         if price_data.empty:
-            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon)
+            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon, "No price data available after filtering")
         
         # Calculate returns
         returns = price_data.pct_change(fill_method=None).dropna()
@@ -114,7 +115,7 @@ class MonteCarloEngine:
         # Ensure we have returns data
         if returns.empty:
             print("Monte Carlo: No return data available")
-            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon)
+            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon, "Insufficient return data for simulation")
         
         # Use all available symbols, create equal weights if needed
         available_symbols = [s for s in valid_symbols if s in returns.columns]
@@ -135,7 +136,7 @@ class MonteCarloEngine:
         cov_matrix = cov_matrix.fillna(0)
         
         if mean_returns.empty or cov_matrix.empty:
-            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon)
+            return self._get_empty_results(market_regime, volatility_adjustment, num_simulations, time_horizon, "Failed to calculate return statistics")
         
         # Portfolio parameters - create proper weights
         if weights and any(symbol in weights for symbol in available_symbols):
