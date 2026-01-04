@@ -98,7 +98,7 @@ async function fetchPnlAttribution(transactions, options = {}) {
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
                     <select id="pnlPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updatePnlAttribution()">
-                        <option value="1W" ${currentPnlOptions.period === '1W' ? 'selected' : ''}>1 Week</option>
+
                         <option value="1M" ${currentPnlOptions.period === '1M' ? 'selected' : ''}>1 Month</option>
                         <option value="3M" ${currentPnlOptions.period === '3M' ? 'selected' : ''}>3 Months</option>
                         <option value="6M" ${currentPnlOptions.period === '6M' ? 'selected' : ''}>6 Months</option>
@@ -156,6 +156,7 @@ async function fetchPnlAttribution(transactions, options = {}) {
     }
 
     try {
+        console.log(`[P&L Attribution] Preparing request with ${transactions.length} transactions`);
         console.log('Making P&L Attribution API call with options:', currentPnlOptions);
 
         const controller = new AbortController();
@@ -170,7 +171,10 @@ async function fetchPnlAttribution(transactions, options = {}) {
 
         clearTimeout(timeoutId);
 
-        if (!response.ok) throw new Error(`HTTP ${response.status} `);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
 
         const data = await response.json();
 
@@ -219,7 +223,7 @@ function displayPnlAttribution(data) {
     }
 
     contentDiv.innerHTML = `
-        < div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" >
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div class="analysis-card p-6">
                 <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">Total P&L</h3>
                 <p class="text-3xl font-bold ${totalPnl >= 0 ? 'text-green-600' : 'text-red-600'}">
@@ -241,7 +245,7 @@ function displayPnlAttribution(data) {
                 </p>
                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Open positions</p>
             </div>
-        </div >
+        </div>
 
         ${breakdownHtml ? `
             <div class="analysis-card p-6 mb-6">
@@ -273,13 +277,13 @@ function showError(message) {
     const contentDiv = document.getElementById('pnlContent');
     if (contentDiv) {
         contentDiv.innerHTML = `
-        < div class="analysis-card p-8 text-center text-red-600" >
+        <div class="analysis-card p-8 text-center text-red-600">
                 <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <p class="text-xl font-semibold mb-2">Analysis Error</p>
                 <p class="text-sm text-gray-600 dark:text-gray-400">${message}</p>
-            </div >
+            </div>
         `;
     }
 }
@@ -292,7 +296,7 @@ function createSymbolBreakdown(bySymbol, currencySymbol) {
     if (sortedSymbols.length === 0) return '<div class="text-center py-4 text-gray-500">No significant P&L data found.</div>';
 
     return `
-        < div class="overflow-x-auto" >
+        <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50 dark:bg-gray-800">
                     <tr>
@@ -361,12 +365,12 @@ function createSectorBreakdown(bySector, currencySymbol) {
         .map(([sector, data]) => {
             const pnl = data.total_pnl || 0;
             return `
-        < div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700" >
+        <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
                     <span class="font-medium text-gray-900 dark:text-white">${sector} <span class="text-sm text-gray-600 dark:text-gray-400">(${data.symbols?.length || 0} symbols)</span></span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                </div >
+                </div>
         `;
         }).join('');
 }
@@ -378,12 +382,12 @@ function createDateBreakdown(byDate, currencySymbol) {
         .map(([date, data]) => {
             const pnl = data.total_pnl || 0;
             return `
-        < div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700" >
+        <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
                     <span class="font-medium text-gray-900 dark:text-white">${date}</span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                </div >
+                </div>
         `;
         }).join('');
 }
@@ -395,12 +399,12 @@ function createSizeBreakdown(bySize, currencySymbol) {
             const data = bySize[size];
             const pnl = data.total_pnl || 0;
             return `
-        < div class="flex justify-between items-center py-2 border-b border-card" >
+        <div class="flex justify-between items-center py-2 border-b border-card">
                     <span class="font-medium text-primary">${size} <span class="text-sm text-secondary">(${data.count || 0} positions)</span></span>
                     <span class="font-semibold ${pnl >= 0 ? 'text-green-600' : 'text-red-600'}">
                         ${pnl >= 0 ? '+' : ''}${currencySymbol}${Math.abs(pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                </div >
+                </div>
         `;
         }).join('');
 }

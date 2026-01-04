@@ -31,6 +31,11 @@ def register_pnl_attribution_routes(app, data_client, smart_cache=None):
             transactions_data = data.get('transactions', [])
             options = data.get('options', {})
             
+            print(f"[DEBUG] P&L Attribution Endpoint: Received {len(transactions_data)} transactions in payload")
+            if len(transactions_data) > 0:
+                 print(f"[DEBUG] First transaction sample: {transactions_data[0]}")
+                 print(f"[DEBUG] Last transaction sample: {transactions_data[-1]}")
+            
             print(f"[DEBUG] Extracted {len(transactions_data)} transactions, options: {options}")
             
             if not transactions_data:
@@ -107,8 +112,25 @@ def register_pnl_attribution_routes(app, data_client, smart_cache=None):
             print(f"[DEBUG] Filtered to {len(filtered_transactions)} transactions")
             
             if not filtered_transactions:
-                print(f"[ERROR] No transactions in date range {start_date} to {end_date}")
-                return jsonify({'success': False, 'error': f'No transactions found for period {period}'}), 400
+                print(f"[WARN] No transactions in date range {start_date} to {end_date}")
+                # Return empty result instead of error
+                empty_pnl = {
+                    'total_pnl': 0,
+                    'realized_pnl': 0,
+                    'unrealized_pnl': 0,
+                    'by_symbol': {},
+                    'metadata': {
+                        'period': period,
+                        'view': view,
+                        'grouping': grouping,
+                        'currency': currency,
+                        'tax_impact': tax_impact,
+                        'start_date': start_date.strftime('%Y-%m-%d'),
+                        'end_date': end_date.strftime('%Y-%m-%d'),
+                        'transaction_count': 0
+                    }
+                }
+                return jsonify({'success': True, 'pnl_attribution': empty_pnl})
             
             # Basic P&L calculation
             pnl_data = {
