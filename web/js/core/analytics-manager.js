@@ -3682,7 +3682,7 @@ class AnalyticsManager {
         };
 
         container.innerHTML = `
-                < div class="flex justify-between items-center mb-6" >
+                <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Strategy Backtesting</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="toggleBacktestSettingsPanel()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
@@ -3695,7 +3695,7 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div >
+            </div>
 
             <div id="backtestSettings" class="settings-panel hidden mb-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -3782,12 +3782,12 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!--Chart Container Placeholder-- >
+            <!--Chart Container Placeholder-->
             <div id="backtestChartContainer" class="analysis-card p-6 mb-6 hidden">
                 <div id="backtestChart" style="width:100%; height:400px;"></div>
             </div>
 
-            <!--Analysis Parameters-- >
+            <!--Analysis Parameters-->
                 <div class="analysis-card p-6 mb-6">
                     <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
