@@ -174,17 +174,35 @@ class PlaidSupabaseManager:
             logger.info(f"Supabase query result for user {user_id}: {len(result.data) if result.data else 0} connections")
             
             connections = []
-            for conn in result.data:
+            if result.data:
+                logger.info(f"DEBUG: result.data type: {type(result.data)}")
+                if len(result.data) > 0:
+                    logger.info(f"DEBUG: First item type: {type(result.data[0])}")
+                    logger.info(f"DEBUG: First item keys (if dict): {result.data[0].keys() if isinstance(result.data[0], dict) else 'Not a dict'}")
+
+            for i, conn in enumerate(result.data):
+                conn_id = "UNKNOWN"
                 try:
+                    # Validate conn is a dictionary
+                    if not isinstance(conn, dict):
+                        logger.error(f"Item {i} in result.data is not a dictionary: {type(conn)}")
+                        continue
+
+                    conn_id = conn.get('connection_id', 'UNKNOWN')
+                    
+                    if 'encrypted_access_token' not in conn:
+                         logger.error(f"Connection {conn_id} missing encrypted_access_token")
+                         continue
+
                     decrypted_token = self._decrypt_token(conn['encrypted_access_token'])
                     connections.append({
-                        'connection_id': conn['connection_id'],
-                        'institution_name': conn['institution_name'],
-                        'created_at': conn['created_at'],
+                        'connection_id': conn_id,
+                        'institution_name': conn.get('institution_name', 'Unknown Institution'),
+                        'created_at': conn.get('created_at'),
                         'access_token': decrypted_token
                     })
                 except Exception as e:
-                    logger.error(f"Failed to decrypt token for connection {conn['connection_id']}: {e}")
+                    logger.error(f"Failed to process connection {conn_id}: {e}")
                     continue
             
             return connections

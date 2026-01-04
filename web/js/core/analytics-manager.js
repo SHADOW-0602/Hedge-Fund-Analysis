@@ -2310,7 +2310,7 @@ class AnalyticsManager {
 
         // 3. Render Dashboard using Grid
         resultsContainer.innerHTML = `
-                < !--Metrics Summary-- >
+                <!--Metrics Summary-->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div class="analysis-card p-4">
                     <div class="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Sharpe Ratio</div>
@@ -2537,14 +2537,14 @@ class AnalyticsManager {
             if (Math.abs(curr) < 0.001 && Math.abs(opt) < 0.001) return '';
 
             return `
-                < tr >
+                <tr>
                     <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">${sym}</td>
                     <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-400">${fmtPct(curr)}</td>
                     <td class="px-3 py-2 text-right font-semibold text-indigo-600">${fmtPct(opt)}</td>
                     <td class="px-3 py-2 text-right ${diff > 0 ? 'text-green-600' : (diff < 0 ? 'text-red-600' : 'text-gray-500')}">
                         ${diff > 0 ? '+' : ''}${fmtPct(diff)}
                     </td>
-                </tr >
+                </tr>
                 `;
         }).join('');
     }
@@ -2625,16 +2625,16 @@ class AnalyticsManager {
         const getSignalBadge = (signal) => {
             const color = getSignalColor(signal);
             const label = signal || 'Neutral';
-            return `< span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800" >
-                ${label}
-            </span > `;
+            return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800">
+            ${label}
+        </span>`;
         };
 
 
 
         // Render UI - Matching P&L Attribution Style (No Apply Button, Auto-Update)
         container.innerHTML = `
-                < div class="flex justify-between items-center mb-6" >
+                <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Technical Analysis</h2>
                 <div class="flex items-center space-x-2">
                     <button onclick="toggleTechnicalSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
@@ -2647,9 +2647,9 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div >
+            </div>
 
-            < !--Settings Panel-- >
+            <!--Settings Panel-->
             <div id="technicalSettings" class="settings-panel hidden mb-6">
                 <!-- Row 1: 5-Column Grid matching P&L Attribution -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
@@ -2699,7 +2699,7 @@ class AnalyticsManager {
 
             </div>
 
-            <!--Summary Cards-- >
+            <!--Summary Cards-->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                  <div class="analysis-card p-6">
                     <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Overall Sentiment</h3>
@@ -2730,7 +2730,7 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!--Detailed Table-- >
+            <!--Detailed Table-->
             <div class="analysis-card overflow-hidden">
                 <div class="px-6 py-4 border-b border-card">
                      <h3 class="text-lg font-medium text-gray-900 dark:text-white">Indicator Analysis</h3>
@@ -2937,7 +2937,7 @@ class AnalyticsManager {
 
         // 1. Header with Settings Toggle
         container.innerHTML = `
-                < div class="flex justify-between items-center mb-6" >
+                <div class="flex justify-between items-center mb-6">
                 <div>
                     <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Performance Attribution</h2>
                     <p class="text-sm text-gray-600 dark:text-gray-400">Analyze sources of return vs benchmark</p>
@@ -2956,9 +2956,9 @@ class AnalyticsManager {
                         Refresh
                     </button>
                 </div>
-            </div >
+            </div>
 
-            < !--2. Settings Panel-- >
+            <!--2. Settings Panel-->
             <div id="performanceAttributionSettings" class="settings-panel hidden mb-6 p-4">
                 <!-- Using grid to match other modules -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -3009,7 +3009,7 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!--3. Results Dashboard-- >
+            <!--3. Results Dashboard-->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Summary Card -->
                 <div class="analysis-card p-6 col-span-1 lg:col-span-3">
@@ -3097,7 +3097,7 @@ class AnalyticsManager {
                 </div>
             </div>
 
-            <!--Analysis Parameters-- >
+            <!--Analysis Parameters-->
                 <div class="analysis-card mt-6 p-6">
                     <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Analysis Parameters</h4>
                     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
