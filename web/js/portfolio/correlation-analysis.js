@@ -134,27 +134,28 @@ window.renderCorrelationView = function () {
             let cellStyle = '';
             let cellTextClass = '';
 
-            if (s1 === s2) {
-                // Diagonal identity - Neutral
-                cellTextClass = isDark ? 'text-slate-600 font-normal' : 'text-slate-300 font-normal';
-                cellStyle = isDark ? 'background-color: rgba(30, 41, 59, 0.5);' : 'background-color: rgba(248, 250, 252, 1);';
-            } else {
-                const absVal = Math.abs(val);
-                // Calculate opacity: 0.1 to 0.95 based on magnitude
-                const opacity = 0.05 + (absVal * 0.9);
+            const absVal = Math.abs(val);
+            // Calculate opacity: 0.1 to 0.95 based on magnitude
+            const opacity = 0.05 + (absVal * 0.9);
 
-                if (val > 0) {
-                    // Positive Correlation (Rose/Red) -> Risk Concentration
-                    // Rose-600: 225, 29, 72. Rose-500: 244, 63, 94
-                    cellStyle = `background-color: rgba(225, 29, 72, ${opacity});`;
-                    cellTextClass = absVal > 0.4 ? 'text-white' : (isDark ? 'text-rose-200' : 'text-rose-900');
-                } else {
-                    // Negative Correlation (Emerald/Green) -> Diversification
-                    // Emerald-600: 5, 150, 105. Emerald-500: 16, 185, 129
-                    cellStyle = `background-color: rgba(5, 150, 105, ${opacity});`;
-                    cellTextClass = absVal > 0.4 ? 'text-white' : (isDark ? 'text-emerald-200' : 'text-emerald-900');
-                }
+            if (val > 0.7) {
+                // > 0.7: Red (High Correlation)
+                cellStyle = `background-color: rgba(220, 38, 38, ${opacity});`; // red-600
+                cellTextClass = 'text-white font-bold';
+            } else if (val > 0.3) {
+                // 0.3 - 0.7: Yellow (Moderate Correlation)
+                cellStyle = `background-color: rgba(202, 138, 4, ${opacity});`; // yellow-600 (darker for visibility)
+                cellTextClass = 'text-white font-bold text-shadow'; // White text usually works well on yellow-600 with high opacity
+            } else if (val >= 0) {
+                // 0 - 0.3: Green (Low Correlation / Safe)
+                cellStyle = `background-color: rgba(22, 163, 74, ${opacity});`; // green-600
+                cellTextClass = isDark ? 'text-green-100' : 'text-green-900';
+            } else {
+                // < 0: Blue (Negative Correlation / Diversification)
+                cellStyle = `background-color: rgba(37, 99, 235, ${opacity});`; // blue-600
+                cellTextClass = 'text-white font-bold';
             }
+
 
             // Fallback for very near zero
             if (Math.abs(val) < 0.01 && s1 !== s2) {
@@ -166,9 +167,10 @@ window.renderCorrelationView = function () {
                         ${window.analyticsCore.formatNumber(val)}
                     </td>`;
 
-        }).join('')}
-                                </tr>
-                            `).join('')}
+        }).join('')
+            }
+                                </tr >
+    `).join('')}
                         </tbody>
                     </table>
                 </div>
