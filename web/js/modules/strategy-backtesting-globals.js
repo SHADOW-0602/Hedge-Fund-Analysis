@@ -168,34 +168,6 @@ window.updateTechnicalAnalysis = function () {
     }
 };
 
-// Correlation analysis settings toggle
-window.toggleCorrelationSettings = function () {
-    const settingsPanel = document.getElementById('correlationSettings');
-    if (settingsPanel) {
-        settingsPanel.classList.toggle('hidden');
-    }
-};
-
-// Update correlation analysis function
-window.updateCorrelationAnalysis = function () {
-    const period = document.getElementById('correlationPeriod')?.value || '1Y';
-    const frequency = document.getElementById('correlationFrequency')?.value || 'Daily';
-    const method = document.getElementById('correlationMethod')?.value || 'pearson';
-    const rollingWindow = document.getElementById('correlationRollingWindow')?.value || '30d';
-
-    if (window.analyticsCore) {
-        window.analyticsCore.correlationSettings = {
-            period: period,
-            frequency: frequency,
-            method: method,
-            rolling_window: rollingWindow
-        };
-    }
-
-    if (window.analyticsManager) {
-        window.analyticsManager.loadModule('correlation-analysis');
-    }
-};
 
 // Return attribution settings toggle
 window.toggleReturnAttributionSettings = function () {

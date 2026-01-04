@@ -18,64 +18,193 @@ class StatisticalAnalyzer:
             'EEM': 'Emerging Markets'
         }
     
-    def correlation_analysis(self, symbols: List[str], period: str = "3mo") -> Dict:
-        """Real market data correlation analysis - NO FALLBACK DATA"""
-        try:
-            # Fetch REAL market data only
-            price_data = self.data_client.get_price_data(symbols, period)
+    def _ewma_cov(self, returns: pd.DataFrame, lambda_: float) -> np.ndarray:
+        """
+        Exponentially Weighted Moving Average Covariance
+        Args:
+            returns: DataFrame of asset returns
+            lambda_: Decay factor (0 < lambda < 1)
+        Returns:
+            Covariance matrix as numpy array
+        """
+        demeaned = returns - returns.mean()
+        n_assets = returns.shape[1]
+        cov = np.zeros((n_assets, n_assets))
+        
+        # Optimize loop using numpy values
+        values = demeaned.values
+        for t in range(len(values)):
+            x = values[t].reshape(-1, 1)
+            cov = lambda_ * cov + (1 - lambda_) * (x @ x.T)
             
-            # Strict validation - NO EMPTY OR DUMMY DATA
-            if price_data is None or price_data.empty:
-                return {'error': 'No real market data available for correlation analysis'}
+        return cov
+
+    def _compute_horizon_stats(self, returns: pd.DataFrame, horizon_config: Dict, horizon_name: str) -> Dict:
+        """Compute correlation statistics for a specific horizon"""
+        
+        # 1. EWMA Correlation
+        lambda_val = 0.97 if horizon_name == 'long' else 0.94 if horizon_name == 'medium' else 0.90
+        
+        cov_matrix = self._ewma_cov(returns, lambda_val)
+        std_devs = np.sqrt(np.diag(cov_matrix))
+        ewma_corr = cov_matrix / np.outer(std_devs, std_devs)
+        
+        # Fix numerical issues
+        np.fill_diagonal(ewma_corr, 1.0)
+        ewma_corr = np.clip(ewma_corr, -1.0, 1.0)
+        
+        # 2. Rolling Correlation Statistics
+        # Parse window string to integer
+        window_str = horizon_config['rolling_window']
+        if window_str.endswith('obs'):
+            window = int(window_str.replace('obs', ''))
+        elif window_str.endswith('d'):
+            window = int(window_str.replace('d', ''))
+        elif window_str.endswith('y'):
+            window = 104 if horizon_config['freq'] == 'W' else 504 
+        else:
+            window = 100 
             
-            # Validate minimum data requirements
-            if len(price_data) < 10:
-                return {'error': f'Insufficient real market data: {len(price_data)} data points (minimum 10 required)'}
-            
-            # Calculate returns from real price data
-            returns = price_data.pct_change().dropna()
-            if returns.empty or len(returns) < 5:
-                return {'error': 'Insufficient return data for correlation calculation'}
-            
-            # Calculate correlation matrix from real data only
-            correlation_matrix = returns.corr(method='pearson')
-            
-            # Validate correlation matrix
-            if correlation_matrix.empty or correlation_matrix.isna().all().all():
-                return {'error': 'Unable to calculate valid correlations from real market data'}
-            
-            # Calculate statistics from real correlations
-            valid_corrs = correlation_matrix.values[~np.isnan(correlation_matrix.values)]
-            if len(valid_corrs) == 0:
-                return {'error': 'No valid correlation values calculated'}
-            
-            avg_correlation = float(np.nanmean(correlation_matrix.values))
-            max_correlation = float(np.nanmax(correlation_matrix.values))
-            min_correlation = float(np.nanmin(correlation_matrix.values))
-            
-            # Find highly correlated pairs from real data
-            high_corr_pairs = []
-            for i in range(len(correlation_matrix.columns)):
-                for j in range(i+1, len(correlation_matrix.columns)):
-                    corr = correlation_matrix.iloc[i, j]
-                    if not np.isnan(corr) and abs(corr) > 0.7:
-                        high_corr_pairs.append({
-                            'pair': [correlation_matrix.columns[i], correlation_matrix.columns[j]],
-                            'correlation': float(corr)
-                        })
-            
-            return {
-                'correlation_matrix': correlation_matrix.to_dict(),
-                'avg_correlation': avg_correlation,
-                'max_correlation': max_correlation,
-                'min_correlation': min_correlation,
-                'high_correlation_pairs': sorted(high_corr_pairs, key=lambda x: abs(x['correlation']), reverse=True)[:10],
-                'data_source': 'Real Market Data',
-                'data_points': len(returns),
-                'symbols_analyzed': len(correlation_matrix.columns)
+        rolling_corr = returns.rolling(window=window).corr()
+        
+        # Compress rolling correlations into summary matrices
+        n_assets = len(returns.columns)
+        mean_corr = np.zeros((n_assets, n_assets))
+        stress_corr = np.zeros((n_assets, n_assets)) # 90th percentile
+        divers_corr = np.zeros((n_assets, n_assets)) # 10th percentile
+        
+        symbols = returns.columns
+        
+        # Optimize extraction using numpy for efficiency where possible, but MultiIndex slicing is straightforward
+        for i, sym1 in enumerate(symbols):
+            for j, sym2 in enumerate(symbols):
+                if i == j:
+                    mean_corr[i, j] = 1.0
+                    stress_corr[i, j] = 1.0
+                    divers_corr[i, j] = 1.0
+                    continue
+                
+                try:
+                    # Rolling corr has MultiIndex (Date, Symbol) or similar
+                    # Efficient access: rolling_corr is (N*T) x N matrix or similar
+                    # xs(sym1, level=1)[sym2] is reliable
+                    pair_corrs = rolling_corr.xs(sym1, level=1)[sym2]
+                    valid_corrs = pair_corrs.dropna()
+                    
+                    if not valid_corrs.empty:
+                        mean_corr[i, j] = valid_corrs.mean()
+                        stress_corr[i, j] = valid_corrs.quantile(0.90)
+                        divers_corr[i, j] = valid_corrs.quantile(0.10)
+                    else:
+                        mean_corr[i, j] = ewma_corr[i, j]
+                        stress_corr[i, j] = ewma_corr[i, j]
+                        divers_corr[i, j] = ewma_corr[i, j]
+                        
+                except Exception:
+                    # Fallback
+                    mean_corr[i, j] = ewma_corr[i, j]
+                    stress_corr[i, j] = ewma_corr[i, j]
+                    divers_corr[i, j] = ewma_corr[i, j]
+
+        return {
+            'mean_correlation_matrix': pd.DataFrame(mean_corr, index=symbols, columns=symbols).to_dict(),
+            'stress_correlation_matrix': pd.DataFrame(stress_corr, index=symbols, columns=symbols).to_dict(),
+            'diversification_correlation_matrix': pd.DataFrame(divers_corr, index=symbols, columns=symbols).to_dict()
+        }
+    def correlation_analysis(self, symbols: List[str], horizons: Dict = None, period: str = "3mo", method: str = "pearson") -> Dict:
+        """
+        Institutional-Grade Multi-Horizon Correlation Engine
+        Computes Mean, Stress (90%), and Diversification (10%) correlation matrices
+        for Long, Medium, and Short term horizons.
+        
+        Args:
+            symbols: List of symbols to analyze
+            horizons: Optional custom horizon/frequency configuration
+            period: legacy parameter (ignored for multi-horizon but kept for signature)
+            method: legacy parameter (ignored)
+        """
+        if not horizons:
+            horizons = {
+                "long":   {"freq": "W", "lookback": "10y", "rolling_window": "2y"},
+                "medium": {"freq": "D", "lookback": "2y", "rolling_window": "100d"},
+                "short":  {"freq": "H", "lookback": "3mo", "rolling_window": "100obs"}
             }
-        except Exception as e:
-            return {'error': f'Real market data correlation analysis failed: {str(e)}'}
+            
+        results = {}
+        
+        for horizon_term, config in horizons.items():
+            try:
+                # 1. Pull Data - Independent per horizon
+                price_data = None
+                
+                if horizon_term == 'long':
+                    # Strict: Pull data using config lookback (default 10y), resample "W"
+                    lookback = config.get('lookback', '10y')
+                    price_data = self.data_client.get_price_data(symbols, lookback, interval="1d")
+                    if price_data is not None and not price_data.empty:
+                        price_data = price_data.resample("W").last()
+                        
+                elif horizon_term == 'medium':
+                     # Strict: Pull data using config lookback (default 2y)
+                    lookback = config.get('lookback', '2y')
+                    price_data = self.data_client.get_price_data(symbols, lookback, interval="1d")
+                    
+                elif horizon_term == 'short':
+                    # Strict: Pull data using config lookback (default 3mo)
+                    lookback = config.get('lookback', '3mo')
+                    price_data = self.data_client.get_price_data(symbols, lookback, interval="1h")
+
+                # Validation
+                if price_data is None or price_data.empty:
+                    # Provide empty valid structure if data fail
+                    results[f"{horizon_term}_term"] = {
+                        "frequency": "weekly" if config['freq'] == 'W' else "daily" if config['freq'] == 'D' else "hourly",
+                        "lookback": config['lookback'],
+                        "rolling_window": config['rolling_window'],
+                        "mean_correlation_matrix": {},
+                        "stress_correlation_matrix": {},
+                        "diversification_correlation_matrix": {},
+                        "error": "No data available"
+                    }
+                    continue
+                    
+                # 2. Log Returns (Mandatory)
+                returns = np.log(price_data / price_data.shift(1)).dropna()
+                
+                # Check for insufficient data
+                min_obs = 10
+                if returns.empty or len(returns) < min_obs:
+                     results[f"{horizon_term}_term"] = {
+                        "frequency": "weekly" if config['freq'] == 'W' else "daily" if config['freq'] == 'D' else "hourly",
+                        "lookback": config['lookback'],
+                        "rolling_window": config['rolling_window'],
+                        "mean_correlation_matrix": {},
+                        "stress_correlation_matrix": {},
+                        "diversification_correlation_matrix": {},
+                        "error": "Insufficient return data"
+                    }
+                     continue
+
+                # 3. Compute Stats
+                horizon_stats = self._compute_horizon_stats(returns, config, horizon_term)
+                
+                # 4. Final Output Structure
+                results[f"{horizon_term}_term"] = {
+                    "frequency": "weekly" if config['freq'] == 'W' else "daily" if config['freq'] == 'D' else "hourly",
+                    "lookback": config['lookback'],
+                    "rolling_window": config['rolling_window'],
+                    **horizon_stats
+                }
+                
+            except Exception as e:
+                print(f"Error calculating {horizon_term} correlation: {e}")
+                results[f"{horizon_term}_term"] = {
+                    "error": str(e),
+                    "mean_correlation_matrix": {}
+                }
+
+        return results
+
     
     def diversification_ratio(self, symbols: List[str], weights: Dict[str, float], period: str = "3mo") -> float:
         """Portfolio diversification effectiveness measurement"""

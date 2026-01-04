@@ -23,15 +23,18 @@ class SupabaseClient:
             
             logger.info(f"Initializing Supabase client for URL: {url}")
             self.client: Client = create_client(url, anon_key)
+            self._disable_http2(self.client)
             logger.info("Supabase anon client created successfully")
             
             # Create service role client if available
             if service_key:
                 self.service_client: Client = create_client(url, service_key)
+                self._disable_http2(self.service_client)
                 logger.info("Supabase service client created successfully")
             else:
                 logger.warning("Service role key not found - using anon client for admin operations")
                 self.service_client = self.client
+                # No need to disable h2 here again if it's the same object, but it doesn't hurt
             
             print(f"Supabase connected: {url}")
         except Exception as e:
@@ -39,6 +42,25 @@ class SupabaseClient:
             print(f"Supabase connection failed: {e}")
             self.client = None
             self.service_client = None
+            
+    def _disable_http2(self, client):
+        """Workaround for httpcore KeyError: 3 bug by forcing HTTP/1.1"""
+        try:
+            import httpx
+            if hasattr(client, 'postgrest') and hasattr(client.postgrest, 'session'):
+                old_session = client.postgrest.session
+                # Create fresh client with http2=False
+                # Note: We preserve headers and base_url
+                new_session = httpx.Client(
+                    base_url=old_session.base_url,
+                    headers=old_session.headers,
+                    http2=False,
+                    timeout=old_session.timeout
+                )
+                client.postgrest.session = new_session
+                logger.info("Disabled HTTP/2 for Postgrest session")
+        except Exception as e:
+            logger.warning(f"Could not disable HTTP/2: {e}")
     
     def create_tables(self):
         """Create required tables if they don't exist"""

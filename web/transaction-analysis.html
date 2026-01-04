@@ -280,54 +280,7 @@
 
                 <!-- Turnover Analysis - Permanent Section -->
                 <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-gray-900">Turnover Analysis</h3>
-                        <button onclick="toggleTurnoverSettings()"
-                            class="settings-button text-gray-500 hover:text-gray-700">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd"
-                                    d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
-                                    clip-rule="evenodd"></path>
-                            </svg>
-                        </button>
-                    </div>
-
-                    <!-- Turnover Settings Panel -->
-                    <div id="turnoverSettings" class="bg-gray-50 rounded-lg p-4 mb-4 hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
-                                <select id="turnoverPeriod" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="1M">1 Month</option>
-                                    <option value="3M">3 Months</option>
-                                    <option value="6M">6 Months</option>
-                                    <option value="1Y" selected>1 Year</option>
-                                    <option value="Annualized">Annualized</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Calculation</label>
-                                <select id="turnoverCalculation" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Buy+Sell" selected>Buy+Sell</option>
-                                    <option value="Portfolio-weighted">Portfolio-weighted</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                                <select id="turnoverFrequency" class="w-full p-2 border rounded-md text-sm">
-                                    <option value="Daily">Daily</option>
-                                    <option value="Weekly">Weekly</option>
-                                    <option value="Monthly" selected>Monthly</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <button onclick="updateTurnoverAnalysis()"
-                                class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm w-full">
-                                Update Analysis
-                            </button>
-                        </div>
-                    </div>
+                    <!-- Static content removed to prevent duplication with JS-injected UI -->
 
                     <div id="turnoverAnalysis"></div>
                 </div>

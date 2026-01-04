@@ -81,12 +81,12 @@ async function fetchTurnoverAnalysis(transactions, options = {}) {
     const container = document.getElementById('turnoverAnalysis');
     if (!container && !options.background) return;
 
-    // Preserve settings state if they exist
-    const settingsPanel = document.getElementById('turnoverSettings');
-    const settingsHidden = settingsPanel ? settingsPanel.classList.contains('hidden') : true;
+    // Initialize UI structure if missing (Standalone Mode)
+    // Only verify critical elements to determine if specific render is needed
+    const contentDiv = document.getElementById('turnoverContent');
 
-    // Show loading state with full UI (only if not background)
-    if (container && !options.background) {
+    if (container && !options.background && !contentDiv) {
+        // Render full UI structure
         container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-bold text-primary">Turnover Analysis</h2>
@@ -94,76 +94,114 @@ async function fetchTurnoverAnalysis(transactions, options = {}) {
                 <button onclick="toggleTurnoverSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                     Settings
                 </button>
-                <button class="bg-indigo-600 text-white px-3 py-1 rounded-lg transition-colors text-sm flex items-center opacity-50 cursor-not-allowed" disabled>
-                    <svg class="w-4 h-4 mr-1 animate-spin" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
-                    </svg>
-                    Analyzing...
+                <button id="turnoverUpdateBtn" onclick="updateTurnoverAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg transition-colors text-sm flex items-center shadow-sm hover:bg-indigo-700">
+                    Update Analysis
                 </button>
             </div>
         </div>
         
         <!-- Turnover Settings Panel -->
-        <div id="turnoverSettings" class="settings-panel ${settingsHidden ? 'hidden' : ''} mb-6">
+        <div id="turnoverSettings" class="settings-panel hidden mb-6">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-secondary mb-1">Period</label>
                     <select id="turnoverPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="handleTurnoverPeriodChange()">
-                        <option value="1M" ${currentTurnoverOptions.period === '1M' ? 'selected' : ''}>1 Month</option>
-                        <option value="3M" ${currentTurnoverOptions.period === '3M' ? 'selected' : ''}>3 Months</option>
-                        <option value="6M" ${currentTurnoverOptions.period === '6M' ? 'selected' : ''}>6 Months</option>
-                        <option value="1Y" ${currentTurnoverOptions.period === '1Y' ? 'selected' : ''}>1 Year</option>
-                        <option value="Annualized" ${currentTurnoverOptions.period === 'Annualized' ? 'selected' : ''}>Annualized</option>
-                        <option value="Custom" ${currentTurnoverOptions.period === 'Custom' ? 'selected' : ''}>Custom Range</option>
+                        <option value="1M">1 Month</option>
+                        <option value="3M">3 Months</option>
+                        <option value="6M">6 Months</option>
+                        <option value="1Y" selected>1 Year</option>
+                        <option value="Annualized">Annualized</option>
+                        <option value="Custom">Custom Range</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-secondary mb-1">Calculation</label>
                     <select id="turnoverCalculation" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
-                        <option value="Buy+Sell" ${currentTurnoverOptions.calculation === 'Buy+Sell' ? 'selected' : ''}>Buy + Sell</option>
-                        <option value="Portfolio-weighted" ${currentTurnoverOptions.calculation === 'Portfolio-weighted' ? 'selected' : ''}>Portfolio-weighted</option>
+                        <option value="Buy+Sell" selected>Buy + Sell</option>
+                        <option value="Portfolio-weighted">Portfolio-weighted</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-secondary mb-1">Frequency</label>
                     <select id="turnoverFrequency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
-                        <option value="Daily" ${currentTurnoverOptions.frequency === 'Daily' ? 'selected' : ''}>Daily</option>
-                        <option value="Weekly" ${currentTurnoverOptions.frequency === 'Weekly' ? 'selected' : ''}>Weekly</option>
-                        <option value="Monthly" ${currentTurnoverOptions.frequency === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                        <option value="Daily" selected>Daily</option>
+                        <option value="Weekly">Weekly</option>
+                        <option value="Monthly">Monthly</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-secondary mb-1">Benchmark</label>
                     <select id="turnoverBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
-                        <option value="Mutual Fund avg" ${currentTurnoverOptions.benchmark === 'Mutual Fund avg' ? 'selected' : ''}>Mutual Fund Avg</option>
-                        <option value="ETF avg" ${currentTurnoverOptions.benchmark === 'ETF avg' ? 'selected' : ''}>ETF Avg</option>
-                        <option value="Hedge Fund avg" ${currentTurnoverOptions.benchmark === 'Hedge Fund avg' ? 'selected' : ''}>Hedge Fund Avg</option>
+                        <option value="Mutual Fund avg" selected>Mutual Fund Avg</option>
+                        <option value="ETF avg">ETF Avg</option>
+                        <option value="Hedge Fund avg">Hedge Fund Avg</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-secondary mb-1">Trend Window</label>
                     <select id="turnoverTrend" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
-                        <option value="30d" ${currentTurnoverOptions.trend === '30d' ? 'selected' : ''}>Rolling 30d</option>
-                        <option value="90d" ${currentTurnoverOptions.trend === '90d' ? 'selected' : ''}>Rolling 90d</option>
-                        <option value="252d" ${currentTurnoverOptions.trend === '252d' ? 'selected' : ''}>Rolling 252d</option>
+                        <option value="30d" selected>Rolling 30d</option>
+                        <option value="90d">Rolling 90d</option>
+                        <option value="252d">Rolling 252d</option>
                     </select>
                 </div>
             </div>
             
             <!-- Custom Date Range Inputs (Hidden by default) -->
-            <div id="turnoverCustomDates" class="grid grid-cols-2 gap-4 mt-4 ${currentTurnoverOptions.period === 'Custom' ? '' : 'hidden'}">
+            <div id="turnoverCustomDates" class="grid grid-cols-2 gap-4 mt-4 hidden">
                 <div>
                     <label class="block text-sm font-medium text-secondary mb-1">Start Date</label>
-                    <input type="date" id="turnoverStartDate" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value="${currentTurnoverOptions.start_date || ''}" onchange="updateTurnoverAnalysis()">
+                    <input type="date" id="turnoverStartDate" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-secondary mb-1">End Date</label>
-                    <input type="date" id="turnoverEndDate" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value="${currentTurnoverOptions.end_date || ''}" onchange="updateTurnoverAnalysis()">
+                    <input type="date" id="turnoverEndDate" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateTurnoverAnalysis()">
                 </div>
             </div>
         </div>
         
         <div id="turnoverContent" class="analysis-card p-12 text-center">
+             <!-- Initial Loading Content will be set below -->
+        </div>
+        `;
+
+        // Sync inputs with currentTurnoverOptions
+        setMappedValue('turnoverPeriod', currentTurnoverOptions.period);
+        setMappedValue('turnoverCalculation', currentTurnoverOptions.calculation);
+        setMappedValue('turnoverFrequency', currentTurnoverOptions.frequency);
+        setMappedValue('turnoverBenchmark', currentTurnoverOptions.benchmark);
+        setMappedValue('turnoverTrend', currentTurnoverOptions.trend);
+
+        if (currentTurnoverOptions.start_date) document.getElementById('turnoverStartDate').value = currentTurnoverOptions.start_date;
+        if (currentTurnoverOptions.end_date) document.getElementById('turnoverEndDate').value = currentTurnoverOptions.end_date;
+
+        // Handle custom date visibility without triggering update
+        handleTurnoverPeriodChange(false);
+    }
+
+    // Helper to safely set values
+    function setMappedValue(id, value) {
+        const el = document.getElementById(id);
+        if (el && value) el.value = value;
+    }
+
+    // Update Button State to Loading
+    const updateBtn = document.getElementById('turnoverUpdateBtn');
+    if (updateBtn) {
+        updateBtn.disabled = true;
+        updateBtn.innerHTML = `
+            <svg class="w-4 h-4 mr-1 animate-spin" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+            </svg>
+            Analyzing...
+        `;
+        updateBtn.classList.add('opacity-75', 'cursor-not-allowed');
+    }
+
+    // Show Loading in Content Area (if not background)
+    const content = document.getElementById('turnoverContent');
+    if (content && !options.background) {
+        content.innerHTML = `
             <div class="animate-spin inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mb-4"></div>
             <h3 class="text-xl font-semibold text-gray-900 mb-2">Analyzing Turnover</h3>
             <p class="text-secondary mb-4">Processing ${transactions?.length || 0} transactions...</p>
@@ -171,9 +209,10 @@ async function fetchTurnoverAnalysis(transactions, options = {}) {
                 <div class="bg-indigo-600 h-2 rounded-full transition-all duration-500 animate-pulse" style="width: 60%"></div>
             </div>
             <p class="text-sm text-gray-500">This may take a few moments</p>
-        </div>
-    `;
-    } try {
+        `;
+    }
+
+    try {
         console.log('Making Turnover Analysis API call with options:', currentTurnoverOptions);
 
         const response = await fetch(`${API_BASE}/api/turnover-analysis`, {
@@ -202,6 +241,13 @@ async function fetchTurnoverAnalysis(transactions, options = {}) {
         console.error('Turnover Analysis error:', error);
         if (!options.background) {
             showTurnoverError(error.message);
+        }
+    } finally {
+        // Reset Button State
+        if (updateBtn) {
+            updateBtn.disabled = false;
+            updateBtn.innerHTML = 'Update Analysis';
+            updateBtn.classList.remove('opacity-75', 'cursor-not-allowed');
         }
     }
 }
@@ -387,14 +433,14 @@ function formatCompactNumber(number) {
 // Global functions
 window.loadTurnoverAnalysis = loadTurnoverAnalysis;
 window.toggleTurnoverSettings = () => document.getElementById('turnoverSettings')?.classList.toggle('hidden');
-window.handleTurnoverPeriodChange = () => {
+window.handleTurnoverPeriodChange = (shouldUpdate = true) => {
     const period = document.getElementById('turnoverPeriod')?.value;
     const customDates = document.getElementById('turnoverCustomDates');
     if (period === 'Custom') {
         customDates?.classList.remove('hidden');
     } else {
         customDates?.classList.add('hidden');
-        updateTurnoverAnalysis();
+        if (shouldUpdate) updateTurnoverAnalysis();
     }
 };
 window.updateTurnoverAnalysis = () => {

@@ -9,7 +9,6 @@ from .options_routes import register_options_routes
 from .transaction_analysis_routes import register_transaction_analysis_routes
 from .technical_analysis_routes import register_technical_analysis_routes
 from .comprehensive_analysis_routes import register_comprehensive_analysis_routes
-from .tax_routes import register_tax_routes
 from .drawdown_routes import register_drawdown_routes
 from .trade_timing_routes import register_trade_timing_routes
 
@@ -33,7 +32,6 @@ def register_portfolio_routes(app, data_client, smart_cache=None):
     register_transaction_analysis_routes(app, data_client, smart_cache)
     register_technical_analysis_routes(app, data_client, smart_cache)
     register_comprehensive_analysis_routes(app, data_client, smart_cache)
-    register_tax_routes(app, data_client, smart_cache)
     register_drawdown_routes(app, data_client, smart_cache)
     register_trade_timing_routes(app, data_client, smart_cache)
     
@@ -45,6 +43,5 @@ def register_portfolio_routes(app, data_client, smart_cache=None):
     print("   - Transaction Analysis (return attribution)")
     print("   - Technical Analysis (indicators and signals)")
     print("   - Comprehensive Analysis (backtesting, statistical, correlation, sector)")
-    print("   - Tax Analysis (tax liability, wash sales, loss harvesting)")
     print("   - Drawdown Analysis (max drawdown, recovery time, periods)")
     print("   - Trade Timing Analysis (time buckets, day of week, market conditions)")
