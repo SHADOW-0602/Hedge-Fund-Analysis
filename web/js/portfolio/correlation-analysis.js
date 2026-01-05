@@ -134,26 +134,32 @@ window.renderCorrelationView = function () {
             let cellStyle = '';
             let cellTextClass = '';
 
-            const absVal = Math.abs(val);
-            // Calculate opacity: 0.1 to 0.95 based on magnitude
-            const opacity = 0.05 + (absVal * 0.9);
-
-            if (val > 0.7) {
-                // > 0.7: Red (High Correlation)
-                cellStyle = `background-color: rgba(220, 38, 38, ${opacity});`; // red-600
-                cellTextClass = 'text-white font-bold';
-            } else if (val > 0.3) {
-                // 0.3 - 0.7: Yellow (Moderate Correlation)
-                cellStyle = `background-color: rgba(202, 138, 4, ${opacity});`; // yellow-600 (darker for visibility)
-                cellTextClass = 'text-white font-bold text-shadow'; // White text usually works well on yellow-600 with high opacity
-            } else if (val >= 0) {
-                // 0 - 0.3: Green (Low Correlation / Safe)
-                cellStyle = `background-color: rgba(22, 163, 74, ${opacity});`; // green-600
-                cellTextClass = isDark ? 'text-green-100' : 'text-green-900';
+            if (s1 === s2) {
+                // Diagonal identity - Neutral
+                cellTextClass = isDark ? 'text-slate-600 font-normal' : 'text-slate-300 font-normal';
+                cellStyle = isDark ? 'background-color: rgba(30, 41, 59, 0.5);' : 'background-color: rgba(248, 250, 252, 1);';
             } else {
-                // < 0: Blue (Negative Correlation / Diversification)
-                cellStyle = `background-color: rgba(37, 99, 235, ${opacity});`; // blue-600
-                cellTextClass = 'text-white font-bold';
+                const absVal = Math.abs(val);
+                // Calculate opacity: 0.1 to 0.95 based on magnitude
+                const opacity = 0.05 + (absVal * 0.9);
+
+                if (val > 0.7) {
+                    // > 0.7: Red (High Correlation)
+                    cellStyle = `background-color: rgba(220, 38, 38, ${opacity});`; // red-600
+                    cellTextClass = 'text-white font-bold';
+                } else if (val > 0.3) {
+                    // 0.3 - 0.7: Yellow (Moderate Correlation)
+                    cellStyle = `background-color: rgba(202, 138, 4, ${opacity});`; // yellow-600 (darker for visibility)
+                    cellTextClass = 'text-white font-bold text-shadow'; // White text usually works well on yellow-600 with high opacity
+                } else if (val >= 0) {
+                    // 0 - 0.3: Green (Low Correlation / Safe)
+                    cellStyle = `background-color: rgba(22, 163, 74, ${opacity});`; // green-600
+                    cellTextClass = isDark ? 'text-green-100' : 'text-green-900';
+                } else {
+                    // < 0: Blue (Negative Correlation / Diversification)
+                    cellStyle = `background-color: rgba(30, 64, 175, ${opacity});`; // blue-800
+                    cellTextClass = absVal > 0.5 ? 'text-white font-bold' : (isDark ? 'text-blue-100 font-bold' : 'text-blue-900 font-bold');
+                }
             }
 
 
@@ -255,10 +261,10 @@ window.renderCorrelationView = function () {
                         <div class="relative w-full">
                             <textarea id="correlationExternalSymbols" 
                                       placeholder="e.g., AAPL, MSFT, BTC-USD, GLD, TSLA"
-                                      oninput="this.value = this.value.toUpperCase(); localStorage.setItem('correlationTickerStorage', this.value); window.lastExternalSymbols = this.value;"
+                                      oninput="this.value = this.value.toUpperCase(); window.lastExternalSymbols = this.value;"
                                       onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.updateCorrelationAnalysis(); }"
                                       class="w-full px-5 py-4 pr-14 border-2 ${borderClass} ${isDark ? 'bg-slate-900/40' : 'bg-slate-50'} ${textClass} rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 h-28 shadow-inner transition-all resize-none placeholder:text-slate-600"
-                            >${window.lastExternalSymbols || localStorage.getItem('correlationTickerStorage') || ''}</textarea>
+                            >${window.lastExternalSymbols || ''}</textarea>
                             <button onclick="window.updateCorrelationAnalysis()" 
                                     class="absolute bottom-4 right-4 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95 group z-10"
                                     title="Run Analysis">
@@ -515,8 +521,6 @@ window.updateCorrelationAnalysis = () => {
         const symbolInput = document.getElementById('correlationExternalSymbols');
         if (symbolInput) {
             window.lastExternalSymbols = symbolInput.value;
-            // Also update storage immediately to be safe
-            localStorage.setItem('correlationTickerStorage', symbolInput.value);
         }
     }
 
@@ -561,16 +565,13 @@ window.updateCorrelationAnalysis = () => {
         const globalSearchTicker = localStorage.getItem('selectedTicker');
         if (globalSearchTicker && !rawSymbols.includes(globalSearchTicker.toUpperCase())) {
             // Only auto-add if we have nothing in storage yet
-            if (!localStorage.getItem('correlationTickerStorage')) {
+            if (true) {
                 console.log('[CORRELATION] Including global search ticker:', globalSearchTicker);
                 rawSymbols.push(globalSearchTicker.toUpperCase());
             }
         }
 
-        // Save to dedicated storage
-        if (rawSymbolsStr) {
-            localStorage.setItem('correlationTickerStorage', rawSymbolsStr);
-        }
+
         // ------------------------------------------
 
         let combinedSymbols = rawSymbols.map(s => ({ symbol: s }));
@@ -629,3 +630,21 @@ window.updateCorrelationAnalysis = () => {
 
 // Aliases for compatibility
 window.refreshCorrelationAnalysis = window.updateCorrelationAnalysis;
+
+// Theme Change Observer
+// Automatically re-render when dark mode is toggled to update heatmap colors instantly
+const themeObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+            // Check if analysis is currently active/visible before re-rendering
+            if (document.getElementById('analysisContent') && window.currentCorrelationResult) {
+                window.renderCorrelationView();
+            }
+        }
+    });
+});
+
+themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class']
+});
