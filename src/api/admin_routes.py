@@ -82,7 +82,8 @@ def register_admin_routes(app, redis_client):
                     'role': user.role.value,
                     'created_at': user.created_at.isoformat() if user.created_at else None,
                     'last_login': user.last_login.isoformat() if user.last_login else None,
-                    'is_active': user.is_active
+                    'is_active': user.is_active,
+                    'phone': user.phone
                 })
             
             return jsonify({'success': True, 'users': user_list})
