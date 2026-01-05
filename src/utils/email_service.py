@@ -105,27 +105,15 @@ class EmailService:
     
     def send_welcome_email(self, user_email: str, username: str, temp_password: Optional[str] = None) -> bool:
         """Send welcome email to new user"""
-        subject = f"Welcome to {self.from_name}"
+        subject = f"Welcome to {self.from_name} - Let's Start Trading 🚀"
         
         body = f"""Hello {username},
 
-Welcome to the Hedge Fund Analysis Platform! Your account has been created successfully.
+Welcome to {self.from_name}! We're thrilled to have you on board.
 
-Account Details:
-- Username: {username}
-- Email: {user_email}
-{f'- Temporary Password: {temp_password}' if temp_password else ''}
-
-You can now access the platform to:
-• Analyze portfolio performance and risk metrics
-• Scan for options trading opportunities
-• Generate comprehensive reports
-• Monitor real-time market data
-• Collaborate with your team
-
-{f'Please log in and change your temporary password immediately.' if temp_password else ''}
-
-If you have any questions, please contact our support team.
+Your account has been successfully created.
+Username: {username}
+Email: {user_email}
 
 Best regards,
 The {self.from_name} Team"""
@@ -133,45 +121,76 @@ The {self.from_name} Team"""
         html_body = f"""<!DOCTYPE html>
 <html>
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to {self.from_name}</title>
     <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .header {{ background: #2c3e50; color: white; padding: 20px; text-align: center; }}
-        .content {{ padding: 20px; }}
-        .highlight {{ background: #f8f9fa; padding: 15px; border-left: 4px solid #007bff; margin: 15px 0; }}
-        .footer {{ background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; }}
+        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #4b5563; margin: 0; padding: 0; background-color: #f3f4f6; }}
+        .email-container {{ max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-top: 40px; margin-bottom: 40px; }}
+        .header {{ background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 40px 20px; text-align: center; }}
+        .header h1 {{ color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 0.5px; }}
+        .content {{ padding: 40px 30px; }}
+        .greeting {{ font-size: 20px; font-weight: 600; color: #111827; margin-bottom: 20px; }}
+        .intro {{ margin-bottom: 30px; font-size: 16px; }}
+        .card {{ background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 30px; }}
+        .card-title {{ font-weight: 600; color: #374151; margin-bottom: 15px; display: block; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; }}
+        .info-row {{ display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }}
+        .info-row:last-child {{ border-bottom: none; margin-bottom: 0; padding-bottom: 0; }}
+        .info-label {{ font-weight: 500; color: #6b7280; }}
+        .info-value {{ font-weight: 600; color: #111827; }}
+        .cta-container {{ text-align: center; margin: 35px 0; }}
+        .cta-button {{ display: inline-block; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 50px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px 0 rgba(124, 58, 237, 0.3); transition: transform 0.2s; }}
+        .features {{ margin-top: 30px; }}
+        .feature-item {{ margin-bottom: 12px; padding-left: 24px; position: relative; }}
+        .feature-item:before {{ content: "✓"; color: #10b981; position: absolute; left: 0; font-weight: bold; }}
+        .footer {{ background-color: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Welcome to {self.from_name}</h1>
-    </div>
-    <div class="content">
-        <h2>Hello {username},</h2>
-        <p>Welcome to the Hedge Fund Analysis Platform! Your account has been created successfully.</p>
-        
-        <div class="highlight">
-            <h3>Account Details:</h3>
-            <ul>
-                <li><strong>Username:</strong> {username}</li>
-                <li><strong>Email:</strong> {user_email}</li>
-                {f'<li><strong>Temporary Password:</strong> {temp_password}</li>' if temp_password else ''}
-            </ul>
+    <div class="email-container">
+        <div class="header">
+            <h1>Welcome to {self.from_name}</h1>
         </div>
-        
-        <h3>Platform Features:</h3>
-        <ul>
-            <li>📊 Analyze portfolio performance and risk metrics</li>
-            <li>📈 Scan for options trading opportunities</li>
-            <li>📋 Generate comprehensive reports</li>
-            <li>📡 Monitor real-time market data</li>
-            <li>👥 Collaborate with your team</li>
-        </ul>
-        
-        {f'<p><strong>Important:</strong> Please log in and change your temporary password immediately.</p>' if temp_password else ''}
-    </div>
-    <div class="footer">
-        <p>If you have any questions, please contact our support team.</p>
-        <p>Best regards,<br>The {self.from_name} Team</p>
+        <div class="content">
+            <div class="greeting">Hello {username} 👋,</div>
+            <p class="intro">Welcome to the future of portfolio analysis. Your account has been successfully created, and you're now ready to unlock comprehensive market insights.</p>
+            
+            <div class="card">
+                <span class="card-title">Account Details</span>
+                <div class="info-row">
+                    <span class="info-label">Username</span>
+                    <span class="info-value">{username}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Email</span>
+                    <span class="info-value">{user_email}</span>
+                </div>
+                {f'''
+                <div class="info-row">
+                    <span class="info-label">Temp Password</span>
+                    <span class="info-value" style="color: #ef4444; font-family: monospace;">{temp_password}</span>
+                </div>
+                ''' if temp_password else ''}
+            </div>
+
+            <div class="cta-container">
+                <a href="{login_url}" class="cta-button">Get Started</a>
+            </div>
+            
+            <div class="features">
+                <p><strong>What you can do now:</strong></p>
+                <div class="feature-item">Analyze portfolio performance & risk metrics</div>
+                <div class="feature-item">Scan for options trading opportunities</div>
+                <div class="feature-item">Generate institutional-grade reports</div>
+                <div class="feature-item">Collaborate with your research team</div>
+            </div>
+            
+            {f'<p style="margin-top: 30px; color: #ef4444; font-size: 14px;"><strong>Note:</strong> Please log in and change your temporary password immediately.</p>' if temp_password else ''}
+        </div>
+        <div class="footer">
+            <p>&copy; {datetime.now().year} {self.from_name}. All rights reserved.</p>
+            <p>If you have any questions, please contact our support team.</p>
+        </div>
     </div>
 </body>
 </html>"""
