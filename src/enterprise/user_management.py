@@ -87,7 +87,7 @@ class UserManager:
     def _hash_password(self, password: str) -> str:
         return hashlib.sha256(password.encode()).hexdigest()
     
-    def create_user(self, username: str, email: str, password: str, role: UserRole) -> str:
+    def create_user(self, username: str, email: str, password: str, role: UserRole, phone: Optional[str] = None) -> str:
         logger.info(f"Creating user: {username} with role: {role.value}")
         if not self.supabase:
             logger.error("Database not available for user creation")
@@ -103,11 +103,17 @@ class UserManager:
             logger.warning(f"User creation failed - email already exists: {email}")
             raise ValueError("Email already exists")
         
+        # Check if phone already exists
+        if phone and self.phone_exists(phone):
+            logger.warning(f"User creation failed - phone already exists: {phone}")
+            raise ValueError("Phone number already exists")
+        
         user_data = {
             'username': username,
             'email': email,
             'password_hash': self._hash_password(password),
-            'role': role.value
+            'role': role.value,
+            'phone': phone
         }
         
         try:
@@ -116,8 +122,24 @@ class UserManager:
             logger.info(f"User created successfully: {username} with ID: {user_id}")
             return user_id
         except Exception as e:
+            # Fallback for missing phone column
+            if phone and "Could not find the 'phone' column" in str(e):
+                logger.warning(f"Database schema missing 'phone' column. Retrying without phone number for {username}.")
+                del user_data['phone']
+                try:
+                    result = self.supabase.table('app_users').insert(user_data).execute()
+                    user_id = result.data[0]['user_id'] if result.data else None
+                    logger.info(f"User created successfully (without phone): {username} with ID: {user_id}")
+                    return user_id
+                except Exception as retry_e:
+                    logger.error(f"User creation failed retry for {username}: {retry_e}")
+                    raise ValueError(f"Failed to create user: {str(retry_e)}")
+            
             logger.error(f"User creation failed for {username}: {e}")
-            raise ValueError("Username or email already exists")
+            # Identify specific errors for better user feedback
+            if 'unique constraint' in str(e).lower():
+                raise ValueError("Username or email already exists")
+            raise ValueError(f"Failed to create user: {str(e)}")
 
     def get_or_create_oauth_user(self, email: str, username: str, provider: str = 'google') -> User:
         """Get existing user by email or create a new one for OAuth login"""
