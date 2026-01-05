@@ -139,22 +139,6 @@ class AnalyticsManager {
             type: 'transaction'
         });
 
-        this.register('tax-analysis', {
-            endpoint: 'tax-analysis',
-            containerId: 'taxAnalysis',
-            settingsId: 'taxSettings',
-            displayFunction: this.displayTaxAnalysis.bind(this),
-            type: 'transaction'
-        });
-
-        this.register('risk-metrics', {
-            endpoint: 'analyze-risk',
-            containerId: 'riskResults',
-            settingsId: 'riskSettings', // Updated to enable settings collection
-            displayFunction: this.displayRiskMetrics.bind(this),
-            type: 'portfolio'
-        });
-
         this.register('cash-flow', {
             endpoint: 'cash-flow-analysis',
             containerId: 'cashFlowAnalysis',
@@ -163,13 +147,7 @@ class AnalyticsManager {
             type: 'transaction'
         });
 
-        this.register('accounting-analysis', {
-            endpoint: 'accounting-analysis',
-            containerId: 'accountingAnalysis',
-            settingsId: 'accountingSettings',
-            displayFunction: window.displayAccountingAnalysis,
-            type: 'transaction'
-        });
+
 
         this.register('trade-timing', {
             endpoint: 'trade-timing-analysis',
@@ -518,34 +496,7 @@ class AnalyticsManager {
             return;
         }
 
-        // Special handling for Tax Analysis to use its own dedicated handler
-        if (name === 'tax-analysis' && window.loadTaxAnalysis) {
-            console.log('Delegating to loadTaxAnalysis');
-            console.log('Transaction data available:', !!(this.transactionData || window.currentTransactions));
-            console.log('Transaction count:', (this.transactionData || window.currentTransactions)?.length || 0);
 
-            // Check for transaction data first
-            const transactions = this.transactionData || window.currentTransactions;
-            if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
-                console.log('No transaction data available for tax analysis');
-                const container = document.getElementById(DEFAULT_CONTAINER_ID);
-                if (container && !options.background) {
-                    container.classList.remove('hidden');
-                    container.innerHTML = `
-                        <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Tax Analysis</h2>
-                        </div>
-                        <div class="text-center py-4 text-yellow-500">No transaction data available for tax analysis</div>
-                    `;
-                }
-                return;
-            }
-
-            // Call tax analysis with proper data - let it handle its own container
-            console.log('Calling loadTaxAnalysis with', transactions.length, 'transactions');
-            window.loadTaxAnalysis(transactions, options);
-            return;
-        }
 
         // Special handling for Cash Flow Analysis to use its own dedicated handler
         if (name === 'cash-flow' && window.loadCashFlowAnalysis) {
@@ -651,71 +602,7 @@ class AnalyticsManager {
             return;
         }
 
-        // Special handling for Accounting Analysis to use its own dedicated handler
-        if ((name === 'accounting-analysis' || name === 'fifo-lifo') && window.loadAccountingAnalysis) {
-            console.log('Delegating to loadAccountingAnalysis for', name);
 
-            // Ensure container is visible
-            const container = document.getElementById(DEFAULT_CONTAINER_ID);
-            if (container && !options.background) container.classList.remove('hidden');
-
-            // Use the Accounting container ID defined in registration or default
-            const containerId = module ? module.containerId : 'accountingAnalysis';
-            let accContainer = document.getElementById(containerId);
-
-            // Self-healing: Create container if it was deleted from DOM
-            if (!accContainer) {
-                console.log('Restoring missing accounting-analysis container');
-                accContainer = document.createElement('div');
-                accContainer.id = containerId;
-                accContainer.className = 'bg-card rounded-xl shadow-lg p-6 mb-8'; // Add default styling
-            }
-
-            if (container) {
-                // Check if we need to clear (only if the content isn't already just our container)
-                if (container.firstElementChild !== accContainer || container.children.length > 1) {
-                    container.innerHTML = '';
-                    container.appendChild(accContainer);
-                }
-                if (!options.background) accContainer.classList.remove('hidden');
-            }
-
-            // Prevent multiple simultaneous calls
-            if (window.accountingAnalysisInProgress) {
-                console.log('Accounting analysis already in progress, skipping...');
-                return;
-            }
-            window.accountingAnalysisInProgress = true;
-
-            // Check for transaction data first
-            const transactions = this.transactionData || window.currentTransactions;
-            if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
-                console.log('No transaction data available for accounting analysis');
-                const container = document.getElementById(DEFAULT_CONTAINER_ID);
-                if (container && !options.background) {
-                    container.classList.remove('hidden');
-                    container.innerHTML = `
-                        <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">FIFO/LIFO Analysis</h2>
-                        </div>
-                        <div class="text-center py-4 text-yellow-500">No transaction data available for accounting analysis</div>
-                    `;
-                }
-                window.accountingAnalysisInProgress = false;
-                return;
-            }
-
-            // Call accounting analysis with proper data
-            try {
-                window.loadAccountingAnalysis(transactions, options);
-            } finally {
-                // Reset flag after a delay to allow the analysis to complete
-                setTimeout(() => {
-                    window.accountingAnalysisInProgress = false;
-                }, 1000);
-            }
-            return;
-        }
 
         // For risk-metrics, ensure default settings are available
         if (name === 'risk-metrics' && !window.analyticsCore.riskSettings) {
@@ -816,10 +703,13 @@ class AnalyticsManager {
         const targetElement = document.getElementById(targetContainerId);
         if (targetContainerId !== DEFAULT_CONTAINER_ID && targetElement) {
             const defaultContainer = document.getElementById(DEFAULT_CONTAINER_ID);
-            if (defaultContainer) defaultContainer.classList.add('hidden');
+            // Only hide default container if the target is NOT inside it
+            if (defaultContainer && !defaultContainer.contains(targetElement)) {
+                defaultContainer.classList.add('hidden');
+            }
         }
 
-        if (container && !['cost-analysis', 'accounting-analysis', 'pnl-attribution', 'turnover-analysis', 'trade-performance', 'cash-flow', 'trade-timing', 'drawdown-analysis'].includes(name)) {
+        if (container && !['cost-analysis', 'pnl-attribution', 'turnover-analysis', 'trade-performance', 'cash-flow', 'trade-timing', 'drawdown-analysis'].includes(name)) {
             container.classList.remove('hidden');
             container.innerHTML = '<div class="text-center py-8"><div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"></div><p class="mt-2 text-gray-600 dark:text-gray-400">Loading analysis...</p></div>';
         }
@@ -848,8 +738,9 @@ class AnalyticsManager {
             }
         } catch (error) {
             console.error(`Failed to load ${name}:`, error);
-            const container = document.getElementById(DEFAULT_CONTAINER_ID);
+            const container = document.getElementById(targetContainerId) || document.getElementById(DEFAULT_CONTAINER_ID);
             if (container) {
+                container.classList.remove('hidden');
                 container.innerHTML = `<div class="text-center py-8 text-red-600">
                     <p class="font-bold">Failed to load module</p>
                     <p class="text-sm mt-2">${error.message}</p>
@@ -902,15 +793,7 @@ class AnalyticsManager {
         }
     }
 
-    displayTaxAnalysis(result, options) {
-        console.log('Tax Analysis result:', result);
-    }
 
-
-
-    displayFifoLifoAccounting(result, options) {
-        console.log('FIFO/LIFO Accounting result:', result);
-    }
 
     displayTradeTiming(result, options) {
         console.log('Trade Timing result:', result);
@@ -1673,7 +1556,7 @@ class AnalyticsManager {
                     <button onclick="window.toggleRiskSettingsPanel()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
                         Settings
                     </button>
-                    <button onclick="window.updateRiskAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                    <button onclick="window.updateRiskAnalysis()" class="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center">
                         <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
                         </svg>
@@ -2949,7 +2832,7 @@ class AnalyticsManager {
                         </svg>
                         Settings
                     </button>
-                    <button onclick="window.analyticsManager.loadModule('performance-attribution')" class="flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <button onclick="window.analyticsManager.loadModule('performance-attribution')" class="flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
@@ -4141,7 +4024,7 @@ window.changeOptionsPage = (newPage) => {
             const returnColor = returnVal >= 0 ? 'text-green-600' : 'text-red-600';
 
             return `
-                < tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" >
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">${opp.symbol}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">${strategyName}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">${expiry}</td>
@@ -4150,7 +4033,7 @@ window.changeOptionsPage = (newPage) => {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-right">${deltaDisplay}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 text-right">${ivDisplay}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${returnColor} text-right font-bold">${returnDisplay}</td>
-            </tr > `;
+            </tr>`;
         }).join('');
     }
 };
@@ -4196,10 +4079,10 @@ window.filterOptionsStrategies = () => {
     const summaryContainer = document.getElementById('optionsSummaryCards');
     if (summaryContainer) {
         summaryContainer.innerHTML = `
-                < div class="analysis-card p-4 border-l-4 border-indigo-500" >
+                <div class="analysis-card p-4 border-l-4 border-indigo-500">
                 <div class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Opportunities</div>
                 <div class="text-2xl font-bold text-gray-900 dark:text-white">${totalCount}</div>
-            </div >
+            </div>
             <div class="analysis-card p-4 border-l-4 border-green-500">
                 <div class="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Est. Avg Return</div>
                 <div class="text-2xl font-bold text-gray-900 dark:text-white">${avgReturn}%</div>
@@ -4244,55 +4127,6 @@ window.hideAnalysisContent = () => {
 document.addEventListener('DOMContentLoaded', () => {
     window.analyticsManager.initialize();
 });
-
-// Correlation Analysis Functions
-window.toggleCorrelationSettings = () => {
-    const settings = document.getElementById('correlationSettings');
-    if (settings) {
-        settings.classList.toggle('hidden');
-    }
-};
-
-window.updateCorrelationAnalysis = () => {
-    // Get settings values from form - no fallbacks
-    const period = document.getElementById('correlationPeriod')?.value;
-    const frequency = document.getElementById('correlationFrequency')?.value;
-    const method = document.getElementById('correlationMethod')?.value;
-    const rollingWindow = document.getElementById('correlationRollingWindow')?.value;
-
-    // Validate required settings
-    if (!period || !frequency || !method || !rollingWindow) {
-        console.error('Missing required correlation analysis settings');
-        return;
-    }
-
-    console.log('[CORRELATION] Updating with NEW settings:', { period, frequency, method, rolling_window: rollingWindow });
-
-    // Clear any existing cached settings
-    delete window.analyticsCore.correlationSettings;
-    delete window.analyticsCore.correlationOptions;
-
-    // Store fresh settings for API call
-    window.analyticsCore.correlationSettings = {
-        period,
-        frequency,
-        method,
-        rolling_window: rollingWindow
-    };
-
-    // Show immediate feedback that settings are being applied
-    const container = document.getElementById(DEFAULT_CONTAINER_ID);
-    if (container) {
-        const summaryBoxes = container.querySelectorAll('.details-box .metric-value');
-        summaryBoxes.forEach(box => {
-            box.style.opacity = '0.5';
-            box.textContent = 'Updating...';
-        });
-    }
-
-    // Force reload with new settings
-    window.analyticsManager.loadModule('correlation-analysis');
-};
 
 // Return Attribution Settings
 window.toggleReturnAttributionSettings = () => {
@@ -4870,11 +4704,11 @@ window.filterOptionsStrategies = () => {
         const avgIvVal = filtered.length ? avgIv / filtered.length : 0;
 
         summaryContainer.innerHTML = `
-                < div class="analysis-card p-4" >
+                <div class="analysis-card p-4">
                 <h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Opportunities</h3>
                 <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">${filtered.length}</p>
                 <p class="text-xs text-gray-500 mt-1">Found matching criteria</p>
-            </div >
+            </div>
             <div class="analysis-card p-4">
                 <h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Avg Annual Return</h3>
                 <p class="text-2xl font-bold ${avgReturn > 0.2 ? 'text-green-600' : 'text-gray-900 dark:text-gray-100'}">${(avgReturn * 100).toFixed(1)}%</p>

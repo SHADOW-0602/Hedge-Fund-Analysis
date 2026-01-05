@@ -128,11 +128,9 @@ class AnalyticsCore {
             'pnl-attribution': 'P&L Attribution Analysis',
             'trade-performance': 'Trade Performance Analysis',
             'turnover-analysis': 'Turnover Analysis',
-            'tax-analysis': 'Tax Analysis',
             'cash-flow-analysis': 'Cash Flow Analysis',
             'drawdown-analysis': 'Drawdown Analysis',
             'trade-timing-analysis': 'Trade Timing Analysis',
-            'fifo-lifo-accounting': 'Accounting Analysis',
             'analyze-risk': 'Risk Metrics',
             'scan-options': 'Options Strategy Scanner',
             'portfolio-optimization': 'Portfolio Optimization',
@@ -313,15 +311,15 @@ class AnalyticsCore {
     }
 
     // Portfolio analysis wrapper
-    async analyzePortfolio(endpoint, containerId, displayFunction, settingsId = null, explicitSettings = null) {
+    async analyzePortfolio(endpoint, containerId, displayFunction, settingsId = null, explicitSettings = null, customPortfolio = null) {
         // Check user authentication first
         if (!this.isUserLoggedIn()) {
             this.showLoginRequired();
             return;
         }
 
-        // Check for portfolio data - no fallbacks
-        let portfolioData = this.portfolioData || window.currentPortfolioData;
+        // Check for portfolio data - use custom if provided, then fallback to global
+        let portfolioData = customPortfolio || this.portfolioData || window.currentPortfolioData;
 
         if (!portfolioData || !Array.isArray(portfolioData) || portfolioData.length === 0) {
             console.log('[ANALYTICS-CORE] No portfolio data available for', endpoint);
@@ -432,6 +430,14 @@ class AnalyticsCore {
             // Clear stored options after use
             delete this.technicalOptions;
             delete this.technicalSettings;
+        }
+
+        // --- CRITICAL FIX: RE-APPLY EXPLICIT SETTINGS TO ENSURE PRIORITY ---
+        // If explicitSettings were provided (e.g. from the new dynamic UI), 
+        // they MUST override any legacy form discovery or stored settings.
+        if (explicitSettings) {
+            options = { ...options, ...explicitSettings };
+            console.log('[ANALYTICS-CORE] Re-enforced explicit settings priority:', explicitSettings);
         }
 
         // Debug: Log all options being sent

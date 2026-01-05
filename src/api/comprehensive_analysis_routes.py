@@ -100,8 +100,9 @@ def register_comprehensive_analysis_routes(app, data_client, smart_cache=None):
                     if symbol and not symbol.startswith('CUR:'):
                         underlying = get_underlying_symbol(symbol)
                         if underlying and underlying not in symbols:
-                            # Validate symbol format - only real stock symbols
-                            if underlying.isalpha() and len(underlying) <= 5:
+                            # Validate symbol format - allow crypto and longer symbols
+                            # Allow alphanumeric, hyphens (BTC-USD), and dots (BRK.B)
+                            if len(underlying) <= 12 and all(c.isalnum() or c in '-.' for c in underlying):
                                 symbols.append(underlying)
             
             if len(symbols) < 2:

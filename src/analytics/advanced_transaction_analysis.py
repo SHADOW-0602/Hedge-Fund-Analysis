@@ -313,325 +313,8 @@ class AdvancedTransactionAnalyzer:
         else: # All Time / ITD
             start_date = min(t.date for t in transactions)
             
-        period_transactions = [t for t in transactions if t.date >= start_date]
-        
-        # If comparison is requested, run analysis for multiple methods
-        if comparison == 'All Methods':
-            methods = ['FIFO', 'LIFO', 'Average Cost', 'Specific ID']
-            results = {}
-            for m in methods:
-                results[m] = self._calculate_accounting_method(period_transactions, m, tax_impact)
-            results['comparison_summary'] = self._generate_method_comparison(results)
-            return results
-            
-        elif comparison == 'FIFO vs LIFO':
-            results = {
-                'FIFO': self._calculate_accounting_method(period_transactions, 'FIFO', tax_impact),
-                'LIFO': self._calculate_accounting_method(period_transactions, 'LIFO', tax_impact)
-            }
-            results['comparison_summary'] = self._generate_method_comparison(results)
-            return results
-            
-        else:
-            # Single method analysis
-            result = self._calculate_accounting_method(period_transactions, method, tax_impact)
-            return {'primary_method': result}
 
-    def _calculate_accounting_method(self, transactions: List[Transaction], method: str, tax_impact: str) -> Dict:
-        """Calculate realized gains/losses using a specific accounting method"""
-        
-        # Sort transactions chronologically
-        sorted_txns = sorted(transactions, key=lambda x: x.date)
-        
-        realized_pnl = 0.0
-        short_term_gains = 0.0
-        long_term_gains = 0.0
-        
-        # Track tax lots: {symbol: [{'quantity': q, 'price': p, 'date': d, 'fees': f}]}
-        tax_lots = defaultdict(list)
-        
-        # Track average cost: {symbol: {'quantity': q, 'total_cost': c}}
-        avg_cost_positions = defaultdict(lambda: {'quantity': 0.0, 'total_cost': 0.0})
-        
-        processed_sales = []
-        
-        for txn in sorted_txns:
-            symbol = txn.symbol
-            
-            if txn.transaction_type in ['BUY', 'Buy']:
-                # Add to tax lots
-                tax_lots[symbol].append({
-                    'quantity': abs(txn.quantity),
-                    'price': txn.price,
-                    'date': txn.date,
-                    'fees': txn.fees
-                })
-                
-                # Update average cost
-                prev_qty = avg_cost_positions[symbol]['quantity']
-                prev_cost = avg_cost_positions[symbol]['total_cost']
-                new_qty = prev_qty + abs(txn.quantity)
-                new_cost = prev_cost + (abs(txn.quantity) * txn.price) + txn.fees
-                
-                avg_cost_positions[symbol] = {'quantity': new_qty, 'total_cost': new_cost}
-                
-            elif txn.transaction_type in ['SELL', 'Sell']:
-                remaining_to_sell = abs(txn.quantity)
-                sell_price = txn.price
-                sell_date = txn.date
-                sell_fees = txn.fees
-                
-                sale_pnl = 0.0
-                sale_cost_basis = 0.0
-                
-                if method == 'Average Cost':
-                    pos = avg_cost_positions[symbol]
-                    if pos['quantity'] > 0:
-                        avg_price = pos['total_cost'] / pos['quantity']
-                        cost_basis = remaining_to_sell * avg_price
-                        proceeds = (remaining_to_sell * sell_price) - sell_fees
-                        sale_pnl = proceeds - cost_basis
-                        
-                        # Update position
-                        pos['quantity'] = max(0, pos['quantity'] - remaining_to_sell)
-                        pos['total_cost'] = max(0, pos['total_cost'] - cost_basis)
-                        
-                        # Average cost doesn't distinguish short/long term in the same way for lots, 
-                        # but we can approximate or treat as short term for simplicity if not tracking dates
-                        # For better accuracy, we'd need to track dates even with avg cost, which is complex.
-                        # Here we'll treat as short term for simplicity.
-                        short_term_gains += sale_pnl
-                        
-                else:
-                    # Lot-based methods (FIFO, LIFO, Specific ID)
-                    available_lots = [lot.copy() for lot in tax_lots[symbol]]
-                    
-                    if not available_lots:
-                        continue
-                        
-                    # Sort lots based on method
-                    if method == 'LIFO':
-                        available_lots.sort(key=lambda x: x['date'], reverse=True)
-                    elif method == 'Specific ID':
-                        available_lots.sort(key=lambda x: x['price'], reverse=True)
-                    else: # FIFO
-                        available_lots.sort(key=lambda x: x['date'])
-                    
-                    lots_used = []
-                    
-                    while remaining_to_sell > 0 and available_lots:
-                        lot = available_lots[0]
-                        lot_quantity = min(lot['quantity'], remaining_to_sell)
-                        
-                        proceeds = (lot_quantity * sell_price) - (sell_fees * (lot_quantity / abs(txn.quantity)))
-                        cost_basis = (lot_quantity * lot['price']) + (lot['fees'] * (lot_quantity / lot['quantity']))
-                        
-                        pnl = proceeds - cost_basis
-                        sale_pnl += pnl
-                        sale_cost_basis += cost_basis
-                        
-                        # Determine holding period
-                        days_held = (sell_date - lot['date']).days
-                        is_long_term = days_held > 365
-                        
-                        if is_long_term:
-                            long_term_gains += pnl
-                        else:
-                            short_term_gains += pnl
-                            
-                        # Update lot
-                        lot['quantity'] -= lot_quantity
-                        remaining_to_sell -= lot_quantity
-                        
-                        if lot['quantity'] <= 0.0001: # Float tolerance
-                            available_lots.pop(0)
-                            
-                realized_pnl += sale_pnl
-                
-        # Calculate tax liability based on tax_impact setting
-        # Calculate tax liability based on tax_impact setting
-        if tax_impact == 'Current rates':
-            # Dynamic tax rates based on current year (Top marginal federal rates)
-            current_year = datetime.now().year
-            
-            # Tax brackets map (Year -> {short, long})
-            tax_rates = {
-                2025: {'short': 0.37, 'long': 0.20},  # 2025 Top Rates
-                2024: {'short': 0.37, 'long': 0.20},
-                2023: {'short': 0.37, 'long': 0.20}
-            }
-            
-            # Get rates for current year, default to latest known (2025) if future
-            year_rates = tax_rates.get(current_year, tax_rates[2025])
-            
-            short_term_rate = year_rates['short']
-            long_term_rate = year_rates['long']
-            
-            print(f"[ACCOUNTING] Using tax rates for {current_year}: Short={short_term_rate}, Long={long_term_rate}")
-        else:  # Historical rates
-            short_term_rate = 0.28  # Historical average assumption
-            long_term_rate = 0.15
-        
-        tax_liability = (max(0, short_term_gains) * short_term_rate) + (max(0, long_term_gains) * long_term_rate)
-        
-        return {
-            'method': method,
-            'realized_pnl': realized_pnl,
-            'short_term_gains': short_term_gains,
-            'long_term_gains': long_term_gains,
-            'tax_liability': tax_liability,
-            'transaction_count': len(transactions)
-        }
 
-    def _generate_method_comparison(self, results: Dict) -> Dict:
-        """Generate comparison summary between methods"""
-        summary = []
-        
-        # Find best method for tax minimization
-        min_tax = float('inf')
-        best_method = ''
-        
-        for method, data in results.items():
-            if method == 'comparison_summary': continue
-            
-            tax = data.get('tax_liability', 0)
-            if tax < min_tax:
-                min_tax = tax
-                best_method = method
-                
-            summary.append({
-                'method': method,
-                'realized_pnl': data.get('realized_pnl', 0),
-                'tax_liability': tax
-            })
-            
-        return {
-            'best_method_for_tax': best_method,
-            'tax_savings': max(0, max(d['tax_liability'] for d in summary) - min_tax),
-            'details': summary
-        }
-
-    def tax_loss_harvesting_analysis(self, transactions: List[Transaction]) -> Dict:
-        """Tax-loss harvesting opportunities and tax efficiency"""
-        year_transactions = transactions
-        
-        # Track positions and unrealized losses
-        positions = defaultdict(lambda: {'quantity': 0, 'avg_cost': 0, 'lots': []})
-        realized_gains = 0
-        realized_losses = 0
-        
-        for txn in sorted(year_transactions, key=lambda x: x.date):
-            symbol = txn.symbol
-            
-            if txn.transaction_type in ['BUY', 'Buy']:
-                # Add to position
-                # Normalize stored quantity/avg_cost if they are lists to avoid type errors
-                stored_qty = positions[symbol]['quantity']
-                stored_avg = positions[symbol]['avg_cost']
-                
-                # Convert list-like quantities to a numeric sum, otherwise keep as numeric
-                if isinstance(stored_qty, list):
-                    try:
-                        qty_val = sum(stored_qty)
-                    except Exception:
-                        qty_val = float(np.sum(stored_qty)) if len(stored_qty) > 0 else 0.0
-                else:
-                    qty_val = stored_qty or 0.0
-                
-                # Convert list-like avg_cost to a numeric mean, otherwise keep as numeric
-                if isinstance(stored_avg, list):
-                    try:
-                        avg_val = float(np.mean(stored_avg)) if len(stored_avg) > 0 else 0.0
-                    except Exception:
-                        avg_val = sum(stored_avg) / len(stored_avg) if len(stored_avg) > 0 else 0.0
-                else:
-                    avg_val = stored_avg or 0.0
-                
-                old_value = qty_val * avg_val
-                new_value = abs(txn.quantity) * txn.price
-                total_quantity = qty_val + abs(txn.quantity)
-                if total_quantity > 0:
-                    positions[symbol]['avg_cost'] = (old_value + new_value) / total_quantity
-                # Store as int to match expected type (int | list[Any])
-                positions[symbol]['quantity'] = int(total_quantity)
-                positions[symbol]['lots'].append({
-                    'quantity': abs(txn.quantity),
-                    'price': txn.price,
-                    'date': txn.date
-                })
-            
-            elif txn.transaction_type in ['SELL', 'Sell']:
-                # Calculate realized P&L
-                if positions[symbol]['quantity'] > 0:
-                    sell_quantity = abs(txn.quantity)
-                    pnl = (txn.price - positions[symbol]['avg_cost']) * sell_quantity - txn.fees
-                    if pnl > 0:
-                        realized_gains += pnl
-                    else:
-                        realized_losses += abs(pnl)
-                    
-                    positions[symbol]['quantity'] -= sell_quantity
-        
-        # Calculate unrealized losses for harvesting
-        symbols_with_positions = [s for s, pos in positions.items() if pos['quantity'] > 0]
-        current_prices = self.data_client.get_current_prices(symbols_with_positions) if symbols_with_positions else {}
-        harvestable_losses = 0
-        harvest_opportunities = []
-        
-        print(f"[HARVEST-DEBUG] Checking {len(symbols_with_positions)} current positions (out of {len(positions)} total symbols) for harvest opportunities")
-        
-        for symbol, position in positions.items():
-            if position['quantity'] > 0:
-                current_price = current_prices.get(symbol, position['avg_cost'])
-                unrealized_pnl = (current_price - position['avg_cost']) * position['quantity']
-                
-                print(f"[HARVEST-DEBUG] {symbol}: qty={position['quantity']}, avg_cost=${position['avg_cost']:.2f}, current=${current_price:.2f}, unrealized=${unrealized_pnl:.2f}")
-                
-                if unrealized_pnl < 0:  # Loss position
-                    harvestable_losses += abs(unrealized_pnl)
-                    harvest_opportunities.append({
-                        'symbol': symbol,
-                        'quantity': position['quantity'],
-                        'avg_cost': position['avg_cost'],
-                        'current_price': current_price,
-                        'unrealized_loss': abs(unrealized_pnl),
-                        'loss_percentage': (unrealized_pnl / (position['avg_cost'] * position['quantity'])) * 100
-                    })
-                    print(f"[HARVEST-DEBUG] Added harvest opportunity: {symbol} loss=${abs(unrealized_pnl):.2f}")
-        
-        print(f"[HARVEST-DEBUG] Total harvestable losses: ${harvestable_losses:.2f}, opportunities: {len(harvest_opportunities)}")
-        
-        # Calculate tax liability estimates
-        short_term_gains = 0
-        long_term_gains = 0
-        
-        # Estimate tax rates (simplified)
-        short_term_tax_rate = 0.37  # Ordinary income rate
-        long_term_tax_rate = 0.20   # Capital gains rate
-        
-        # Calculate short-term vs long-term gains based on holding period
-        # For now, assume all gains are short-term (< 1 year holding period)
-        net_gains = realized_gains - realized_losses
-        if net_gains > 0:
-            short_term_gains = net_gains  # Simplified: assume all short-term
-            long_term_gains = 0
-        else:
-            short_term_gains = 0
-            long_term_gains = 0
-        
-        estimated_tax_liability = (short_term_gains * short_term_tax_rate) + (long_term_gains * long_term_tax_rate)
-        
-        return {
-            'realized_gains': realized_gains,
-            'realized_losses': realized_losses,
-            'net_realized_pnl': realized_gains - realized_losses,
-            'short_term_gains': short_term_gains,
-            'long_term_gains': long_term_gains,
-            'estimated_tax_liability': estimated_tax_liability,
-            'harvestable_losses': harvestable_losses,
-            'harvest_opportunities': sorted(harvest_opportunities, key=lambda x: x['unrealized_loss'], reverse=True),
-            'tax_efficiency_ratio': realized_losses / realized_gains if realized_gains > 0 else 0
-        }
     
     def cash_flow_analysis(self, transactions: List[Transaction], period='1Y', flow_type='Net', frequency='Daily', smoothing='None', benchmark='Cash yield') -> Dict:
         """Advanced cash flow analysis with period filters, flow types, frequency, smoothing, and benchmarks"""
@@ -1619,244 +1302,21 @@ class AdvancedTransactionAnalyzer:
             }
         }
     
-    def tax_analysis(self, transactions: List[Transaction], options: Dict = None) -> Dict:
-        """Comprehensive tax analysis with interactive filters"""
-        if not transactions:
-            return {
-                'short_term_gain_loss': 0.0,
-                'long_term_gain_loss': 0.0,
-                'total_tax_liability': 0.0,
-                'wash_sale_adjustments': 0.0,
-                'effective_tax_rate': 0.0,
-                'tax_year': datetime.now().year
-            }
-        
-        # Parse options
-        options = options or {}
-        tax_year = options.get('tax_year', 'Current')
-        holding_period = options.get('holding_period', 'All')
-        tax_rate_type = options.get('tax_rate', 'Federal')
-        wash_sale_handling = options.get('wash_sale', 'Include')
-        
-        # Filter by tax year
-        current_year = datetime.now().year
-        
-        if tax_year == 'Current':
-            year_transactions = [t for t in transactions if t.date.year == current_year]
-        elif tax_year == 'Previous':
-            year_transactions = [t for t in transactions if t.date.year == current_year - 1]
-        else:  # Custom or All
-            year_transactions = transactions
-            
-        if not year_transactions:
-            year_transactions = transactions
-            if transactions:
-                actual_year = max(t.date.year for t in transactions)
-                current_year = actual_year
-        
-        # Track tax lots using FIFO method
-        tax_lots = defaultdict(list)
-        short_term_gains = 0.0
-        long_term_gains = 0.0
-        wash_sale_adjustments = 0.0
-        
-        # Process transactions chronologically
-        for txn in sorted(year_transactions, key=lambda x: x.date):
-            symbol = txn.symbol
-            
-            if txn.transaction_type in ['BUY', 'Buy']:
-                # Add to tax lots
-                tax_lots[symbol].append({
-                    'quantity': abs(txn.quantity),
-                    'price': txn.price,
-                    'date': txn.date,
-                    'fees': txn.fees
-                })
-            
-            elif txn.transaction_type in ['SELL', 'Sell'] and tax_lots[symbol]:
-                remaining_to_sell = abs(txn.quantity)
-                sell_price = txn.price
-                sell_date = txn.date
-                sell_fees = txn.fees
-                
-                # Process FIFO lots with safety counter
-                max_iterations = 1000
-                iteration_count = 0
-                
-                while remaining_to_sell > 0 and tax_lots[symbol] and iteration_count < max_iterations:
-                    iteration_count += 1
-                    lot = tax_lots[symbol][0]
-                    lot_quantity = min(lot['quantity'], remaining_to_sell)
-                    
-                    # Safety check to prevent infinite loop
-                    if lot_quantity <= 0:
-                        break
-                    
-                    # Calculate holding period
-                    holding_days = (sell_date - lot['date']).days
-                    
-                    # Calculate gain/loss
-                    cost_basis = lot_quantity * lot['price'] + (lot['fees'] * lot_quantity / lot['quantity'])
-                    proceeds = lot_quantity * sell_price - (sell_fees * lot_quantity / abs(txn.quantity))
-                    gain_loss = proceeds - cost_basis
-                    
-                    # Check for wash sale (30 days before and after)
-                    wash_sale = False
-                    if gain_loss < 0:  # Only losses can be wash sales
-                        # Check for purchases within 30 days before or after
-                        wash_start = sell_date - timedelta(days=30)
-                        wash_end = sell_date + timedelta(days=30)
-                        
-                        for other_txn in year_transactions:
-                            if (other_txn.symbol == symbol and 
-                                other_txn.transaction_type in ['BUY', 'Buy'] and
-                                wash_start <= other_txn.date <= wash_end and
-                                other_txn.date != sell_date):
-                                wash_sale = True
-                                wash_sale_adjustments += abs(gain_loss)
-                                break
-                    
-                    # Apply wash sale handling
-                    if wash_sale and wash_sale_handling == 'Exclude':
-                        continue  # Skip this loss entirely
-                    elif wash_sale and wash_sale_handling == 'Highlight':
-                        # Include the loss but don't add to wash_sale_adjustments again
-                        wash_sale_adjustments -= abs(gain_loss)  # Remove double counting
-                    
-                    if not wash_sale or wash_sale_handling in ['Include', 'Highlight']:
-                        # Apply holding period filter and classify (tax law: exactly 1 year)
-                        is_short_term = holding_days < 365
-                        is_long_term = holding_days >= 365
-                        
-                        print(f"[TAX-DEBUG] {symbol}: gain_loss={gain_loss:.2f}, is_short_term={is_short_term}, is_long_term={is_long_term}")
-                        
-                        if holding_period == 'Short' and not is_short_term:
-                            continue  # Skip long-term if filtering for short-term only
-                        elif holding_period == 'Long' and not is_long_term:
-                            continue  # Skip short-term if filtering for long-term only
-                        
-                        if is_short_term:
-                            short_term_gains += gain_loss
-                            print(f"[TAX-DEBUG] SHORT-TERM: {symbol} held {holding_days} days, gain/loss: ${gain_loss:.2f}, running total: ${short_term_gains:.2f}")
-                        else:
-                            long_term_gains += gain_loss
-                            print(f"[TAX-DEBUG] LONG-TERM: {symbol} held {holding_days} days, gain/loss: ${gain_loss:.2f}, running total: ${long_term_gains:.2f}")
-                    
-                    # Update lot
-                    lot['quantity'] -= lot_quantity
-                    remaining_to_sell -= lot_quantity
-                    
-                    if lot['quantity'] <= 0:
-                        tax_lots[symbol].pop(0)
-                
-                # Log if we hit the safety limit and break out of sell processing
-                if iteration_count >= max_iterations:
-                    print(f"[TAX-WARNING] Hit iteration limit for {symbol}, remaining_to_sell: {remaining_to_sell}")
-                    break  # Exit the sell transaction processing entirely
-        
-        # Calculate tax rates based on selection
-        if tax_rate_type == 'Federal':
-            short_term_tax_rate = 0.37  # Federal ordinary income (top bracket)
-            long_term_tax_rate = 0.20   # Federal capital gains (top bracket)
-        elif tax_rate_type == 'State':
-            short_term_tax_rate = 0.13  # Average state rate
-            long_term_tax_rate = 0.13   # State capital gains (same as ordinary)
-        elif tax_rate_type == 'Combined':
-            short_term_tax_rate = 0.37 + 0.13  # Federal + state
-            long_term_tax_rate = 0.20 + 0.13   # Federal + state
-        else:  # Custom
-            short_term_tax_rate = 0.37
-            long_term_tax_rate = 0.20
-        
-        print(f"[TAX-DEBUG] Tax rates: short_term={short_term_tax_rate:.1%}, long_term={long_term_tax_rate:.1%}")
-        
-        # Only tax gains, not losses
-        short_term_tax = max(0, short_term_gains) * short_term_tax_rate
-        long_term_tax = max(0, long_term_gains) * long_term_tax_rate
-        total_tax_liability = short_term_tax + long_term_tax
-        
-        print(f"[TAX-DEBUG] Tax calculation: ST_gains={short_term_gains:.2f} * {short_term_tax_rate:.1%} = ${short_term_tax:.2f}")
-        print(f"[TAX-DEBUG] Tax calculation: LT_gains={long_term_gains:.2f} * {long_term_tax_rate:.1%} = ${long_term_tax:.2f}")
-        print(f"[TAX-DEBUG] Total tax liability: ${total_tax_liability:.2f}")
-        
-        # Calculate effective tax rate
-        total_gains = max(0, short_term_gains) + max(0, long_term_gains)
-        net_gains = short_term_gains + long_term_gains  # Include losses for effective rate
-        
-        print(f"[TAX-DEBUG] Effective rate calculation:")
-        print(f"[TAX-DEBUG] - Total positive gains: ${total_gains:.2f}")
-        print(f"[TAX-DEBUG] - Net gains (with losses): ${net_gains:.2f}")
-        print(f"[TAX-DEBUG] - Total tax liability: ${total_tax_liability:.2f}")
-        
-        # Use net gains (including losses) for more accurate effective rate
-        if net_gains > 0:
-            effective_tax_rate = (total_tax_liability / net_gains) * 100
-        elif total_gains > 0:
-            effective_tax_rate = (total_tax_liability / total_gains) * 100
-        else:
-            effective_tax_rate = 0.0
-            
-        print(f"[TAX-DEBUG] - Calculated effective rate: {effective_tax_rate:.1f}%")
-        
-        # Get harvest opportunities based on harvesting option
-        harvest_opportunities = []
-        harvestable_losses = 0
-        harvesting_option = options.get('harvesting', 'Opportunities')
-        
-        if harvesting_option == 'Opportunities':
-            print(f"[TAX-DEBUG] Calculating harvest opportunities...")
-            harvest_data = self.tax_loss_harvesting_analysis(year_transactions)
-            harvest_opportunities = harvest_data.get('harvest_opportunities', [])
-            harvestable_losses = harvest_data.get('harvestable_losses', 0)
-            print(f"[TAX-DEBUG] Found {len(harvest_opportunities)} harvest opportunities, total harvestable losses: ${harvestable_losses:.2f}")
-        elif harvesting_option == 'Realized':
-            # Show only realized losses from actual transactions
-            realized_losses = abs(min(0, short_term_gains + long_term_gains))
-            harvestable_losses = realized_losses
-            print(f"[TAX-DEBUG] Realized losses: ${realized_losses:.2f}")
-        elif harvesting_option == 'Potential':
-            # Show potential losses from current unrealized positions
-            harvest_data = self.tax_loss_harvesting_analysis(year_transactions)
-            potential_losses = harvest_data.get('harvestable_losses', 0)
-            harvestable_losses = potential_losses * 0.5  # Conservative estimate
-            print(f"[TAX-DEBUG] Potential harvestable losses: ${harvestable_losses:.2f}")
-        else:
-            print(f"[TAX-DEBUG] Harvesting option: {harvesting_option}, skipping harvest calculation")
-        
-        print(f"[TAX-DEBUG] Final results:")
-        print(f"[TAX-DEBUG] - Short-term gains: ${short_term_gains:.2f}")
-        print(f"[TAX-DEBUG] - Long-term gains: ${long_term_gains:.2f}")
-        print(f"[TAX-DEBUG] - Wash sale adjustments: ${wash_sale_adjustments:.2f}")
-        print(f"[TAX-DEBUG] - Tax liability: ${total_tax_liability:.2f}")
-        print(f"[TAX-DEBUG] - Effective rate: {effective_tax_rate:.1f}%")
-        print(f"[TAX-DEBUG] - Wash sale handling: {wash_sale_handling}")
-        
-        # Calculate potential tax savings from harvesting losses
-        # Use short-term rate since losses offset gains at the highest rate first
-        potential_tax_savings = harvestable_losses * short_term_tax_rate
-        print(f"[TAX-DEBUG] Potential tax savings: ${harvestable_losses:.2f} * {short_term_tax_rate:.1%} = ${potential_tax_savings:.2f}")
-        
-        return {
-            'short_term_gain_loss': round(short_term_gains, 2),
-            'long_term_gain_loss': round(long_term_gains, 2),
-            'total_tax_liability': round(total_tax_liability, 2),
-            'wash_sale_adjustments': round(wash_sale_adjustments, 2),
-            'effective_tax_rate': round(effective_tax_rate, 2),
-            'tax_year': current_year,
-            'short_term_tax': round(short_term_tax, 2),
-            'long_term_tax': round(long_term_tax, 2),
-            'net_capital_gains': round(short_term_gains + long_term_gains, 2),
-            'harvest_opportunities': harvest_opportunities,
-            'harvestable_losses': round(harvestable_losses, 2),
-            'potential_tax_savings': round(potential_tax_savings, 2)
-        }
     
-    def trade_performance_analysis(self, transactions: List[Transaction]) -> Dict:
-        """Comprehensive trade performance analysis using real transaction data"""
-        print(f"[TRADE-PERFORMANCE] Processing {len(transactions)} transactions")
+    def trade_performance_analysis(self, transactions: List[Transaction], options: Dict = None) -> Dict:
+        """Comprehensive trade performance analysis using real transaction data with filtering"""
+        options = options or {}
+        
+        # DEBUG: Write options to file
+        try:
+            with open('debug_trade_perf.log', 'a') as f:
+                f.write(f"\n[{datetime.now()}] Called with options: {options}\n")
+        except:
+            pass
+            
+        print(f"[TRADE-PERFORMANCE] Processing transactions with options: {options}")
         
         if not transactions:
-            print(f"[TRADE-PERFORMANCE] No transactions provided")
             return {
                 'total_trades': 0, 
                 'win_rate': 0.0, 
@@ -1877,11 +1337,9 @@ class AdvancedTransactionAnalyzer:
         completed_trades = []
         individual_trades = []  # For options sold without corresponding buys
         
-        print(f"[TRADE-PERFORMANCE] Processing transactions chronologically")
-        
-        for i, txn in enumerate(sorted(transactions, key=lambda x: x.date)):
+        # Process chronologically to build trade history
+        for txn in sorted(transactions, key=lambda x: x.date):
             symbol = txn.symbol
-            print(f"[TRADE-PERFORMANCE] Transaction {i+1}: {symbol} {txn.transaction_type} {txn.quantity} @ ${txn.price}")
             
             if txn.transaction_type in ['BUY', 'Buy']:
                 old_value = positions[symbol]['quantity'] * positions[symbol]['avg_cost']
@@ -1890,17 +1348,16 @@ class AdvancedTransactionAnalyzer:
                 if total_quantity > 0:
                     positions[symbol]['avg_cost'] = (old_value + new_value) / total_quantity
                 positions[symbol]['quantity'] = total_quantity
-                print(f"[TRADE-PERFORMANCE] Updated position: {symbol} qty={total_quantity} avg_cost=${positions[symbol]['avg_cost']:.2f}")
                 
             elif txn.transaction_type in ['SELL', 'Sell']:
                 if positions[symbol]['quantity'] > 0:
-                    # This is a sell with corresponding buy - create matched trade
+                    # Sell with corresponding buy
                     sell_quantity = min(abs(txn.quantity), positions[symbol]['quantity'])
                     pnl = (txn.price - positions[symbol]['avg_cost']) * sell_quantity - txn.fees
                     trade_size = sell_quantity * positions[symbol]['avg_cost']
                     return_pct = (pnl / trade_size) if trade_size > 0 else 0
                     
-                    completed_trade = {
+                    completed_trades.append({
                         'symbol': symbol,
                         'pnl': pnl,
                         'size': trade_size,
@@ -1909,55 +1366,79 @@ class AdvancedTransactionAnalyzer:
                         'sell_price': txn.price,
                         'buy_price': positions[symbol]['avg_cost'],
                         'type': 'Long'
-                    }
-                    
-                    completed_trades.append(completed_trade)
+                    })
                     positions[symbol]['quantity'] -= sell_quantity
-                    
-                    print(f"[TRADE-PERFORMANCE] Completed trade: {symbol} P&L=${pnl:.2f} Return={return_pct*100:.2f}%")
                 else:
-                    # This is a sell without corresponding buy (e.g., options premium collected)
+                    # Sell without buy (Short/Option writing)
                     trade_value = abs(txn.quantity) * txn.price
-                    pnl = trade_value - txn.fees  # Premium collected minus fees
+                    pnl = trade_value - txn.fees
                     return_pct = (pnl / trade_value) if trade_value > 0 else 0
                     
-                    individual_trade = {
+                    individual_trades.append({
                         'symbol': symbol,
                         'pnl': pnl,
                         'size': trade_value,
                         'return_pct': return_pct,
                         'sell_date': txn.date,
                         'sell_price': txn.price,
-                        'buy_price': 0,  # No corresponding buy
+                        'buy_price': 0,
                         'type': 'Short' if 'C' in symbol or 'P' in symbol else 'Sell'
-                    }
-                    
-                    individual_trades.append(individual_trade)
-                    print(f"[TRADE-PERFORMANCE] Individual trade: {symbol} P&L=${pnl:.2f} (premium collected)")
+                    })
         
-        # Combine all trades
+        # Combine all generated trades
         all_trades = completed_trades + individual_trades
         
-        print(f"[TRADE-PERFORMANCE] Found {len(completed_trades)} matched trades + {len(individual_trades)} individual trades = {len(all_trades)} total")
+        # --- APPLY FILTERS ---
         
+        # 1. Period Filter (on closing date)
+        period = options.get('period', 'All Time')
+        cutoff_date = datetime.now()
+        if period != 'All Time':
+            if period == '1M': cutoff_date -= timedelta(days=30)
+            elif period == '3M': cutoff_date -= timedelta(days=90)
+            elif period == '6M': cutoff_date -= timedelta(days=180)
+            elif period == '1Y': cutoff_date -= timedelta(days=365)
+            elif period == 'YTD': cutoff_date = datetime(datetime.now().year, 1, 1)
+            
+            # Helper for date comparison
+            def is_after_cutoff(d, cutoff):
+                if hasattr(d, 'tzinfo') and d.tzinfo: d = d.replace(tzinfo=None)
+                if hasattr(cutoff, 'tzinfo') and cutoff.tzinfo: cutoff = cutoff.replace(tzinfo=None)
+                return d >= cutoff
+                
+            all_trades = [t for t in all_trades if is_after_cutoff(t['sell_date'], cutoff_date)]
+
+        # 2. Trade Size Filter
+        trade_size_filter = options.get('tradeSize', 'All')
+        if trade_size_filter != 'All':
+            if trade_size_filter == 'Small (<$1k)':
+                all_trades = [t for t in all_trades if t['size'] < 1000]
+            elif trade_size_filter == 'Medium ($1k-$10k)':
+                all_trades = [t for t in all_trades if 1000 <= t['size'] < 10000]
+            elif trade_size_filter == 'Large (>$10k)':
+                all_trades = [t for t in all_trades if t['size'] >= 10000]
+                
+        # 3. Type Filter
+        type_filter = options.get('type', 'All') # 'All', 'Long', 'Short'
+        if type_filter != 'All':
+            # Map frontend 'Short' to our 'Short'/'Sell' types logic if needed, 
+            # currently our generator marks them as 'Long' or 'Short'/'Sell'
+            if type_filter == 'Long':
+                all_trades = [t for t in all_trades if t['type'] == 'Long']
+            elif type_filter == 'Short':
+                all_trades = [t for t in all_trades if t['type'] in ['Short', 'Sell']]
+
+        # Check if empty after filters
         if not all_trades:
-            print(f"[TRADE-PERFORMANCE] No trades found")
             return {
-                'total_trades': len([t for t in transactions if t.transaction_type in ['BUY', 'SELL', 'Buy', 'Sell']]),
-                'win_rate': 0.0, 
-                'avg_trade_size': 0.0, 
-                'total_pnl': 0.0,
-                'profit_factor': 0.0,
-                'winning_trades': 0,
-                'losing_trades': 0,
-                'avg_win': 0.0,
-                'avg_loss': 0.0,
-                'ranked_trades': [],
+                'total_trades': 0, 'win_rate': 0.0, 'avg_trade_size': 0.0, 'total_pnl': 0.0,
+                'profit_factor': 0.0, 'winning_trades': 0, 'losing_trades': 0, 'avg_win': 0.0,
+                'avg_loss': 0.0, 'ranked_trades': [],
                 'best_trade': {'symbol': 'N/A', 'pnl': 0.0, 'return_pct': 0.0},
                 'worst_trade': {'symbol': 'N/A', 'pnl': 0.0, 'return_pct': 0.0}
             }
-        
-        # Calculate real performance metrics from all trades
+
+        # --- CALCULATE METRICS ---
         total_trades = len(all_trades)
         winning_trades = [t for t in all_trades if t['pnl'] > 0]
         losing_trades = [t for t in all_trades if t['pnl'] < 0]
@@ -1968,7 +1449,6 @@ class AdvancedTransactionAnalyzer:
         avg_win = np.mean([t['pnl'] for t in winning_trades]) if winning_trades else 0
         avg_loss = np.mean([t['pnl'] for t in losing_trades]) if losing_trades else 0
         
-        # Calculate profit factor (gross profit / gross loss)
         gross_profit = sum(t['pnl'] for t in winning_trades) if winning_trades else 0
         gross_loss = abs(sum(t['pnl'] for t in losing_trades)) if losing_trades else 0
         profit_factor = gross_profit / gross_loss if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0)
@@ -1976,10 +1456,24 @@ class AdvancedTransactionAnalyzer:
         best_trade = max(all_trades, key=lambda x: x['pnl'])
         worst_trade = min(all_trades, key=lambda x: x['pnl'])
         
-        # Create ranked trades for frontend display (all trades)
-        ranked_trades = sorted(all_trades, key=lambda x: x['pnl'], reverse=True)
+        # --- SORTING / RANKING ---
+        ranking = options.get('ranking', 'Best 5')
+        metric = options.get('metric', 'P&L')
         
-        result = {
+        sort_key = 'pnl'
+        if metric == 'Return %':
+            sort_key = 'return_pct'
+            
+        reverse_sort = True # Default to Descending (Best)
+        if 'Worst' in ranking:
+            reverse_sort = False
+            
+        ranked_trades = sorted(all_trades, key=lambda x: x[sort_key], reverse=reverse_sort)
+        
+        # Note: We return ALL sorted trades. Frontend handles slicing for display (e.g. top 5),
+        # but having them sorted correctly by backend ensures 'Best' are at top or 'Worst' are at top.
+        
+        return {
             'total_trades': total_trades,
             'winning_trades': len(winning_trades),
             'losing_trades': len(losing_trades),
@@ -1990,20 +1484,9 @@ class AdvancedTransactionAnalyzer:
             'avg_loss': avg_loss,
             'profit_factor': profit_factor,
             'ranked_trades': ranked_trades,
-            'best_trade': {
-                'symbol': best_trade['symbol'],
-                'pnl': best_trade['pnl'],
-                'return_pct': best_trade['return_pct']
-            },
-            'worst_trade': {
-                'symbol': worst_trade['symbol'],
-                'pnl': worst_trade['pnl'],
-                'return_pct': worst_trade['return_pct']
-            }
+            'best_trade': {'symbol': best_trade['symbol'], 'pnl': best_trade['pnl'], 'return_pct': best_trade['return_pct']},
+            'worst_trade': {'symbol': worst_trade['symbol'], 'pnl': worst_trade['pnl'], 'return_pct': worst_trade['return_pct']}
         }
-        
-        print(f"[TRADE-PERFORMANCE] Analysis complete: {total_trades} trades processed")
-        return result
 
 
 class TradingOperationsAnalyzer:

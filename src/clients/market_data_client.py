@@ -29,7 +29,7 @@ class RateLimiter:
 
 class DataProvider(ABC):
     @abstractmethod
-    def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
+    def get_price_data(self, symbols: List[str], period: str, interval: str = "1d") -> Optional[pd.DataFrame]:
         pass
     
     @abstractmethod
@@ -83,7 +83,7 @@ class YFinanceProvider(DataProvider):
         module_logger.info(f"Filtered symbols result: {result}")
         return result
     
-    def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
+    def get_price_data(self, symbols: List[str], period: str, interval: str = "1d") -> Optional[pd.DataFrame]:
         try:
             module_logger.info(f"YFinance: Fetching data for {len(symbols)} symbols")
             self.rate_limiter.wait_if_needed()
@@ -99,7 +99,8 @@ class YFinanceProvider(DataProvider):
                 '3y': '5y', # Fetch 5y and slice
                 'ytd': 'ytd',
                 'max': 'max',
-                '5y': '5y'
+                '5y': '5y',
+                '10y': '10y'
             }
             
             # Save original period request
@@ -123,6 +124,7 @@ class YFinanceProvider(DataProvider):
                 data = yf.download(
                     valid_symbols, 
                     period=yf_period, 
+                    interval=interval,
                     progress=False, 
                     auto_adjust=False,  # Use raw prices first
                     threads=False,
@@ -213,7 +215,7 @@ class PolygonProvider(DataProvider):
         self.rate_limiter = RateLimiter(5)  # Free tier limit
         self.base_url = "https://api.polygon.io"
     
-    def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
+    def get_price_data(self, symbols: List[str], period: str, interval: str = "1d") -> Optional[pd.DataFrame]:
         try:
             data = {}
             for symbol in symbols:
@@ -253,7 +255,7 @@ class AlphaVantageProvider(DataProvider):
         self.rate_limiter = RateLimiter(5)  # Free tier limit
         self.base_url = "https://www.alphavantage.co/query"
     
-    def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
+    def get_price_data(self, symbols: List[str], period: str, interval: str = "1d") -> Optional[pd.DataFrame]:
         try:
             data = {}
             for symbol in symbols:
@@ -284,7 +286,7 @@ class TwelveDataProvider(DataProvider):
         self.rate_limiter = RateLimiter(8)  # Free tier limit
         self.base_url = "https://api.twelvedata.com"
     
-    def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
+    def get_price_data(self, symbols: List[str], period: str, interval: str = "1d") -> Optional[pd.DataFrame]:
         try:
             self.rate_limiter.wait_if_needed()
             symbol_str = ','.join(symbols)
@@ -311,7 +313,7 @@ class FinnhubProvider(DataProvider):
         self.rate_limiter = RateLimiter(60)  # Free tier: 60 calls/minute
         self.base_url = "https://finnhub.io/api/v1"
     
-    def get_price_data(self, symbols: List[str], period: str) -> Optional[pd.DataFrame]:
+    def get_price_data(self, symbols: List[str], period: str, interval: str = "1d") -> Optional[pd.DataFrame]:
         try:
             data = {}
             # Convert period to timestamps
@@ -370,7 +372,7 @@ class MarketDataClient:
         if Config.TWELVE_DATA_API_KEY:
             self.providers.append(TwelveDataProvider(Config.TWELVE_DATA_API_KEY))
     
-    def get_price_data(self, symbols: List[str], period: str = "1y") -> pd.DataFrame:
+    def get_price_data(self, symbols: List[str], period: str = "1y", interval: str = "1d") -> pd.DataFrame:
         # Filter valid symbols before processing - STRICT VALIDATION
         valid_symbols = self._filter_valid_symbols(symbols)
         if not valid_symbols:
@@ -383,7 +385,7 @@ class MarketDataClient:
         for provider in self.providers:
             try:
                 logger.info(f"Attempting data fetch with {provider.__class__.__name__}")
-                data = provider.get_price_data(valid_symbols, period)
+                data = provider.get_price_data(valid_symbols, period, interval)
                 
                 # Strict validation - only return real market data
                 if data is not None and not data.empty and len(data) > 0:

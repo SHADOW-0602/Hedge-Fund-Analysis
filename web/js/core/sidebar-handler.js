@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Add active class to clicked button
             this.classList.add('active');
 
-            const analysisType = this.getAttribute('data-analysis');
+            const analysisType = this.getAttribute('data-analysis').trim();
             showIndividualAnalysis(analysisType);
         });
     });
@@ -24,6 +24,7 @@ function showIndividualAnalysis(analysisType) {
     if (container) {
         container.innerHTML = createIndividualAnalysisHTML(analysisType);
         container.classList.remove('hidden');
+        container.style.display = 'block';
     }
 
     // Load the specific analysis
@@ -94,8 +95,8 @@ function createIndividualAnalysisHTML(analysisType) {
         'strategy-backtesting', 'technical-indicators', 'pnl-attribution',
         'cost-analysis', 'cash-flow', 'accounting-analysis', 'trade-performance',
         'turnover-analysis', 'drawdown-analysis', 'return-attribution', 'statistical-analysis',
-        'turnover-analysis', 'drawdown-analysis', 'return-attribution', 'statistical-analysis',
-        'sector-allocation', 'xirr-analysis'
+        'sector-allocation', 'xirr-analysis', 'options-strategies',
+        'risk-metrics', 'performance-attribution', 'monte-carlo', 'portfolio-optimization', 'correlation-analysis'
     ];
 
     if (noCloseButtonAnalyses.includes(analysisType)) {

@@ -985,32 +985,50 @@ def register_analytics_routes(app, data_client, smart_cache=None):
             # Initialize analyzer
             analyzer = StatisticalAnalyzer(data_client)
             
-            # Convert period format for correlation analysis
-            period_map = {'1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y', '2Y': '2y'}
-            api_period = period_map.get(period, '1y')
+            # Define base horizons
+            horizons = {
+                "long":   {"freq": "W", "lookback": "10y", "rolling_window": "2y"},
+                "medium": {"freq": "D", "lookback": "2y", "rolling_window": "100d"},
+                "short":  {"freq": "H", "lookback": "3mo", "rolling_window": "100obs"}
+            }
+            
+            # Apply user overrides to Medium Term (Standard Daily View)
+            if 'period' in options and options['period']:
+                period_map = {'1M': '1mo', '3M': '3mo', '6M': '6mo', '1Y': '1y', '2Y': '2y', '3Y': '3y', '5Y': '5y', '10Y': '10y'}
+                custom_lookback = period_map.get(options['period'], options['period'])
+                # Ensure lowercase for YFinance compatibility
+                horizons['medium']['lookback'] = custom_lookback.lower()
+                horizons['medium']['lookback'] = custom_lookback
+                
+            if 'rolling_window' in options and options['rolling_window']:
+                horizons['medium']['rolling_window'] = options['rolling_window']
             
             # Run correlation analysis
-            correlation_results = analyzer.correlation_analysis(symbols, api_period)
+            correlation_results = analyzer.correlation_analysis(symbols, horizons=horizons)
+            
+            # DEBUG LOG
+            try:
+                with open("correlation_debug.log", "w") as f:
+                    import json
+                    f.write(f"Parameters: {options}\n")
+                    f.write(f"Horizons Config: {horizons}\n")
+                    f.write(f"Results Keys: {list(correlation_results.keys())}\n")
+                    if 'medium_term' in correlation_results:
+                         med = correlation_results['medium_term']
+                         f.write(f"Medium Valid: {'mean_correlation_matrix' in med}\n")
+                         if 'mean_correlation_matrix' in med:
+                             f.write(f"Matrix Size: {len(med['mean_correlation_matrix'])}\n")
+                         if 'error' in med:
+                             f.write(f"Medium Error: {med['error']}\n")
+            except Exception as e:
+                print(f"Log failed: {e}")
             
             if 'error' in correlation_results:
                 print(f"Correlation analysis error: {correlation_results['error']}")
                 return jsonify({'success': False, 'error': correlation_results['error']}), 500
             
-            # Format results for frontend display
-            formatted_results = {
-                'correlation_matrix': correlation_results.get('correlation_matrix', {}),
-                'summary': {
-                    'average_correlation': correlation_results.get('avg_correlation', 0),
-                    'max_correlation': correlation_results.get('max_correlation', 0),
-                    'min_correlation': correlation_results.get('min_correlation', 0),
-                    'symbols_analyzed': correlation_results.get('symbols_analyzed', len(symbols)),
-                    'data_points': correlation_results.get('data_points', 0),
-                    'period': period,
-                    'frequency': frequency,
-                    'method': method
-                },
-                'high_correlation_pairs': correlation_results.get('high_correlation_pairs', [])
-            }
+            # Format results for frontend (Direct pass-through of new structure)
+            formatted_results = correlation_results
             
             print(f"Correlation analysis completed for {len(symbols)} symbols")
             

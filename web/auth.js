@@ -13,7 +13,117 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('registerForm').addEventListener('submit', handleRegister);
     document.getElementById('forgotPasswordRequestForm').addEventListener('submit', handleResetRequest);
     document.getElementById('forgotPasswordConfirmForm').addEventListener('submit', handleResetConfirm);
+
+    // Password Auto-Suggest
+    const regPassInput = document.getElementById('registerPassword');
+    if (regPassInput) {
+        regPassInput.addEventListener('focus', function () {
+            if (!this.value) {
+                const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+                let password = '';
+                const length = 16;
+
+                // Ensure complexity
+                password += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.charAt(Math.floor(Math.random() * 26));
+                password += 'abcdefghijklmnopqrstuvwxyz'.charAt(Math.floor(Math.random() * 26));
+                password += '0123456789'.charAt(Math.floor(Math.random() * 10));
+                password += '!@#$%^&*'.charAt(Math.floor(Math.random() * 8));
+
+                for (let i = 4; i < length; i++) {
+                    password += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+
+                password = password.split('').sort(() => 0.5 - Math.random()).join('');
+
+                this.value = password;
+                this.type = 'text'; // Show it
+                this.select(); // Select for easy overwrite
+                updateStrengthMeter(this.value);
+            }
+        });
+
+        regPassInput.addEventListener('blur', function () {
+            if (this.value) {
+                this.type = 'password'; // Hide on blur
+            }
+        });
+
+        regPassInput.addEventListener('input', function () {
+            updateStrengthMeter(this.value);
+        });
+    }
 });
+
+function updateStrengthMeter(password) {
+    const meter = document.getElementById('passwordStrength');
+    const feedback = document.getElementById('passwordFeedback');
+    const bars = document.querySelectorAll('.strength-bar');
+
+    if (!password) {
+        meter.classList.add('hidden');
+        return;
+    }
+
+    meter.classList.remove('hidden');
+
+    let score = 0;
+    let messages = [];
+
+    if (password.length > 8) score++;
+    if (password.length > 12) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+
+    // Cap score at 4 for 4 bars
+    // But calculate detailed score for logic
+    // Simplified logic for 4 bars:
+    // 0: Very Weak (<8 chars)
+    // 1: Weak (>8 chars)
+    // 2: Medium (Mixed content)
+    // 3: Strong (Complex)
+    // 4: Very Strong
+
+    // Recalculate robust score
+    let robustScore = 0;
+    if (password.length >= 8) robustScore += 1;
+    if (password.length >= 12) robustScore += 1;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) robustScore += 1;
+    if (/[0-9]/.test(password)) robustScore += 1;
+    if (/[^A-Za-z0-9]/.test(password)) robustScore += 1;
+
+    // Normalize to 0-4 bars
+    let activeBars = Math.min(4, Math.max(1, robustScore - 1));
+    if (password.length < 8) activeBars = 1;
+
+    // Reset colors
+    bars.forEach(bar => {
+        bar.className = 'strength-bar flex-1 rounded-full bg-gray-200 transition-all duration-300';
+    });
+
+    // Set active colors
+    let colorClass = 'bg-red-500';
+    let message = 'Too weak';
+
+    if (robustScore >= 4) {
+        colorClass = 'bg-green-500';
+        message = 'Strong password';
+    } else if (robustScore >= 3) {
+        colorClass = 'bg-yellow-500';
+        message = 'Medium strength';
+    } else {
+        if (password.length < 8) message = 'Too short (min 8 chars)';
+        else message = 'Add numbers/symbols for strength';
+    }
+
+    for (let i = 0; i < activeBars; i++) {
+        bars[i].classList.remove('bg-gray-200');
+        bars[i].classList.add(colorClass);
+    }
+
+    feedback.textContent = message;
+    feedback.className = `text-xs font-medium ${robustScore >= 4 ? 'text-green-600' : (robustScore >= 3 ? 'text-yellow-600' : 'text-red-500')}`;
+}
 
 function showAuthTab(tabName) {
     // Hide all auth tabs

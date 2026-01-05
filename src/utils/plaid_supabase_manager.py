@@ -127,10 +127,23 @@ class PlaidSupabaseManager:
             if connection_id:
                 query = query.eq('connection_id', connection_id)
             
-            result = query.limit(1).execute() # order by removed? No, it was order('created_at', desc=True)
-
-            # Re-add ordering
-            result = query.order('created_at', desc=True).limit(1).execute()
+            # Retry logic for intermittent Supabase/HTTP2 issues
+            result = None
+            last_error = None
+            for attempt in range(3):
+                try:
+                    result = query.order('created_at', desc=True).limit(1).execute()
+                    break # Success!
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"Supabase token connection attempt {attempt + 1} failed: {e}")
+                    if attempt < 2:
+                        import time
+                        time.sleep(0.5 * (attempt + 1))
+            
+            if not result:
+                if last_error: raise last_error
+                return None
             
             # DEBUG LOGGING result
             try:
@@ -164,12 +177,30 @@ class PlaidSupabaseManager:
                 logger.error("Supabase client not available")
                 return []
             
-            result = supabase_client.service_client.table('plaid_connections')\
-                .select('*')\
-                .eq('user_id', user_id)\
-                .eq('is_active', True)\
-                .order('created_at', desc=True)\
-                .execute()
+            # Retry logic for intermittent Supabase/HTTP2 issues
+            result = None
+            last_error = None
+            for attempt in range(3):
+                try:
+                    result = supabase_client.service_client.table('plaid_connections')\
+                        .select('*')\
+                        .eq('user_id', user_id)\
+                        .eq('is_active', True)\
+                        .order('created_at', desc=True)\
+                        .execute()
+                    break # Success!
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"Supabase connection attempt {attempt + 1} failed: {e}")
+                    # If this is a KeyError: 3 or similar, recreation of client in next restart might help,
+                    # but forced HTTP/1.1 in supabase_client.py is the primary fix.
+                    if attempt < 2:
+                        import time
+                        time.sleep(0.5 * (attempt + 1))
+            
+            if not result:
+                if last_error: raise last_error
+                return []
             
             logger.info(f"Supabase query result for user {user_id}: {len(result.data) if result.data else 0} connections")
             
@@ -208,7 +239,9 @@ class PlaidSupabaseManager:
             return connections
             
         except Exception as e:
+            import traceback
             logger.error(f"Failed to get Plaid connections for user {user_id}: {str(e)} (Type: {type(e).__name__})")
+            logger.error(traceback.format_exc())
             return []
     
     def update_connection_name(self, user_id: str, connection_id: str, new_name: str):

@@ -85,6 +85,9 @@ function displayUsers(users) {
                 <div class="text-sm text-gray-900">${user.email}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">${user.phone ? user.phone : '<span class="text-gray-400">-</span>'}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
                 <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.role === 'admin'
             ? 'bg-red-100 text-red-800'
             : 'bg-blue-100 text-blue-800'
