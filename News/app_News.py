@@ -2755,17 +2755,17 @@ def remove_ticker(ticker):
 
 @app.route('/api/pexels-image')
 def get_pexels_image_endpoint():
-    """Get Pexels image by query (Redirects to image URL)"""
+    """Get Pexels image by query (Returns JSON)"""
     query = request.args.get('query', '')
     if not query:
         return jsonify({'error': 'Query required'}), 400
     
     image_url = get_pexels_image(query)
     if image_url:
-        return redirect(image_url)
+        return jsonify({'image': image_url})
     else:
         # Fallback to a placeholder if API fails or no image found
-        return redirect('https://placehold.co/1200x400/1e1b4b/ffffff?text=Image+Not+Found')
+        return jsonify({'image': 'https://placehold.co/1200x400/1e1b4b/ffffff?text=Image+Not+Found'})
 
 @app.route('/api/logo/<ticker>')
 def get_company_logo(ticker):

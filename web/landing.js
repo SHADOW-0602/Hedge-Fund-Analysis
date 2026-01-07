@@ -18,10 +18,17 @@ function hasPexelsKey() {
 }
 
 // Pexels API functions
-function fetchPexelsImage(query) {
-    // Return the backend proxy URL directly
-    // The browser will handle the redirect to the actual image
-    return `${API_BASE}/api/pexels-image?query=${encodeURIComponent(query)}`;
+async function fetchPexelsImage(query) {
+    try {
+        const response = await fetch(`${API_BASE}/api/pexels-image?query=${encodeURIComponent(query)}`);
+        if (response.ok) {
+            const data = await response.json();
+            return data.image || '';
+        }
+    } catch (error) {
+        console.warn('Error fetching Pexels image:', error);
+    }
+    return '';
 }
 
 // Helper function to decode HTML entities
@@ -47,25 +54,39 @@ async function loadImages() {
         { id: 'aboutImg', query: 'professional trading desk' }
     ];
 
-    imageElements.forEach(({ id, query }) => {
+    const imagePromises = imageElements.map(async ({ id, query }) => {
         try {
             const element = document.getElementById(id);
             if (element) {
-                const imageUrl = fetchPexelsImage(query);
-                element.src = imageUrl;
-                element.style.opacity = '0';
-                element.onload = () => {
-                    element.style.transition = 'opacity 0.5s ease';
-                    element.style.opacity = '1';
-                };
+                const imageUrl = await fetchPexelsImage(query);
+                if (imageUrl) {
+                    element.src = imageUrl;
+                    element.style.opacity = '0';
+                    element.onload = () => {
+                        element.style.transition = 'opacity 0.5s ease';
+                        element.style.opacity = '1';
+                    };
+                } else {
+                    // Fallback if no image found
+                    element.src = 'https://placehold.co/600x400/1e1b4b/ffffff?text=Image+Not+Found';
+                }
+
                 element.onerror = () => {
                     console.debug(`Image failed to load for ${id}`);
+                    // Fallback on error
+                    element.src = 'https://placehold.co/600x400/1e1b4b/ffffff?text=Image+Not+Found';
                 };
             }
         } catch (error) {
             console.debug(`Failed to set image for ${id}:`, error);
         }
     });
+
+    try {
+        await Promise.all(imagePromises);
+    } catch (error) {
+        console.debug('Some images failed to load:', error);
+    }
 }
 
 // Intersection Observer for animations

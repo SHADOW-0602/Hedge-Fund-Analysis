@@ -114,8 +114,36 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                        <input type="tel" id="registerPhone"
-                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                        <div class="flex relative">
+                            <!-- Custom Country Selector -->
+                            <div class="relative">
+                                <input type="hidden" id="countryCode" value="+91">
+                                <button type="button" id="countryDropdownBtn"
+                                    class="w-28 px-2 py-3 border border-r-0 border-gray-300 rounded-l-lg focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-sm flex items-center justify-between hover:bg-gray-100 transition-colors">
+                                    <span id="selectedCountry" class="truncate">🇮🇳 +91</span>
+                                    <svg class="w-4 h-4 text-gray-500 ml-1" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+
+                                <!-- Dropdown Menu -->
+                                <div id="countryDropdownMenu"
+                                    class="hidden absolute top-full left-0 w-[calc(100vw-4rem)] sm:w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 mt-1 max-h-64 flex flex-col transform transition-all origin-top-left mx-2 sm:mx-0">
+                                    <div class="p-2 border-b border-gray-100 sticky top-0 bg-white rounded-t-lg">
+                                        <input type="text" id="countrySearch" placeholder="Search (e.g. 91 or US)..."
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-indigo-500">
+                                    </div>
+                                    <div id="countryList" class="overflow-y-auto flex-1 p-1">
+                                        <!-- Items populated via JS -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <input type="tel" id="registerPhone" placeholder="9876543210"
+                                class="flex-1 px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-0">
+                        </div>
                     </div>
 
                     <div>
