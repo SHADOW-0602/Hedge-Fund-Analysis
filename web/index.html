@@ -46,8 +46,8 @@
             <div class="w-full px-4 sm:px-6 lg:px-8">
                 <div class="flex flex-row items-center justify-between py-3 sm:py-6">
                     <div class="flex items-center">
-                        <div class="flex items-center cursor-pointer whitespace-nowrap"
-                            onclick="if(window.showDefaultUpload) window.showDefaultUpload(); else console.log('showDefaultUpload not available');">
+                        <div id="appLogo" class="flex items-center cursor-pointer whitespace-nowrap"
+                            onclick="window.location.href='landing.html'">
                             <div
                                 class="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center mr-2 sm:mr-3">
                                 <span class="text-white font-bold text-sm sm:text-lg">SV</span>
@@ -176,7 +176,8 @@
                                 </div>
                             </div>
                         </div>
-                        <a href="landing.html"
+                        <a id="dashboardHomeLink" href="#"
+                            onclick="if(window.showDefaultUpload) window.showDefaultUpload(); return false;"
                             class="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white font-medium transition-colors mr-2">Home</a>
                         <a href="guide.html"
                             class="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white font-medium transition-colors mr-2">Guide</a>

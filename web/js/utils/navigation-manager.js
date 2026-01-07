@@ -4,12 +4,17 @@ class NavigationManager {
         this.currentView = 'default';
         this.allSections = [
             'defaultUploadSection',
-            'portfolioAnalysis', 
+            'portfolioAnalysis',
             'transactionAnalysis',
             'analysisContainer',
             'analysisContent',
             'dataPreview',
-            'loadingSection'
+            'loadingSection',
+            'xirrAnalysis',
+            'pnlAttribution',
+            'turnoverAnalysis',
+            'cashFlowAnalysis',
+            'tradePerformance'
         ];
         this.init();
     }
@@ -17,16 +22,18 @@ class NavigationManager {
     init() {
         // Ensure showDefaultUpload is available globally
         window.showDefaultUpload = () => this.showDefaultUpload();
-        
+
         // Add event listeners for navigation
         this.addNavigationListeners();
-        
+
         // Initialize with default view
         this.showDefaultUpload();
     }
 
     addNavigationListeners() {
         // Header logo click
+        // Header logo listener removed - Logic swapped with Home link and handled via inline onclick in index.html
+        /*
         const headerLogo = document.querySelector('.cursor-pointer');
         if (headerLogo) {
             headerLogo.addEventListener('click', (e) => {
@@ -34,6 +41,7 @@ class NavigationManager {
                 this.showDefaultUpload();
             });
         }
+        */
 
         // Back button clicks in analysis views
         document.addEventListener('click', (e) => {
@@ -46,25 +54,25 @@ class NavigationManager {
 
     showDefaultUpload() {
         console.log('NavigationManager: Showing default upload');
-        
+
         // Hide all analysis sections
         this.hideAllSections();
-        
+
         // Show default upload section
         const defaultSection = document.getElementById('defaultUploadSection');
         if (defaultSection) {
             defaultSection.classList.remove('hidden');
         }
-        
+
         // Clear any loading spinners
         this.clearAllLoadingSpinners();
-        
+
         // Update current view
         this.currentView = 'default';
-        
+
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        
+
         console.log('NavigationManager: Default upload view activated');
     }
 
@@ -73,6 +81,7 @@ class NavigationManager {
             const section = document.getElementById(sectionId);
             if (section) {
                 section.classList.add('hidden');
+                section.style.display = 'none';
             }
         });
     }
@@ -86,21 +95,21 @@ class NavigationManager {
             'costAnalysis', 'turnoverAnalysis', 'taxAnalysis', 'cashFlowAnalysis',
             'fifoLifoAnalysis', 'tradeTimingAnalysis', 'drawdownAnalysis', 'returnAttribution'
         ];
-        
+
         loadingContainers.forEach(containerId => {
             const container = document.getElementById(containerId);
             if (container) {
                 // Remove loading spinners but keep existing content
                 const loadingElements = container.querySelectorAll('.animate-spin, .loading-spinner');
                 loadingElements.forEach(el => el.remove());
-                
+
                 // Remove loading text
                 if (container.textContent && container.textContent.includes('Loading')) {
                     container.innerHTML = '';
                 }
             }
         });
-        
+
         // Also clear main loading section
         const loadingSection = document.getElementById('loadingSection');
         if (loadingSection) {
@@ -110,12 +119,12 @@ class NavigationManager {
 
     showAnalysisView(analysisType) {
         this.hideAllSections();
-        
+
         const analysisContainer = document.getElementById('analysisContainer');
         if (analysisContainer) {
             analysisContainer.classList.remove('hidden');
         }
-        
+
         this.currentView = analysisType;
     }
 

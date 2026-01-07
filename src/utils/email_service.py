@@ -105,6 +105,10 @@ class EmailService:
     
     def send_welcome_email(self, user_email: str, username: str, temp_password: Optional[str] = None) -> bool:
         """Send welcome email to new user"""
+        import os
+        base_url = os.getenv('BASE_URL', 'http://127.0.0.1:8080')
+        login_url = f"{base_url}/app"
+        
         subject = f"Welcome to {self.from_name} - Let's Start Trading 🚀"
         
         body = f"""Hello {username},
