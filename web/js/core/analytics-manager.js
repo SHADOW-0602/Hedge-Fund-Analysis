@@ -195,19 +195,8 @@ class AnalyticsManager {
 
         // Bind events
         this.bindEvents();
-        this.bindSidebarEvents();
+        // this.bindSidebarEvents(); // REMOVED: Managed by sidebar-handler.js to avoid duplicate calls
         this.initialized = true;
-    }
-
-    // Bind sidebar events for analysis selection
-    bindSidebarEvents() {
-        document.addEventListener('click', (event) => {
-            const analysisButton = event.target.closest('[data-analysis]');
-            if (analysisButton) {
-                const analysisType = analysisButton.getAttribute('data-analysis');
-                this.loadModule(analysisType);
-            }
-        });
     }
 
     // Bind data events

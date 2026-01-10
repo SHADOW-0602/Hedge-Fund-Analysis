@@ -2,11 +2,28 @@
 
 async function fetchXirrAnalysis(containerId, options = {}, preloadedData = null) {
     console.log('Fetching XIRR Analysis...');
-    const container = document.getElementById(containerId);
-    if (!container && !options.background) return;
+    let container = document.getElementById(containerId);
 
-    // Show loading state (only if not background)
-    if (container && !options.background) {
+    // Resilience: Recreate container if missing
+    if (!container && !options.background) {
+        console.warn('XIRR container not found, attempting to recreate...');
+        const parent = document.getElementById('analysisContent') || document.getElementById('analysisContainer');
+        if (parent) {
+            container = document.createElement('div');
+            container.id = containerId;
+            parent.appendChild(container);
+        } else {
+            console.error('Parent container for XIRR not found');
+            return;
+        }
+    }
+
+    // Show loading state (only if not background AND not preloaded)
+    // We check preloadedData validity later, but to avoid flash, we delay if arg is present?
+    // Actually, simply check if we have data to skip the spinner.
+    const hasPreloaded = preloadedData && preloadedData.transaction_xirr;
+
+    if (container && !options.background && !hasPreloaded) {
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center p-12">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
@@ -17,9 +34,19 @@ async function fetchXirrAnalysis(containerId, options = {}, preloadedData = null
     }
 
     try {
-        // Collect data from loaded files
-        const transactions = window.currentTransactions || [];
-        const portfolio = window.currentPortfolio || window.portfolioData || window.currentPortfolioData || [];
+        // Collect data from loaded files - improved checking order
+        const transactions = window.currentTransactions ||
+            (window.analyticsManager && window.analyticsManager.transactionData) ||
+            (window.analyticsCore && window.analyticsCore.transactionData) ||
+            [];
+
+        const portfolio = window.currentPortfolio ||
+            window.portfolioData ||
+            window.currentPortfolioData ||
+            (window.analyticsCore && window.analyticsCore.portfolioData) ||
+            [];
+
+        console.log(`[XIRR Analysis] Data sources - Transactions: ${transactions.length}, Portfolio: ${portfolio.length}`);
 
         if (transactions.length === 0 && portfolio.length === 0) {
             if (container && !options.background) {

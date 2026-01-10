@@ -247,10 +247,84 @@ function updateRefreshButton() {
 }
 
 function displayCashFlowAnalysis(data) {
-    const contentDiv = document.getElementById('cashFlowContent');
+    let contentDiv = document.getElementById('cashFlowContent');
+
+    // Resilience: Recreate container if missing (e.g., cleared by navigation/loading)
     if (!contentDiv) {
-        console.error('cashFlowContent div not found');
-        return;
+        console.warn('cashFlowContent div not found, rebuilding structure...');
+        const container = document.getElementById('cashFlowAnalysis');
+        if (container) {
+            // Re-build the structure
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-primary">Cash Flow Analysis</h2>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="toggleCashFlowSettings()" class="bg-gray-600 text-white px-3 py-1 rounded-lg hover:bg-gray-700 transition-colors text-sm">
+                            Settings
+                        </button>
+                        <button onclick="refreshCashFlowAnalysis()" class="bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 0 1 1 1v2.101a7.002 7.002 0 0 1 11.601 2.566 1 1 0 1 1-1.885.666A5.002 5.002 0 0 0 5.999 7H9a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm.008 9.057a1 1 0 0 1 1.276.61A5.002 5.002 0 0 0 14.001 13H11a1 1 0 1 1 0-2h5a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0v-2.101a7.002 7.002 0 0 1-11.601-2.566 1 1 0 0 1 .61-1.276z" clip-rule="evenodd"></path>
+                            </svg>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                <!-- Cash Flow Settings Panel (Re-inserted hidden) -->
+                <div id="cashFlowSettings" class="settings-panel hidden mb-6">
+                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                            <select id="cashFlowPeriod" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCashFlowOptions()">
+                                <option value="1W">1 Week</option>
+                                <option value="1M">1 Month</option>
+                                <option value="3M">3 Months</option>
+                                <option value="6M">6 Months</option>
+                                <option value="1Y" selected>1 Year</option>
+                                <option value="YTD">Year to Date</option>
+                                <option value="ITD">Inception to Date</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Flow Type</label>
+                            <select id="cashFlowType" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCashFlowOptions()">
+                                <option value="Net" selected>Net</option>
+                                <option value="Inflows">Inflows</option>
+                                <option value="Outflows">Outflows</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                            <select id="cashFlowFrequency" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCashFlowOptions()">
+                                <option value="Daily" selected>Daily</option>
+                                <option value="Weekly">Weekly</option>
+                                <option value="Monthly">Monthly</option>
+                            </select>
+                        </div>
+                         <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Smoothing</label>
+                            <select id="cashFlowSmoothing" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCashFlowOptions()">
+                                <option value="None" selected>None</option>
+                                <option value="7-day MA">7-day MA</option>
+                                <option value="30-day MA">30-day MA</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Benchmark</label>
+                            <select id="cashFlowBenchmark" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" onchange="updateCashFlowOptions()">
+                                <option value="Cash yield" selected>Cash yield</option>
+                                <option value="Money market">Money market</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div id="cashFlowContent" class="analysis-card p-4"></div>
+            `;
+            contentDiv = document.getElementById('cashFlowContent');
+        } else {
+            console.error('cashFlowAnalysis container also not found, cannot display results');
+            return;
+        }
     }
 
     const totalInflows = data.total_inflows || 0;

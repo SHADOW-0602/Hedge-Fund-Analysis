@@ -3,13 +3,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const analysisButtons = document.querySelectorAll('[data-analysis]');
 
     analysisButtons.forEach(button => {
-        button.addEventListener('click', function () {
+        button.addEventListener('click', function (e) {
+            e.preventDefault();
+            const analysisType = this.getAttribute('data-analysis').trim();
+            console.log(`[Sidebar] Click detected for: ${analysisType}`);
+
+            // Skip option-scraper as it has its own dedicated handler in option-scraper.js
+            if (analysisType === 'option-scraper') {
+                console.log('[Sidebar] Skipping option-scraper (handled separately)');
+                return;
+            }
+
             // Remove active class from all buttons
             analysisButtons.forEach(btn => btn.classList.remove('active'));
             // Add active class to clicked button
             this.classList.add('active');
 
-            const analysisType = this.getAttribute('data-analysis').trim();
             showIndividualAnalysis(analysisType);
         });
     });
@@ -28,9 +37,7 @@ function showIndividualAnalysis(analysisType) {
     }
 
     // Load the specific analysis
-    setTimeout(() => {
-        loadSpecificAnalysis(analysisType);
-    }, 100);
+    loadSpecificAnalysis(analysisType);
 }
 
 function hideAllSections() {
