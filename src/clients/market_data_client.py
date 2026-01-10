@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from utils.config import Config
 from utils.logger import logger
+from utils.ladder_session import get_ladder_session
 import logging
 
 # Setup module logger
@@ -39,6 +40,7 @@ class DataProvider(ABC):
 class YFinanceProvider(DataProvider):
     def __init__(self):
         self.rate_limiter = RateLimiter(60)
+        self.session = get_ladder_session()
     
     def _extract_underlying_symbol(self, options_symbol: str) -> Optional[str]:
         """Extract underlying symbol from options contract"""
@@ -129,7 +131,8 @@ class YFinanceProvider(DataProvider):
                     auto_adjust=False,  # Use raw prices first
                     threads=False,
                     group_by='ticker' if len(valid_symbols) > 1 else None,
-                    timeout=10
+                    timeout=10,
+                    session=self.session
                 )
 
             # Slice for 3y if needed
@@ -200,7 +203,7 @@ class YFinanceProvider(DataProvider):
     def get_options_chain(self, symbol: str) -> Optional[pd.DataFrame]:
         try:
             self.rate_limiter.wait_if_needed()
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(symbol, session=self.session)
             expirations = ticker.options
             if not expirations:
                 return None
@@ -358,6 +361,7 @@ class MarketDataClient:
     def __init__(self):
         self.providers = []
         # Direct API calls only - NO CACHE, NO FALLBACK DATA
+        self.session = get_ladder_session()
         
         # YFinance as primary provider for real market data
         self.providers.append(YFinanceProvider())
@@ -437,7 +441,7 @@ class MarketDataClient:
         # Method 1: Try YFinance Ticker.info for each symbol individually
         for symbol in valid_symbols:
             try:
-                ticker = yf.Ticker(symbol)
+                ticker = yf.Ticker(symbol, session=self.session)
                 info = ticker.info
                 current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose')
                 if current_price and current_price > 0:
@@ -448,7 +452,7 @@ class MarketDataClient:
             
             # Method 2: Try YFinance history for individual symbol
             try:
-                ticker = yf.Ticker(symbol)
+                ticker = yf.Ticker(symbol, session=self.session)
                 hist = ticker.history(period='2d')
                 if not hist.empty and 'Close' in hist.columns:
                     current_price = hist['Close'].iloc[-1]
@@ -463,7 +467,7 @@ class MarketDataClient:
                 import warnings
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    data = yf.download(symbol, period='2d', progress=False, threads=False)
+                    data = yf.download(symbol, period='2d', progress=False, threads=False, session=self.session)
                 
                 if not data.empty:
                     if 'Adj Close' in data.columns:
