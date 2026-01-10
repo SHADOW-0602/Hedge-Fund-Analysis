@@ -106,6 +106,10 @@ function displayDrawdownResults(result, options) {
     }
     console.log('[DEBUG] Container found:', container);
 
+    // Store data globally for pagination
+    window.currentDrawdownPeriods = result.drawdown_periods || [];
+    window.drawdownPage = 1;
+
     const drawdownPeriods = result.drawdown_periods || [];
     const severityBreakdown = result.severity_breakdown || {};
     const recoveryAnalysis = result.recovery_analysis || {};
@@ -211,33 +215,7 @@ function displayDrawdownResults(result, options) {
             <div class="grid grid-cols-1 gap-6">
                 <div class="details-box">
                     <h4 class="section-header">Drawdown Periods (${drawdownPeriods.length} found)</h4>
-                    ${drawdownPeriods.length > 0 ? `
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50 dark:bg-gray-700">
-                                    <tr>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Start Date</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">End Date</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Max DD</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Duration</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Recovery</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y border-gray-200 dark:border-gray-700">
-                                    ${drawdownPeriods.slice(0, 10).map(period => `
-                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.start_date}</td>
-                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.end_date}</td>
-                                            <td class="px-3 py-2 text-sm font-medium ${period.max_drawdown > 10 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-200'}">${period.max_drawdown}%</td>
-                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.duration_days} days</td>
-                                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.recovery_days ? period.recovery_days + ' days' : 'Ongoing'}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                            ${drawdownPeriods.length > 10 ? `<p class="text-sm text-gray-500 mt-2">Showing first 10 of ${drawdownPeriods.length} periods</p>` : ''}
-                        </div>
-                    ` : '<p class="text-gray-500">No significant drawdown periods found</p>'}
+                    <div id="drawdownTableContainer"></div>
                 </div>
 
                 <!-- Recovery Analysis -->
@@ -301,6 +279,87 @@ function displayDrawdownResults(result, options) {
 
         </div>
     `;
+
+    renderDrawdownTable();
+}
+
+// Render paginated table
+window.renderDrawdownTable = function () {
+    const container = document.getElementById('drawdownTableContainer');
+    if (!container) return;
+
+    const periods = window.currentDrawdownPeriods || [];
+    const page = window.drawdownPage || 1;
+    const perPage = 10;
+    const start = (page - 1) * perPage;
+    const end = start + perPage;
+    const paginated = periods.slice(start, end);
+    const totalPages = Math.ceil(periods.length / perPage);
+
+    if (periods.length === 0) {
+        container.innerHTML = '<p class="text-gray-500">No significant drawdown periods found</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 mb-4">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Start Date</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">End Date</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Max DD (%)</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Duration</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">Recovery</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y border-gray-200 dark:border-gray-700">
+                    ${paginated.map(period => `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.start_date}</td>
+                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.end_date}</td>
+                            <td class="px-3 py-2 text-sm font-medium ${period.max_drawdown > 10 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-200'}">${period.max_drawdown}</td>
+                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.duration_days} days</td>
+                            <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">${period.recovery_days ? period.recovery_days + ' days' : 'Ongoing'}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            
+            <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-800 p-2 rounded-lg">
+                <div class="text-sm text-gray-600 dark:text-gray-400">
+                    Showing ${start + 1}-${Math.min(end, periods.length)} of ${periods.length}
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="changeDrawdownPage(-1)" 
+                            class="px-3 py-1 rounded-md text-sm font-medium ${page > 1 ? 'bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 shadow-sm' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'}"
+                            ${page <= 1 ? 'disabled' : ''}>
+                        Previous
+                    </button>
+                    <span class="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 flex items-center">
+                        Page ${page} of ${totalPages}
+                    </span>
+                    <button onclick="changeDrawdownPage(1)" 
+                            class="px-3 py-1 rounded-md text-sm font-medium ${page < totalPages ? 'bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 shadow-sm' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'}"
+                            ${page >= totalPages ? 'disabled' : ''}>
+                        Next
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Handle page changes
+window.changeDrawdownPage = function (delta) {
+    const periods = window.currentDrawdownPeriods || [];
+    const totalPages = Math.ceil(periods.length / 10);
+    const newPage = (window.drawdownPage || 1) + delta;
+
+    if (newPage >= 1 && newPage <= totalPages) {
+        window.drawdownPage = newPage;
+        renderDrawdownTable();
+    }
 }
 
 // Expose globally

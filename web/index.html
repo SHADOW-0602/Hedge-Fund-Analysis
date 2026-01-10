@@ -171,6 +171,9 @@
                                             <button data-analysis="xirr-analysis"
                                                 class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">XIRR
                                                 Analysis</button>
+                                            <button data-analysis="option-scraper"
+                                                class="nav-item text-left text-sm text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">Option
+                                                OHLC Scraper</button>
                                         </div>
                                     </div>
                                 </div>
@@ -286,8 +289,11 @@
 
                     <!-- XIRR Analysis (Top Level) -->
                     <div class="mt-6">
-                        <button data-analysis="xirr-analysis" class="nav-section-toggle">
+                        <button data-analysis="xirr-analysis" class="nav-section-toggle mb-2">
                             <span>XIRR Analysis</span>
+                        </button>
+                        <button data-analysis="option-scraper" class="nav-section-toggle">
+                            <span>Option OHLC Scraper</span>
                         </button>
                     </div>
 
@@ -446,13 +452,93 @@
                     <div id="dataPreviewContent"></div>
                 </div>
 
-                <!-- Dynamic Analysis Content -->
-                <!-- Dynamic Analysis Content -->
                 <div id="analysisContent" class="analysis-card p-6 mb-8 hidden">
                     <div id="analysisTitle" class="text-xl font-bold text-primary mb-4">Select an analysis from the
                         sidebar</div>
                     <div id="analysisBody" class="text-secondary">Choose an analysis type from the left sidebar to view
                         detailed results.</div>
+                </div>
+
+                <!-- Option OHLC Scraper Section -->
+                <div id="optionScraperSection"
+                    class="analysis-card bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8 hidden">
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-6">Option OHLC Scraper</h3>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <!-- Symbols Input -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Underlying
+                                Symbols</label>
+                            <textarea id="scraperSymbols" rows="5"
+                                class="w-full p-3 border rounded-lg text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500"
+                                placeholder="AAPL, MSFT, TSLA..."></textarea>
+                            <p class="text-xs text-gray-500 mt-1">Comma-separated list of tickers</p>
+                        </div>
+
+                        <!-- Expirations Input -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Expiration
+                                Dates</label>
+                            <textarea id="scraperExpirations" rows="5"
+                                class="w-full p-3 border rounded-lg text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500"
+                                placeholder="1/17/2025&#10;2/21/2025&#10;3/21/2025..."></textarea>
+                            <p class="text-xs text-gray-500 mt-1">One per line or comma-separated (MM/DD/YYYY)</p>
+                        </div>
+
+                        <!-- Strikes Input -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Strike
+                                Prices</label>
+                            <textarea id="scraperStrikes" rows="5"
+                                class="w-full p-3 border rounded-lg text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500"
+                                placeholder="100, 105, 110, 115..."></textarea>
+                            <p class="text-xs text-gray-500 mt-1">Comma-separated numbers</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end space-x-4">
+                        <div id="scraperStatus" class="text-sm text-gray-600 dark:text-gray-400 hidden">
+                            <span class="animate-pulse">Processing... this may take a while.</span>
+                        </div>
+                        <button onclick="runOptionScraper()"
+                            class="bg-indigo-600 text-white px-6 py-2.5 rounded-lg hover:bg-indigo-700 transition-colors font-medium flex items-center shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z">
+                                </path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Run Scraper
+                        </button>
+                    </div>
+
+                    <!-- Results Preview -->
+                    <div id="scraperResults" class="mt-8 hidden border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Results</h4>
+                        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6 text-center">
+                            <div class="mb-4">
+                                <svg class="w-12 h-12 text-green-500 mx-auto mb-2" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <h5 class="text-gray-900 dark:text-white font-medium text-lg">Scraping Completed!</h5>
+                                <p id="scraperResultText" class="text-gray-600 dark:text-gray-400 mt-1">Generated 1,240
+                                    records.
+                                </p>
+                            </div>
+
+                            <a id="scraperDownloadLink" href="#"
+                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 shadow-sm transition-colors">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                                Download CSV
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Loading Section -->
@@ -614,8 +700,10 @@
         <!-- XIRR Analysis (Unified) -->
         <div id="xirrAnalysis"></div>
 
+
+
         <!-- Trade Performance - Permanent Section -->
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8 block">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-xl font-bold text-gray-900">Trade Performance</h3>
                 <button onclick="toggleTradeSettings()" class="text-gray-500 hover:text-gray-700">
@@ -801,7 +889,8 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Flow Type</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Flow
+                            Type</label>
                         <select id="cashFlowType"
                             class="w-full p-2 border rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600">
                             <option value="Net" selected>Net</option>
@@ -1143,6 +1232,7 @@
     <script src="js/core/sidebar-handler.js"></script>
     <script src="js/modules/sector-charts.js"></script>
     <link rel="stylesheet" href="css/analytics-simple.css">
+    <script src="js/option-scraper.js?v=5"></script>
 
     <link rel="stylesheet" href="css/settings-panel.css">
 

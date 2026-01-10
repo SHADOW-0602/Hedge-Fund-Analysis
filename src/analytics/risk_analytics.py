@@ -17,6 +17,10 @@ class RiskAnalyzer:
     def analyze_portfolio_risk(self, symbols: List[str], weights: Dict[str, float], period: str = "1y") -> Dict:
         logger.info(f"Starting risk analysis for {len(symbols)} symbols")
         price_data = self.data_client.get_price_data(symbols + [self.benchmark_symbol], period)
+        # Filter columns with insufficient data before calculating returns
+        valid_cols = [col for col in price_data.columns if price_data[col].count() >= 2]
+        price_data = price_data[valid_cols]
+        
         returns = price_data.pct_change().dropna()
         logger.debug(f"Retrieved price data for {len(price_data.columns)} symbols")
         
@@ -194,6 +198,10 @@ class RiskAnalyzer:
         else:
             # Direct fetch for small datasets
             price_data = self.data_client.get_price_data(all_symbols, period)
+        
+        # Filter columns with insufficient data before calculating returns
+        valid_cols = [col for col in price_data.columns if price_data[col].count() >= 2]
+        price_data = price_data[valid_cols]
         
         returns = price_data.pct_change().dropna()
         

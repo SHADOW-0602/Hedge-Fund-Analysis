@@ -10,11 +10,7 @@ class NavigationManager {
             'analysisContent',
             'dataPreview',
             'loadingSection',
-            'xirrAnalysis',
-            'pnlAttribution',
-            'turnoverAnalysis',
-            'cashFlowAnalysis',
-            'tradePerformance'
+            'optionScraperSection'
         ];
         this.init();
     }
@@ -62,6 +58,7 @@ class NavigationManager {
         const defaultSection = document.getElementById('defaultUploadSection');
         if (defaultSection) {
             defaultSection.classList.remove('hidden');
+            defaultSection.style.display = '';
         }
 
         // Clear any loading spinners

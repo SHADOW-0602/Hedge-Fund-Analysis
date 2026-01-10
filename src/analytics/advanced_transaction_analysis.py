@@ -1020,7 +1020,7 @@ class AdvancedTransactionAnalyzer:
             while current_txn_idx < len(sorted_txns) and sorted_txns[current_txn_idx].date.replace(tzinfo=None).date() <= date.date():
                 txn = sorted_txns[current_txn_idx]
                 
-                if txn.transaction_type in ['BUY', 'Buy']:
+                if txn.transaction_type.upper() in ['BUY']:
                     old_qty = positions[txn.symbol]['quantity']
                     old_cost = positions[txn.symbol]['avg_cost']
                     new_qty = abs(txn.quantity)
@@ -1034,7 +1034,7 @@ class AdvancedTransactionAnalyzer:
                     # logic: prices usually usually override this, but good for gaps
                     last_known_prices[txn.symbol] = txn.price 
 
-                elif txn.transaction_type in ['SELL', 'Sell']:
+                elif txn.transaction_type.upper() in ['SELL']:
                     sell_qty = min(abs(txn.quantity), positions[txn.symbol]['quantity'])
                     if sell_qty > 0:
                         # Calculate Realized P&L
@@ -1151,10 +1151,10 @@ class AdvancedTransactionAnalyzer:
         max_invested = 0
         curr_invested = 0
         for txn in sorted_txns:
-             if txn.transaction_type in ['BUY', 'Buy']:
+             if txn.transaction_type.upper() in ['BUY']:
                  curr_invested += (txn.quantity * txn.price)
                  max_invested = max(max_invested, curr_invested)
-             elif txn.transaction_type in ['SELL', 'Sell']:
+             elif txn.transaction_type.upper() in ['SELL']:
                  # Reduce invested? 
                  # Simplest approximation: sum of all buys? No.
                  # Just use max_invested as a floor for the account size.
@@ -1175,7 +1175,7 @@ class AdvancedTransactionAnalyzer:
                     drawdown_periods.append({
                         'start_date': drawdown_start.strftime('%Y-%m-%d'),
                         'end_date': date.strftime('%Y-%m-%d'),
-                        'max_drawdown': round(current_period_max_dd_pct * 100, 2),
+                        'max_drawdown': round(current_period_max_dd_pct * 100, 4),
                         'duration_days': recovery_days,
                         'recovery_days': recovery_days
                     })
@@ -1191,14 +1191,16 @@ class AdvancedTransactionAnalyzer:
                     in_drawdown = True
                 
                 dd_pct = (peak_equity - equity) / peak_equity
-                current_period_max_dd_pct = max(current_period_max_dd_pct, dd_pct)
-        
+                if dd_pct > current_period_max_dd_pct:
+                     current_period_max_dd_pct = dd_pct
+                     # print(f"[DEBUG_DD] New MaxDD for period: {dd_pct*100:.4f}% on {date}")
+
         # Handle ongoing
         if in_drawdown and drawdown_start:
             drawdown_periods.append({
                 'start_date': drawdown_start.strftime('%Y-%m-%d'),
                 'end_date': sorted_dates[-1].strftime('%Y-%m-%d'),
-                'max_drawdown': round(current_period_max_dd_pct * 100, 2),
+                'max_drawdown': round(current_period_max_dd_pct * 100, 4),
                 'duration_days': (sorted_dates[-1] - drawdown_start).days,
                 'recovery_days': None
             })
@@ -1295,7 +1297,7 @@ class AdvancedTransactionAnalyzer:
                 'max_recovery_days': int(max_recovery)
             },
             'summary': {
-                'max_drawdown': round(max_drawdown, 2),
+                'max_drawdown': round(max_drawdown, 4),
                 'total_periods': len(drawdown_periods),
                 'avg_duration_days': round(avg_duration, 1),
                 **benchmark_metrics

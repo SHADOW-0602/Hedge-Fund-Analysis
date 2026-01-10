@@ -270,6 +270,15 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+# Register Option Scraper Routes
+try:
+    from api.option_scraper_routes import option_scraper_bp
+    app.register_blueprint(option_scraper_bp, url_prefix='/api')
+    logger.info("Option Scraper routes registered successfully")
+except Exception as e:
+    logger.error(f"Failed to register option scraper routes: {e}")
+    traceback.print_exc()
+
 # Analytics routes are already registered via portfolio_routes.py
 
 # Note: Tax, analytics, options, technical analysis, transaction analysis, 

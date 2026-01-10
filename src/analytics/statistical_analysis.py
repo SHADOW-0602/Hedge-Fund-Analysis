@@ -154,6 +154,8 @@ class StatisticalAnalyzer:
                     lookback = config.get('lookback', '3mo')
                     price_data = self.data_client.get_price_data(symbols, lookback, interval="1h")
 
+
+
                 # Validation
                 if price_data is None or price_data.empty:
                     # Provide empty valid structure if data fail
