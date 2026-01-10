@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from utils.ladder_session import get_ladder_session
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ class OptionOHLCScraper:
             raise ValueError("POLYGON_API_KEY is required.")
             
         self.base_url = "https://api.polygon.io"
-        self.session = requests.Session()
+        self.session = get_ladder_session()
         
         # Configuration
         self.ENABLE_STRIKE_FILTER = False  # Set to True to enable dynamic strike filtering
@@ -185,7 +186,7 @@ class OptionOHLCScraper:
         """Yahoo Finance implementation using yfinance"""
         try:
             import yfinance as yf
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(symbol, session=self.session)
             # yfinance history returns a DataFrame
             df = ticker.history(start=start_date, end=end_date, interval="1d")
             

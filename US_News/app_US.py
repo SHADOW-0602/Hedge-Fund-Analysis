@@ -16,6 +16,18 @@ from supabase import create_client, Client
 import google.generativeai as genai
 import yfinance as yf
 import logging
+import sys
+# Ensure we can import from src
+root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if root_path not in sys.path:
+    sys.path.append(root_path)
+
+try:
+    from src.utils.ladder_session import get_ladder_session
+except ImportError:
+    # Fallback if src is not found (e.g. structure change)
+    print("⚠ Could not import LadderSession from src.utils, using default requests.")
+    def get_ladder_session(): return requests.Session()
 
 # Configure Debug Logger for Quant Analysis
 quant_logger = logging.getLogger('quant_debug')
@@ -131,8 +143,9 @@ def search_tickers():
         
         # Strategy 1: Autoc
         try:
+            session = get_yf_session()
             url_autoc = f"https://autoc.finance.yahoo.com/autoc?query={query}&region=US&lang=en"
-            resp = requests.get(url_autoc, headers=headers, timeout=2)
+            resp = session.get(url_autoc, headers=headers, timeout=2)
             if resp.status_code == 200:
                 results = resp.json().get('ResultSet', {}).get('Result', [])
                 for item in results:
@@ -146,8 +159,9 @@ def search_tickers():
         # Strategy 2: Query2 (if Autoc yielded few results)
         if len(api_matches) < 3:
             try:
+                session = get_yf_session()
                 url_q2 = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}&quotesCount=20&enableFuzzyQuery=true"
-                resp = requests.get(url_q2, headers=headers, timeout=2)
+                resp = session.get(url_q2, headers=headers, timeout=2)
                 if resp.status_code == 200:
                     quotes = resp.json().get('quotes', [])
                     for q in quotes:
@@ -367,25 +381,14 @@ else:
     ]
 
 def get_yf_session():
-    """Create a requests session with a random User-Agent and Proxy to bypass blocks"""
-    session = requests.Session()
-    session.headers.update({
-        'User-Agent': random.choice(USER_AGENTS),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Cache-Control': 'max-age=0',
-        'Referer': 'https://finance.yahoo.com/',
-        'Origin': 'https://finance.yahoo.com'
-    })
-    
-    # Proxy Selection
+    """Create a requests session with Ladder logic (IP spoofing) + randomized User-Agent"""
+    try:
+        session = get_ladder_session()
+    except Exception as e:
+        print(f"Error creating LadderSession: {e}")
+        session = requests.Session()
+
+    # Proxy Selection (preserving existing proxy logic)
     if PROXIES:
         proxy = random.choice(PROXIES)
         if proxy:
@@ -541,8 +544,8 @@ def fetch_quote_data(ticker):
     print(f"DEBUG: Fetching quote for {ticker} via YFinance...")
     try:
         # Use custom session to rotate User-Agent
-        # session = get_yf_session() # Removed to compatible with latest yf / curl_cffi
-        stock = yf.Ticker(ticker)
+        session = get_yf_session() 
+        stock = yf.Ticker(ticker, session=session)
         
         # fast_info often misses pre-market. Use history for latest tick.
         # caching: yfinance might cache history calls, but creating a new Ticker usually avoids instance cache.
@@ -800,6 +803,8 @@ def fetch_av_data(ticker, interval):
 def fetch_news_for_ticker(ticker):
     """Fetch news from multiple sources for a given ticker"""
     all_news = []
+    
+    session = get_yf_session()
     
     # Primary 1: Try NewsAPI first
     # Primary 1: Try NewsAPI first
@@ -2308,6 +2313,10 @@ def generate_ticker_fundamentals(ticker):
 @us_news_bp.route('/api/quote/<ticker>', methods=['GET'])
 def get_ticker_quote(ticker):
     """Fetch real-time quote (price/change) for a ticker"""
+    # Clean ticker if it comes from 'NEWS_' prefix context
+    if ticker.startswith("NEWS_"):
+        ticker = ticker.replace("NEWS_", "")
+        
     data = fetch_quote_data(ticker)
     if data:
         return jsonify(data)
