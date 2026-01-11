@@ -191,10 +191,18 @@ class StatisticalAnalyzer:
                 horizon_stats = self._compute_horizon_stats(returns, config, horizon_term)
                 
                 # 4. Final Output Structure
+                start_date = returns.index.min().strftime('%Y-%m-%d') if not returns.empty else None
+                end_date = returns.index.max().strftime('%Y-%m-%d') if not returns.empty else None
+                
                 results[f"{horizon_term}_term"] = {
                     "frequency": "weekly" if config['freq'] == 'W' else "daily" if config['freq'] == 'D' else "hourly",
                     "lookback": config['lookback'],
                     "rolling_window": config['rolling_window'],
+                    "metadata": {
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "cnt_days": len(returns)
+                    },
                     **horizon_stats
                 }
                 
