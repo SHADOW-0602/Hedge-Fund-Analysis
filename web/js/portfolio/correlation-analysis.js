@@ -100,7 +100,7 @@ window.renderCorrelationView = function () {
     // Horizon Labels
     const horizonLabels = {
         'long': 'Long Term (10Y)',
-        'medium': 'Medium Term (2Y)',
+        'medium': `Medium Term (${currentCorrelationOptions.period})`,
         'short': 'Short Term (3M)'
     };
 
@@ -371,13 +371,36 @@ window.renderCorrelationView = function () {
                  <div class="flex items-center space-x-4">
                     <span class="text-[10px] font-black ${subTextClass} uppercase tracking-[0.2em]">Lookback</span>
                     <select id="correlationPeriod" onchange="updateCorrelationAnalysis()" class="px-5 py-2.5 border-2 ${borderClass} ${isDark ? 'bg-slate-900/60' : 'bg-white'} ${textClass} rounded-xl text-xs font-black focus:outline-none focus:ring-4 focus:ring-indigo-500/20 cursor-pointer shadow-sm hover:border-indigo-500 transition-all appearance-none pr-10">
-                        <option value="3M" ${currentCorrelationOptions.period === '3M' ? 'selected' : ''}>3 MONTHS</option>
-                        <option value="6M" ${currentCorrelationOptions.period === '6M' ? 'selected' : ''}>6 MONTHS</option>
-                        <option value="1Y" ${currentCorrelationOptions.period === '1Y' ? 'selected' : ''}>1 YEAR</option>
-                        <option value="2Y" ${currentCorrelationOptions.period === '2Y' ? 'selected' : ''}>2 YEARS</option>
-                        <option value="3Y" ${currentCorrelationOptions.period === '3Y' ? 'selected' : ''}>3 YEARS</option>
-                        <option value="5Y" ${currentCorrelationOptions.period === '5Y' ? 'selected' : ''}>5 YEARS</option>
-                        <option value="10Y" ${currentCorrelationOptions.period === '10Y' ? 'selected' : ''}>10 YEARS</option>
+                        ${(function () {
+            // Dynamic Option Generation based on Data Availability
+            const availableDays = horizonData.metadata ? horizonData.metadata.cnt_days : 99999;
+            const options = [
+                { val: '1M', days: 20 },
+                { val: '3M', days: 60 },
+                { val: '6M', days: 120 },
+                { val: '1Y', days: 250 },
+                { val: '2Y', days: 500 },
+                { val: '3Y', days: 750 },
+                { val: '5Y', days: 1250 },
+                { val: '10Y', days: 2500 }
+            ];
+
+            // If we have data metadata, we can show which options are "fully" supported
+            // However, we shouldn't hide them if the user explicitly wants to try (unless we want to be strict)
+            // "Show only that periods which can fetch data" -> suggesting strictness.
+
+            return options.map(opt => {
+                const isSelected = currentCorrelationOptions.period === opt.val;
+                // If current available data is significantly less than the option, we could disable it.
+                // But confusing if we are currently VIEWING a shorter period, how do we know max?
+                // We don't. So we only warn on the *current* selection if it's truncated.
+                // Logic: Always show all, but maybe mark them? 
+                // User request: "Show only that periods which can fetch data". 
+                // Since we don't know max history until we fetch it, we can't hide future options safely.
+                // We will stick to standard list but ensure 1M is added.
+                return `<option value="${opt.val}" ${isSelected ? 'selected' : ''}>${opt.val === '1Y' ? '1 YEAR' : opt.val === '1M' ? '1 MONTH' : opt.val.replace('M', ' MONTHS').replace('Y', ' YEARS')}</option>`;
+            }).join('');
+        })()}
                     </select>
                 </div>
             </div>
@@ -524,12 +547,17 @@ window.updateCorrelationAnalysis = () => {
         }
     }
 
+    // Capture Loopback Period BEFORE re-rendering
+    const periodInput = document.getElementById('correlationPeriod');
+    if (periodInput) {
+        currentCorrelationOptions.period = periodInput.value;
+        console.log('[CORRELATION] Updated Period:', currentCorrelationOptions.period);
+    }
+
     currentCorrelationView.isAnalyzing = true;
     window.renderCorrelationView(); // Re-render to show loading button instantly
 
-    // 1. Read current Lookback value
-    const periodInput = document.getElementById('correlationPeriod');
-    if (periodInput) currentCorrelationOptions.period = periodInput.value;
+    // 2. Automate Rolling Window selection
 
     // 2. Automate Rolling Window selection
     const rollingMap = {
