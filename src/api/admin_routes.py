@@ -8,6 +8,36 @@ user_manager = UserManager()
 def register_admin_routes(app, redis_client):
     @app.route('/api/admin/clear-cache', methods=['POST'])
     def clear_redis_cache():
+        """
+        Clear Redis Cache
+        ---
+        tags:
+          - Admin
+        summary: Clear all Redis cache data
+        description: Flushes all cached data from Redis (admin only)
+        parameters:
+          - name: X-User-Role
+            in: header
+            type: string
+            required: true
+            description: User role (must be 'admin')
+        responses:
+          200:
+            description: Cache cleared
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+          403:
+            description: Admin access required
+          503:
+            description: Redis not available
+        security:
+          - SessionAuth: []
+        """
         try:
             user_role = request.headers.get('X-User-Role', '')
             if user_role.lower() != 'admin':
@@ -67,6 +97,36 @@ def register_admin_routes(app, redis_client):
 
     @app.route('/api/admin/users', methods=['GET'])
     def get_all_users():
+        """
+        Get All Users
+        ---
+        tags:
+          - Admin
+        summary: Retrieve all registered users
+        description: Lists all users with details (admin only)
+        parameters:
+          - name: X-User-Role
+            in: header
+            type: string
+            required: true
+            description: User role (must be 'admin')
+        responses:
+          200:
+            description: Users retrieved
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                users:
+                  type: array
+                  items:
+                    type: object
+          403:
+            description: Admin access required
+        security:
+          - SessionAuth: []
+        """
         try:
             user_role = request.headers.get('X-User-Role', '')
             if user_role.lower() != 'admin':
@@ -93,6 +153,30 @@ def register_admin_routes(app, redis_client):
 
     @app.route('/api/roles', methods=['GET'])
     def get_available_roles():
+        """
+        Get Available Roles
+        ---
+        tags:
+          - Admin
+        summary: Get list of user roles
+        description: Retrieves all available user roles with counts
+        responses:
+          200:
+            description: Roles retrieved
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                roles:
+                  type: array
+                  items:
+                    type: object
+                role_counts:
+                  type: object
+                total_roles:
+                  type: integer
+        """
         try:
             roles = [{
                 'value': role.value,

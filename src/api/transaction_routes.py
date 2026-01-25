@@ -205,6 +205,40 @@ def register_transaction_routes(app):
         return jsonify({'success': True, 'message': 'Transaction routes working'})
     @app.route('/api/upload-transactions', methods=['POST'])
     def upload_transactions():
+        """
+        Upload Transactions File
+        ---
+        tags:
+          - Transactions
+        summary: Upload transaction history from file
+        description: Accepts CSV, Excel, or JSON file with transaction data
+        consumes:
+          - multipart/form-data
+        parameters:
+          - name: file
+            in: formData
+            type: file
+            required: true
+            description: Transactions file (CSV, Excel, or JSON with Plaid support)
+        responses:
+          200:
+            description: Transactions uploaded and normalized
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                transactions:
+                  type: array
+                  items:
+                    type: object
+                filename:
+                  type: string
+          400:
+            description: No file uploaded
+          500:
+            description: Upload failed
+        """
         try:
             print(f"2025-10-26 16:55:49,000 - hedge_fund_app - INFO - Received transaction file upload request")
             if 'file' not in request.files:
@@ -317,6 +351,51 @@ def register_transaction_routes(app):
 
     @app.route('/api/analyze-transactions', methods=['POST'])
     def analyze_transactions():
+        """
+        Analyze Transactions
+        ---
+        tags:
+          - Transactions
+        summary: Perform advanced transaction analysis
+        description: Analyzes transaction history with performance metrics, attribution, and insights
+        consumes:
+          - application/json
+        parameters:
+          - name: body
+            in: body
+            required: false
+            schema:
+              type: object
+              properties:
+                transactions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      symbol:
+                        type: string
+                      date:
+                        type: string
+                      quantity:
+                        type: number
+                      price:
+                        type: number
+                      transaction_type:
+                        type: string
+        responses:
+          200:
+            description: Analysis complete
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                analysis:
+                  type: object
+                  description: Transaction analysis results with metrics
+          500:
+            description: Analysis failed
+        """
         try:
             from analytics.advanced_transaction_analysis import AdvancedTransactionAnalyzer
             from core.transactions import Transaction

@@ -11,6 +11,53 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
     
     @app.route('/api/upload-portfolio', methods=['POST'])
     def upload_portfolio():
+        """
+        Upload Portfolio File
+        ---
+        tags:
+          - Portfolio
+        summary: Upload portfolio from CSV, Excel, or JSON file
+        description: Accepts portfolio data file and normalizes it for analysis
+        consumes:
+          - multipart/form-data
+        parameters:
+          - name: file
+            in: formData
+            type: file
+            required: true
+            description: Portfolio file (CSV, Excel, or JSON)
+          - name: user_id
+            in: formData
+            type: string
+            required: false
+            default: "default"
+            description: User ID for file association
+        responses:
+          200:
+            description: Portfolio uploaded successfully
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                portfolio:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      symbol:
+                        type: string
+                      quantity:
+                        type: number
+                      avg_cost:
+                        type: number
+                filename:
+                  type: string
+          400:
+            description: No file uploaded or unsupported format
+          500:
+            description: Upload failed
+        """
         try:
             print(f"hedge_fund_app - INFO - Received portfolio file upload request")
             if 'file' not in request.files:
@@ -98,6 +145,51 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
 
     @app.route('/api/save-portfolio', methods=['POST'])
     def save_portfolio():
+        """
+        Save Portfolio
+        ---
+        tags:
+          - Portfolio
+        summary: Save portfolio to database
+        description: Persists portfolio data for a user
+        consumes:
+          - application/json
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              required:
+                - user_id
+                - portfolio_name
+                - portfolio_data
+              properties:
+                user_id:
+                  type: string
+                  example: "user123"
+                portfolio_name:
+                  type: string
+                  example: "My Tech Portfolio"
+                portfolio_data:
+                  type: array
+                  items:
+                    type: object
+        responses:
+          200:
+            description: Portfolio saved
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                portfolio_id:
+                  type: string
+          400:
+            description: Missing required fields
+          500:
+            description: Database unavailable or save failed
+        """
         try:
             data = request.get_json()
             user_id = data.get('user_id')
@@ -127,6 +219,41 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
 
     @app.route('/api/load-portfolios', methods=['GET'])
     def load_portfolios():
+        """
+        Load User Portfolios
+        ---
+        tags:
+          - Portfolio
+        summary: Retrieve all portfolios for a user
+        description: Gets list of saved portfolios with metadata
+        parameters:
+          - name: user_id
+            in: query
+            type: string
+            required: true
+            description: User ID to filter portfolios
+        responses:
+          200:
+            description: Portfolios retrieved
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                portfolios:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      portfolio_name:
+                        type: string
+                      created_at:
+                        type: string
+                      has_analytics:
+                        type: boolean
+        """
         print("[DEBUG] load_portfolios route called")
         try:
             user_id = request.args.get('user_id')
@@ -156,6 +283,42 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
 
     @app.route('/api/delete-portfolio', methods=['DELETE'])
     def delete_portfolio():
+        """
+        Delete Portfolio
+        ---
+        tags:
+          - Portfolio
+        summary: Delete a saved portfolio
+        description: Removes portfolio from database (requires user ownership)
+        consumes:
+          - application/json
+        parameters:
+          - name: X-User-ID
+            in: header
+            type: string
+            required: true
+            description: User ID for authorization
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              required:
+                - portfolio_id
+              properties:
+                portfolio_id:
+                  type: string
+                  example: "portfolio123"
+        responses:
+          200:
+            description: Portfolio deleted
+          400:
+            description: Missing portfolio ID or user ID
+          404:
+            description: Portfolio not found or access denied
+          500:
+            description: Database unavailable
+        """
         try:
             data = request.get_json()
             portfolio_id = data.get('portfolio_id')
@@ -217,6 +380,25 @@ def register_portfolio_management_routes(app, data_client, smart_cache=None):
 
     @app.route('/api/download-sample-portfolio', methods=['GET'])
     def download_sample_portfolio():
+        """
+        Download Sample Portfolio
+        ---
+        tags:
+          - Portfolio
+        summary: Download sample portfolio CSV
+        description: Generates and downloads a sample portfolio file template
+        produces:
+          - text/csv
+        responses:
+          200:
+            description: Sample CSV file
+            headers:
+              Content-Disposition:
+                type: string
+                description: attachment; filename=sample_portfolio.csv
+          500:
+            description: Failed to generate sample
+        """
         try:
             # Create a sample portfolio dataframe
             data = {

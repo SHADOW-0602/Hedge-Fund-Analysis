@@ -41,6 +41,54 @@ def register_analytics_routes(app, data_client, smart_cache=None):
     
     @app.route('/api/analyze-risk', methods=['POST'])
     def analyze_risk():
+        """
+        Portfolio Risk Analysis
+        ---
+        tags:
+          - Analytics
+        summary: Perform comprehensive risk analysis on portfolio
+        description: Calculates VaR, CVaR, Sharpe ratio, beta, volatility, and other risk metrics
+        consumes:
+          - application/json
+        parameters:
+          - name: body
+            in: body
+            required: false
+            schema:
+              type: object
+              properties:
+                portfolio:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      symbol:
+                        type: string
+                      quantity:
+                        type: number
+                      avg_cost:
+                        type: number
+                options:
+                  type: object
+                  description: Analysis options and parameters
+        responses:
+          200:
+            description: Risk analysis completed
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                risk_metrics:
+                  type: object
+                  description: Comprehensive risk analysis results
+          400:
+            description: Invalid portfolio data
+          500:
+            description: Analysis failed
+        security:
+          - SessionAuth: []
+        """
         try:
             from analytics.risk_analytics import RiskAnalyzer
             
@@ -126,6 +174,51 @@ def register_analytics_routes(app, data_client, smart_cache=None):
 
     @app.route('/api/monte-carlo', methods=['POST'])
     def monte_carlo():
+        """
+        Monte Carlo Simulation
+        ---
+        tags:
+          - Analytics
+        summary: Run Monte Carlo simulation for portfolio
+        description: Simulates future portfolio performance using Monte Carlo methods
+        consumes:
+          - application/json
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              properties:
+                portfolio:
+                  type: array
+                  items:
+                    type: object
+                simulations:
+                  type: integer
+                  default: 10000
+                  description: Number of simulation runs
+                days:
+                  type: integer
+                  default: 252
+                  description: Forecast period in days
+        responses:
+          200:
+            description: Simulation completed
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                simulation_results:
+                  type: object
+          400:
+            description: Invalid input
+          500:
+            description: Simulation failed
+        security:
+          - SessionAuth: []
+        """
         try:
             from monte_carlo_v3 import MonteCarloEngine
             

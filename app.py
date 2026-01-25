@@ -77,12 +77,178 @@ try:
     
     # Register News app routes (avoiding duplicates with main_app.py)
     app.add_url_rule('/api/stock-metrics/<ticker>', 'news_stock_metrics', _ensure_response(get_stock_metrics), methods=['GET'])
+    # Swagger documentation for stock-metrics endpoint
+    get_stock_metrics.__doc__ = """
+    Get Stock Metrics
+    ---
+    tags:
+      - Market Data
+    summary: Get comprehensive stock metrics
+    description: Retrieves real-time metrics including price, volume, market cap, and technical indicators
+    parameters:
+      - name: ticker
+        in: path
+        type: string
+        required: true
+        description: Stock ticker symbol
+    responses:
+      200:
+        description: Stock metrics retrieved
+        schema:
+          type: object
+      500:
+        description: Failed to retrieve metrics
+    """
+    
     app.add_url_rule('/api/price/<ticker>', 'news_price_data', _ensure_response(get_price_data), methods=['GET'])
+    get_price_data.__doc__ = """
+    Get Stock Price
+    ---
+    tags:
+      - Market Data
+    summary: Get current stock price
+    description: Retrieves real-time stock price information
+    parameters:
+      - name: ticker
+        in: path
+        type: string
+        required: true
+        description: Stock ticker symbol
+    responses:
+      200:
+        description: Price data retrieved
+      500:
+        description: Failed to retrieve price
+    """
+    
     app.add_url_rule('/api/chart-data/<ticker>', 'news_chart_data', get_chart_data_detailed, methods=['GET'])
+    get_chart_data_detailed.__doc__ = """
+    Get Chart Data
+    ---
+    tags:
+      - Market Data
+    summary: Get detailed chart data for stock
+    description: Retrieves historical price data with technical indicators for charting
+    parameters:
+      - name: ticker
+        in: path
+        type: string
+        required: true
+        description: Stock ticker symbol
+      - name: period
+        in: query
+        type: string
+        required: false
+        default: "1y"
+        description: Time period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)
+    responses:
+      200:
+        description: Chart data retrieved
+        schema:
+          type: object
+      500:
+        description: Failed to retrieve chart data
+    """
+    
     app.add_url_rule('/api/news/<ticker>', 'news_articles', get_news_articles, methods=['GET'])
+    get_news_articles.__doc__ = """
+    Get News Articles
+    ---
+    tags:
+      - News
+    summary: Get news articles for stock
+    description: Retrieves latest news articles and analysis for a specific stock
+    parameters:
+      - name: ticker
+        in: path
+        type: string
+        required: true
+        description: Stock ticker symbol
+    responses:
+      200:
+        description: News articles retrieved
+        schema:
+          type: array
+          items:
+            type: object
+      500:
+        description: Failed to retrieve news
+    """
+    
     app.add_url_rule('/api/financials/<ticker>', 'news_financials', get_financial_statements, methods=['GET'])
+    get_financial_statements.__doc__ = """
+    Get Financial Statements
+    ---
+    tags:
+      - Market Data
+    summary: Get company financial statements
+    description: Retrieves income statement, balance sheet, and cash flow data
+    parameters:
+      - name: ticker
+        in: path
+        type: string
+        required: true
+        description: Stock ticker symbol
+    responses:
+      200:
+        description: Financial statements retrieved
+        schema:
+          type: object
+      500:
+        description: Failed to retrieve financials
+    """
+    
     app.add_url_rule('/api/trade-ideas/<ticker>', 'news_trade_ideas', get_trade_ideas, methods=['GET'])
+    get_trade_ideas.__doc__ = """
+    Get Trade Ideas
+    ---
+    tags:
+      - News
+    summary: Get AI-generated trade ideas
+    description: Retrieves AI analysis with trading suggestions and market insights
+    parameters:
+      - name: ticker
+        in: path
+        type: string
+        required: true
+        description: Stock ticker symbol
+    responses:
+      200:
+        description: Trade ideas retrieved
+        schema:
+          type: object
+      500:
+        description: Failed to generate trade ideas
+    """
+    
     app.add_url_rule('/api/summary/<ticker>', 'news_summary', get_summary, methods=['GET'])
+    get_summary.__doc__ = """
+    Get Stock Summary
+    ---
+    tags:
+      - News
+    summary: Get comprehensive stock analysis summary
+    description: Retrieves AI-generated comprehensive summary of stock analysis
+    parameters:
+      - name: ticker
+        in: path
+        type: string
+        required: true
+        description: Stock ticker symbol
+    responses:
+      200:
+        description: Summary retrieved
+        schema:
+          type: object
+          properties:
+            summary:
+              type: string
+            date:
+              type: string
+      500:
+        description: Failed to retrieve summary
+    """
+    
     app.add_url_rule('/stock/<ticker>', 'news_stock_analysis', stock_analysis, methods=['GET'])
     
     # Additional News routes (non-duplicates)
@@ -104,8 +270,72 @@ try:
     
     # Add back routes that were removed from main_app.py
     app.add_url_rule('/api/tickers', 'news_tickers_get', get_tickers, methods=['GET'])
+    get_tickers.__doc__ = """
+    Get Tracked Tickers
+    ---
+    tags:
+      - Market Data
+    summary: Get list of tracked tickers
+    description: Retrieves all tickers being tracked for analysis
+    responses:
+      200:
+        description: Tickers retrieved
+        schema:
+          type: array
+          items:
+            type: string
+    """
+    
     app.add_url_rule('/api/tickers', 'news_tickers_post', add_ticker, methods=['POST'])
+    add_ticker.__doc__ = """
+    Add Ticker
+    ---
+    tags:
+      - Market Data
+    summary: Add ticker to tracking list
+    description: Adds a new ticker symbol for monitoring and analysis
+    consumes:
+      - application/json
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - ticker
+          properties:
+            ticker:
+              type: string
+              example: "AAPL"
+    responses:
+      200:
+        description: Ticker added
+      400:
+        description: Invalid ticker
+    """
+    
     app.add_url_rule('/api/tickers/<ticker>', 'news_tickers_delete', remove_ticker, methods=['DELETE'])
+    remove_ticker.__doc__ = """
+    Remove Ticker
+    ---
+    tags:
+      - Market Data
+    summary: Remove ticker from tracking list
+    description: Removes a ticker from monitoring
+    parameters:
+      - name: ticker
+        in: path
+        type: string
+        required: true
+        description: Stock ticker to remove
+    responses:
+      200:
+        description: Ticker removed
+      404:
+        description: Ticker not found
+    """
+    
     app.add_url_rule('/api/logo/<ticker>', 'news_logo', get_company_logo, methods=['GET'])
     app.add_url_rule('/api/subscribe', 'news_subscribe', subscribe_email, methods=['POST'])
     app.add_url_rule('/api/cache-status', 'news_cache_status', cache_status, methods=['GET'])
@@ -170,6 +400,26 @@ app = app
 # Health check endpoint for Northflank
 @app.route('/health')
 def health_check():
+    """
+    System Health Check
+    ---
+    tags:
+      - Health
+    summary: Check system health status
+    description: Returns system health status for monitoring
+    responses:
+      200:
+        description: System is healthy
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "healthy"
+            service:
+              type: string
+              example: "hedge-fund-analysis"
+    """
     return {'status': 'healthy', 'service': 'hedge-fund-analysis'}
 
 # Global Security Headers
@@ -199,12 +449,13 @@ if __name__ == '__main__':
         print(f"[STARTUP] Error clearing cache: {e}")
 
     app.logger.info("Starting Portfolio & Options Analysis Engine")
-    port = int(os.environ.get('PORT', 8080))
-    # Use 0.0.0.0 for container/production compatibility
-    host = '0.0.0.0'
+    port = int(os.environ.get('PORT', 5000))
+    # Use 127.0.0.1 for local development (avoids Windows socket permission issues)
+    host = '127.0.0.1'
     
     print("\nStarting Portfolio & Options Analysis Engine")
     print(f"Web Interface: http://{host}:{port}")
+    print(f"Swagger UI: http://{host}:{port}/docs")
     print(f"API Endpoints: http://{host}:{port}/api")
     print("Press Ctrl+C to stop\n")
     

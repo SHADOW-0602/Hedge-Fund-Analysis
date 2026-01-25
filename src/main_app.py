@@ -2,6 +2,7 @@
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flasgger import Swagger
 import sys
 import os
 from dotenv import load_dotenv
@@ -111,6 +112,85 @@ app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 CORS(app, supports_credentials=True)
 
+# Configure Swagger/OpenAPI Documentation
+swagger_template = {
+    "swagger": "2.0",
+    "info": {
+        "title": "Hedge Fund Analysis API",
+        "description": "API for portfolio management, analytics, options trading, and financial market analysis",
+        "version": "1.0.0",
+        "contact": {
+            "name": "API Support",
+            "email": "support@hedgefundanalysis.com"
+        }
+    },
+    "host": os.getenv("API_HOST", "127.0.0.1:8080"),
+    "basePath": "/",
+    "schemes": ["http", "https"],
+    "securityDefinitions": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "JWT token authentication. Format: Bearer {token}"
+        },
+        "SessionAuth": {
+            "type": "apiKey",
+            "name": "session",
+            "in": "cookie",
+            "description": "Session cookie authentication"
+        }
+    },
+    "tags": [
+        {"name": "Auth", "description": "Authentication and user management"},
+        {"name": "Portfolio", "description": "Portfolio management and analysis"},
+        {"name": "Transactions", "description": "Transaction tracking and analysis"},
+        {"name": "Analytics", "description": "Advanced analytics and risk analysis"},
+        {"name": "Options", "description": "Options trading and analysis"},
+        {"name": "News", "description": "Market news and stock analysis"},
+        {"name": "Market Data", "description": "Real-time market data and charts"},
+        {"name": "Admin", "description": "Administrative operations"},
+        {"name": "Cache", "description": "Cache management"},
+        {"name": "Sector", "description": "Sector analysis and visualization"},
+        {"name": "Backtesting", "description": "Strategy backtesting"},
+        {"name": "Health", "description": "System health and monitoring"}
+    ]
+}
+
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": "apispec",
+            "route": "/apispec.json",
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": False,  # Disable built-in UI, use custom HTML
+    "specs_route": None
+}
+
+# Initialize Swagger - only for spec generation, not UI
+swagger = Swagger(app, template=swagger_template, config=swagger_config)
+
+# Custom Swagger UI routes using static HTML
+@app.route('/docs')
+def swagger_ui():
+    return app.send_static_file('swagger-ui.html')
+
+# Also make swagger available at /swagger and /redoc for convenience
+@app.route('/swagger')
+def swagger_redirect():
+    from flask import redirect
+    return redirect('/docs')
+
+@app.route('/redoc')
+def redoc_redirect():
+    from flask import redirect
+    return redirect('/docs')
+
 # News static files route - MUST be first
 @app.route('/static/<path:filename>')
 def news_static(filename):
@@ -197,6 +277,39 @@ def favicon():
 # News endpoint using News database
 @app.route('/api/news', methods=['GET'])
 def get_market_news():
+    """
+    Get Market News
+    ---
+    tags:
+      - News
+    summary: Get market news summaries
+    description: Retrieves AI-generated market analysis summaries for tracked tickers
+    responses:
+      200:
+        description: News articles retrieved
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            articles:
+              type: array
+              items:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  description:
+                    type: string
+                  source:
+                    type: object
+                  publishedAt:
+                    type: string
+                  url:
+                    type: string
+      500:
+        description: Failed to retrieve news
+    """
     try:
         from News.database import db as news_db
         
@@ -226,6 +339,24 @@ def get_market_news():
 # Test endpoint to verify API is working
 @app.route('/api/test', methods=['GET'])
 def test_api():
+    """
+    API Health Test
+    ---
+    tags:
+      - Health
+    summary: Test API connectivity
+    description: Simple endpoint to verify API is running
+    responses:
+      200:
+        description: API is working
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            message:
+              type: string
+    """
     return jsonify({'success': True, 'message': 'API is working'})
 
 # Register all route modules

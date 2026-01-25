@@ -29,6 +29,17 @@ def register_auth_routes(app):
 
     @app.route('/api/auth/google/login')
     def google_login():
+        """
+        Google OAuth Login
+        ---
+        tags:
+          - Auth
+        summary: Initiate Google OAuth login flow
+        description: Redirects user to Google OAuth consent page
+        responses:
+          302:
+            description: Redirect to Google OAuth
+        """
         redirect_uri = url_for('google_callback', _external=True)
         # Ensure HTTPS in production if behind proxy
         if 'localhost' not in redirect_uri and '127.0.0.1' not in redirect_uri:
@@ -37,6 +48,27 @@ def register_auth_routes(app):
 
     @app.route('/api/auth/google/callback')
     def google_callback():
+        """
+        Google OAuth Callback
+        ---
+        tags:
+          - Auth
+        summary: Handle Google OAuth callback
+        description: Processes Google OAuth response and creates/logs in user
+        parameters:
+          - name: code
+            in: query
+            type: string
+            required: true
+            description: OAuth authorization code from Google
+        responses:
+          302:
+            description: Redirect to app dashboard
+          400:
+            description: Failed to get email from Google
+          500:
+            description: Failed to create user
+        """
         try:
             token = google.authorize_access_token()
             user_info = token.get('userinfo')
@@ -99,6 +131,63 @@ def register_auth_routes(app):
 
     @app.route('/api/login', methods=['POST'])
     def login():
+        """
+        User Login
+        ---
+        tags:
+          - Auth
+        summary: Authenticate user with username and password
+        description: Validates credentials and creates session
+        consumes:
+          - application/json
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: "admin"
+                  description: User's username
+                password:
+                  type: string
+                  format: password
+                  example: "admin123"
+                  description: User's password
+        responses:
+          200:
+            description: Login successful
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                user:
+                  type: object
+                  properties:
+                    username:
+                      type: string
+                    role:
+                      type: string
+                    user_id:
+                      type: string
+                    email:
+                      type: string
+                    phone:
+                      type: string
+          400:
+            description: Missing credentials
+          401:
+            description: Invalid credentials
+          500:
+            description: Database not available
+        """
         try:
             print(f"[AUTH] Login attempt started at {datetime.now()}")
             data = request.get_json()
@@ -152,6 +241,65 @@ def register_auth_routes(app):
 
     @app.route('/api/register', methods=['POST'])
     def register():
+        """
+        User Registration
+        ---
+        tags:
+          - Auth
+        summary: Register a new user account
+        description: Creates a new user with username, email, and password
+        consumes:
+          - application/json
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+              properties:
+                username:
+                  type: string
+                  example: "newuser"
+                  description: Desired username (must be unique)
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+                  description: User email (must be unique)
+                phone:
+                  type: string
+                  example: "+1234567890"
+                  description: User phone number (optional)
+                password:
+                  type: string
+                  format: password
+                  example: "SecurePass123"
+                  description: User password
+        responses:
+          200:
+            description: User created successfully
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                email_sent:
+                  type: boolean
+                role_counts:
+                  type: object
+                user_id:
+                  type: string
+          400:
+            description: Missing fields or duplicate username/email/phone
+          500:
+            description: Failed to create user or database unavailable
+        """
         try:
             data = request.get_json()
             username = data.get('username')
@@ -200,6 +348,32 @@ def register_auth_routes(app):
     
     @app.route('/api/auth/debug', methods=['GET'])
     def auth_debug():
+        """
+        Authentication Debug Info
+        ---
+        tags:
+          - Auth
+        summary: Get authentication system status
+        description: Returns debug information about auth system and database
+        responses:
+          200:
+            description: Debug information retrieved
+            schema:
+              type: object
+              properties:
+                supabase_available:
+                  type: boolean
+                user_manager_initialized:
+                  type: boolean
+                timestamp:
+                  type: string
+                admin_user_exists:
+                  type: boolean
+                total_users:
+                  type: integer
+          500:
+            description: Error retrieving debug info
+        """
         try:
             debug_info = {
                 'supabase_available': bool(supabase_client and supabase_client.client),
@@ -227,6 +401,28 @@ def register_auth_routes(app):
     
     @app.route('/api/auth/create-admin', methods=['POST'])
     def create_admin():
+        """
+        Create Admin User
+        ---
+        tags:
+          - Auth
+        summary: Create or update default admin user
+        description: Creates admin user with default credentials (username:admin, password:admin123)
+        responses:
+          200:
+            description: Admin user created/updated
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                data:
+                  type: object
+          500:
+            description: Database unavailable or creation failed
+        """
         try:
             if not supabase_client or not supabase_client.client:
                 return jsonify({'success': False, 'error': 'Database not available'}), 500
@@ -261,6 +457,46 @@ def register_auth_routes(app):
     
     @app.route('/api/auth/reset-password-request', methods=['POST'])
     def reset_password_request():
+        """
+        Request Password Reset
+        ---
+        tags:
+          - Auth
+        summary: Request password reset OTP
+        description: Sends a 6-digit OTP to user's email for password reset
+        consumes:
+          - application/json
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+                  description: User email
+                username:
+                  type: string
+                  example: "myusername"
+                  description: Username (alternative to email)
+        responses:
+          200:
+            description: OTP sent (or user not found - response same for security)
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+          400:
+            description: Email or username required
+          500:
+            description: Failed to send email
+        """
         try:
             data = request.get_json()
             identifier = data.get('email') or data.get('username')
@@ -304,6 +540,55 @@ def register_auth_routes(app):
 
     @app.route('/api/auth/reset-password-confirm', methods=['POST'])
     def reset_password_confirm():
+        """
+        Confirm Password Reset
+        ---
+        tags:
+          - Auth
+        summary: Reset password with OTP
+        description: Validates OTP and updates user password
+        consumes:
+          - application/json
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              required:
+                - email
+                - otp
+                - new_password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+                  description: User email
+                otp:
+                  type: string
+                  example: "123456"
+                  description: 6-digit OTP received via email
+                new_password:
+                  type: string
+                  format: password
+                  example: "NewSecurePass123"
+                  description: New password
+        responses:
+          200:
+            description: Password updated successfully
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+          400:
+            description: Invalid/expired OTP or missing fields
+          500:
+            description: Failed to update password
+        """
         try:
             data = request.get_json()
             email = data.get('email')
