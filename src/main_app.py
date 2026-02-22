@@ -110,7 +110,18 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-product
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-CORS(app, supports_credentials=True)
+
+# CORS configuration - allow old and new frontend
+frontend_url = os.getenv('FRONTEND_URL', '')
+allowed_origins = [
+    'https://shmventures.org',  # Old frontend
+    'http://127.0.0.1:8080',
+    'http://localhost:8080',
+]
+if frontend_url:
+    allowed_origins.append(frontend_url)  # New frontend
+
+CORS(app, supports_credentials=True, origins=allowed_origins, allow_headers=['Content-Type', 'Authorization'])
 
 # Configure Swagger/OpenAPI Documentation
 swagger_template = {

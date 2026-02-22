@@ -100,8 +100,10 @@ def register_auth_routes(app):
                 session['username'] = user.username
                 session['real_user_id'] = user.user_id
                 
-                # Create response with redirect
-                response = make_response(redirect('/app'))
+                # Create response with redirect to new frontend
+                frontend_url = os.getenv('FRONTEND_URL', '/app')  # fallback to old URL if not set
+                redirect_url = f"{frontend_url}/dashboard" if frontend_url.startswith('http') else '/app'
+                response = make_response(redirect(redirect_url))
                 
                 # Set currentUser cookie for frontend SessionManager
                 user_data = {
@@ -119,7 +121,9 @@ def register_auth_routes(app):
                 # Note: Flask's set_cookie handles quoting, but frontend might expect specific format.
                 # However, standard set_cookie should be compatible with JSON.parse on frontend.
                 # IMPORTANT: httponly=False is required for frontend JS to read it!
-                response.set_cookie('currentUser', cookie_value, max_age=30*24*60*60, path='/', httponly=False, samesite='Lax')
+                # Set domain to allow cookie to work across subdomains (e.g., both shmventures.org and newfrontend.shmventures.org)
+                cookie_domain = '.shmventures.org'  # Leading dot allows all subdomains
+                response.set_cookie('currentUser', cookie_value, max_age=30*24*60*60, path='/', domain=cookie_domain, httponly=False, samesite='Lax', secure=True)
                 
                 return response
             else:
@@ -127,7 +131,9 @@ def register_auth_routes(app):
                 
         except Exception as e:
             print(f"[AUTH] Google callback error: {e}")
-            return redirect('/auth.html?error=Google login failed')
+            frontend_url = os.getenv('FRONTEND_URL', '')
+            error_redirect = f"{frontend_url}/auth?error=Google+login+failed" if frontend_url else '/auth.html?error=Google login failed'
+            return redirect(error_redirect)
 
     @app.route('/api/login', methods=['POST'])
     def login():
