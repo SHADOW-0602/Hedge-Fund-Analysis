@@ -6,4 +6,6 @@ ingress:
     service: http://localhost:8080
   - hostname: www.shmventures.org
     service: http://localhost:8080
+  - hostname: old.shmventures.org
+    service: http://localhost:8080
   - service: http_status:404

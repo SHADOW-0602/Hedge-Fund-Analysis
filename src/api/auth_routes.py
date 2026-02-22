@@ -93,7 +93,7 @@ def register_auth_routes(app):
                 # Note: Flask's set_cookie handles quoting, but frontend might expect specific format.
                 # However, standard set_cookie should be compatible with JSON.parse on frontend.
                 # IMPORTANT: httponly=False is required for frontend JS to read it!
-                # Set domain to allow cookie to work across subdomains (e.g., both shmventures.org and newfrontend.shmventures.org)
+                # Set domain to allow cookie to work across subdomains (e.g., shmventures.org, www.shmventures.org, old.shmventures.org)
                 cookie_domain = '.shmventures.org'  # Leading dot allows all subdomains
                 response.set_cookie('currentUser', cookie_value, max_age=30*24*60*60, path='/', domain=cookie_domain, httponly=False, samesite='Lax', secure=True)
                 

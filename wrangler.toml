@@ -3,7 +3,8 @@ compatibility_date = "2024-01-01"
 
 # Use 'routes' array for custom domains to avoid conflicts
 routes = [
-  { pattern = "www.shmventures.org", custom_domain = true }
+  { pattern = "www.shmventures.org", custom_domain = true },
+  { pattern = "old.shmventures.org", custom_domain = true }
 ]
 
 [build]
