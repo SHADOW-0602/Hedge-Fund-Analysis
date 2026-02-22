@@ -113,14 +113,22 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 # CORS configuration - allow old and new frontend
 frontend_url = os.getenv('FRONTEND_URL', '')
 allowed_origins = [
-    'https://shmventures.org',  # Old frontend
+    'https://shmventures.org',  # Old frontend (without www)
+    'https://www.shmventures.org',  # New frontend (with www)
+    'https://old.shmventures.org',  # Backend domain
     'http://127.0.0.1:8080',
     'http://localhost:8080',
+    'http://localhost:3000',  # Next.js dev server
 ]
-if frontend_url:
-    allowed_origins.append(frontend_url)  # New frontend
+if frontend_url and frontend_url not in allowed_origins:
+    allowed_origins.append(frontend_url)  # Additional frontend URL from env
 
-CORS(app, supports_credentials=True, origins=allowed_origins, allow_headers=['Content-Type', 'Authorization'])
+CORS(app, 
+     supports_credentials=True, 
+     origins=allowed_origins, 
+     allow_headers=['Content-Type', 'Authorization', 'X-User-Role', 'X-Requested-With'],
+     expose_headers=['Content-Type', 'X-Total-Count'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'])
 
 # News static files route - MUST be first
 @app.route('/static/<path:filename>')
