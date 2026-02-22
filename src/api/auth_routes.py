@@ -29,6 +29,10 @@ def register_auth_routes(app):
 
     @app.route('/api/auth/google/login')
     def google_login():
+        # Clear any existing session before starting new login
+        from flask import session
+        session.clear()
+        
         redirect_uri = url_for('google_callback', _external=True)
         # Ensure HTTPS in production if behind proxy
         if 'localhost' not in redirect_uri and '127.0.0.1' not in redirect_uri:
@@ -128,8 +132,10 @@ def register_auth_routes(app):
                 print(f"[AUTH] Authentication successful for: {username}, role: {user.role.value}")
                 
                 # Store user info in session for Plaid integration
-                from flask import session
+                from flask import session, make_response
                 from utils.secure_id_manager import secure_id_manager
+                import json
+                import urllib.parse
                 
                 # Use secure token instead of UUID
                 secure_token = secure_id_manager.get_secure_token(user.user_id)
@@ -137,16 +143,29 @@ def register_auth_routes(app):
                 session['username'] = user.username
                 session['real_user_id'] = user.user_id  # Keep for internal use
                 
-                return jsonify({
+                # Prepare user data
+                user_data = {
+                    'username': user.username,
+                    'role': user.role.value,
+                    'user_id': user.user_id,
+                    'email': user.email,
+                    'phone': user.phone,
+                    'loginTime': int(datetime.now().timestamp() * 1000)
+                }
+                
+                # Create response
+                response = make_response(jsonify({
                     'success': True,
-                    'user': {
-                        'username': user.username,
-                        'role': user.role.value,
-                        'user_id': user.user_id,
-                        'email': user.email,
-                        'phone': user.phone
-                    }
-                })
+                    'user': user_data
+                }))
+                
+                # Set cookie for cross-subdomain access (same as Google OAuth)
+                cookie_value = urllib.parse.quote(json.dumps(user_data, separators=(',', ':')))
+                cookie_domain = '.shmventures.org'
+                response.set_cookie('currentUser', cookie_value, max_age=30*24*60*60, path='/', 
+                                  domain=cookie_domain, httponly=False, samesite='Lax', secure=True)
+                
+                return response
             
             print(f"[AUTH] Authentication failed for: {username}")
             return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
@@ -154,6 +173,43 @@ def register_auth_routes(app):
             print(f"[AUTH] Login error: {str(e)}")
             import traceback
             traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/logout', methods=['POST', 'GET'])
+    def logout():
+        """
+        User Logout
+        ---
+        tags:
+          - Auth
+        summary: Logout current user
+        description: Clears user session and cookies
+        responses:
+          200:
+            description: Successfully logged out
+        """
+        try:
+            from flask import session, make_response
+            
+            # Clear server-side session
+            session.clear()
+            
+            # Create response
+            response = make_response(jsonify({'success': True, 'message': 'Logged out successfully'}))
+            
+            # Clear cookies
+            cookie_domain = '.shmventures.org'
+            response.set_cookie('currentUser', '', max_age=0, path='/', domain=cookie_domain, httponly=False, samesite='Lax', secure=True)
+            response.set_cookie('session', '', max_age=0, path='/', domain=cookie_domain, httponly=True, samesite='Lax', secure=True)
+            
+            # Also clear without domain for localhost/development
+            response.set_cookie('currentUser', '', max_age=0, path='/', httponly=False, samesite='Lax')
+            response.set_cookie('session', '', max_age=0, path='/', httponly=True, samesite='Lax')
+            
+            return response
+            
+        except Exception as e:
+            print(f"[AUTH] Logout error: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/register', methods=['POST'])
