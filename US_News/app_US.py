@@ -13,7 +13,7 @@ from flask import Blueprint, render_template, jsonify, request
 from dotenv import load_dotenv
 import requests
 from supabase import create_client, Client
-import google.generativeai as genai
+from openai import AzureOpenAI
 import yfinance as yf
 import logging
 import sys
@@ -26,7 +26,7 @@ try:
     from src.utils.ladder_session import get_ladder_session
 except ImportError:
     # Fallback if src is not found (e.g. structure change)
-    print("⚠ Could not import LadderSession from src.utils, using default requests.")
+    print("[WARNING] Could not import LadderSession from src.utils, using default requests.")
     def get_ladder_session(): return requests.Session()
 
 # Configure Debug Logger for Quant Analysis
@@ -79,6 +79,18 @@ def set_last_fundamental_run():
     except Exception as e:
         print(f"Error updating last run state: {e}")
 
+
+# Azure OpenAI Configuration
+endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "https://shmventures.openai.azure.com/")
+api_key = os.getenv("AZURE_OPENAI_KEY")
+deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.4-mini")
+
+# Initialize the Azure OpenAI client
+azure_client = AzureOpenAI(
+    azure_endpoint=endpoint,
+    api_key=api_key,
+    api_version="2024-02-15-preview"
+)
 
 # Groq AI uses standard Requests, no specific client needed here
 # Model: llama-3.3-70b-versatile
@@ -258,7 +270,7 @@ def get_redis_data(key):
                     return json.loads(res)
                 return res
     except Exception as e:
-        print(f"  ⚠ Redis Read Error ({key}): {e}")
+        print(f"  [WARNING] Redis Read Error ({key}): {e}")
     return None
 
 def set_redis_data(key, data):
@@ -271,9 +283,9 @@ def set_redis_data(key, data):
         # REST command: SET key value
         resp = requests.post(f"{REDIS_URL}/set/{key}", headers=headers, data=value, timeout=10) # Post body as data for raw
         if resp.status_code != 200:
-             print(f"  ⚠ Redis Write Fail ({key}): {resp.text}")
+             print(f"  [WARNING] Redis Write Fail ({key}): {resp.text}")
     except Exception as e:
-        print(f"  ⚠ Redis Write Error ({key}): {e}")
+        print(f"  [WARNING] Redis Write Error ({key}): {e}")
 
 def load_cache_from_disk():
     """Load cached data from Redis (preferred) or Pickle (fallback)"""
@@ -301,10 +313,10 @@ def load_cache_from_disk():
             ta = get_redis_data('hf:cache:ta')
             if ta: TA_CACHE.update(ta)
 
-            print(f"  ✓ Redis Cache Loaded: {len(QUOTE_CACHE)} quotes, {len(QUANT_ANALYSIS_CACHE)} quants, {len(TA_CACHE)} ta.")
+            print(f"  [SUCCESS] Redis Cache Loaded: {len(QUOTE_CACHE)} quotes, {len(QUANT_ANALYSIS_CACHE)} quants, {len(TA_CACHE)} ta.")
             return # Success
         except Exception as e:
-            print(f"  ⚠ Redis Load Failed, falling back to disk: {e}")
+            print(f"  [WARNING] Redis Load Failed, falling back to disk: {e}")
 
     # 2. Fallback to Disk
     if os.path.exists(CACHE_FILE):
@@ -316,9 +328,9 @@ def load_cache_from_disk():
                 HISTORY_CACHE.update(data.get('history', {}))
                 QUANT_ANALYSIS_CACHE.update(data.get('quant', {}))
                 TA_CACHE.update(data.get('ta', {}))
-                print(f"  ✓ Legacy Pickle Cache Loaded: {len(QUOTE_CACHE)} quotes.")
+                print(f"  [SUCCESS] Legacy Pickle Cache Loaded: {len(QUOTE_CACHE)} quotes.")
         except Exception as e:
-            print(f"  ⚠ Failed to load cache file: {e}")
+            print(f"  [WARNING] Failed to load cache file: {e}")
 
 def save_cache_to_disk():
     """Save caches to Redis (primary) and Disk (backup)"""
@@ -331,9 +343,9 @@ def save_cache_to_disk():
             # set_redis_data('hf:cache:fundamentals', FUNDAMENTALS_CACHE)
             set_redis_data('hf:cache:quant', QUANT_ANALYSIS_CACHE)
             set_redis_data('hf:cache:ta', TA_CACHE)
-            # print("  ✓ Redis Cache synced.")
+            # print("  [SUCCESS] Redis Cache synced.")
         except Exception as e:
-            print(f"  ⚠ Redis Save Error: {e}")
+            print(f"  [WARNING] Redis Save Error: {e}")
 
     # 2. Disk Save (Backup)
     try:
@@ -347,7 +359,7 @@ def save_cache_to_disk():
         with open(CACHE_FILE, 'wb') as f:
             pickle.dump(data, f)
     except Exception as e:
-        print(f"  ⚠ Failed to save local cache: {e}")
+        print(f"  [WARNING] Failed to save local cache: {e}")
 
 
 # Load immediately on import
@@ -456,11 +468,11 @@ def fetch_polygon_history(ticker, period_days=400, interval='day'):
                 cols = ['Open', 'High', 'Low', 'Close', 'Volume']
                 df[cols] = df[cols].astype(float)
                 
-                print(f"  ✓ Polygon History Success: {len(df)} rows")
+                print(f"  [SUCCESS] Polygon History Success: {len(df)} rows")
                 return df
                 
     except Exception as e:
-        print(f"  ✗ Polygon History Failed: {e}")
+        print(f"  [FAILED] Polygon History Failed: {e}")
         
     return None
 
@@ -515,15 +527,15 @@ def fetch_twelve_data_history(ticker, interval='1day', outputsize=500):
                 # Sort ascending (API usually returns desc)
                 df.sort_index(inplace=True)
                 
-                print(f"  ✓ Twelve Data History Success: {len(df)} rows")
+                print(f"  [SUCCESS] Twelve Data History Success: {len(df)} rows")
                 return df
             elif 'code' in data:
-                 print(f"  ✗ Twelve Data Error: {data.get('message')}")
+                 print(f"  [FAILED] Twelve Data Error: {data.get('message')}")
         else:
-            print(f"  ✗ Twelve Data Request Failed: {resp.status_code}")
+            print(f"  [FAILED] Twelve Data Request Failed: {resp.status_code}")
             
     except Exception as e:
-        print(f"  ✗ Twelve Data Exception: {e}")
+        print(f"  [FAILED] Twelve Data Exception: {e}")
         
     return None
 
@@ -611,7 +623,7 @@ def fetch_quote_data(ticker):
              raise Exception("YF returned no data") # Trigger catch block for fallback
 
     except Exception as e:
-        print(f"  ⚠ Yahoo Quote Error for {ticker}: {str(e)}")
+        print(f"  [WARNING] Yahoo Quote Error for {ticker}: {str(e)}")
         
         # --- FALLBACK 1: POLYGON.IO ---
         poly_key = os.getenv('POLYGON_API_KEY')
@@ -631,7 +643,7 @@ def fetch_quote_data(ticker):
                     # Let's try fetching prev close agg if trade fails or to enrich
                     
                     if price:
-                         print(f"  ✓ Using Polygon.io Fallback for {ticker}")
+                         print(f"  [SUCCESS] Using Polygon.io Fallback for {ticker}")
                          data = {
                             'ticker': ticker,
                             'price': round(float(price), 2),
@@ -654,7 +666,7 @@ def fetch_quote_data(ticker):
                          QUOTE_CACHE[ticker] = {'data': data, 'timestamp': current_time}
                          return data
             except Exception as pe:
-                print(f"  ✗ Polygon Fallback Failed: {pe}")
+                print(f"  [FAILED] Polygon Fallback Failed: {pe}")
 
         # --- FALLBACK 2: FINNHUB ---
         finn_key = os.getenv('FINNHUB_API_KEY')
@@ -667,7 +679,7 @@ def fetch_quote_data(ticker):
                     # Finnhub: c: Current, d: Change, dp: Percent, pc: Prev Close
                     price = fdata.get('c')
                     if price and price > 0:
-                        print(f"  ✓ Using Finnhub Fallback for {ticker}")
+                        print(f"  [SUCCESS] Using Finnhub Fallback for {ticker}")
                         data = {
                             'ticker': ticker,
                             'price': round(float(price), 2),
@@ -678,7 +690,7 @@ def fetch_quote_data(ticker):
                         QUOTE_CACHE[ticker] = {'data': data, 'timestamp': current_time}
                         return data
             except Exception as fe:
-                 print(f"  ✗ Finnhub Fallback Failed: {fe}")
+                 print(f"  [FAILED] Finnhub Fallback Failed: {fe}")
 
         # --- FALLBACK 3: TWELVE DATA ---
         twelve_key = os.getenv('TWELVE_DATA_API_KEY')
@@ -694,7 +706,7 @@ def fetch_quote_data(ticker):
                         price = tdata.get('close') or tdata.get('price') # 'price' in /price endpoint, 'close' in /quote might be daily
                         # Let's assume /quote
                         if price:
-                             print(f"  ✓ Using TwelveData Fallback for {ticker}")
+                             print(f"  [SUCCESS] Using TwelveData Fallback for {ticker}")
                              data = {
                                 'ticker': ticker,
                                 'price': round(float(price), 2),
@@ -705,11 +717,11 @@ def fetch_quote_data(ticker):
                              QUOTE_CACHE[ticker] = {'data': data, 'timestamp': current_time}
                              return data
             except Exception as te:
-                 print(f"  ✗ TwelveData Fallback Failed: {te}")
+                 print(f"  [FAILED] TwelveData Fallback Failed: {te}")
 
         # Check if we have stale cache to return instead of failing
         if ticker in QUOTE_CACHE:
-            print(f"  ⚠ Returning STALE cache for {ticker}")
+            print(f"  [WARNING] Returning STALE cache for {ticker}")
             return QUOTE_CACHE[ticker]['data']
             
     return None
@@ -740,9 +752,9 @@ def mark_daily_run():
                 'run_date': str(today),
                 'status': 'completed'
             }).execute()
-            print(f"  ✓ Marked daily run for {today}")
+            print(f"  [SUCCESS] Marked daily run for {today}")
         else:
-            print(f"  ✓ Daily run for {today} already marked")
+            print(f"  [SUCCESS] Daily run for {today} already marked")
     except Exception as e:
         print(f"Error marking daily run: {e}")
 
@@ -768,7 +780,7 @@ def fetch_av_data(ticker, interval):
     if av_interval:
         url += f"&interval={av_interval}"
         
-    print(f"  ⚠ Switching to Alpha Vantage for {ticker} ({interval})...")
+    print(f"  [WARNING] Switching to Alpha Vantage for {ticker} ({interval})...")
     try:
         r = requests.get(url, timeout=10)
         data = r.json()
@@ -776,7 +788,7 @@ def fetch_av_data(ticker, interval):
         # Parse keys
         ts_key = next((k for k in data.keys() if "Time Series" in k), None)
         if not ts_key:
-            print(f"  ✗ AV Error: {data.get('Note') or data.get('Error Message')}")
+            print(f"  [FAILED] AV Error: {data.get('Note') or data.get('Error Message')}")
             return pd.DataFrame(), ''
             
         ts_data = data[ts_key]
@@ -797,7 +809,7 @@ def fetch_av_data(ticker, interval):
             
         return df, 'alpha_vantage'
     except Exception as e:
-        print(f"  ✗ AV Fetch Failed: {e}")
+        print(f"  [FAILED] AV Fetch Failed: {e}")
         return pd.DataFrame(), ''
 
 def fetch_news_for_ticker(ticker):
@@ -817,7 +829,7 @@ def fetch_news_for_ticker(ticker):
                 
                 if response.status_code == 429:
                     wait = 2 ** attempt
-                    print(f"  ⚠ NewsAPI Rate Limit (429). Retrying in {wait}s...")
+                    print(f"  [WARNING] NewsAPI Rate Limit (429). Retrying in {wait}s...")
                     time.sleep(wait)
                     continue
                     
@@ -831,10 +843,10 @@ def fetch_news_for_ticker(ticker):
                             'published_at': article.get('publishedAt', ''),
                             'description': article.get('description', '')
                         })
-                    print(f"  ✓ NewsAPI: {len(data.get('articles', []))} articles")
+                    print(f"  [SUCCESS] NewsAPI: {len(data.get('articles', []))} articles")
                     break # Success
         except Exception as e:
-            print(f"  ✗ NewsAPI Attempt {attempt+1} Failed: {e}")
+            print(f"  [FAILED] NewsAPI Attempt {attempt+1} Failed: {e}")
             if attempt < 2: time.sleep(1)
     
     # Primary 2: Try Finnhub
@@ -850,7 +862,7 @@ def fetch_news_for_ticker(ticker):
                 
                 if response.status_code == 429:
                     wait = 2 ** attempt
-                    print(f"  ⚠ Finnhub Rate Limit (429). Retrying in {wait}s...")
+                    print(f"  [WARNING] Finnhub Rate Limit (429). Retrying in {wait}s...")
                     time.sleep(wait)
                     continue
 
@@ -864,10 +876,10 @@ def fetch_news_for_ticker(ticker):
                             'published_at': datetime.fromtimestamp(article.get('datetime', 0)).isoformat(),
                             'description': article.get('summary', '')
                         })
-                    print(f"  ✓ Finnhub: {len(data[:5])} articles")
+                    print(f"  [SUCCESS] Finnhub: {len(data[:5])} articles")
                     break # Success
         except Exception as e:
-            print(f"  ✗ Finnhub Attempt {attempt+1} Failed: {e}")
+            print(f"  [FAILED] Finnhub Attempt {attempt+1} Failed: {e}")
             if attempt < 2: time.sleep(1)
     
     # Fallback 1: Try Polygon
@@ -880,7 +892,7 @@ def fetch_news_for_ticker(ticker):
                 response = requests.get(url, timeout=5)
                 
                 if response.status_code == 429:
-                    print(f"  ⚠ Polygon Rate Limit (429 - 5 calls/min limit). Sleeping 60s to reset...")
+                    print(f"  [WARNING] Polygon Rate Limit (429 - 5 calls/min limit). Sleeping 60s to reset...")
                     time.sleep(60)
                     continue
 
@@ -894,10 +906,10 @@ def fetch_news_for_ticker(ticker):
                             'published_at': article.get('published_utc', ''),
                             'description': article.get('description', '')
                         })
-                    print(f"  ✓ Polygon: {len(data.get('results', []))} articles")
+                    print(f"  [SUCCESS] Polygon: {len(data.get('results', []))} articles")
                     break # Success
         except Exception as e:
-            print(f"  ✗ Polygon Attempt {attempt+1} Failed: {e}")
+            print(f"  [FAILED] Polygon Attempt {attempt+1} Failed: {e}")
             if attempt < 2: time.sleep(1)
     
     # Fallback 2: Yahoo Finance (no API key needed, reliable fallback)
@@ -919,9 +931,9 @@ def fetch_news_for_ticker(ticker):
                     'published_at': datetime.fromtimestamp(article.get('providerPublishTime', 0)).isoformat(),
                     'description': article.get('title', '')  # Yahoo doesn't provide description
                 })
-            print(f"  ✓ Yahoo Finance: {len(news[:10])} articles")
+            print(f"  [SUCCESS] Yahoo Finance: {len(news[:10])} articles")
     except Exception as e:
-        print(f"  ✗ Yahoo Finance: {e}")
+        print(f"  [FAILED] Yahoo Finance: {e}")
     
     # Final cleanup: Filter out any duplicates or empty titles from other sources
     unique_news = []
@@ -932,12 +944,12 @@ def fetch_news_for_ticker(ticker):
             unique_news.append(n)
             seen_urls.add(n['url'])
             
-    print(f"  → Total valid articles fetched: {len(unique_news)}")
+    print(f"  -> Total valid articles fetched: {len(unique_news)}")
     return unique_news
 
 import concurrent.futures
 
-def generate_ai_report(ticker, news_articles, all_keys_data, report_type='news'):
+def generate_ai_report(ticker, news_articles, report_type='news'):
     """Generate Summary using Gemini Flash 2.5
     report_type: 'news' (A/B Tested Updates) or 'fundamental' (Corporate Profile)
     """
@@ -1140,70 +1152,47 @@ def generate_ai_report(ticker, news_articles, all_keys_data, report_type='news')
         """
         is_json = False
 
-    # Gemini REST API Payload
-    payload = {
-        "system_instruction": {
-            "parts": [{"text": "You are a top-tier investment bank research analyst."}]
-        },
-        "contents": [
-            {"role": "user", "parts": [{"text": prompt}]}
-        ],
-        "generationConfig": {
-            "temperature": 0.4
-        }
-    }
-    
-    if is_json:
-        payload["generationConfig"]["responseMimeType"] = "application/json"
-    
-    # Smart Key Rotation + Model Fallback Implementation
-    # 1. Shuffle keys
-    available_keys = list(all_keys_data)
-    random.shuffle(available_keys)
-    
-    # Models to try (Sequence: ONLY Flash 2.5)
-    models = ['gemini-2.5-flash']
-
-    for model_name in models:
-        # Try all keys with Model A, then all keys with Model B
-        for attempt, (api_key, key_name) in enumerate(available_keys):
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-            headers = {'Content-Type': 'application/json'}
-            
-            try:
-                # Increased timeout to 90s for comprehensive fundamental reports
-                response = requests.post(url, headers=headers, json=payload, timeout=90)
-                
-                # If rate limited (too many requests), wait and retry
-                if response.status_code == 429:
-                    print(f"  ⚠ Quota (429) on {key_name}. Rotating...")
-                    time.sleep(2) 
-                    continue
-                    
-                # If model is overloaded (503), wait and retry
-                if response.status_code == 503:
-                    print(f"  ⚠ Model Overloaded (503) on {key_name}. Rotating...")
-                    time.sleep(2)
-                    continue
-
-                if response.status_code == 200:
-                    result = response.json()
-                    candidates = result.get('candidates', [])
-                    if candidates:
-                        content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-                        if content_text:
-                             print(f"  ✓ Report Generated ({key_name} - {report_type})")
-                             
-                             if is_json:
-                                 # Parse JSON
-                                 try:
-                                     # Clean potential markdown wrappers
-                                     clean_json = content_text.replace('```json', '').replace('```', '').strip()
-                                     data = json.loads(clean_json)
-                                     
-                                     # Construct Full Markdown Report for Frontend
-                                     # We combine fields so the frontend 'executive_summary' display shows everything
-                                     full_report = f"""
+    # Azure OpenAI Analysis with Retry Logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = azure_client.chat.completions.create(
+                model=deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are a top-tier investment bank research analyst."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.4,
+                response_format={"type": "json_object"} if is_json else None
+            )
+            break # Success
+        except Exception as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                wait_time = (2 ** attempt) * 5
+                print(f"  [WARNING] Azure Rate Limit (429). Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            else:
+                print(f"  [WARNING] Azure OpenAI Error: {e}")
+                # If it's the last attempt or not a 429, we'll fall through to the FAILED print below
+                return {
+                    'executive_summary': f"<ul><li>Analysis failed: {str(e)}</li></ul>",
+                    'what_changed': '', 'analyst_earnings': '', 'last_week_updates': '', 'sources': sources_list
+                }
+        
+        content_text = response.choices[0].message.content
+        if content_text:
+             print(f"  [SUCCESS] Report Generated via Azure OpenAI ({report_type})")
+             
+             if is_json:
+                 # Parse JSON
+                 try:
+                     # Clean potential markdown wrappers (though Azure with json_object should be cleaner)
+                     clean_json = content_text.replace('```json', '').replace('```', '').strip()
+                     data = json.loads(clean_json)
+                     
+                     # Construct Full Markdown Report for Frontend
+                     full_report = f"""
 ## Executive Summary
 {data.get('executive_summary', '')}
 
@@ -1216,51 +1205,34 @@ def generate_ai_report(ticker, news_articles, all_keys_data, report_type='news')
 ## Key Updates (Last Week)
 {data.get('last_week_updates', '')}
 """.strip()
-                                     
-                                     json_content = {
-                                        'executive_summary': full_report,
-                                        'what_changed': data.get('what_changed', ''),
-                                        'analyst_earnings': data.get('analyst_earnings', ''),
-                                        'last_week_updates': data.get('last_week_updates', ''),
-                                        'sources': sources_list
-                                     }
-                                     return json_content
-                                 except json.JSONDecodeError:
-                                     print("  ⚠ JSON Parsing Failed. Falling back to raw text.")
-                                     # Fallback: treat whole text as summary
-                                     return {
-                                        'executive_changed': content_text,
-                                        'what_changed': '',
-                                        'analyst_earnings': '',
-                                        'last_week_updates': '',
-                                        'sources': sources_list
-                                     }
-                             else:
-                                 # Return Markdown Directly (Fundamental)
-                                 return {
-                                    'executive_summary': content_text,
-                                    'what_changed': '', # Not applicable for fundamental
-                                    'analyst_earnings': '', # Not applicable for fundamental
-                                    'last_week_updates': '', # Not applicable for fundamental
-                                    'sources': sources_list
-                                 }
-                    
-                    print(f"  ⚠ Empty Response from {key_name}. Rotating...")
-                    continue
-                else:
-                    print(f"  ⚠ Error {response.status_code} on {key_name}. Rotating...")
-                    continue
-                    
-            except requests.exceptions.Timeout:
-                 print(f"  ⚠ Timeout on {key_name}. Rotating...")
-                 continue
-            except Exception as e:
-                print(f"  ⚠ Connection Error on {key_name}: {e}")
-                continue
-        
-
-
-    print(f"  ✗ FAILED to generate summary for {ticker} after trying {len(available_keys)} keys.")
+                     
+                     json_content = {
+                        'executive_summary': full_report,
+                        'what_changed': data.get('what_changed', ''),
+                        'analyst_earnings': data.get('analyst_earnings', ''),
+                        'last_week_updates': data.get('last_week_updates', ''),
+                        'sources': sources_list
+                     }
+                     return json_content
+                 except json.JSONDecodeError:
+                     print("  [WARNING] JSON Parsing Failed. Falling back to raw text.")
+                     return {
+                        'executive_summary': content_text,
+                        'what_changed': '',
+                        'analyst_earnings': '',
+                        'last_week_updates': '',
+                        'sources': sources_list
+                     }
+             else:
+                 # Return Markdown Directly (Fundamental)
+                 return {
+                    'executive_summary': content_text,
+                    'what_changed': '', 
+                    'analyst_earnings': '', 
+                    'last_week_updates': '', 
+                    'sources': sources_list
+                 }
+    print(f"  [FAILED] FAILED to generate summary for {ticker}.")
     
     # Return Fallback instead of None to prevent crashes
     return {
@@ -1316,16 +1288,16 @@ def store_news_and_summary(ticker, news_articles, summary_data):
                     'summary_date': str(today),
                     'created_at': datetime.now(timezone.utc).isoformat()
                 }).execute()
-                print(f"  ✓ Stored summary for {ticker}")
+                print(f"  [SUCCESS] Stored summary for {ticker}")
             except Exception as e:
-                print(f"  ✗ Error storing summary for {ticker}: {e}")
+                print(f"  [FAILED] Error storing summary for {ticker}: {e}")
             
     except Exception as e:
         print(f"Error storing data for {ticker}: {e}")
     finally:
         DB_LOCK.release()
 
-def process_single_ticker(ticker, all_keys_data, report_type='fundamental'):
+def process_single_ticker(ticker, report_type='fundamental'):
     """Worker function to process a single ticker. 
     report_type: 'fundamental' (Default, stored as {ticker}) or 'news' (Stored as NEWS_{ticker})
     """
@@ -1343,12 +1315,12 @@ def process_single_ticker(ticker, all_keys_data, report_type='fundamental'):
             time.sleep(random.uniform(2.0, 4.0))
             
             # Use separate generation logic
-            summary_data = generate_ai_report(ticker, news_articles, all_keys_data, report_type)
+            summary_data = generate_ai_report(ticker, news_articles, report_type)
             
             if summary_data and "Unavailable" not in summary_data.get('executive_summary', ''):
                 store_news_and_summary(storage_ticker, news_articles, summary_data)
             else:
-                 print(f"  ⚠ AI Unavailable/Failed.")
+                 print(f"  [WARNING] AI Unavailable/Failed.")
                  fallback_summary = {
                     'executive_summary': '<ul><li><strong>analysis unavailable</strong>: content generation failed due to high load.</li><li>news articles are listed below for your review.</li><li>please try refreshing again in a few minutes.</li></ul>',
                     'what_changed': '',
@@ -1366,7 +1338,7 @@ def process_single_ticker(ticker, all_keys_data, report_type='fundamental'):
             store_news_and_summary(storage_ticker, [], empty_summary)
             return empty_summary
     except Exception as e:
-        print(f"  ✗ Error processing {ticker}: {e}")
+        print(f"  [FAILED] Error processing {ticker}: {e}")
         error_summary = {
             'executive_summary': f"<ul><li>Analysis failed due to a system error.</li><li>Error details: {str(e)[:200]}...</li></ul>",
             'what_changed': '', 'analyst_earnings': '', 'last_week_updates': ''
@@ -1407,28 +1379,22 @@ def process_news_for_active_tickers(force=False, custom_tickers=None, report_typ
             ACTIVE_TICKERS = sorted_universe
             target_list = ACTIVE_TICKERS
         else:
-             print(f"  ✓ Using custom ticker list ({len(custom_tickers)} symbols)")
+             print(f"  [SUCCESS] Using custom ticker list ({len(custom_tickers)} symbols)")
              target_list = custom_tickers
         
-        # Load balance across ALL available keys
-        all_keys = []
-        key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
-        for var in key_vars:
-            k = os.getenv(var)
-            if k: all_keys.append((k, var)) # Store tuple (key, name)
-            
-        if not all_keys:
-            print("CRITICAL: No Gemini API keys found in environment variables!")
-            IS_PROCESSING = False
-            return
-            
-        print(f"  ✓ Optimized Mode: Shared key pool of {len(all_keys)} Gemini keys distributed across threads.")
 
         tasks = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor: 
+        is_ci = os.getenv('GITHUB_ACTIONS') == 'true'
+        max_workers = 1 if is_ci else 4
+        delay = 3.0 if is_ci else 0.0
+        
+        if is_ci:
+            print(f"  [CI MODE] Running with {max_workers} worker and {delay}s delay to prevent rate limits.")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor: 
             for ticker in target_list:
-                # Pass report_type to process_single_ticker
-                tasks.append(executor.submit(process_single_ticker, ticker, all_keys, report_type=report_type))
+                tasks.append(executor.submit(process_single_ticker, ticker, report_type=report_type))
+                if delay > 0: time.sleep(delay)
             
             # Wait for completion
             concurrent.futures.wait(tasks)
@@ -1459,13 +1425,13 @@ def process_quant_analysis(ticker, force=False):
     if not force and ticker in QUANT_ANALYSIS_CACHE:
         cached_entry = QUANT_ANALYSIS_CACHE[ticker]
         if (current_time - cached_entry['timestamp']) < 3600:
-            print(f"  ✓ Serving Quant Analysis for {ticker} from Cache (< 1h old)")
+            print(f"  [SUCCESS] Serving Quant Analysis for {ticker} from Cache (< 1h old)")
             return cached_entry['data']
         else:
-            print(f"  ↻ Cache expired for {ticker} (> 1h). Regenerating...")
+            print(f"  [RETRY] Cache expired for {ticker} (> 1h). Regenerating...")
     
     if force:
-        print(f"  ↻ Force Refreshing Quant Analysis for {ticker}")
+        print(f"  [RETRY] Force Refreshing Quant Analysis for {ticker}")
 
     quant_logger.info(f"--- START Quant Analysis for {ticker} ---")
 
@@ -1480,12 +1446,12 @@ def process_quant_analysis(ticker, force=False):
     except: df_1h = pd.DataFrame()
 
     if df_1h.empty or 'High' not in df_1h.columns:
-            print(f"  ⚠ YF 1h Failed. Trying Polygon...")
+            print(f"  [WARNING] YF 1h Failed. Trying Polygon...")
             df_poly_1h = fetch_polygon_history(ticker, period_days=730, interval='1h')
             if df_poly_1h is not None and not df_poly_1h.empty:
                 df_1h = df_poly_1h
             else:
-                print(f"  ⚠ Polygon 1h Failed. Trying Twelve Data...")
+                print(f"  [WARNING] Polygon 1h Failed. Trying Twelve Data...")
                 df_td_1h = fetch_twelve_data_history(ticker, interval='1h', outputsize=500)
                 if df_td_1h is not None and not df_td_1h.empty:
                     df_1h = df_td_1h
@@ -1498,12 +1464,12 @@ def process_quant_analysis(ticker, force=False):
     except: df_1d = pd.DataFrame()
 
     if df_1d.empty or 'High' not in df_1d.columns:
-            print(f"  ⚠ YF 1d Failed. Trying Polygon...")
+            print(f"  [WARNING] YF 1d Failed. Trying Polygon...")
             df_poly_1d = fetch_polygon_history(ticker, period_days=730, interval='day')
             if df_poly_1d is not None and not df_poly_1d.empty:
                 df_1d = df_poly_1d
             else:
-                print(f"  ⚠ Polygon 1d Failed. Trying Twelve Data...")
+                print(f"  [WARNING] Polygon 1d Failed. Trying Twelve Data...")
                 df_td_1d = fetch_twelve_data_history(ticker, interval='day', outputsize=500)
                 if df_td_1d is not None and not df_td_1d.empty:
                     df_1d = df_td_1d
@@ -1529,7 +1495,7 @@ def process_quant_analysis(ticker, force=False):
         df_1h = calculate_technical_indicators(df_1h)
         df_1d = calculate_technical_indicators(df_1d)
     except Exception as q_err:
-            print(f"  ✗ Quant TA Failed for {ticker}: {q_err}")
+            print(f"  [FAILED] Quant TA Failed for {ticker}: {q_err}")
             quant_logger.error(f"Quant TA Calculation Failed: {q_err}", exc_info=True)
             raise ValueError(f'Technical Analysis Failed: {str(q_err)}')
     
@@ -1538,16 +1504,6 @@ def process_quant_analysis(ticker, force=False):
     data_1d_str = prepare_df_for_llm(df_1d, last_n=24)
     
     # 5. Execute AI Analysis
-    api_keys = [os.getenv('GEMINI_API_CHECKER')]
-    if os.getenv('GEMINI_API_KEY_6'):
-        api_keys.append(os.getenv('GEMINI_API_KEY_6'))
-    api_keys = [k for k in api_keys if k]
-    
-    if not api_keys:
-            print("Error: No AI keys (CHECKER or 6) found.")
-            # last_error = "No API Keys found in environment" 
-            # Allow fallback
-
     analysis_raw = None
     summary_final = None
     last_error = "Unknown Error"
@@ -1616,54 +1572,44 @@ def process_quant_analysis(ticker, force=False):
                     summary_final = content_text
                     analysis_raw = "Generated via Groq (llama-3.3-70b)"
                     groq_success = True
-                    print(f"  ✓ Groq Analysis Successful for {ticker}")
+                    print(f"  [SUCCESS] Groq Analysis Successful for {ticker}")
             else:
-                print(f"  ⚠ Groq Error: {resp.status_code}")
+                print(f"  [WARNING] Groq Error: {resp.status_code}")
         except Exception as e:
-            print(f"  ⚠ Groq Connection Error: {e}")
+            print(f"  [WARNING] Groq Connection Error: {e}")
 
-    # 2. Fallback to Gemini if Groq failed/missing
-    if not groq_success and api_keys:
-        payload = {
-            "contents": [{"parts": [{"text": combined_prompt}]}],
-            "generationConfig": {
-                "temperature": 0.3
-            }
-        }
-
-        for i, key in enumerate(api_keys):
+    # 2. Fallback to Azure OpenAI if Groq failed/missing
+    if not groq_success:
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
-                headers = {'Content-Type': 'application/json'}
-                
-                # print(f"DEBUG: Attempting AI Call {i+1}/{len(api_keys)}")
-
-                response = requests.post(url, headers=headers, json=payload, timeout=45)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    candidates = result.get('candidates', [])
-                    if candidates:
-                        content_text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-                        if content_text:
-                            summary_final = content_text
-                            analysis_raw = "Generated via REST API (gemini-2.5-flash)"
-                            break # Success
-                elif response.status_code == 429:
-                    print(f"  ⚠ 429 Rate Limit on key ending ...{key[-4:]}")
-                    time.sleep(0.5) 
+                response = azure_client.chat.completions.create(
+                    model=deployment_name,
+                    messages=[
+                        {"role": "system", "content": "You are an expert quantitative trader."},
+                        {"role": "user", "content": combined_prompt}
+                    ],
+                    temperature=0.3
+                )
+                content_text = response.choices[0].message.content
+                if content_text:
+                    summary_final = content_text
+                    analysis_raw = f"Generated via Azure OpenAI ({deployment_name})"
+                    print(f"  [SUCCESS] Azure Quant Analysis Successful for {ticker}")
+                break # Success
+            except Exception as e:
+                if "429" in str(e) and attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 5
+                    print(f"  [WARNING] Azure Quant Rate Limit (429). Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
                     continue
                 else:
-                    last_error = f"API Error {response.status_code}"
-                    continue
-
-            except Exception as e:
-                last_error = f"Connection Error: {str(e)}"
-                continue
+                    print(f"  [WARNING] Azure Quant Fallback Error: {e}")
+                    break
 
     # --- FALLBACK MECHANISM ---
     if not summary_final:
-        print(f"  ⚠ All AI keys failed for {ticker}. Generating Fallback Analysis.")
+        print(f"  [WARNING] All AI keys failed for {ticker}. Generating Fallback Analysis.")
         
         # Simple algorithmic fallback
         last_close = df_1d['Close'].iloc[-1]
@@ -1735,11 +1681,21 @@ def process_quant_for_active_tickers(force=False, custom_tickers=None):
              try:
                  process_quant_analysis(t, force=force)
              except Exception as e:
-                 print(f"  ✗ Quant Job Failed for {t}: {e}")
+                 print(f"  [FAILED] Quant Job Failed for {t}: {e}")
 
         # Use ThreadPool
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            tasks = [executor.submit(job, ticker) for ticker in target_list]
+        is_ci = os.getenv('GITHUB_ACTIONS') == 'true'
+        max_workers = 1 if is_ci else 4
+        delay = 5.0 if is_ci else 0.0
+        
+        if is_ci:
+            print(f"  [CI MODE] Quant: Running with {max_workers} worker and {delay}s delay.")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            tasks = []
+            for ticker in target_list:
+                tasks.append(executor.submit(job, ticker))
+                if delay > 0: time.sleep(delay)
             concurrent.futures.wait(tasks)
             
         print("Quant Analysis cycle completed successfully!")
@@ -1853,7 +1809,7 @@ def normalize_and_validate_columns(df, label="Data"):
     
     # Remove duplicate columns if any (keep first) to prevent ValueError/Ambiguity
     if df.columns.duplicated().any():
-        print(f"  ⚠ {label}: Duplicate columns found: {df.columns[df.columns.duplicated()].tolist()}. Deduplicating...")
+        print(f"  [WARNING] {label}: Duplicate columns found: {df.columns[df.columns.duplicated()].tolist()}. Deduplicating...")
         df = df.loc[:, ~df.columns.duplicated()]
     
     # 3. Check for Essentials
@@ -1861,7 +1817,7 @@ def normalize_and_validate_columns(df, label="Data"):
     missing = [c for c in required if c not in df.columns]
     
     if missing:
-        print(f"  ⚠ {label} Valid but Missing Columns: {missing}. Actual: {df.columns.tolist()}")
+        print(f"  [WARNING] {label} Valid but Missing Columns: {missing}. Actual: {df.columns.tolist()}")
         return df, False
     
     return df, True
@@ -1896,7 +1852,7 @@ def get_technical_analysis(ticker):
         # If cache exists and is fresh, return it
         if cached_item and not is_stale:
              src_label = cached_item.get('source', 'yahoo')
-             print(f"  ✓ Serving TA from Cache for {ticker} ({interval}) [Source: {src_label}]")
+             print(f"  [SUCCESS] Serving TA from Cache for {ticker} ({interval}) [Source: {src_label}]")
              return jsonify(cached_item['data'])
 
         # Dynamic Period selection based on Interval (YF constraints)
@@ -1930,30 +1886,30 @@ def get_technical_analysis(ticker):
                 last_error = e
                 if "429" in error_msg or "Too Many Requests" in error_msg or "Rate Limit" in error_msg:
                     wait = 2 ** attempt # 2, 4, 8
-                    print(f"  ⚠ TA Rate Limit (429) for {ticker}. Retrying in {wait}s...")
+                    print(f"  [WARNING] TA Rate Limit (429) for {ticker}. Retrying in {wait}s...")
                     time.sleep(wait)
                     continue
                 else:
                     # Non-retryable error?
-                    print(f"  ✗ TA Fetch Error attempt {attempt}: {e}")
+                    print(f"  [FAILED] TA Fetch Error attempt {attempt}: {e}")
                     time.sleep(1) # small wait
         
         if df.empty:
-             print(f"  ⚠ Yahoo Finance failed/empty for {ticker}. Attempting Alpha Vantage Fallback...")
+             print(f"  [WARNING] Yahoo Finance failed/empty for {ticker}. Attempting Alpha Vantage Fallback...")
              # fetch_av_data now returns tuple
              df, src = fetch_av_data(ticker, interval)
              if not df.empty:
-                 print(f"  ✓ Fallback to Alpha Vantage successful for {ticker}")
+                 print(f"  [SUCCESS] Fallback to Alpha Vantage successful for {ticker}")
                  data_source = src
              elif last_error:
-                 print(f"  ✗ Alpha Vantage Fallback also failed.")
+                 print(f"  [FAILED] Alpha Vantage Fallback also failed.")
                  raise last_error
         
                 
         # If fetch empty but we have stale cache, return stale
         if df.empty:
             if cached_item:
-                 print(f"  ⚠ Fetch empty, serving STALE TA Cache for {ticker}")
+                 print(f"  [WARNING] Fetch empty, serving STALE TA Cache for {ticker}")
                  return jsonify(cached_item['data'])
             return jsonify({'error': 'No data found'}), 404
             
@@ -1990,7 +1946,7 @@ def get_technical_analysis(ticker):
                 summary = get_ta_summary(df)
 
             except Exception as ta_calc_error:
-                print(f"  ⚠ TA Calcs Failed: {ta_calc_error} - Returning raw Price Chart only.")
+                print(f"  [WARNING] TA Calcs Failed: {ta_calc_error} - Returning raw Price Chart only.")
                 # Fallback: Just use the raw DF for charting, no indicators
                 fib_levels = None
                 supports = []
@@ -2041,7 +1997,7 @@ def get_technical_analysis(ticker):
                     else:
                         # 4. Critical Failure Fallback: Generate generic dates? 
                         # Or just fail gracefully. Let's try to use what we have.
-                        print(f"  ⚠ CRITICAL: Could not find Date column/index for {ticker}. Using Index as generic x-axis.")
+                        print(f"  [WARNING] CRITICAL: Could not find Date column/index for {ticker}. Using Index as generic x-axis.")
                         chart_data = df.tail(200).reset_index()
                         # Rename first col to date to satisfy frontend
                         chart_data.rename(columns={chart_data.columns[0]: 'Date'}, inplace=True)
@@ -2130,7 +2086,7 @@ def get_technical_analysis(ticker):
              cache_key = f"{ticker}_{request.args.get('interval', '1d')}"
              cached_item = TA_CACHE.get(cache_key)
              if cached_item:
-                  print(f"  ⚠ Rate Limit hit, serving STALE TA Cache for {ticker}")
+                  print(f"  [WARNING] Rate Limit hit, serving STALE TA Cache for {ticker}")
                   return jsonify(cached_item['data'])
                   
              return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
@@ -2369,7 +2325,7 @@ def get_fundamentals(ticker):
             print(f"Supabase Read Error for {ticker}: {db_err}")
             # Identify if this is a Cloudflare/Connection issue
             if "JSON" in str(db_err) or "Expecting value" in str(db_err):
-                 print(f"  ⚠ CRITICAL: Supabase returned non-JSON response (likely Cloudflare block or 503).")
+                 print(f"  [WARNING] CRITICAL: Supabase returned non-JSON response (likely Cloudflare block or 503).")
             return jsonify({'status': 'not_found', 'message': 'Database unavailable'}), 200
 
         if result.data:
@@ -2382,7 +2338,7 @@ def get_fundamentals(ticker):
                     summary = candidate
                     # If we found a valid one that isn't the latest, detailed logs
                     if candidate != result.data[0]:
-                        print(f"  ✓ Skipped 'Unavailable' summary for {ticker}, showing valid one from {candidate.get('summary_date')}")
+                        print(f"  [SUCCESS] Skipped 'Unavailable' summary for {ticker}, showing valid one from {candidate.get('summary_date')}")
                     break
             
             # If all are unavailable, we will return the latest (which is the fail state), which is correct behavior if nothing exists.
@@ -2462,12 +2418,12 @@ def get_history(ticker):
         
         # --- FALLBACK LOGIC START ---
         if df.empty:
-             print(f"  ⚠ Yahoo History Empty for {ticker}, trying Fallback...")
+             print(f"  [WARNING] Yahoo History Empty for {ticker}, trying Fallback...")
              raise Exception("Empty Yahoo Data")
         # --- FALLBACK LOGIC END ---
 
     except Exception as e:
-         print(f"  ⚠ Yahoo History Error: {e}")
+         print(f"  [WARNING] Yahoo History Error: {e}")
          
          # --- POLYGON FALLBACK ---
          poly_key = os.getenv('POLYGON_API_KEY')
@@ -2512,7 +2468,7 @@ def get_history(ticker):
                      results = pdata.get('results', [])
                      
                      if results:
-                         print(f"  ✓ Polygon History Success: {len(results)} candles")
+                         print(f"  [SUCCESS] Polygon History Success: {len(results)} candles")
                          formatted_data = []
                          # Polygon: t (unix ms), o, h, l, c, v
                          for r in results:
@@ -2541,11 +2497,11 @@ def get_history(ticker):
                          }
                          return jsonify({'data': formatted_data})
              except Exception as pe:
-                 print(f"  ✗ Polygon History Error: {pe}")
+                 print(f"  [FAILED] Polygon History Error: {pe}")
 
          # If Fallback fails or no key, check Stale Cache
          if cache_key in HISTORY_CACHE:
-             print(f"  ⚠ Returning STALE History cache for {ticker}")
+             print(f"  [WARNING] Returning STALE History cache for {ticker}")
              # Cache stores {'data': {'data': [...]}} structure now to match
              val = HISTORY_CACHE[cache_key]['data']
              # If old cache (before fix) was list, handle it?
@@ -2648,7 +2604,7 @@ def get_latest_price(ticker):
             
         else:
              # YF Empty -> Try Polygon Fallback
-             print(f"  ⚠ Yahoo Latest-Price Empty for {ticker}, trying Polygon...")
+             print(f"  [WARNING] Yahoo Latest-Price Empty for {ticker}, trying Polygon...")
              poly_key = os.getenv('POLYGON_API_KEY')
              if poly_key:
                  try:
@@ -2672,7 +2628,7 @@ def get_latest_price(ticker):
                                  'previous_close': None # Prev API is usually 'yesterday'
                              }
                  except Exception as pe:
-                     print(f"  ✗ Polygon Latest Fallback Failed: {pe}")
+                     print(f"  [FAILED] Polygon Latest Fallback Failed: {pe}")
 
         if data:
             # Update Cache
@@ -2690,7 +2646,7 @@ def get_latest_price(ticker):
              print(f"Price Poll Rate Limit Error for {ticker}: {e}")
              # Return Stale Cache if available
              if ticker in LATEST_PRICE_CACHE:
-                 print(f"  ⚠ Returning STALE Latest Price cache for {ticker}")
+                 print(f"  [WARNING] Returning STALE Latest Price cache for {ticker}")
                  return jsonify(LATEST_PRICE_CACHE[ticker]['data'])
              return jsonify({'error': 'Rate limited by data provider.'}), 429
              
@@ -2717,7 +2673,7 @@ def get_quant_analysis(ticker):
         
         # FALLBACK: Try to serve stale cache
         if ticker in QUANT_ANALYSIS_CACHE:
-             print(f"  ⚠ Returning STALE Quant Analysis cache for {ticker}")
+             print(f"  [WARNING] Returning STALE Quant Analysis cache for {ticker}")
              return jsonify(QUANT_ANALYSIS_CACHE[ticker]['data'])
 
         err_msg = str(e)
