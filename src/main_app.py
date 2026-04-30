@@ -4,6 +4,11 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sys
 import os
+import mimetypes
+
+# Fix MIME types for Windows
+mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type('text/css', '.css')
 from dotenv import load_dotenv
 import logging
 from datetime import datetime

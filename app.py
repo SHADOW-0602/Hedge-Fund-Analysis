@@ -1,5 +1,11 @@
-import sys
 import os
+import sys
+import mimetypes
+
+# Fix MIME types for Windows
+mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type('text/css', '.css')
+
 from dotenv import load_dotenv
 
 # Load environment variab
