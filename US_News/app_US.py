@@ -950,7 +950,7 @@ def fetch_news_for_ticker(ticker):
 import concurrent.futures
 
 def generate_ai_report(ticker, news_articles, report_type='news'):
-    """Generate Summary using Gemini Flash 2.5
+    """Generate Summary using Azure OpenAI
     report_type: 'news' (A/B Tested Updates) or 'fundamental' (Corporate Profile)
     """
     
@@ -960,14 +960,14 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
     
     for idx, article in enumerate(news_articles[:8], 1):  # Reduced to 8 to avoid TPM limits
         news_text += f"{idx}. {article['title']}\n"
-        news_text += f"   Source: {article['source']}\n"
-        news_text += f"   {article['description']}\n\n"
+        news_text += f"   Source: {article.get('source', 'Unknown')}\n"
+        news_text += f"   {article.get('description', 'No description available')}\n\n"
         sources_list.append({
-            'title': article['title'],
-            'url': article['url'],
-            'source': article['source']
+            'title': article.get('title', 'No Title'),
+            'url': article.get('url', '#'),
+            'source': article.get('source', 'Unknown')
         })
-
+    
     prompt = ""
     is_json = False
 
@@ -1104,12 +1104,12 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
         
         | Metric | FY-2 | FY-1 | FY Current | Trend |
         |--------|------|------|------------|-------|
-        | Revenue ($M) | [X] | [Y] | [Z] | [↑/↓] |
-        | Revenue Growth (%) | [X] | [Y] | [Z] | [↑/↓] |
-        | Gross Margin (%) | [X] | [Y] | [Z] | [↑/↓] |
-        | Operating Margin (%) | [X] | [Y] | [Z] | [↑/↓] |
-        | Free Cash Flow ($M) | [X] | [Y] | [Z] | [↑/↓] |
-        | [Sector KPI] | [X] | [Y] | [Z] | [↑/↓] |
+        | Revenue ($M) | [X] | [Y] | [Z] | [UP/DOWN] |
+        | Revenue Growth (%) | [X] | [Y] | [Z] | [UP/DOWN] |
+        | Gross Margin (%) | [X] | [Y] | [Z] | [UP/DOWN] |
+        | Operating Margin (%) | [X] | [Y] | [Z] | [UP/DOWN] |
+        | Free Cash Flow ($M) | [X] | [Y] | [Z] | [UP/DOWN] |
+        | [Sector KPI] | [X] | [Y] | [Z] | [UP/DOWN] |
         
         **Sector-Specific KPIs**:
         - Tech: Rule of 40, CAC payback, net retention
@@ -1141,58 +1141,97 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
         * **Bull Case** (3-4 points)
         * **Bear Case** (3-4 points)
 
+        Task: Generate a comprehensive investment research report on {ticker} (target: 2,500-3,000 words).
+        
+        Company: {ticker}
+        Contextual Data (Recent News): {news_text}
+        
+        STEP 1: Identify {ticker}'s sector and use sector-specific metrics throughout.
+        
         CRITICAL INSTRUCTIONS:
-        1. Target 3,000-4,000 words total
-        2. Use sector-specific terminology
-        3. **Include ALL tables with actual data where available**
-        4. Use markdown table format (| Column | Column |)
-        5. Be concise and data-driven
-        6. Format in markdown (##, *, **bold**)
-        7. NO JSON format
+        1. Target 2,500-3,000 words total for a professional-grade deep dive.
+        2. Use sector-specific terminology (e.g., ARR for Tech, NIM for Banking).
+        3. **Include all requested tables with actual data where available or placeholders [X] if unknown**.
+        4. Use markdown table format.
+        5. Format in clean markdown (##, *, **bold**).
+        6. NO JSON format.
         """
         is_json = False
 
-    # Azure OpenAI Analysis with Retry Logic
-    max_retries = 3
-    for attempt in range(max_retries):
+    # AI Analysis with Groq (Primary) and Azure (Fallback)
+    summary_final = None
+    groq_key = os.getenv('GROQ_API_KEY')
+    
+    if groq_key:
         try:
-            response = azure_client.chat.completions.create(
-                model=deployment_name,
-                messages=[
+            print(f"  [GROQ] Generating {report_type} report for {ticker}...")
+            groq_url = "https://api.groq.com/openai/v1/chat/completions"
+            groq_headers = {
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": "application/json"
+            }
+            groq_payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
                     {"role": "system", "content": "You are a top-tier investment bank research analyst."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.4,
-                response_format={"type": "json_object"} if is_json else None
-            )
-            break # Success
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1:
-                wait_time = (2 ** attempt) * 5
-                print(f"  [WARNING] Azure Rate Limit (429). Retrying in {wait_time}s...")
-                time.sleep(wait_time)
-                continue
+                "temperature": 0.3
+            }
+            if is_json:
+                groq_payload["response_format"] = {"type": "json_object"}
+                
+            resp = requests.post(groq_url, headers=groq_headers, json=groq_payload, timeout=60)
+            if resp.status_code == 200:
+                content_text = resp.json()['choices'][0]['message']['content']
+                if content_text:
+                    summary_final = content_text
+                    print(f"  [SUCCESS] Report Generated via Groq ({report_type})")
             else:
-                print(f"  [WARNING] Azure OpenAI Error: {e}")
-                # If it's the last attempt or not a 429, we'll fall through to the FAILED print below
-                return {
-                    'executive_summary': f"<ul><li>Analysis failed: {str(e)}</li></ul>",
-                    'what_changed': '', 'analyst_earnings': '', 'last_week_updates': '', 'sources': sources_list
-                }
-        
-        content_text = response.choices[0].message.content
-        if content_text:
-             print(f"  [SUCCESS] Report Generated via Azure OpenAI ({report_type})")
-             
-             if is_json:
-                 # Parse JSON
-                 try:
-                     # Clean potential markdown wrappers (though Azure with json_object should be cleaner)
-                     clean_json = content_text.replace('```json', '').replace('```', '').strip()
-                     data = json.loads(clean_json)
-                     
-                     # Construct Full Markdown Report for Frontend
-                     full_report = f"""
+                print(f"  [WARNING] Groq Error ({resp.status_code}): {resp.text}")
+        except Exception as e:
+            print(f"  [WARNING] Groq Failed: {e}")
+
+    # Fallback to Azure OpenAI if Groq failed
+    if not summary_final:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = azure_client.chat.completions.create(
+                    model=deployment_name,
+                    messages=[
+                        {"role": "system", "content": "You are a top-tier investment bank research analyst."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.4,
+                    response_format={"type": "json_object"} if is_json else None
+                )
+                content_text = response.choices[0].message.content
+                if content_text:
+                    summary_final = content_text
+                    print(f"  [SUCCESS] Report Generated via Azure OpenAI ({report_type})")
+                break # Success
+            except Exception as e:
+                if "429" in str(e) and attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) * 5
+                    print(f"  [WARNING] Azure Rate Limit (429). Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"  [WARNING] Azure OpenAI Fallback Error: {e}")
+                    break
+
+    if summary_final:
+        content_text = summary_final
+        if is_json:
+            # Parse JSON
+            try:
+                # Clean potential markdown wrappers
+                clean_json = content_text.replace('```json', '').replace('```', '').strip()
+                data = json.loads(clean_json)
+                
+                # Construct Full Markdown Report for Frontend
+                full_report = f"""
 ## Executive Summary
 {data.get('executive_summary', '')}
 
@@ -1205,33 +1244,34 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
 ## Key Updates (Last Week)
 {data.get('last_week_updates', '')}
 """.strip()
-                     
-                     json_content = {
-                        'executive_summary': full_report,
-                        'what_changed': data.get('what_changed', ''),
-                        'analyst_earnings': data.get('analyst_earnings', ''),
-                        'last_week_updates': data.get('last_week_updates', ''),
-                        'sources': sources_list
-                     }
-                     return json_content
-                 except json.JSONDecodeError:
-                     print("  [WARNING] JSON Parsing Failed. Falling back to raw text.")
-                     return {
-                        'executive_summary': content_text,
-                        'what_changed': '',
-                        'analyst_earnings': '',
-                        'last_week_updates': '',
-                        'sources': sources_list
-                     }
-             else:
-                 # Return Markdown Directly (Fundamental)
-                 return {
-                    'executive_summary': content_text,
-                    'what_changed': '', 
-                    'analyst_earnings': '', 
-                    'last_week_updates': '', 
+                
+                json_content = {
+                    'executive_summary': full_report,
+                    'what_changed': data.get('what_changed', ''),
+                    'analyst_earnings': data.get('analyst_earnings', ''),
+                    'last_week_updates': data.get('last_week_updates', ''),
                     'sources': sources_list
-                 }
+                }
+                return json_content
+            except json.JSONDecodeError:
+                print("  [WARNING] JSON Parsing Failed. Falling back to raw text.")
+                return {
+                    'executive_summary': content_text,
+                    'what_changed': '',
+                    'analyst_earnings': '',
+                    'last_week_updates': '',
+                    'sources': sources_list
+                }
+        else:
+            # Return Markdown Directly (Fundamental)
+            return {
+                'executive_summary': content_text,
+                'what_changed': '', 
+                'analyst_earnings': '', 
+                'last_week_updates': '', 
+                'sources': sources_list
+            }
+
     print(f"  [FAILED] FAILED to generate summary for {ticker}.")
     
     # Return Fallback instead of None to prevent crashes
@@ -1310,12 +1350,14 @@ def process_single_ticker(ticker, report_type='fundamental'):
     print(f"Processing {ticker} (Type: {report_type}) -> DB Key: {storage_ticker}")
     try:
         news_articles = fetch_news_for_ticker(ticker)
-        if news_articles:
+        
+        # Fundamental analysis should proceed even if no recent news is found
+        if news_articles or report_type == 'fundamental':
             # Random sleep
-            time.sleep(random.uniform(2.0, 4.0))
+            time.sleep(random.uniform(1.0, 3.0))
             
             # Use separate generation logic
-            summary_data = generate_ai_report(ticker, news_articles, report_type)
+            summary_data = generate_ai_report(ticker, news_articles or [], report_type)
             
             if summary_data and "Unavailable" not in summary_data.get('executive_summary', ''):
                 store_news_and_summary(storage_ticker, news_articles, summary_data)
@@ -2167,13 +2209,13 @@ def ai_queue_worker():
         try:
             # Get next task
             task = AI_QUEUE.get()
-            ticker, keys = task
+            ticker, report_type = task
             
-            print(f"  [QUEUE] Processing {ticker} (Queue Size: {AI_QUEUE.qsize()})")
+            print(f"  [QUEUE] Processing {ticker} (Type: {report_type}, Queue Size: {AI_QUEUE.qsize()})")
             
             # Process
             try:
-                process_single_ticker(ticker, keys)
+                process_single_ticker(ticker, report_type=report_type)
             except Exception as e:
                 print(f"  [QUEUE] Error processing {ticker}: {e}")
             
@@ -2189,22 +2231,11 @@ def ai_queue_worker():
 # Start Queue Worker
 threading.Thread(target=ai_queue_worker, daemon=True).start()
 
-def run_single(ticker, manual=False):
+def run_single(ticker, manual=False, report_type='fundamental'):
     """Trigger background analysis via Safe Queue"""
-    # Load Keys (Dynamically to pick up environment changes if valid)
-    all_keys = []
-    key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
-    for var in key_vars:
-        k = os.getenv(var)
-        if k: all_keys.append((k, var))
-        
-    if not all_keys:
-        print("CRITICAL: No Gemini API keys found!")
-        return "No keys"
-
     # Push to Queue instead of spawning uncapped threads
-    print(f"  [QUEUE] Adding {ticker} to AI Queue")
-    AI_QUEUE.put((ticker, all_keys))
+    print(f"  [QUEUE] Adding {ticker} ({report_type}) to AI Queue")
+    AI_QUEUE.put((ticker, report_type))
     
     return f"Added {ticker} to AI Queue"
 
@@ -2216,19 +2247,8 @@ def generate_ticker_fundamentals(ticker):
 
     # For POST requests (like the refresh button), use the main processing logic
     if request.method == 'POST':
-        # Reuse existing logic via run_single or process_single_ticker logic
-        # But here we want a direct response, so we call process_single_ticker synchronously
-        # or we just trigger background and return "Processing"
-        
-        # Load Keys
-        all_keys = []
-        key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
-        for var in key_vars:
-            k = os.getenv(var)
-            if k: all_keys.append((k, var))
-            
         # Trigger with report_type='fundamental' (Default prompt)
-        result_data = process_single_ticker(ticker, all_keys, report_type='fundamental')
+        result_data = process_single_ticker(ticker, report_type='fundamental')
         if result_data:
              return jsonify(result_data)
         else:
@@ -2283,15 +2303,8 @@ def get_ticker_quote(ticker):
 @us_news_bp.route('/api/generate_news/<ticker>', methods=['POST', 'GET'], strict_slashes=False)
 def generate_ticker_news(ticker):
     """Force generate news summary for a specific ticker (Separate Route)"""
-    # Load Keys
-    all_keys = []
-    key_vars = ['GEMINI_API_CHECKER', 'GEMINI_API_KEY', 'GEMINI_API_KEY_2', 'GEMINI_API_KEY_3', 'GEMINI_API_KEY_4', 'GEMINI_API_KEY_5', 'GEMINI_API_KEY_6']
-    for var in key_vars:
-        k = os.getenv(var)
-        if k: all_keys.append((k, var))
-        
     # Trigger with report_type='news'
-    result_data = process_single_ticker(ticker, all_keys, report_type='news')
+    result_data = process_single_ticker(ticker, report_type='news')
     if result_data:
          return jsonify(result_data)
     else:
