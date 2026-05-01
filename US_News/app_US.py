@@ -2524,7 +2524,7 @@ def get_history(ticker):
          err_msg = str(e)
          if "Too Many Requests" in err_msg or "429" in err_msg:
              return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
-         return jsonify({'error': 'History unavailable'}), 500
+         return jsonify({'error': 'No history found for this ticker'}), 404
 
     # Success Path (Yahoo)
     if df.empty:
