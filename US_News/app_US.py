@@ -947,6 +947,60 @@ def fetch_news_for_ticker(ticker):
     print(f"  -> Total valid articles fetched: {len(unique_news)}")
     return unique_news
 
+def extract_fundamental_section(text: str, section_title: str) -> str:
+    if not text:
+        return ''
+    lines = text.split('\n')
+    section_lines = []
+    is_recording = False
+    
+    for line in lines:
+        trimmed = line.strip()
+        if trimmed.startswith('##') and section_title.lower() in trimmed.lower():
+            is_recording = True
+            section_lines.append(line)
+            continue
+        if is_recording and trimmed.startswith('##') and not trimmed.startswith('###'):
+            break
+        if is_recording:
+            section_lines.append(line)
+            
+    return '\n'.join(section_lines).strip()
+
+def split_consolidated_report(summary_dict: dict) -> dict:
+    if not summary_dict:
+        return summary_dict
+        
+    exec_summary = summary_dict.get('executive_summary') or ''
+    analyst_earnings = summary_dict.get('analyst_earnings') or ''
+    
+    # If analyst_earnings is already populated (older format), keep it
+    if analyst_earnings and analyst_earnings.strip() and analyst_earnings.strip() != 'N/A':
+        return summary_dict
+        
+    # Extract sections
+    part1 = extract_fundamental_section(exec_summary, 'Part 1')
+    part2 = extract_fundamental_section(exec_summary, 'Part 2')
+    part3 = extract_fundamental_section(exec_summary, 'Part 3')
+    part4 = extract_fundamental_section(exec_summary, 'Part 4')
+    part5 = extract_fundamental_section(exec_summary, 'Part 5')
+    part6 = extract_fundamental_section(exec_summary, 'Part 6')
+    part7 = extract_fundamental_section(exec_summary, 'Part 7')
+    
+    parts_list = [part1, part2, part3, part4, part5, part7]
+    extracted_exec_summary = '\n\n'.join([p for p in parts_list if p])
+    extracted_what_changed = part2 or ''
+    extracted_last_week_updates = part3 or ''
+    extracted_analyst_earnings = part6 or ''
+    
+    new_summary = dict(summary_dict)
+    new_summary['executive_summary'] = extracted_exec_summary or exec_summary
+    new_summary['what_changed'] = summary_dict.get('what_changed') or extracted_what_changed
+    new_summary['last_week_updates'] = summary_dict.get('last_week_updates') or extracted_last_week_updates
+    new_summary['analyst_earnings'] = summary_dict.get('analyst_earnings') or extracted_analyst_earnings
+    return new_summary
+
+
 import concurrent.futures
 
 def generate_ai_report(ticker, news_articles, report_type='news'):
@@ -1030,7 +1084,7 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
         prompt = f"""
         Role: Expert equity research analyst. Provide concise, data-driven investment analysis.
 
-        Task: Generate a focused investment research report on {ticker} (target: 3,000-4,000 words).
+        Task: Generate a focused investment research report on {ticker} (target: 4,000-5,000 words).
 
         Company: {ticker}
         Data: {news_text}
@@ -1141,7 +1195,7 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
         * **Bull Case** (3-4 points)
         * **Bear Case** (3-4 points)
 
-        Task: Generate a comprehensive investment research report on {ticker} (target: 2,500-3,000 words).
+        Task: Generate a comprehensive investment research report on {ticker} (target: 4,000-5,000 words).
         
         Company: {ticker}
         Contextual Data (Recent News): {news_text}
@@ -1149,7 +1203,7 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
         STEP 1: Identify {ticker}'s sector and use sector-specific metrics throughout.
         
         CRITICAL INSTRUCTIONS:
-        1. Target 2,500-3,000 words total for a professional-grade deep dive.
+        1. Target 4,000-5,000 words total for a professional-grade deep dive.
         2. Use sector-specific terminology (e.g., ARR for Tech, NIM for Banking).
         3. **Include all requested tables with actual data where available or placeholders [X] if unknown**.
         4. Use markdown table format.
@@ -1176,7 +1230,8 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
                     {"role": "system", "content": "You are a top-tier investment bank research analyst."},
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.3
+                "temperature": 0.3,
+                "max_tokens": 8192
             }
             if is_json:
                 groq_payload["response_format"] = {"type": "json_object"}
@@ -1204,6 +1259,7 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.4,
+                    max_tokens=8192,
                     response_format={"type": "json_object"} if is_json else None
                 )
                 content_text = response.choices[0].message.content
@@ -1264,11 +1320,22 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
                 }
         else:
             # Return Markdown Directly (Fundamental)
+            part1 = extract_fundamental_section(content_text, 'Part 1')
+            part2 = extract_fundamental_section(content_text, 'Part 2')
+            part3 = extract_fundamental_section(content_text, 'Part 3')
+            part4 = extract_fundamental_section(content_text, 'Part 4')
+            part5 = extract_fundamental_section(content_text, 'Part 5')
+            part6 = extract_fundamental_section(content_text, 'Part 6')
+            part7 = extract_fundamental_section(content_text, 'Part 7')
+            
+            parts_list = [part1, part2, part3, part4, part5, part7]
+            extracted_exec_summary = '\n\n'.join([p for p in parts_list if p])
+            
             return {
-                'executive_summary': content_text,
-                'what_changed': '', 
-                'analyst_earnings': '', 
-                'last_week_updates': '', 
+                'executive_summary': extracted_exec_summary or content_text,
+                'what_changed': part2 or '', 
+                'analyst_earnings': part6 or '', 
+                'last_week_updates': part3 or '', 
                 'sources': sources_list
             }
 
@@ -2355,6 +2422,7 @@ def get_fundamentals(ticker):
                     break
             
             # If all are unavailable, we will return the latest (which is the fail state), which is correct behavior if nothing exists.
+            summary = split_consolidated_report(summary)
             
             # Get sources from news table linked to this summary date (or just latest)
             try:
