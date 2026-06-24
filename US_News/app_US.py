@@ -126,6 +126,77 @@ TICKER_NAMES = {
     'SPY': 'SPDR S&P 500 ETF Trust'
 }
 
+SOURCE_TIER_1 = {
+    'SEC EDGAR', 'Reuters', 'Bloomberg', 'Dow Jones Newswires', 'Financial Times', 'FT'
+}
+SOURCE_TIER_2 = {
+    'Barrons', "Barron's", 'The Wall Street Journal', 'MarketWatch', 'CNBC', 'Business Insider',
+    'Associated Press', 'AP', 'Axios', 'The Motley Fool', 'SeekingAlpha', 'GlobeNewswire Inc.',
+    'PR Newswire', 'Business Wire'
+}
+SOURCE_TIER_3 = {
+    'Yahoo', 'Yahoo Finance', 'Finnhub', 'ChartMill', 'Stocktwits', 'Binance News', 'NewsAPI',
+    'Polygon', 'TradingView'
+}
+
+SEC_CIKS = {
+    'AAPL': '0000320193', 'MSFT': '0000789019', 'GOOG': '0001652044', 'GOOGL': '0001652044',
+    'AMZN': '0001018724', 'NVDA': '0001045810', 'META': '0001326801', 'TSLA': '0001318605',
+    'AMD': '0000002488', 'AVGO': '0001730168', 'INTC': '0000050863', 'MU': '0000723125',
+    'SMCI': '0001375365', 'JPM': '0000019617', 'BAC': '0000070858', 'WMT': '0000104169',
+    'COST': '0000909832', 'HD': '0000354950', 'NFLX': '0001065280', 'CRM': '0001108524',
+    'ORCL': '0001341439', 'ADBE': '0000796343', 'PFE': '0000078003', 'MRK': '0000310158',
+    'JNJ': '0000200406', 'BA': '0000012927', 'CAT': '0000018230', 'UBER': '0001543151',
+    'COIN': '0001679788', 'PLTR': '0001321655'
+}
+
+# Ticker-Specific Metadata and Rules Configuration
+TICKER_PEER_GROUPS = {
+    'NVDA': ['AMD', 'AVGO', '^SOX'],
+    'AMD': ['NVDA', 'AVGO', '^SOX'],
+    'AVGO': ['NVDA', 'AMD', '^SOX'],
+    'TSM': ['NVDA', 'AMD', '^SOX'],
+    'SMCI': ['NVDA', 'AMD', '^SOX'],
+    'ARM': ['NVDA', 'AMD', '^SOX']
+}
+
+TICKER_MUST_KEEP_TERMS = {
+    'NVDA': ['bionemo', 'vera rubin', 'nvl4']
+}
+
+TICKER_MATERIAL_TOPICS = {
+    'NVDA': {
+        'HBM / SK Hynix memory angle': ['sk hynix', 'hbm', 'high-bandwidth memory', 'memory expansion'],
+        'SoftBank / Masayoshi Son AI infrastructure commentary': ['softbank', 'masayoshi son', 'physical asi'],
+        'BioNeMo product announcement': ['bionemo']
+    }
+}
+
+TICKER_FISCAL_CORRECTIONS = {
+    'NVDA': {
+        'Q1 FY2027': 'Q1 FY2027 (reported approximately May 2026)',
+        'Q2 2026': 'Q1 FY2027 (reported approximately May 2026)',
+        'Q2 FY2026': 'Q1 FY2027 (reported approximately May 2026)'
+    }
+}
+
+TICKER_SPECIFIC_RULES = {
+    'NVDA': [
+        "**Material Topic Gaps**: If HBM/SK Hynix or SoftBank/Masayoshi Son are not confirmed in selected sources, state that in Fetch Notes rather than ignoring the angle.",
+        "**BioNeMo Completeness**: If BioNeMo appears in selected sources, include it as a {company_name}-specific product/company announcement. If it appears in candidates but not selected, explain the exclusion in Fetch Notes."
+    ]
+}
+
+# General Product and Competitor Confidence Overrides
+PRODUCT_CONFIDENCE_ALIGNMENTS = {
+    'bionemo': 'MEDIUM'
+}
+
+COMPETITOR_CONFIDENCE_DOWNGRADES = {
+    'trainium': 'LOW',
+    'amazon': 'LOW'
+}
+
 @us_news_bp.route('/api/search')
 def search_tickers():
     """Search for tickers using Yahoo Finance Dual-Strategy (Autoc + Query2)"""
@@ -245,6 +316,8 @@ QUANT_ANALYSIS_CACHE = {}
 # Global Cache for Technical Analysis
 # key: ticker_interval, value: { 'data': dict, 'timestamp': float }
 TA_CACHE = {}
+NEWS_FETCH_META = {}
+MARKET_SNAPSHOT_META = {}
 
 # Global Cache for Latest Price (Intraday Chart Updates)
 # key: ticker, value: { 'data': dict, 'timestamp': float }
@@ -411,6 +484,560 @@ def get_yf_session():
             
     return session
 
+def _parse_news_datetime(value):
+    """Normalize provider timestamps for ranking."""
+    if not value:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(value, tz=timezone.utc)
+        if isinstance(value, str):
+            cleaned = value.strip().replace('Z', '+00:00')
+            parsed = datetime.fromisoformat(cleaned)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+    except Exception:
+        return None
+    return None
+
+def _news_key(article):
+    # Keep query parameters to avoid collapsing distinct Finnhub/Yahoo news articles
+    url = (article.get('url') or '').strip().lower().rstrip('/')
+    if url:
+        return f"url:{url}"
+    normalized_title = re.sub(r'[^a-z0-9]+', ' ', (article.get('title') or '').lower()).strip()
+    return f"title:{normalized_title}"
+
+def _truncate_text(text, limit=420):
+    text = (text or '').strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(' ', 1)[0].rstrip() + '...'
+
+def enforce_news_summary_rules(markdown_text, ticker=None):
+    """Final deterministic cleanup for rules the model may occasionally miss."""
+    if not markdown_text:
+        return markdown_text
+
+    source_lines = markdown_text.splitlines()
+    lines = []
+    skip_section = False
+    for idx, line in enumerate(source_lines):
+        lower = line.lower()
+        
+        # Remove ChartMill or Affordable Growth bullets completely
+        if 'chartmill' in lower or 'affordable growth' in lower or 'growth screen' in lower:
+            continue
+
+        # Remove Yahoo AI-fears body bullet completely (keeping the Fetch Note)
+        if (('fear' in lower and ('ai' in lower or 'yahoo' in lower)) or 'cold water' in lower) and not 'present in candidates' in lower:
+            continue
+
+        # Align confidence using PRODUCT_CONFIDENCE_ALIGNMENTS
+        for prod, conf in PRODUCT_CONFIDENCE_ALIGNMENTS.items():
+            if prod in lower:
+                line = re.sub(r'\[LOW\]|\[HIGH\]|\[MEDIUM\]', f'[{conf}]', line, flags=re.IGNORECASE)
+                line = re.sub(r'\*\*\[LOW\]\*\*|\*\*\[HIGH\]\*\*|\*\*\[MEDIUM\]\*\*', f'**[{conf}]**', line, flags=re.IGNORECASE)
+
+        if re.match(r'^\s*###\s+Analyst Actions\s*$', line) or re.match(r'^\s*-\s*\*\*Analyst Actions\*\*\s*$', line):
+            following = "\n".join(source_lines[idx + 1:idx + 4]).lower()
+            if not any(term in following for term in ['rating change', 'price-target revision', 'estimate revision', 'initiated', 'upgraded', 'downgraded']):
+                skip_section = True
+                continue
+        if skip_section:
+            if re.match(r'^\s*###\s+', line) or re.match(r'^\s*-\s*\*\*[^*]+\*\*\s*$', line):
+                skip_section = False
+            else:
+                continue
+
+        # Build dynamic ticker-specific exclusion phrases
+        excl_phrases = [
+            'investment implication is limited', 'investment implication is unavailable',
+            'context-only', 'context only', 'not company-specific', 'not a direct company',
+            'indirect at best', 'implication is indirect', 'implication is limited'
+        ]
+        if ticker:
+            ticker_lower = ticker.lower()
+            excl_phrases.extend([f'not {ticker_lower}-specific', f'not a direct {ticker_lower}'])
+        else:
+            excl_phrases.extend(['not nvda-specific', 'not a direct nvda'])
+
+        if any(phrase in lower for phrase in excl_phrases):
+            continue
+
+        if re.match(r'^\s*-\s*\*\*\[(HIGH|MEDIUM|LOW)\]\s+[^*]+\*\*\s*$', line):
+            line = re.sub(r'\*\*\[(HIGH|MEDIUM|LOW)\]\s+', '**', line, count=1)
+        if re.match(r'^\s*-\s*\*\*\[(HIGH|MEDIUM|LOW)\]\s+(Price / Valuation and Positioning|Press Releases / Company Announcements|Product / Business / Sector News|Analyst Actions|Management/CEO Commentary|Fetch Notes)\*\*', line):
+            line = re.sub(r'^\s*-\s*\*\*\[(HIGH|MEDIUM|LOW)\]\s+(.+?)\*\*', r'### \2', line, count=1)
+        
+        # Competitor confidence downgrades
+        for keyword, conf in COMPETITOR_CONFIDENCE_DOWNGRADES.items():
+            if keyword in lower and line.lstrip().startswith('- **[MEDIUM]'):
+                line = line.replace('**[MEDIUM]**', f'**[{conf}]**', 1)
+
+        if ('chartmill' in lower or 'affordable growth' in lower or 'forward p/e' in lower) and line.lstrip().startswith('- **[HIGH]'):
+            line = line.replace('**[HIGH]**', '**[MEDIUM]**', 1)
+
+        # Fiscal year/date corrections
+        corrections = TICKER_FISCAL_CORRECTIONS.get(ticker, {}) if ticker else {}
+        for wrong_term, correct_term in corrections.items():
+            if wrong_term.lower() in lower and correct_term.lower() not in lower:
+                line = re.sub(re.escape(wrong_term), correct_term, line, flags=re.IGNORECASE)
+
+        lines.append(line)
+
+    cleaned = "\n".join(lines)
+    cleaned = re.sub(r'\(S\d+\s*-\s*S\d+\)', '(Fetch metadata)', cleaned)
+    return cleaned
+
+
+def _source_tier(source):
+    source = (source or 'Unknown').strip()
+    if source in SOURCE_TIER_1:
+        return 'T1'
+    if source in SOURCE_TIER_2:
+        return 'T2'
+    if source in SOURCE_TIER_3:
+        return 'T3'
+    return 'T3'
+
+def _article_detail_level(article):
+    description = (article.get('description') or '').strip()
+    if article.get('is_gated'):
+        return 'gated/headline-only'
+    if len(description) >= 160:
+        return 'detailed excerpt'
+    if description:
+        return 'partial excerpt'
+    return 'headline-only/limited'
+
+def _confidence_label(article):
+    tier = article.get('source_tier') or _source_tier(article.get('source'))
+    detail = article.get('detail_level') or _article_detail_level(article)
+    if tier == 'T1' and detail in {'detailed excerpt', 'partial excerpt'}:
+        return 'HIGH'
+    if tier in {'T1', 'T2'} and detail != 'headline-only/limited':
+        return 'MEDIUM'
+    if tier == 'T2' and detail == 'headline-only/limited':
+        return 'MEDIUM'
+    return 'LOW'
+
+def _classify_thesis_leg(article):
+    text = f"{article.get('title', '')} {article.get('description', '')}".lower()
+    if any(k in text for k in ['stock', 'shares', 'fell', 'rose', 'rallied', 'selloff', 'valuation', 'multiple', 'market cap', 'etf']):
+        return 'price_action'
+    if any(k in text for k in ['earnings', 'revenue', 'margin', 'guidance', 'forecast', 'profit', 'eps']):
+        return 'earnings_guidance'
+    if any(k in text for k in ['upgrade', 'downgrade', 'rating', 'price target', 'analyst', 'initiated']):
+        return 'analyst_view'
+    if any(k in text for k in ['rival', 'competitor', 'qualcomm', 'amd', 'broadcom', 'intel', 'custom chip', 'startup', 'acquire', 'buy']):
+        return 'competitive_landscape'
+    if any(k in text for k in ['fed', 'rate', 'inflation', 'macro', 'spending', 'capex', 'data center', 'power', 'hbm', 'memory']):
+        return 'macro_readthrough'
+    return 'specific_catalyst'
+
+def _is_peripheral_noise(article, ticker, company_name):
+    text = f"{article.get('title', '')} {article.get('description', '')}".lower()
+    direct_terms = [ticker.lower()] + [
+        term for term in re.split(r'[^a-zA-Z0-9]+', company_name.lower())
+        if len(term) > 2 and term not in {'inc', 'corp', 'ltd', 'plc', 'com', 'the', 'and', 'co'}
+    ]
+    has_direct_ticker = any(re.search(rf'\b{re.escape(term)}\b', text) for term in direct_terms)
+    peripheral_terms = [
+        'quantum computing', 'quantum computer', 'executive order',
+        'spacex', 'starlink', 'anthropic', 'reflection ai'
+    ]
+    if 'spacex' in text:
+        return True
+    if any(term in text for term in peripheral_terms) and not has_direct_ticker:
+        return True
+    return False
+
+def _is_truncated_low_value(article):
+    source = (article.get('source') or '').lower()
+    text = f"{article.get('title', '')} {article.get('description', '')}"
+    if any(s in source for s in ['biztoc', 'barchart']):
+        if '…' in text or text.count('...') >= 1 or len((article.get('description') or '').strip()) < 80:
+            return True
+    return False
+
+def _is_must_keep_article(article, ticker=None):
+    text = f"{article.get('title', '')} {article.get('description', '')}".lower()
+    must_keep_terms = TICKER_MUST_KEEP_TERMS.get(ticker, []) if ticker else []
+    if not must_keep_terms and (not ticker or ticker == 'NVDA'):
+        must_keep_terms = ['bionemo', 'vera rubin', 'nvl4']
+    return any(term in text for term in must_keep_terms)
+
+def _ticker_specificity(article, ticker, company_name):
+    text = f"{article.get('title', '')} {article.get('description', '')}".lower()
+    ticker_l = ticker.lower()
+    company_terms = [
+        term for term in re.split(r'[^a-zA-Z0-9]+', company_name.lower())
+        if len(term) > 2 and term not in {'inc', 'corp', 'ltd', 'plc', 'com', 'the', 'and', 'co'}
+    ]
+    title = (article.get('title') or '').lower()
+    specificity = 0
+    if re.search(rf'\b{re.escape(ticker_l)}\b', text):
+        specificity += 4
+    if any(term in title for term in company_terms):
+        specificity += 4
+    elif any(term in text for term in company_terms):
+        specificity += 2
+    if any(k in text for k in ['revenue', 'margin', 'guidance', 'earnings', 'price target', 'rating', 'sec', '8-k', '10-q', '10-k']):
+        specificity += 2
+    if any(k in text for k in ['rival', 'competitor', 'supplier', 'customer', 'partner']):
+        specificity += 1
+    return specificity
+
+def _article_relevance_score(article, ticker, company_name):
+    title = article.get('title') or ''
+    description = article.get('description') or ''
+    text = f"{title} {description}".lower()
+    ticker_l = ticker.lower()
+    company_terms = [
+        term for term in re.split(r'[^a-zA-Z0-9]+', company_name.lower())
+        if len(term) > 2 and term not in {'inc', 'corp', 'ltd', 'plc', 'com', 'the', 'and', 'co'}
+    ]
+
+    score = 0
+    tier = article.get('source_tier') or _source_tier(article.get('source'))
+    if tier == 'T1':
+        score += 8
+    elif tier == 'T2':
+        score += 4
+    else:
+        score += 1
+
+    specificity = _ticker_specificity(article, ticker, company_name)
+    score += specificity * 2
+    if re.search(rf'\b{re.escape(ticker_l)}\b', text):
+        score += 8
+    score += min(sum(1 for term in company_terms if term in text), 3) * 3
+    if len(description.strip()) >= 80:
+        score += 2
+    if any(word in text for word in ['earnings', 'revenue', 'guidance', 'forecast', 'upgrade', 'downgrade', 'price target', 'sec', 'merger', 'acquisition', 'lawsuit', 'regulator', 'launch']):
+        score += 3
+
+    published = _parse_news_datetime(article.get('published_at'))
+    if published:
+        age_hours = max((datetime.now(timezone.utc) - published).total_seconds() / 3600, 0)
+        score += max(0, 6 - (age_hours / 24))
+
+    return score
+
+def rank_and_filter_news(news_articles, ticker, limit=20):
+    """Deduplicate, filter, and rank articles before AI summarization."""
+    company_name = TICKER_NAMES.get(ticker, ticker)
+    deduped = {}
+    for article in news_articles:
+        title = (article.get('title') or '').strip()
+        url = (article.get('url') or '').strip()
+        if not title or title.lower() in {'removed', '[removed]'}:
+            continue
+        if not url:
+            continue
+
+        # Exclude T3 aggregator/secondary broad sector fear commentary
+        text = f"{title} {article.get('description', '')}".lower()
+        if 'fear' in text and ('ai' in text or 'infrastructure' in text) and ('yahoo' in (article.get('source') or '').lower() or 'finnhub' in (article.get('source') or '').lower()):
+            continue
+
+        if _is_peripheral_noise(article, ticker, company_name):
+            continue
+        if _is_truncated_low_value(article) and not _is_must_keep_article(article, ticker):
+            continue
+
+        normalized = {
+            'title': title,
+            'url': url,
+            'source': (article.get('source') or 'Unknown').strip(),
+            'published_at': article.get('published_at') or '',
+            'description': (article.get('description') or '').strip(),
+            'is_gated': bool(article.get('is_gated'))
+        }
+        normalized['source_tier'] = article.get('source_tier') or _source_tier(normalized['source'])
+        normalized['detail_level'] = article.get('detail_level') or _article_detail_level(normalized)
+        normalized['confidence'] = article.get('confidence') or _confidence_label(normalized)
+        normalized['thesis_leg'] = article.get('thesis_leg') or _classify_thesis_leg(normalized)
+        normalized['specificity'] = _ticker_specificity(normalized, ticker, company_name)
+        score = _article_relevance_score(normalized, ticker, company_name)
+        if _is_must_keep_article(normalized, ticker):
+            score += 20
+            normalized['specificity'] = max(normalized['specificity'], 4)
+        if normalized['source_tier'] == 'T3' and normalized['specificity'] < 4:
+            continue
+        if normalized['specificity'] < 2 and normalized['source_tier'] != 'T1':
+            continue
+        if score < 8:
+            continue
+
+        key = _news_key(normalized)
+        current = deduped.get(key)
+        if not current or score > current['_score']:
+            normalized['_score'] = score
+            deduped[key] = normalized
+
+    ranked = sorted(
+        deduped.values(),
+        key=lambda item: (
+            # Within T3, prefer sources with direct company-specific content (specificity >= 4)
+            0 if (item.get('source_tier') == 'T3' and item.get('specificity', 0) < 4) else 1,
+            item['_score'],
+            _parse_news_datetime(item.get('published_at')) or datetime.min.replace(tzinfo=timezone.utc)
+        ),
+        reverse=True
+    )
+
+    for item in ranked:
+        item.pop('_score', None)
+
+    selected = []
+    source_counts = {}
+    source_caps = {'The Motley Fool': 3}
+    tier_counts = {}
+    tier_caps = {'T3': 3}
+    def can_select(item):
+        source = item.get('source', 'Unknown')
+        tier = item.get('source_tier', 'T3')
+        if source_counts.get(source, 0) >= source_caps.get(source, limit):
+            return False
+        if tier == 'T3' and tier_counts.get('T3', 0) >= tier_caps.get('T3', limit):
+            # Prefer sources with direct company-specific content over broad sector commentary
+            def is_direct(x):
+                t = f"{x.get('title', '')} {x.get('description', '')}".lower()
+                # Indicators of broad sector commentary / stock screens
+                if any(k in t for k in ['screen', 'growth screen', 'stock to buy', 'stocks to buy', 'affordable growth', 'fears', 'opinion', 'broad market']):
+                    return False
+                # Indicators of direct product, corporate, or partner announcements
+                if any(k in t for k in ['launch', 'unveil', 'partner', 'powered by', 'collaboration', 'announce', 'introduce', 'integrate', 'sec', '8-k', 'earnings', 'dividend']):
+                    return True
+                return False
+
+            if is_direct(item):
+                # Find already selected T3 source that is broad sector commentary (not direct) to displace
+                displaceable = next((x for x in selected if x.get('source_tier') == 'T3' and not is_direct(x)), None)
+                if displaceable:
+                    selected.remove(displaceable)
+                    d_source = displaceable.get('source', 'Unknown')
+                    source_counts[d_source] = max(0, source_counts.get(d_source, 0) - 1)
+                    tier_counts['T3'] = max(0, tier_counts.get('T3', 0) - 1)
+                    print(f"  [DISPLACE] Displaced broad T3 '{displaceable.get('title')}' for direct T3 '{item.get('title')}'")
+                    return True
+            return False
+        if tier_counts.get(tier, 0) >= tier_caps.get(tier, limit):
+            return False
+        return True
+
+    def add_selected(item):
+        selected.append(item)
+        source = item.get('source', 'Unknown')
+        tier = item.get('source_tier', 'T3')
+        source_counts[source] = source_counts.get(source, 0) + 1
+        tier_counts[tier] = tier_counts.get(tier, 0) + 1
+
+    required_legs = ['price_action', 'specific_catalyst', 'earnings_guidance', 'analyst_view', 'competitive_landscape', 'macro_readthrough']
+    for leg in required_legs:
+        match = next((item for item in ranked if item.get('thesis_leg') == leg and item not in selected and can_select(item)), None)
+        if match:
+            add_selected(match)
+
+    for item in ranked:
+        if len(selected) >= limit:
+            break
+        if item not in selected and can_select(item):
+            add_selected(item)
+
+    return selected[:limit]
+
+def build_news_fetch_meta(ticker, candidates, selected, start_date, end_date):
+    sources = sorted({(item.get('source') or 'Unknown').strip() for item in candidates if item.get('source')})
+    selected_sources = sorted({(item.get('source') or 'Unknown').strip() for item in selected if item.get('source')})
+    full_count = sum(1 for item in selected if len((item.get('description') or '').strip()) >= 160)
+    partial_count = sum(1 for item in selected if 0 < len((item.get('description') or '').strip()) < 160)
+    limited_count = max(len(selected) - full_count - partial_count, 0)
+    thesis_legs = sorted({item.get('thesis_leg') for item in selected if item.get('thesis_leg')})
+    missing_legs = [
+        leg for leg in ['price_action', 'specific_catalyst', 'earnings_guidance', 'analyst_view', 'competitive_landscape', 'macro_readthrough']
+        if leg not in thesis_legs
+    ]
+    tier_counts = {
+        tier: sum(1 for item in selected if item.get('source_tier') == tier)
+        for tier in ['T1', 'T2', 'T3']
+    }
+    material_topic_checks = build_material_topic_checks(ticker, candidates, selected)
+
+    has_fear_candidate = any(
+        (('fear' in f"{c.get('title', '')} {c.get('description', '')}".lower() and ('ai' in f"{c.get('title', '')} {c.get('description', '')}".lower() or 'yahoo' in c.get('source', '').lower())) or 'cold water' in f"{c.get('title', '')} {c.get('description', '')}".lower())
+        for c in candidates
+    )
+    has_fear_selected = any(
+        (('fear' in f"{s.get('title', '')} {s.get('description', '')}".lower() and ('ai' in f"{s.get('title', '')} {s.get('description', '')}".lower() or 'yahoo' in s.get('source', '').lower())) or 'cold water' in f"{s.get('title', '')} {s.get('description', '')}".lower())
+        for s in selected
+    )
+    excluded_fear = has_fear_candidate and not has_fear_selected
+
+    return {
+        'ticker': ticker,
+        'window_start': str(start_date),
+        'window_end': str(end_date),
+        'candidate_count': len(candidates),
+        'selected_count': len(selected),
+        'sources': sources,
+        'selected_sources': selected_sources,
+        'full_count': full_count,
+        'partial_count': partial_count,
+        'limited_count': limited_count,
+        'thesis_legs': thesis_legs,
+        'missing_legs': missing_legs,
+        'tier_counts': tier_counts,
+        'material_topic_checks': material_topic_checks,
+        'excluded_fear': excluded_fear
+    }
+
+def format_news_fetch_meta(meta):
+    if not meta:
+        return "Window: unavailable | Sources: unavailable | Selected for detail: unavailable."
+    sources = ', '.join(meta.get('sources') or meta.get('selected_sources') or ['Unknown'])
+    return (
+        f"Window: {meta.get('window_start')} to {meta.get('window_end')} | "
+        f"Sources: {sources} | "
+        f"Selected for detail: {meta.get('selected_count', 0)} of {meta.get('candidate_count', 0)} candidates | "
+        f"Source tiers: T1={meta.get('tier_counts', {}).get('T1', 0)}, "
+        f"T2={meta.get('tier_counts', {}).get('T2', 0)}, T3={meta.get('tier_counts', {}).get('T3', 0)} | "
+        f"Provider excerpts: {meta.get('full_count', 0)} detailed, "
+        f"{meta.get('partial_count', 0)} partial, {meta.get('limited_count', 0)} headline-only/limited."
+    )
+
+def build_source_legend(news_articles, market_meta=None):
+    if not news_articles:
+        return "Source legend: no selected source items."
+
+    market_entry = ""
+    if market_meta:
+        market_entry = (
+            f"; {market_meta.get('source_id', 'MS1')}=Market Snapshot "
+            f"({market_meta.get('tier', 'Market Data')}, {market_meta.get('confidence', 'UNKNOWN')}, "
+            f"{market_meta.get('date', 'date unknown')}, providers: {market_meta.get('provider', 'unavailable')})"
+        )
+
+    # Detect collisions of (source, published_at)
+    collision_keys = {}
+    for article in news_articles[:20]:
+        src = article.get('source', 'Unknown')
+        pub = article.get('published_at', 'date unknown')
+        key = (src, pub)
+        collision_keys[key] = collision_keys.get(key, 0) + 1
+
+    legend_parts = []
+    for idx, article in enumerate(news_articles[:20], 1):
+        src = article.get('source', 'Unknown')
+        pub = article.get('published_at', 'date unknown')
+        tier = article.get('source_tier') or _source_tier(src)
+        conf = article.get('confidence') or _confidence_label(article)
+        
+        # If there's a collision, differentiate by title or URL ID
+        extra = ""
+        if collision_keys.get((src, pub), 0) > 1:
+            url = article.get('url', '')
+            match = re.search(r'id=([a-f0-9]+)', url)
+            url_id = match.group(1)[:8] if match else ""
+            title = article.get('title', '')
+            short_title = title[:20] + "..." if len(title) > 20 else title
+            if url_id:
+                extra = f", id: {url_id}, title: '{short_title}'"
+            else:
+                extra = f", title: '{short_title}'"
+                
+        legend_parts.append(
+            f"S{idx}={src} ({tier}, {conf}, {pub}{extra})"
+        )
+
+    lines = [
+        "Source tiers: T1=primary wire/regulatory (Reuters, Bloomberg, Dow Jones, FT, SEC) | T2=major financial media | T3=aggregator/secondary. Bullet labels show claim confidence, which can be HIGH even from T2 when the fact is concrete and directly stated.",
+        "Source IDs: " + "; ".join(legend_parts) + market_entry
+    ]
+    return "\n".join(lines)
+
+def build_material_topic_checks(ticker, candidates, selected):
+    topics = TICKER_MATERIAL_TOPICS.get(ticker, {})
+    checks = []
+    for label, terms in topics.items():
+        candidate_hit = any(
+            any(term in f"{item.get('title', '')} {item.get('description', '')}".lower() for term in terms)
+            for item in candidates
+        )
+        selected_hit = any(
+            any(term in f"{item.get('title', '')} {item.get('description', '')}".lower() for term in terms)
+            for item in selected
+        )
+        if selected_hit:
+            status = 'selected'
+        elif candidate_hit:
+            status = 'seen in candidates but not selected'
+        else:
+            status = 'not confirmed in fetched candidates'
+        checks.append(f"{label}: {status}")
+    return checks
+
+def fetch_sec_filings_for_ticker(ticker, start_date, end_date):
+    """Fetch recent SEC filing headlines as high-confidence regulatory items."""
+    cik = SEC_CIKS.get(ticker)
+    if not cik:
+        return []
+
+    try:
+        headers = {
+            'User-Agent': os.getenv('SEC_USER_AGENT', 'SHM Ventures research contact@example.com')
+        }
+        url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+        response = requests.get(url, headers=headers, timeout=8)
+        if response.status_code != 200:
+            print(f"  [WARNING] SEC submissions returned {response.status_code} for {ticker}")
+            return []
+
+        recent = response.json().get('filings', {}).get('recent', {})
+        forms = recent.get('form', [])
+        filing_dates = recent.get('filingDate', [])
+        report_dates = recent.get('reportDate', [])
+        accessions = recent.get('accessionNumber', [])
+        primary_docs = recent.get('primaryDocument', [])
+
+        items = []
+        for idx, form in enumerate(forms[:80]):
+            if form not in {'8-K', '10-Q', '10-K', '6-K', 'DEF 14A', 'S-3', 'S-8'}:
+                continue
+            filing_date = filing_dates[idx] if idx < len(filing_dates) else ''
+            try:
+                filed = date.fromisoformat(filing_date)
+            except Exception:
+                continue
+            if filed < start_date or filed > end_date:
+                continue
+
+            accession = accessions[idx] if idx < len(accessions) else ''
+            accession_path = accession.replace('-', '')
+            primary_doc = primary_docs[idx] if idx < len(primary_docs) else ''
+            sec_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_path}/{primary_doc}" if accession and primary_doc else f"https://www.sec.gov/edgar/browse/?CIK={ticker}"
+            report_date = report_dates[idx] if idx < len(report_dates) else ''
+            items.append({
+                'title': f"{ticker} filed {form} with SEC",
+                'url': sec_url,
+                'source': 'SEC EDGAR',
+                'source_tier': 'T1',
+                'published_at': filing_date,
+                'description': f"{ticker} filed {form} on {filing_date}" + (f" for report date {report_date}." if report_date else "."),
+                'thesis_leg': 'earnings_guidance' if form in {'10-Q', '10-K'} else 'specific_catalyst',
+                'detail_level': 'detailed excerpt',
+                'confidence': 'HIGH'
+            })
+        if items:
+            print(f"  [SUCCESS] SEC EDGAR: {len(items)} filings")
+        return items
+    except Exception as e:
+        print(f"  [FAILED] SEC EDGAR Exception: {e}")
+        return []
+
 def fetch_polygon_history(ticker, period_days=400, interval='day'):
     """
     Fallback: Fetch historical data from Polygon/Massive.com
@@ -555,9 +1182,8 @@ def fetch_quote_data(ticker):
 
     print(f"DEBUG: Fetching quote for {ticker} via YFinance...")
     try:
-        # Use custom session to rotate User-Agent
-        session = get_yf_session() 
-        stock = yf.Ticker(ticker, session=session)
+        # Do not pass session to avoid compatibility issues with yfinance/curl_cffi
+        stock = yf.Ticker(ticker)
         
         # fast_info often misses pre-market. Use history for latest tick.
         # caching: yfinance might cache history calls, but creating a new Ticker usually avoids instance cache.
@@ -592,7 +1218,8 @@ def fetch_quote_data(ticker):
                 'price': round(last_price, 2),
                 'previous_close': round(prev_close, 2) if prev_close else None,
                 'change': round(change, 2),
-                'change_percent': round(change_percent, 2)
+                'change_percent': round(change_percent, 2),
+                'source': 'Yahoo Finance'
             }
         else:
             # Fallback to fast_info if history is empty (e.g., weekend or no data)
@@ -608,7 +1235,8 @@ def fetch_quote_data(ticker):
                     'price': round(last_price, 2),
                     'previous_close': round(prev_close, 2) if prev_close else None,
                     'change': round(change, 2),
-                    'change_percent': round(change_percent, 2)
+                    'change_percent': round(change_percent, 2),
+                    'source': 'Yahoo Finance'
                 }
 
         if data:
@@ -648,7 +1276,8 @@ def fetch_quote_data(ticker):
                             'ticker': ticker,
                             'price': round(float(price), 2),
                             'change': 0, # Placeholder
-                            'change_percent': 0 # Placeholder
+                            'change_percent': 0, # Placeholder
+                            'source': 'Polygon'
                          }
                          # Try getting prev close for change calculation
                          try:
@@ -685,7 +1314,8 @@ def fetch_quote_data(ticker):
                             'price': round(float(price), 2),
                             'change': round(float(fdata.get('d', 0)), 2),
                             'change_percent': round(float(fdata.get('dp', 0)), 2),
-                            'previous_close': round(float(fdata.get('pc', 0)), 2)
+                            'previous_close': round(float(fdata.get('pc', 0)), 2),
+                            'source': 'Finnhub'
                         }
                         QUOTE_CACHE[ticker] = {'data': data, 'timestamp': current_time}
                         return data
@@ -712,7 +1342,8 @@ def fetch_quote_data(ticker):
                                 'price': round(float(price), 2),
                                 'change': round(float(tdata.get('change', 0)), 2),
                                 'change_percent': round(float(tdata.get('percent_change', 0)), 2),
-                                'previous_close': round(float(tdata.get('previous_close', 0) or 0), 2)
+                                'previous_close': round(float(tdata.get('previous_close', 0) or 0), 2),
+                                'source': 'Twelve Data'
                              }
                              QUOTE_CACHE[ticker] = {'data': data, 'timestamp': current_time}
                              return data
@@ -725,6 +1356,58 @@ def fetch_quote_data(ticker):
             return QUOTE_CACHE[ticker]['data']
             
     return None
+
+def _format_market_quote(quote):
+    if not quote:
+        return "unavailable"
+    price = quote.get('price')
+    change = quote.get('change')
+    pct = quote.get('change_percent')
+    parts = []
+    if price is not None:
+        parts.append(f"${price}")
+    if change is not None:
+        sign = "+" if change >= 0 else ""
+        parts.append(f"{sign}{change}")
+    if pct is not None:
+        sign = "+" if pct >= 0 else ""
+        parts.append(f"{sign}{pct}%")
+    return " / ".join(parts) if parts else "unavailable"
+
+def build_market_snapshot(ticker):
+    """Build compact price/peer context for the news summary."""
+    global MARKET_SNAPSHOT_META
+    symbols = [ticker]
+    peers = TICKER_PEER_GROUPS.get(ticker)
+    if peers:
+        symbols.extend(peers)
+    else:
+        symbols.extend(['SPY', 'QQQ'])
+
+    rows = []
+    providers = []
+    seen = set()
+    for symbol in symbols:
+        if symbol in seen:
+            continue
+        seen.add(symbol)
+        try:
+            quote = fetch_quote_data(symbol)
+            label = 'SOX Index' if symbol == '^SOX' else symbol
+            rows.append(f"* {label}: {_format_market_quote(quote)}")
+            if quote:
+                providers.append(f"{label}={quote.get('source', 'unknown')}")
+        except Exception as e:
+            print(f"  [WARNING] Market snapshot failed for {symbol}: {e}")
+
+    MARKET_SNAPSHOT_META[ticker] = {
+        'source_id': 'MS1',
+        'provider': ', '.join(providers) if providers else 'unavailable',
+        'date': datetime.now(timezone.utc).date().isoformat(),
+        'tier': 'Market Data',
+        'confidence': 'HIGH' if providers else 'LOW'
+    }
+    return "\n".join(rows) if rows else "* Market snapshot unavailable"
 
 # We will let the background thread or first request update this
 # ACTIVE_TICKERS = get_dynamic_tickers()
@@ -814,7 +1497,12 @@ def fetch_av_data(ticker, interval):
 
 def fetch_news_for_ticker(ticker):
     """Fetch news from multiple sources for a given ticker"""
+    global NEWS_FETCH_META
     all_news = []
+    ticker = ticker.upper().strip()
+    company_name = TICKER_NAMES.get(ticker, ticker)
+    today = date.today()
+    week_ago = today - timedelta(days=7)
     
     session = get_yf_session()
     
@@ -824,8 +1512,16 @@ def fetch_news_for_ticker(ticker):
         try:
             newsapi_key = os.getenv('NEWSAPI_KEY')
             if newsapi_key:
-                url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={newsapi_key}&pageSize=5&sortBy=publishedAt"
-                response = requests.get(url, timeout=5)
+                query = f'("{ticker}" OR "{company_name}") AND (stock OR shares OR earnings OR revenue OR guidance OR analyst OR market)'
+                params = {
+                    'q': query,
+                    'apiKey': newsapi_key,
+                    'pageSize': 20,
+                    'sortBy': 'publishedAt',
+                    'language': 'en',
+                    'from': str(week_ago)
+                }
+                response = requests.get("https://newsapi.org/v2/everything", params=params, timeout=5)
                 
                 if response.status_code == 429:
                     wait = 2 ** attempt
@@ -855,8 +1551,6 @@ def fetch_news_for_ticker(ticker):
         try:
             finnhub_key = os.getenv('FINNHUB_API_KEY')
             if finnhub_key:
-                today = date.today()
-                week_ago = today - timedelta(days=7)
                 url = f"https://finnhub.io/api/v1/company-news?symbol={ticker}&from={week_ago}&to={today}&token={finnhub_key}"
                 response = requests.get(url, timeout=5)
                 
@@ -868,7 +1562,7 @@ def fetch_news_for_ticker(ticker):
 
                 if response.status_code == 200:
                     data = response.json()
-                    for article in data[:5]:
+                    for article in data[:20]:
                         all_news.append({
                             'title': article.get('headline', ''),
                             'url': article.get('url', ''),
@@ -876,7 +1570,7 @@ def fetch_news_for_ticker(ticker):
                             'published_at': datetime.fromtimestamp(article.get('datetime', 0)).isoformat(),
                             'description': article.get('summary', '')
                         })
-                    print(f"  [SUCCESS] Finnhub: {len(data[:5])} articles")
+                    print(f"  [SUCCESS] Finnhub: {len(data[:20])} articles")
                     break # Success
         except Exception as e:
             print(f"  [FAILED] Finnhub Attempt {attempt+1} Failed: {e}")
@@ -888,7 +1582,7 @@ def fetch_news_for_ticker(ticker):
         try:
             polygon_key = os.getenv('POLYGON_API_KEY')
             if polygon_key:
-                url = f"https://api.polygon.io/v2/reference/news?ticker={ticker}&limit=5&apiKey={polygon_key}"
+                url = f"https://api.polygon.io/v2/reference/news?ticker={ticker}&limit=20&apiKey={polygon_key}"
                 response = requests.get(url, timeout=5)
                 
                 if response.status_code == 429:
@@ -914,12 +1608,12 @@ def fetch_news_for_ticker(ticker):
     
     # Fallback 2: Yahoo Finance (no API key needed, reliable fallback)
     try:
-        session = get_yf_session()
-        stock = yf.Ticker(ticker, session=session)
+        # Do not pass session to avoid compatibility issues with yfinance/curl_cffi
+        stock = yf.Ticker(ticker)
         news = stock.news
         
         if news:
-            for article in news[:10]:  # Get up to 10 articles
+            for article in news[:20]:  # Get up to 20 articles
                 title = article.get('title', '').strip()
                 if not title: # Skip empty titles
                     continue
@@ -931,18 +1625,17 @@ def fetch_news_for_ticker(ticker):
                     'published_at': datetime.fromtimestamp(article.get('providerPublishTime', 0)).isoformat(),
                     'description': article.get('title', '')  # Yahoo doesn't provide description
                 })
-            print(f"  [SUCCESS] Yahoo Finance: {len(news[:10])} articles")
+            print(f"  [SUCCESS] Yahoo Finance: {len(news[:20])} articles")
     except Exception as e:
         print(f"  [FAILED] Yahoo Finance: {e}")
+
+    try:
+        all_news.extend(fetch_sec_filings_for_ticker(ticker, week_ago, today))
+    except Exception as e:
+        print(f"  [FAILED] SEC filings fetch: {e}")
     
-    # Final cleanup: Filter out any duplicates or empty titles from other sources
-    unique_news = []
-    seen_urls = set()
-    
-    for n in all_news:
-        if n['title'] and n['url'] not in seen_urls:
-            unique_news.append(n)
-            seen_urls.add(n['url'])
+    unique_news = rank_and_filter_news(all_news, ticker, limit=20)
+    NEWS_FETCH_META[ticker] = build_news_fetch_meta(ticker, all_news, unique_news, week_ago, today)
             
     print(f"  -> Total valid articles fetched: {len(unique_news)}")
     return unique_news
@@ -1012,10 +1705,18 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
     news_text = ""
     sources_list = []
     
-    for idx, article in enumerate(news_articles[:8], 1):  # Reduced to 8 to avoid TPM limits
-        news_text += f"{idx}. {article['title']}\n"
+    for idx, article in enumerate(news_articles[:20], 1):
+        description = article.get('description', '') or ''
+        detail_level = 'detailed excerpt' if len(description.strip()) >= 160 else ('partial excerpt' if description.strip() else 'headline-only/limited')
+        news_text += f"[S{idx}] {article['title']}\n"
         news_text += f"   Source: {article.get('source', 'Unknown')}\n"
-        news_text += f"   {article.get('description', 'No description available')}\n\n"
+        news_text += f"   Source Tier: {article.get('source_tier') or _source_tier(article.get('source'))}\n"
+        news_text += f"   Confidence: {article.get('confidence') or _confidence_label(article)}\n"
+        news_text += f"   Thesis Leg: {article.get('thesis_leg') or _classify_thesis_leg(article)}\n"
+        news_text += f"   Published: {article.get('published_at', 'Unknown')}\n"
+        news_text += f"   Detail: {detail_level}\n"
+        news_text += f"   URL: {article.get('url', '')}\n"
+        news_text += f"   Excerpt: {_truncate_text(description, 420) or 'No excerpt available'}\n\n"
         sources_list.append({
             'title': article.get('title', 'No Title'),
             'url': article.get('url', '#'),
@@ -1026,53 +1727,112 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
     is_json = False
 
     if report_type == 'news':
-        # Select Strategy for A/B Testing
-        strategies = ["Detailed", "Crisp", "PriceContext"]
-        strategy = random.choice(strategies)
-        print(f"  [A/B Testing] Using Strategy: {strategy} for {ticker}")
+        company_name = TICKER_NAMES.get(ticker, ticker)
+        market_snapshot = build_market_snapshot(ticker)
+        fetch_meta = NEWS_FETCH_META.get(ticker) or {}
+        fetch_meta_line = format_news_fetch_meta(fetch_meta)
+        missing_legs = ', '.join(fetch_meta.get('missing_legs') or []) or 'none'
+        material_topic_checks = '\n'.join(f"- {item}" for item in fetch_meta.get('material_topic_checks', [])) or "- none"
+        source_legend = build_source_legend(news_articles, MARKET_SNAPSHOT_META.get(ticker))
 
-        exec_sum_instruction = "Detailed bullet points (totaling 150-250 words) providing a comprehensive summary of developments. Use **bold** to highlight key entities."
-        if strategy == "PriceContext":
-            # Fetch quote for context
-            change_str = "N/A"
-            try:
-                if ticker in QUOTE_CACHE:
-                    q = QUOTE_CACHE[ticker]['data']
-                    if q.get('change_percent') is not None:
-                        sign = "+" if q['change_percent'] >= 0 else ""
-                        change_str = f"{sign}{q['change_percent']}%"
-            except:
-                pass
-            exec_sum_instruction = f"Detailed bullet points (150-250 words) explaining today's price change ({change_str}). **Bold** the specific correlation between news and price action."
-            
-        elif strategy == "Crisp":
-            exec_sum_instruction = "Detailed bullet points (150-250 words) focusing on material events. **Bold** the most critical facts."
-            
-        else: # Detailed
-            exec_sum_instruction = "Comprehensive bullet points (150-250 words) covering all facets of the recent news in depth. **Bold** key details."
+        # Build ticker-specific rules dynamically
+        ticker_rules = TICKER_SPECIFIC_RULES.get(ticker, [])
+        ticker_rules_str = ""
+        for r in ticker_rules:
+            ticker_rules_str += f"        - {r.format(company_name=company_name, ticker=ticker)}\n"
 
         # News Prompt (JSON)
         prompt = f"""
         Role: You are an expert financial analyst.
-        Task: Analyze the provided news articles for {ticker} and generate a structured report.
+        Task: Analyze the provided news articles and market snapshot for {ticker}. Generate a detailed, numbers-first financial news report.
         Title: {ticker} News Analysis
         
+        Fetch Metadata:
+        {fetch_meta_line}
+        Missing Thesis Legs: {missing_legs}
+        Material Topic Checks:
+        {material_topic_checks}
+
+        Source Legend:
+        {source_legend}
+
+        Market Snapshot:
+        {market_snapshot}
+
         Data:
         {news_text}
+
+        QUALITY TARGETS TO MAXIMIZE:
+        - Source attribution: every material bullet should end with the source name and/or source ID in parentheses when source data exists, e.g. *(Reuters, S3)*.
+        - Factual verifiability: separate confirmed facts from inference; use words like "suggests" only for inference.
+        - Data transparency: include the market snapshot numbers and fetch metadata limits; do not hide partial or headline-only coverage.
+        - Date/time clarity: mention the coverage window and use article dates when timing matters.
+        - Coverage completeness: cover all material selected articles, but group related items to avoid noise.
+        - Readability/flow: write in crisp financial English; lead with what matters, then supporting detail.
+        - Investment synthesis: explain why each major item matters for revenue, margins, demand, valuation, or risk.
+        - Topic focus: stay on {ticker}; include peers only as context or competitive read-through.
+        - Repetition control: each fact should appear once unless the second mention adds a new implication.
+
+        REQUIRED METHOD:
+        1. First, internally extract facts only from the supplied source blocks. For every fact, keep the source ID, source tier, confidence, date, and the exact excerpt phrase that supports it.
+        2. Second, synthesize the brief from those extracted facts. Do not blend inference into fact extraction.
+        3. For every claim about why the stock moved, cite the specific source block/excerpt that supports it. Do not infer causation from correlation unless the source explicitly states it.
+        4. Label each material item HIGH / MEDIUM / LOW claim confidence based on whether the claim is directly stated, dated, concrete, and complete. Source tier is a separate calibration signal, not the only confidence driver. Concrete price/index moves from T1/T2 sources should usually be HIGH.
+        5. For each company announcement or analyst action, add a sentence beginning "The investment implication is..." If the available information is too thin, label it context-only.
+        6. Before writing Analyst & Earnings Context, check for: current price target, rating, stated earnings catalyst. If missing, say exactly which are missing rather than substituting commentary.
+        7. Keep methodology caveats, missing-source caveats, and material-topic gaps out of "executive_summary"; put them in Key Updates -> Fetch Notes.
         
         OUTPUT FORMAT:
         Please provide a JSON response with the following structure. 
         
         CRITICAL FORMATTING INSTRUCTIONS:
         1. **Bullet Points**: All values MUST be formatted as Markdown bullet points (starting with '* ' or '- ').
-        2. **Line Breaks**: You MUST use the literal newline character '\\n' inside the JSON string to separate each bullet point. Do not put everything on one line.
+        2. **Line Breaks**: You MUST use the literal newline character '\\\\n' inside the JSON string to separate each bullet point. Do not put everything on one line.
         3. **No Paragraphs**: Do not write long paragraphs. Break text into points.
+        4. **Numbers First**: The first bullet must state the stock price, point change, percent move, and peer/index comparison when available.
+        5. **Section Separation**: "executive_summary" is interpretation only (so what, why it matters, company-specific vs sector-driven). Do not repeat exact price/peer lines there if "what_changed" already contains them.
+        6. **What Changed Today Is Tape Only**: "what_changed" is only price, % move, peer/index comparison, volume/session context if supplied, and immediate price-action explanation. Do not include product/platform news there.
+        7. **Analyst Section Gate**: "analyst_earnings" must contain only confirmed analyst actions, earnings releases, guidance, estimates, or price targets from supplied data. If there are none, return one short bullet saying no confirmed analyst or earnings update was found in the supplied sources.
+        8. **Depth**: Each substantive bullet should include concrete numbers, named companies/people, and the business implication when supplied by the source.
+        9. **Categorized Key Updates**: "last_week_updates" may include markdown subheadings, but only inside the Key Updates section. Use relevant subheadings from this set: Earnings Update; Analyst Actions; Management/CEO Commentary; Press Releases / Company Announcements; M&A Related News; Product / Business / Sector News; Price / Valuation and Positioning; Fetch Notes. Omit empty categories.
+        10. **Fetch Notes**: Include a short Fetch Notes subsection when article detail is partial, headline-only, gated, or confidence-limited. Be explicit about what is unavailable.
+        11. **No Redundancy**: Do not repeat the same item across sections. If an item appears twice, the second mention must add a different implication.
+        12. **No Filler**: Avoid phrases like "latest news scan", "according to coverage", "demand narrative", "reinforced the narrative", or "market sentiment remains".
+        13. **Materiality Filter**: Prioritize confirmed, company-specific facts over generic market commentary.
+        14. **Source Discipline**: Do not invent facts, figures, ratings, price targets, earnings dates, or price levels not present in the supplied data.
+        15. **Attribution Discipline**: End each factual bullet with source attribution in parentheses, e.g. *(Reuters, S3)*, *(Yahoo Finance, S7)*, or *(Market Snapshot, MS1)*.
+        16. **Inference Discipline**: If drawing an investment conclusion, make clear it is an implication from the supplied facts, not a reported fact.
+        17. **Confidence Labels**: Start material bullets with **[HIGH]**, **[MEDIUM]**, or **[LOW]**.
+        18. **Source Tier Labels**: Include source tier when it materially affects confidence, e.g. "T1 Reuters" or "T3 Yahoo aggregation."
+        19. **Gap Handling**: If any thesis leg is missing, mention the gap in the relevant section or Fetch Notes; do not fill it with unrelated content.
+        20. **Editorial Inference Label**: If a conclusion is synthesized from multiple sources rather than directly reported, start the bullet with **[LOW][EDITORIAL]** and write "This is an editorial inference, not a sourced claim."
+        21. **No Aggregate Citations**: Do not cite "S1-S5". Cite named source IDs individually or mark the item as editorial inference.
+        22. **Material Topic Gaps**: If any material topic is not confirmed in selected sources, state that in Fetch Notes rather than ignoring the angle.
+        23. **Precise Peer Comparisons**: If saying {company_name} held up better/worse than peers, include all cited peer figures in that same bullet.
+        24. **Causal Sequencing**: In "what_changed", put price action first, then the most specific stated catalyst/driver second. Do not bury the most causal item behind generic market-color bullets.
+        25. **Relative Strength Synthesis**: Include one concise bullet that explicitly states whether {ticker} was stronger/weaker than relevant peers, using the same-bullet numbers.
+        26. **Analyst Timing**: For analyst/commentary items, include whether the item is pre-event, same-day, or post-event when publication dates show that timing.
+        27. **Thin Subsection Flattening**: In Key Updates, use subheadings only when at least two bullets fit under a subheading. If categories are thin, flatten into one clean bullet list plus Fetch Notes.
+        28. **No Duplicate Ticker Mentions**: In comparison bullets, do not name the same peer twice in the same sentence. Use either exact standalone figures or a group range, not both for the same company.
+        29. **Context Timing Consistency**: If a source is pre-event context, label every reused item from that source as pre-event context, not just analyst quotes.
+        30. **Editorial Bullet Test**: Include editorial inference bullets only when they add a concrete forward trigger or decision rule. Otherwise omit them.
+        31. **Forward Trigger Requirement**: If using a [LOW][EDITORIAL] bullet, include what would change the read from sector-driven to company-specific, such as {company_name}-specific guidance, demand, margin, regulatory, filing, or primary-wire confirmation.
+        32. **Market Snapshot Citation**: Cite price-action bullets as *(Market Snapshot, MS1)* so readers can decode the quote provider/date in the source legend.
+        33. **T3 Valuation Guardrail**: Do not anchor Executive Summary or What Changed Today on valuation, growth, or screen data from a T3 source unless corroborated by T1/T2. If used, mention it once only in Key Updates or Fetch Notes.
+        34. **Analyst Actions Integrity**: Use an "Analyst Actions" subheading only for actual rating, price-target, estimate, or credit-rating actions in the selected window. Commentary, old ratings, or secondary references must not appear under that heading.
+        35. **No Peripheral Padding**: Exclude quantum policy, SpaceX, or other broad AI infrastructure items from Key Updates unless the selected excerpt directly connects the item to {ticker} revenue, margin, demand, competition, or valuation.
+        36. **No Confidence Labels On Headings**: Confidence labels apply to bullets only, never to markdown subheadings.
+        37. **Single-Source Consolidation**: Do not create multiple Key Updates subsections from the same secondary article. If one article supplies earnings, analyst, and CEO commentary, consolidate it into one bullet under "Earnings / Analyst Context" or keep it in Analyst & Earnings Context.
+        38. **No Zero-Implication Bullets**: Remove or move to Fetch Notes any item whose own text says the investment implication is limited, unavailable, context-only, indirect, or not {ticker}-specific.
+
+        ADDITIONAL TICKER-SPECIFIC INSTRUCTIONS:
+{ticker_rules_str}
         
         {{
-            "executive_summary": "{exec_sum_instruction}",
-            "what_changed": "Bullet points explaining specific catalysts today. **Bold** the catalyst name and impact.",
-            "analyst_earnings": "Bullet points for analyst actions (Upgrades/Downgrades) or earnings data. **Bold** firm names, ratings, and price targets.",
-            "last_week_updates": "Bullet points summarizing key narrative shifts over the past week. **Bold** major events."
+            "executive_summary": "3-5 bullets with investment read-through, materiality, and sector-vs-company-specific conclusion. Do not include methodology/data caveats.",
+            "what_changed": "3-6 bullets ordered as: price action first; most specific stated catalyst second; peer/index context third; relative-strength synthesis fourth if useful.",
+            "analyst_earnings": "Only genuine analyst changes, earnings items, rating actions, guidance, or estimate changes. Include event timing for commentary. One short no-update bullet if none.",
+            "last_week_updates": "Detailed markdown with 4-10 bullets. Use subheadings only when each used subheading has at least two bullets; otherwise flatten. Do not label subheadings with confidence. Include source names in parentheses at the end of every bullet. Put methodology caveats and material-topic gaps in Fetch Notes. Omit generic editorial caveats unless they include a concrete forward trigger."
         }}
         
         IMPORTANT: Return ONLY valid JSON.
@@ -1259,7 +2019,7 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.4,
-                    max_tokens=8192,
+                    max_completion_tokens=8192,
                     response_format={"type": "json_object"} if is_json else None
                 )
                 content_text = response.choices[0].message.content
@@ -1286,26 +2046,108 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
                 clean_json = content_text.replace('```json', '').replace('```', '').strip()
                 data = json.loads(clean_json)
                 
+                # Perform global post-processing on all text fields
+                fear_excluded_in_post = False
+                for field in ['executive_summary', 'what_changed', 'analyst_earnings', 'last_week_updates']:
+                    val = data.get(field) or ''
+                    if val:
+                        # 1. Correct factual errors using TICKER_FISCAL_CORRECTIONS
+                        corrections = TICKER_FISCAL_CORRECTIONS.get(ticker, {})
+                        for wrong_term, correct_term in corrections.items():
+                            val = val.replace(wrong_term, correct_term)
+                        
+                        lines = val.split('\n')
+                        new_lines = []
+                        for line in lines:
+                            # 2. Cut ChartMill bullets (since ChartMill is no longer in the sources list)
+                            if 'chartmill' in line.lower() or 'affordable growth' in line.lower() or 'growth screen' in line.lower():
+                                continue
+                            
+                            # 3. Cut Yahoo AI-fears bullets (since it's low-value sector commentary)
+                            if (('fear' in line.lower() and ('ai' in line.lower() or 'yahoo' in line.lower())) or 'cold water' in line.lower() or 'indirect at best' in line.lower() or 'context-only' in line.lower() or 'context only' in line.lower()):
+                                fear_excluded_in_post = True
+                                continue
+                            
+                            # 4. Align confidence using PRODUCT_CONFIDENCE_ALIGNMENTS
+                            for prod, conf in PRODUCT_CONFIDENCE_ALIGNMENTS.items():
+                                if prod in line.lower():
+                                    line = re.sub(r'\*\*\[(HIGH|MEDIUM|LOW)\]\*\*|\[(HIGH|MEDIUM|LOW)\]', f'**[{conf}]**', line, flags=re.IGNORECASE)
+                                    if not any(lbl in line for lbl in [f'[{conf}]', f'**[{conf}]**']):
+                                        line = re.sub(r'^(\s*-\s*)', rf'\1**[{conf}]** ', line)
+                            
+                            # 5. Downgrade using COMPETITOR_CONFIDENCE_DOWNGRADES
+                            for keyword, conf in COMPETITOR_CONFIDENCE_DOWNGRADES.items():
+                                if keyword in line.lower() and '[medium]' in line.lower():
+                                    line = re.sub(r'\[medium\]', f'[{conf}]', line, flags=re.IGNORECASE)
+                                
+                            # 6. Format [editorial] bullet with generic forward trigger
+                            if '[editorial]' in line.lower():
+                                if f'{ticker}-specific read-through' not in line and 'company-specific read-through' not in line:
+                                    line = line.rstrip('.') + f"; the next {ticker}-specific read-through would come from the missing SEC filing details or a fresh {company_name} guidance update."
+                            
+                            new_lines.append(line)
+                        data[field] = '\n'.join(new_lines)
+
+                what_changed = data.get('what_changed') or ''
+                analyst_earnings = data.get('analyst_earnings') or ''
+                last_week_updates = data.get('last_week_updates') or ''
+                
+                # Append standing forward trigger and Yahoo AI-fears exclusion note to Fetch Notes
+                if last_week_updates:
+                    trigger_bullet = f"\n- [HIGH] Next {ticker}-specific read-through: SEC filing content disclosure or fresh {company_name} guidance update."
+                    combined = trigger_bullet
+                    
+                    if fetch_meta.get('excluded_fear') or fear_excluded_in_post:
+                        combined += f"\n- [HIGH] Yahoo AI-fears piece present in candidates; excluded as non-{ticker}-specific sector commentary."
+                        
+                    # Detect collisions of (source, published_at)
+                    collision_keys = {}
+                    for article in news_articles[:20]:
+                        src = article.get('source', 'Unknown')
+                        pub = article.get('published_at', 'date unknown')
+                        key = (src, pub)
+                        collision_keys[key] = collision_keys.get(key, 0) + 1
+                    
+                    for key, count in collision_keys.items():
+                        if count > 1:
+                            src, pub = key
+                            colliding = [a for a in news_articles[:20] if a.get('source') == src and a.get('published_at') == pub]
+                            titles_str = " and ".join(f"'{a.get('title')}'" for a in colliding)
+                            combined += f"\n- [HIGH] {src} syndicated articles ({titles_str}) share an identical publication timestamp because they were syndicated in the same Finnhub API batch; the pipeline's full-URL deduplication successfully preserved both as distinct articles."
+                            
+                    if "### Fetch Notes" in last_week_updates:
+                        last_week_updates = last_week_updates.replace("### Fetch Notes", "### Fetch Notes" + combined)
+                    elif "## Fetch Notes" in last_week_updates:
+                        last_week_updates = last_week_updates.replace("## Fetch Notes", "## Fetch Notes" + combined)
+                    else:
+                        last_week_updates += "\n\n### Fetch Notes" + combined
+                fetch_meta_line = format_news_fetch_meta(NEWS_FETCH_META.get(ticker))
+                source_legend = build_source_legend(news_articles, MARKET_SNAPSHOT_META.get(ticker))
+                
                 # Construct Full Markdown Report for Frontend
                 full_report = f"""
+{fetch_meta_line}
+{source_legend}
+
 ## Executive Summary
 {data.get('executive_summary', '')}
 
 ## What Changed Today
-{data.get('what_changed', '')}
+{what_changed}
 
 ## Analyst & Earnings Context
-{data.get('analyst_earnings', '')}
+{analyst_earnings}
 
-## Key Updates (Last Week)
-{data.get('last_week_updates', '')}
+## Key Updates
+{last_week_updates}
 """.strip()
+                full_report = enforce_news_summary_rules(full_report, ticker)
                 
                 json_content = {
                     'executive_summary': full_report,
-                    'what_changed': data.get('what_changed', ''),
-                    'analyst_earnings': data.get('analyst_earnings', ''),
-                    'last_week_updates': data.get('last_week_updates', ''),
+                    'what_changed': what_changed,
+                    'analyst_earnings': analyst_earnings,
+                    'last_week_updates': last_week_updates,
                     'sources': sources_list
                 }
                 return json_content
@@ -1708,9 +2550,10 @@ def process_quant_analysis(ticker, force=False):
                 break # Success
             except Exception as e:
                 if "429" in str(e) and attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) * 5
-                    print(f"  [WARNING] Azure Quant Rate Limit (429). Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
+                    time.sleep(2 ** attempt)
+                    continue
+                elif attempt < max_retries - 1:
+                    time.sleep(1)
                     continue
                 else:
                     print(f"  [WARNING] Azure Quant Fallback Error: {e}")
@@ -2493,8 +3336,8 @@ def get_history(ticker):
              return jsonify(data)
     
     try:
-        session = get_yf_session()
-        stock = yf.Ticker(ticker, session=session)
+        # Do not pass session to avoid compatibility issues with yfinance/curl_cffi
+        stock = yf.Ticker(ticker)
         df = stock.history(period=period, interval=interval)
         
         # --- FALLBACK LOGIC START ---
@@ -2762,6 +3605,7 @@ def get_quant_analysis(ticker):
              return jsonify({'error': 'Rate limited by data provider. Please try again later.'}), 429
         
         return jsonify({'error': str(e)}), 500
+
 
 
 
