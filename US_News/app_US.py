@@ -1643,6 +1643,10 @@ def fetch_news_for_ticker(ticker):
 def extract_fundamental_section(text: str, section_title: str) -> str:
     if not text:
         return ''
+    if isinstance(text, list):
+        text = '\n'.join(str(item) for item in text)
+    elif not isinstance(text, str):
+        text = str(text)
     lines = text.split('\n')
     section_lines = []
     is_recording = False
@@ -1665,10 +1669,19 @@ def split_consolidated_report(summary_dict: dict) -> dict:
         return summary_dict
         
     exec_summary = summary_dict.get('executive_summary') or ''
+    if isinstance(exec_summary, list):
+        exec_summary = '\n'.join(str(item) for item in exec_summary)
+    elif not isinstance(exec_summary, str):
+        exec_summary = str(exec_summary)
+
     analyst_earnings = summary_dict.get('analyst_earnings') or ''
+    if isinstance(analyst_earnings, list):
+        analyst_earnings = '\n'.join(str(item) for item in analyst_earnings)
+    elif not isinstance(analyst_earnings, str):
+        analyst_earnings = str(analyst_earnings)
     
     # If analyst_earnings is already populated (older format), keep it
-    if analyst_earnings and analyst_earnings.strip() and analyst_earnings.strip() != 'N/A':
+    if analyst_earnings and isinstance(analyst_earnings, str) and analyst_earnings.strip() and analyst_earnings.strip() != 'N/A':
         return summary_dict
         
     # Extract sections
@@ -2049,7 +2062,14 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
                 # Perform global post-processing on all text fields
                 fear_excluded_in_post = False
                 for field in ['executive_summary', 'what_changed', 'analyst_earnings', 'last_week_updates']:
-                    val = data.get(field) or ''
+                    val = data.get(field)
+                    if val is None:
+                        val = ''
+                    elif isinstance(val, list):
+                        val = '\n'.join(str(item) for item in val)
+                    elif not isinstance(val, str):
+                        val = str(val)
+                    
                     if val:
                         # 1. Correct factual errors using TICKER_FISCAL_CORRECTIONS
                         corrections = TICKER_FISCAL_CORRECTIONS.get(ticker, {})
@@ -2087,6 +2107,8 @@ def generate_ai_report(ticker, news_articles, report_type='news'):
                             
                             new_lines.append(line)
                         data[field] = '\n'.join(new_lines)
+                    else:
+                        data[field] = ''
 
                 what_changed = data.get('what_changed') or ''
                 analyst_earnings = data.get('analyst_earnings') or ''
