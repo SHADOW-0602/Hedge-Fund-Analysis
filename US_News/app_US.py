@@ -3269,7 +3269,7 @@ def get_fundamentals(ticker):
             
             # Get sources from news table linked to this summary date (or just latest)
             try:
-                news_result = supabase.table('news').select('title, original_url, source').eq('ticker', ticker).order('published_at', desc=True).limit(10).execute()
+                news_result = supabase.table('news').select('title, original_url, source').eq('ticker', ticker).order('published_at', desc=True).limit(20).execute()
                 
                 # Dedup sources by URL
                 seen_urls = set()

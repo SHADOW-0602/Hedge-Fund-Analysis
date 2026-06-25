@@ -617,6 +617,8 @@ window.generateTickerNews = async function (ticker, event) {
         if (res.ok) {
             const genData = await res.json();
             const targetDate = genData.target_date;
+            // Cache the full sources list returned by the generator (all 20 articles)
+            const cachedSources = (genData.sources && genData.sources.length > 0) ? genData.sources : null;
 
             // Poll for completion
             let attempts = 0;
@@ -630,6 +632,10 @@ window.generateTickerNews = async function (ticker, event) {
                         const data = await summaryRes.json();
                         if (data.status === 'found') {
                             clearInterval(checkInterval);
+                            // Inject cached sources if DB returned fewer (or none)
+                            if (cachedSources && (!data.sources || data.sources.length < cachedSources.length)) {
+                                data.sources = cachedSources;
+                            }
                             displaySummary(data, 'summaryContent'); // Only Update NewsContent
                             if (refreshBtn) {
                                 refreshBtn.querySelector('svg').classList.remove('spinning');
@@ -976,7 +982,7 @@ function displaySummary(data, targetId = 'summaryContent') {
         const sourcesTrigger = `
             <div class="sources-trigger-wrapper">
                 <a href="#" class="sources-trigger" onclick="toggleSourcesModal(event, '${modalId}')">
-                    <span>Sources</span>
+                    <span>Sources (${data.sources.length})</span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                         <polyline points="15 3 21 3 21 9"></polyline>
@@ -998,7 +1004,7 @@ function displaySummary(data, targetId = 'summaryContent') {
             <div id="${modalId}" class="modal-overlay" onclick="toggleSourcesModal(event, '${modalId}')">
                 <div class="modal-content" onclick="event.stopPropagation()">
                     <div class="modal-header">
-                        <h3>Sources Used</h3>
+                        <h3>News Coverage <span style="font-size:0.85em; font-weight:400; color:var(--text-secondary);">&#8212; ${data.sources.length} article${data.sources.length !== 1 ? 's' : ''}</span></h3>
                         <button class="modal-close" onclick="toggleSourcesModal(event, '${modalId}')">×</button>
                     </div>
                     <div class="modal-body">
@@ -1072,6 +1078,11 @@ function displaySummary(data, targetId = 'summaryContent') {
 
     // Fix: Remove inline citations like "(Source 12)"
     rawText = rawText.replace(/\s*\(Source\s*\d+\)/gi, '');
+
+    // Fix: Strip confidence/editorial labels like [HIGH], [MEDIUM], [LOW], [EDITORIAL] and markdown bold variants.
+    rawText = rawText.replace(/\*?\[?(HIGH|MEDIUM|LOW|EDITORIAL)\]?\*?/gi, '');
+    rawText = rawText.replace(/\[(HIGH|MEDIUM|LOW|EDITORIAL)\]\s*\[(HIGH|MEDIUM|LOW|EDITORIAL)\]/gi, '');
+    rawText = rawText.replace(/^(\s*-\s*)\s+/gm, '$1');
 
     const reportContent = window.marked
         ? marked.parse(rawText)
